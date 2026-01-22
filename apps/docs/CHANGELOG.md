@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.4
+
+### Patch Changes
+
+- [`8a3cf61`](https://github.com/AbianS/rustrak/commit/8a3cf618d6d2cd48dbdbab4fa62cc2b8c53e4e22) Thanks [@AbianS](https://github.com/AbianS)! - fix: css
+
 ## 0.1.3
 
 ### Patch Changes
