@@ -24,8 +24,7 @@
   </p>
 </div>
 
-<img width="1280" height="412" alt="Frame 2" src="https://github.com/user-attachments/assets/7ba6664b-7352-4955-8943-b1429d7491cd" />
-
+---
 
 ## Why Rustrak?
 
@@ -35,6 +34,8 @@ Most error tracking solutions are either expensive SaaS products or heavy self-h
 - **Lightweight** - Server runs with ~50MB memory footprint
 - **Fast** - <50ms P99 ingestion latency, 10k+ events/second
 - **Simple** - Single binary + PostgreSQL, no Redis or complex infrastructure
+
+<img width="1280" height="412" alt="Frame 2" src="https://github.com/user-attachments/assets/7ba6664b-7352-4955-8943-b1429d7491cd" />
 
 ## Quick Start
 
