@@ -16,29 +16,37 @@ describe('ProjectsResource Integration', () => {
 
   describe('list()', () => {
     it('should fetch all projects', async () => {
-      const projects = await client.projects.list();
+      const response = await client.projects.list();
 
-      expect(projects).toHaveLength(2);
-      expect(projects[0]?.name).toBe('Test Project');
-      expect(projects[1]?.name).toBe('Another Project');
+      expect(response.items).toHaveLength(2);
+      expect(response.items[0]?.name).toBe('Test Project');
+      expect(response.items[1]?.name).toBe('Another Project');
+      expect(response.total_count).toBe(2);
+      expect(response.page).toBe(1);
     });
 
     it('should validate response schema', async () => {
       server.use(
         http.get('http://localhost:8080/api/projects', () => {
-          return HttpResponse.json([
-            {
-              id: 1,
-              name: 'Invalid',
-              slug: 'invalid',
-              sentry_key: 'not-a-uuid', // Invalid UUID
-              dsn: 'http://localhost:8080/1',
-              stored_event_count: 0,
-              digested_event_count: 0,
-              created_at: '2026-01-20T10:00:00.000Z',
-              updated_at: '2026-01-20T10:00:00.000Z',
-            },
-          ]);
+          return HttpResponse.json({
+            items: [
+              {
+                id: 1,
+                name: 'Invalid',
+                slug: 'invalid',
+                sentry_key: 'not-a-uuid', // Invalid UUID
+                dsn: 'http://localhost:8080/1',
+                stored_event_count: 0,
+                digested_event_count: 0,
+                created_at: '2026-01-20T10:00:00.000Z',
+                updated_at: '2026-01-20T10:00:00.000Z',
+              },
+            ],
+            total_count: 1,
+            page: 1,
+            per_page: 20,
+            total_pages: 1,
+          });
         }),
       );
 
@@ -48,12 +56,18 @@ describe('ProjectsResource Integration', () => {
     it('should handle empty array', async () => {
       server.use(
         http.get('http://localhost:8080/api/projects', () => {
-          return HttpResponse.json([]);
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
         }),
       );
 
-      const projects = await client.projects.list();
-      expect(projects).toHaveLength(0);
+      const response = await client.projects.list();
+      expect(response.items).toHaveLength(0);
     });
   });
 

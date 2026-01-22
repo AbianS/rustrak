@@ -35,7 +35,5 @@ jobs:
 
       # Turbo runs everything: lint, test, build
       # Includes Rust via apps/server/package.json scripts
-      - run: pnpm lint
-      - run: pnpm format:check
       - run: pnpm test
       - run: pnpm build

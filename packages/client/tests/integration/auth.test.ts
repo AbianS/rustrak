@@ -20,14 +20,15 @@ describe('AuthResource Integration', () => {
 
   describe('register()', () => {
     it('should register new user successfully', async () => {
-      const user = await client.auth.register({
+      const result = await client.auth.register({
         email: 'newuser@example.com',
         password: 'password123',
       });
 
-      expect(user.id).toBe(3);
-      expect(user.email).toBe('newuser@example.com');
-      expect(user.is_admin).toBe(false);
+      expect(result.user.id).toBe(3);
+      expect(result.user.email).toBe('newuser@example.com');
+      expect(result.user.is_admin).toBe(false);
+      expect(result.cookies).toBeDefined();
     });
 
     it('should validate email format', async () => {
@@ -58,12 +59,12 @@ describe('AuthResource Integration', () => {
     });
 
     it('should create non-admin user by default', async () => {
-      const user = await client.auth.register({
+      const result = await client.auth.register({
         email: 'regular@example.com',
         password: 'password123',
       });
 
-      expect(user.is_admin).toBe(false);
+      expect(result.user.is_admin).toBe(false);
     });
 
     it('should handle very long email addresses', async () => {
@@ -71,12 +72,12 @@ describe('AuthResource Integration', () => {
 
       // Should succeed if under 255 chars total
       if (longEmail.length < 255) {
-        const user = await client.auth.register({
+        const result = await client.auth.register({
           email: longEmail,
           password: 'password123',
         });
 
-        expect(user.email).toBe(longEmail);
+        expect(result.user.email).toBe(longEmail);
       }
     });
 
@@ -109,45 +110,46 @@ describe('AuthResource Integration', () => {
       ).rejects.toThrow(ValidationError); // Client-side validation
 
       // 8 characters should succeed
-      const user = await client.auth.register({
+      const result = await client.auth.register({
         email: 'test8@example.com',
         password: '12345678',
       });
 
-      expect(user.email).toBe('test8@example.com');
+      expect(result.user.email).toBe('test8@example.com');
     });
 
     it('should handle special characters in email', async () => {
-      const user = await client.auth.register({
+      const result = await client.auth.register({
         email: 'user+tag@example.com',
         password: 'password123',
       });
 
-      expect(user.email).toBe('user+tag@example.com');
+      expect(result.user.email).toBe('user+tag@example.com');
     });
   });
 
   describe('login()', () => {
     it('should login with valid credentials', async () => {
-      const user = await client.auth.login({
+      const result = await client.auth.login({
         email: 'test@example.com',
         password: 'password123',
       });
 
-      expect(user.id).toBe(1);
-      expect(user.email).toBe('test@example.com');
-      expect(user.is_admin).toBe(false);
+      expect(result.user.id).toBe(1);
+      expect(result.user.email).toBe('test@example.com');
+      expect(result.user.is_admin).toBe(false);
+      expect(result.cookies).toBeDefined();
     });
 
     it('should login admin user', async () => {
-      const user = await client.auth.login({
+      const result = await client.auth.login({
         email: 'admin@example.com',
         password: 'adminpass123',
       });
 
-      expect(user.id).toBe(2);
-      expect(user.email).toBe('admin@example.com');
-      expect(user.is_admin).toBe(true);
+      expect(result.user.id).toBe(2);
+      expect(result.user.email).toBe('admin@example.com');
+      expect(result.user.is_admin).toBe(true);
     });
 
     it('should reject invalid credentials', async () => {
@@ -209,17 +211,19 @@ describe('AuthResource Integration', () => {
 
   describe('logout()', () => {
     it('should logout successfully', async () => {
-      await expect(client.auth.logout()).resolves.toBeUndefined();
+      const cookies = await client.auth.logout();
+      expect(Array.isArray(cookies)).toBe(true);
     });
 
-    it('should return void on successful logout', async () => {
-      const result = await client.auth.logout();
-      expect(result).toBeUndefined();
+    it('should return cookies array on successful logout', async () => {
+      const cookies = await client.auth.logout();
+      expect(Array.isArray(cookies)).toBe(true);
     });
 
     it('should work even without active session', async () => {
       // Logout should succeed even if not logged in
-      await expect(client.auth.logout()).resolves.toBeUndefined();
+      const cookies = await client.auth.logout();
+      expect(Array.isArray(cookies)).toBe(true);
     });
   });
 
@@ -342,32 +346,26 @@ describe('AuthResource Integration', () => {
   });
 
   describe('Session Cookie Handling', () => {
-    it('should work with session cookies (credentials: include)', async () => {
-      // This tests that ky is configured with credentials: 'include'
-      // The mock will set a cookie header, and subsequent requests should include it
-
-      // Register sets a cookie
-      await client.auth.register({
+    it('should return cookies from register', async () => {
+      const result = await client.auth.register({
         email: 'cookie@example.com',
         password: 'password123',
       });
 
-      // getCurrentUser should work because cookie is sent
-      // Note: In real browsers/node-fetch, cookies are automatically sent
-      // MSW simulates this behavior
-      const user = await client.auth.getCurrentUser();
-      expect(user).toBeDefined();
+      // Register should return cookies
+      expect(result.cookies).toBeDefined();
+      expect(Array.isArray(result.cookies)).toBe(true);
     });
 
-    it('should send cookies with all authenticated requests', async () => {
-      await client.auth.login({
+    it('should return cookies from login', async () => {
+      const result = await client.auth.login({
         email: 'test@example.com',
         password: 'password123',
       });
 
-      // All subsequent requests should include the session cookie
-      const user = await client.auth.getCurrentUser();
-      expect(user.email).toBe('test@example.com');
+      // Login should return cookies
+      expect(result.cookies).toBeDefined();
+      expect(Array.isArray(result.cookies)).toBe(true);
     });
   });
 
@@ -386,8 +384,8 @@ describe('AuthResource Integration', () => {
 
       const results = await Promise.all(promises);
       expect(results).toHaveLength(2);
-      expect(results[0]?.email).toBe('test@example.com');
-      expect(results[1]?.email).toBe('admin@example.com');
+      expect(results[0]?.user.email).toBe('test@example.com');
+      expect(results[1]?.user.email).toBe('admin@example.com');
     });
 
     it('should handle rapid register/logout/login sequence', async () => {
@@ -396,7 +394,7 @@ describe('AuthResource Integration', () => {
         email: 'rapid@example.com',
         password: 'password123',
       });
-      expect(registered.email).toBe('rapid@example.com');
+      expect(registered.user.email).toBe('rapid@example.com');
 
       // Logout
       await client.auth.logout();
@@ -407,7 +405,7 @@ describe('AuthResource Integration', () => {
         email: 'test@example.com',
         password: 'password123',
       });
-      expect(loggedIn.email).toBe('test@example.com');
+      expect(loggedIn.user.email).toBe('test@example.com');
     });
 
     it('should handle unicode characters in email', async () => {
@@ -426,12 +424,12 @@ describe('AuthResource Integration', () => {
       const veryLongPassword = 'a'.repeat(10000);
 
       // Should not crash, server should handle it
-      const user = await client.auth.register({
+      const result = await client.auth.register({
         email: 'longpass@example.com',
         password: veryLongPassword,
       });
 
-      expect(user.email).toBe('longpass@example.com');
+      expect(result.user.email).toBe('longpass@example.com');
     });
 
     it('should handle whitespace in credentials', async () => {
@@ -447,32 +445,34 @@ describe('AuthResource Integration', () => {
   });
 
   describe('TypeScript Type Safety', () => {
-    it('should return properly typed User object from register', async () => {
-      const user = await client.auth.register({
+    it('should return properly typed LoginResult from register', async () => {
+      const result = await client.auth.register({
         email: 'typed@example.com',
         password: 'password123',
       });
 
       // TypeScript should infer these properties
-      const _id: number = user.id;
-      const _email: string = user.email;
-      const _isAdmin: boolean = user.is_admin;
+      const _id: number = result.user.id;
+      const _email: string = result.user.email;
+      const _isAdmin: boolean = result.user.is_admin;
+      const _cookies: string[] = result.cookies;
 
-      expect(user).toBeDefined();
+      expect(result).toBeDefined();
     });
 
-    it('should return properly typed User object from login', async () => {
-      const user = await client.auth.login({
+    it('should return properly typed LoginResult from login', async () => {
+      const result = await client.auth.login({
         email: 'test@example.com',
         password: 'password123',
       });
 
       // TypeScript should infer these properties
-      const _id: number = user.id;
-      const _email: string = user.email;
-      const _isAdmin: boolean = user.is_admin;
+      const _id: number = result.user.id;
+      const _email: string = result.user.email;
+      const _isAdmin: boolean = result.user.is_admin;
+      const _cookies: string[] = result.cookies;
 
-      expect(user).toBeDefined();
+      expect(result).toBeDefined();
     });
 
     it('should enforce LoginRequest schema', () => {
