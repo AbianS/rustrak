@@ -1,0 +1,75 @@
+# API Tokens
+
+API tokens let you access Rustrak programmatically—for scripts, CI/CD, or custom integrations.
+
+**Note**: API tokens are different from the DSN key. The DSN is for SDKs to send events. API tokens are for reading data and managing Rustrak.
+
+## Creating a token
+
+1. Go to **Settings** → **API Tokens**
+2. Click **Create Token**
+3. Enter a description (e.g., "CI/CD Pipeline")
+4. Click **Create**
+5. **Copy the token immediately**—it won't be shown again
+
+## Using tokens
+
+Include the token in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8080/api/projects
+```
+
+### In code
+
+```javascript
+const response = await fetch('http://localhost:8080/api/projects', {
+  headers: {
+    'Authorization': `Bearer ${process.env.RUSTRAK_TOKEN}`,
+  },
+});
+```
+
+```python
+import requests
+import os
+
+response = requests.get(
+    'http://localhost:8080/api/projects',
+    headers={'Authorization': f'Bearer {os.environ["RUSTRAK_TOKEN"]}'}
+)
+```
+
+## Managing tokens
+
+### List tokens
+
+Go to **Settings** → **API Tokens** or:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8080/api/tokens
+```
+
+### Delete a token
+
+1. Go to **Settings** → **API Tokens**
+2. Click delete on the token
+3. Confirm
+
+## Security tips
+
+- **Store in environment variables**, not code
+- **Use descriptive names**: "GitHub Actions Deploy" vs "Token 1"
+- **Rotate periodically**: Create new token, update systems, delete old
+- **Delete unused tokens**
+
+## Troubleshooting
+
+### 401 Unauthorized
+
+Check:
+- Token format is 40 hex characters
+- Header format: `Authorization: Bearer YOUR_TOKEN`
+- Token hasn't been deleted

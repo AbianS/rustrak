@@ -1,0 +1,55 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "out/**",
+        "target/release/**",
+        "!target/release/.fingerprint/**",
+        "!target/release/deps/**",
+        "!target/release/build/**",
+        "!target/release/.cargo-lock",
+        "dist/**"
+      ]
+    },
+    "build:dev": {
+      "dependsOn": ["^build:dev"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [
+        "target/debug/**",
+        "!target/debug/.fingerprint/**",
+        "!target/debug/deps/**",
+        "!target/debug/build/**",
+        "!target/debug/.cargo-lock"
+      ]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "check-types": {
+      "dependsOn": ["^check-types"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "format": {
+      "cache": false
+    },
+    "format:check": {
+      "inputs": ["$TURBO_DEFAULT$"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

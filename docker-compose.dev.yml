@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rustrak
+      POSTGRES_PASSWORD: rustrak
+      POSTGRES_DB: rustrak
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustrak -d rustrak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak
+      - SESSION_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - CREATE_SUPERUSER=admin@admin.com:password123
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  webview-ui:
+    build:
+      context: .
+      dockerfile: ./apps/webview-ui/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:

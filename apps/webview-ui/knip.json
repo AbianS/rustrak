@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "next": {
+    "config": ["next.config.{js,ts,cjs,mjs}"],
+    "entry": [
+      "{instrumentation,instrumentation-client,middleware,proxy}.{js,ts}",
+      "app/{manifest,robots}.{js,ts}",
+      "app/**/sitemap.{js,ts}",
+      "app/**/{icon,apple-icon}.{js,jsx,ts,tsx}",
+      "app/**/{opengraph,twitter}-image.{js,jsx,ts,tsx}",
+      "app/global-{error,not-found}.{js,jsx,ts,tsx}",
+      "app/**/{error,layout,loading,not-found,page,template,default,forbidden,unauthorized}.{js,jsx,ts,tsx}",
+      "app/**/route.{js,jsx,ts,tsx}",
+      "pages/**/*.{js,jsx,ts,tsx}",
+      "src/{instrumentation,instrumentation-client,middleware,proxy}.{js,ts}",
+      "src/app/{manifest,robots}.{js,ts}",
+      "src/app/**/sitemap.{js,ts}",
+      "src/app/**/{icon,apple-icon}.{js,jsx,ts,tsx}",
+      "src/app/**/{opengraph,twitter}-image.{js,jsx,ts,tsx}",
+      "src/app/global-{error,not-found}.{js,jsx,ts,tsx}",
+      "src/app/**/{error,layout,loading,not-found,page,template,default,forbidden,unauthorized}.{js,jsx,ts,tsx}",
+      "src/app/**/route.{js,jsx,ts,tsx}",
+      "src/pages/**/*.{js,jsx,ts,tsx}"
+    ]
+  }
+}

@@ -1,0 +1,179 @@
+# Common Issues
+
+Quick solutions to the most frequent problems.
+
+## Events not appearing
+
+### Check your DSN
+
+The DSN format is:
+```
+http://<sentry_key>@<host>:<port>/<project_id>
+```
+
+Make sure:
+- The host is reachable from your app
+- The port is correct (default: 8080)
+- The project ID exists
+
+### Enable SDK debug mode
+
+```javascript
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  debug: true, // Logs SDK activity to console
+});
+```
+
+### Check network connectivity
+
+```bash
+# Test from your app's server/machine
+curl -v http://your-rustrak-server:8080/health
+```
+
+You should see `{"status":"ok"}`.
+
+### Check rate limits
+
+If you're hitting rate limits, events are dropped. Check server logs:
+
+```bash
+docker logs rustrak
+```
+
+Look for "rate limit exceeded" messages.
+
+## CORS errors
+
+If your browser shows CORS errors, your Rustrak server needs to allow your domain.
+
+### Using a reverse proxy
+
+Add CORS headers in nginx:
+
+```nginx
+location / {
+    proxy_pass http://localhost:8080;
+
+    # CORS headers
+    add_header Access-Control-Allow-Origin "https://your-app.com";
+    add_header Access-Control-Allow-Methods "GET, POST, OPTIONS";
+    add_header Access-Control-Allow-Headers "Content-Type, Authorization, X-Sentry-Auth";
+
+    if ($request_method = 'OPTIONS') {
+        return 204;
+    }
+}
+```
+
+## Can't connect to dashboard
+
+### Dashboard running locally
+
+If you're running the dashboard on your laptop connecting to a remote server:
+
+```bash
+docker run -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  abians7/rustrak-ui:latest
+```
+
+Make sure:
+- The server URL is correct
+- HTTPS is configured if required
+- No firewall blocking the connection
+
+### Server not responding
+
+Check if the server is running:
+
+```bash
+docker ps | grep rustrak
+curl http://localhost:8080/health
+```
+
+## Database connection errors
+
+### Check DATABASE_URL
+
+```bash
+# Format
+postgres://username:password@host:port/database
+
+# Common mistakes
+postgres://user:pass@localhost:5432/rustrak  # Wrong if using Docker
+postgres://user:pass@postgres:5432/rustrak   # Correct for Docker Compose
+```
+
+### Database not ready
+
+The server might start before PostgreSQL is ready. Add a healthcheck:
+
+```yaml
+services:
+  server:
+    depends_on:
+      postgres:
+        condition: service_healthy
+```
+
+## Authentication errors
+
+### 401 Unauthorized (API)
+
+Check your token:
+- Format: 40 hexadecimal characters
+- Header: `Authorization: Bearer YOUR_TOKEN`
+- Token exists and hasn't been deleted
+
+### Can't log in to dashboard
+
+1. Verify user was created:
+```bash
+docker compose exec server sh -c 'CREATE_SUPERUSER="admin@example.com:password" ./rustrak'
+```
+
+2. Check you're using the correct email/password
+
+3. Clear browser cookies and try again
+
+## High memory usage
+
+### Server using too much RAM
+
+Check your rate limits—processing many events increases memory:
+
+```bash
+# Reduce limits for constrained environments
+MAX_EVENTS_PER_MINUTE=100
+MAX_EVENTS_PER_HOUR=1000
+```
+
+### Consider server-only deployment
+
+Run just the server (~50MB RAM) and access the dashboard separately:
+
+```bash
+# On server
+docker run -d -p 8080:8080 abians7/rustrak-server:latest
+
+# Dashboard on another machine
+docker run -d -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  abians7/rustrak-ui:latest
+```
+
+## Events delayed
+
+Events go through two phases:
+1. **Ingest** (immediate): Event received and stored
+2. **Digest** (background): Event processed and grouped
+
+If events appear delayed, the digest phase might be backed up. Check server logs for errors.
+
+## Still stuck?
+
+- Check server logs: `docker logs rustrak`
+- Enable debug logging: `RUST_LOG=debug`
+- [Open an issue](https://github.com/AbianS/rustrak/issues)

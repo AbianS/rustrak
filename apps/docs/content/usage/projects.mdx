@@ -1,0 +1,87 @@
+# Projects
+
+Projects are how you organize your applications in Rustrak. Each project has its own DSN, issues, and events.
+
+## Creating a project
+
+1. Log in to the dashboard
+2. Click **New Project**
+3. Enter a name (e.g., "my-app")
+4. Click **Create**
+
+Your project gets:
+- A unique **DSN** for SDK configuration
+- A **slug** based on the name (e.g., "my-app")
+- An auto-assigned **ID**
+
+## The DSN
+
+The DSN (Data Source Name) is what you give to Sentry SDKs:
+
+```
+http://<sentry_key>@<host>:<port>/<project_id>
+```
+
+Example:
+```
+http://a1b2c3d4-e5f6-7890-abcd-ef1234567890@localhost:8080/1
+```
+
+Copy it from project settings and use it in your app:
+
+```javascript
+Sentry.init({
+  dsn: 'YOUR_DSN_HERE',
+});
+```
+
+## Project slug
+
+The slug appears in issue IDs:
+
+- Project "My App" → slug `my-app`
+- Issue short ID: `MY-APP-1`, `MY-APP-42`
+
+## Deleting a project
+
+**Warning**: This permanently deletes all issues and events.
+
+1. Open project settings
+2. Click **Delete Project**
+3. Confirm
+
+## Best practices
+
+### Naming
+
+Use clear names:
+- `frontend-web`
+- `api-server`
+- `mobile-ios`
+
+### Environment separation
+
+**Option 1: Separate projects** (for large teams)
+- `myapp-production`
+- `myapp-staging`
+
+**Option 2: Tags** (simpler)
+```javascript
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  environment: process.env.NODE_ENV,
+});
+```
+
+Filter by environment in the dashboard.
+
+### When to create separate projects
+
+Create separate projects when:
+- Different applications (web, mobile, API)
+- Different teams own different codebases
+- Compliance requires data separation
+
+Use one project when:
+- Same codebase, different environments
+- Small team managing everything

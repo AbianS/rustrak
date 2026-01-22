@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/.next
+dist
+**/dist
+.turbo
+**/.turbo
+target
+**/target
+.output
+**/.output
+
+# Env files
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Testing
+coverage
+**/.coverage
+.nyc_output
+
+# Misc
+.DS_Store
+*.pem
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+**/Dockerfile
+docker-compose.yml
+.dockerignore

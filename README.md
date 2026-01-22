@@ -1,0 +1,177 @@
+<div align="center">
+  <img src="apps/docs/public/logo.svg" alt="Rustrak" width="80" height="80" />
+  <h1>Rustrak</h1>
+  <p><strong>Ultra-lightweight, self-hosted error tracking compatible with Sentry SDKs</strong></p>
+
+  <p>
+    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
+      <img src="https://github.com/AbianS/rustrak/actions/workflows/ci.yml/badge.svg" alt="CI" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+      <img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/releases">
+      <img src="https://img.shields.io/github/v/release/AbianS/rustrak" alt="Release" />
+    </a>
+  </p>
+
+  <p>
+    <a href="https://rustrak.dev">Documentation</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak/issues">Report Bug</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak/issues">Request Feature</a>
+  </p>
+</div>
+
+---
+
+## Why Rustrak?
+
+Most error tracking solutions are either expensive SaaS products or heavy self-hosted applications. Rustrak is different:
+
+- **Sentry Compatible** - Works with any existing Sentry SDK (Python, JavaScript, Go, Rust, etc.)
+- **Lightweight** - Server runs with ~50MB memory footprint
+- **Fast** - <50ms P99 ingestion latency, 10k+ events/second
+- **Simple** - Single binary + PostgreSQL, no Redis or complex infrastructure
+
+## Quick Start
+
+```bash
+# Create a docker-compose.yml
+curl -O https://raw.githubusercontent.com/AbianS/rustrak/main/docker-compose.yml
+
+# Configure environment
+echo "SESSION_SECRET_KEY=$(openssl rand -hex 32)" > .env
+echo "CREATE_SUPERUSER=admin@example.com:changeme123" >> .env
+
+# Start with Docker
+docker-compose up -d
+```
+
+Or run each service individually:
+
+```bash
+# Server only
+docker run -d -p 8080:8080 \
+  -e DATABASE_URL="postgres://user:pass@localhost:5432/rustrak" \
+  -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
+  abians7/rustrak-server:latest
+
+# Dashboard
+docker run -d -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL="http://localhost:8080" \
+  abians7/rustrak-ui:latest
+```
+
+Open http://localhost:3000 and login with `admin@example.com` / `changeme123`
+
+## Connect Your App
+
+Create a project in the UI, copy your DSN, and add it to your application:
+
+```python
+# Python
+import sentry_sdk
+sentry_sdk.init(dsn="http://<key>@localhost:8080/<project_id>")
+```
+
+```javascript
+// JavaScript
+import * as Sentry from "@sentry/browser";
+Sentry.init({ dsn: "http://<key>@localhost:8080/<project_id>" });
+```
+
+```go
+// Go
+sentry.Init(sentry.ClientOptions{Dsn: "http://<key>@localhost:8080/<project_id>"})
+```
+
+Works with **any** Sentry SDK - no code changes needed if you're migrating from Sentry.
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   Sentry SDK    │────▶│  Rustrak Server │────▶│  PostgreSQL  │
+│   (your app)    │     │   (Rust/Actix)  │     │              │
+└─────────────────┘     └─────────────────┘     └──────────────┘
+                               │
+                               ▼
+                        ┌─────────────┐
+                        │  Rustrak UI │
+                        │  (Next.js)  │
+                        └─────────────┘
+```
+
+| Component | Tech | Purpose |
+|-----------|------|---------|
+| Server | Rust + Actix-web | API & event ingestion |
+| UI | Next.js 16 | Dashboard |
+| Database | PostgreSQL 16 | Storage |
+
+## Docker Images
+
+Available on Docker Hub:
+
+```bash
+docker pull abians7/rustrak-server
+docker pull abians7/rustrak-ui
+```
+
+| Image | Size | Description |
+|-------|------|-------------|
+| `rustrak-server` | ~20MB | API & event ingestion |
+| `rustrak-ui` | ~50MB | Next.js dashboard |
+
+## Development
+
+```bash
+# Prerequisites: Rust, Node.js 20+, pnpm, Docker
+
+# Install dependencies
+pnpm install
+
+# Start PostgreSQL
+docker-compose -f docker-compose.dev.yml up -d postgres
+
+# Run server (terminal 1)
+cd apps/server && cargo run
+
+# Run UI (terminal 2)
+cd apps/webview-ui && pnpm dev
+```
+
+## Documentation
+
+Full documentation is available at **[rustrak.dev](https://rustrak.dev)**
+
+- [Getting Started](https://rustrak.dev/getting-started)
+- [Configuration](https://rustrak.dev/configuration)
+- [API Reference](https://rustrak.dev/api)
+- [Self-Hosting Guide](https://rustrak.dev/self-hosting)
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a PR.
+
+```bash
+# Run tests
+pnpm test
+
+# Run linter
+pnpm lint
+
+# Format code
+pnpm format
+```
+
+## License
+
+GPL-3.0 License - see [LICENSE](LICENSE) for details.
+
+---
+
+<div align="center">
+  <sub>Built with Rust and Next.js</sub>
+</div>

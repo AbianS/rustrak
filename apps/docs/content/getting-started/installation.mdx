@@ -1,0 +1,92 @@
+# Installation
+
+There are several ways to run Rustrak depending on your needs. Pick the one that fits your setup.
+
+## Quick install (Docker Compose)
+
+The fastest way to get everything running locally.
+
+```bash
+# Download docker-compose.yml
+curl -O https://raw.githubusercontent.com/AbianS/rustrak/main/docker-compose.yml
+
+# Configure environment
+echo "SESSION_SECRET_KEY=$(openssl rand -hex 32)" > .env
+echo "CREATE_SUPERUSER=admin@example.com:changeme123" >> .env
+
+# Start everything
+docker compose up -d
+```
+
+This starts:
+- PostgreSQL on port 5432
+- Rustrak Server on port 8080
+- Rustrak Dashboard on port 3000
+
+Open [http://localhost:3000](http://localhost:3000) to access the dashboard.
+
+## Server only (recommended for production)
+
+For production, you often want minimal resource usage on your server. Run only the Rustrak server and access the dashboard from your laptop or deploy it separately on Vercel.
+
+### On your server
+
+```bash
+# Pull and run just the server
+docker run -d \
+  --name rustrak \
+  -p 8080:8080 \
+  -e DATABASE_URL="postgres://user:pass@db-host:5432/rustrak" \
+  -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
+  abians7/rustrak-server:latest
+```
+
+The server uses **~50MB RAM** and handles all error ingestion and API requests.
+
+### Access the dashboard
+
+**Option A: Self-host the dashboard**
+
+```bash
+docker run -d \
+  --name rustrak-ui \
+  -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL="https://your-server.com" \
+  abians7/rustrak-ui:latest
+```
+
+**Option B: Deploy to Vercel (free)**
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AbianS/rustrak/tree/main/apps/webview-ui)
+
+Set `NEXT_PUBLIC_API_URL` to your server URL in Vercel's environment variables.
+
+## Create your first user
+
+After starting Rustrak, create an admin user:
+
+```bash
+# Docker Compose
+docker compose exec server sh -c 'CREATE_SUPERUSER="admin@example.com:yourpassword" ./rustrak'
+
+# Docker (server only)
+docker exec rustrak sh -c 'CREATE_SUPERUSER="admin@example.com:yourpassword" ./rustrak'
+```
+
+## Verify the installation
+
+1. Open the dashboard (localhost:3000 or your Vercel URL)
+2. Log in with your admin credentials
+3. You should see an empty project list
+
+You're ready to [capture your first error](/getting-started/quickstart).
+
+## Resource comparison
+
+| Setup | Server RAM | Server CPU | Notes |
+|-------|------------|------------|-------|
+| Full stack | ~200MB | Low | Easiest setup |
+| Server only | ~50MB | Minimal | Dashboard runs elsewhere |
+| Server only + Vercel | ~50MB | Minimal | Zero dashboard overhead |
+
+For a 512MB VPS, the server-only option leaves plenty of room for your application and database.

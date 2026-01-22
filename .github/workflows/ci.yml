@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Setup Rust (required for server)
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      # Cache Rust dependencies
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/server -> target
+
+      # Setup Node.js + pnpm
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Turbo runs everything: lint, test, build
+      # Includes Rust via apps/server/package.json scripts
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm build

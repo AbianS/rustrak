@@ -1,0 +1,154 @@
+# FAQ
+
+## General
+
+### What SDKs work with Rustrak?
+
+Any Sentry SDK. Rustrak implements the Sentry protocol, so you can use the official Sentry SDKs for JavaScript, Python, Go, Rust, Java, .NET, PHP, Ruby, and more.
+
+### Is Rustrak a Sentry replacement?
+
+Rustrak focuses on **error tracking only**. It doesn't support:
+- Performance monitoring
+- Session tracking
+- Release management
+- Replays
+
+If you need these features, use the hosted Sentry service.
+
+### How much resources does Rustrak need?
+
+| Setup | RAM | Notes |
+|-------|-----|-------|
+| Server only | ~50MB | Dashboard runs elsewhere |
+| Full stack | ~200MB | Server + Dashboard |
+
+For a 512MB VPS, server-only is recommended.
+
+### Can I migrate from Sentry?
+
+Yes, just change your DSN. Your SDK code stays the same:
+
+```javascript
+// Before
+Sentry.init({ dsn: 'https://key@sentry.io/123' });
+
+// After
+Sentry.init({ dsn: 'http://key@your-server:8080/1' });
+```
+
+Historical data doesn't migrate—you start fresh.
+
+## Deployment
+
+### Do I need to run the dashboard?
+
+No. You can run only the server and access the dashboard:
+- Locally on your laptop
+- Deployed on Vercel (free)
+- Not at all (API-only usage)
+
+This keeps your server footprint minimal.
+
+### Can I run Rustrak without Docker?
+
+Yes. Build from source:
+
+```bash
+cd apps/server
+cargo build --release
+./target/release/rustrak
+```
+
+You'll need PostgreSQL running separately.
+
+### How do I backup my data?
+
+Backup PostgreSQL:
+
+```bash
+pg_dump -h localhost -U rustrak rustrak > backup.sql
+```
+
+Restore:
+
+```bash
+psql -h localhost -U rustrak rustrak < backup.sql
+```
+
+## Data
+
+### How long are events stored?
+
+Indefinitely, unless you delete them. There's no automatic retention policy (yet).
+
+### Can I export my data?
+
+Yes, via the API:
+
+```bash
+# Get all issues
+curl -H "Authorization: Bearer TOKEN" http://localhost:8080/api/projects/1/issues
+
+# Get events for an issue
+curl -H "Authorization: Bearer TOKEN" http://localhost:8080/api/issues/1/events
+```
+
+### Is my data encrypted?
+
+- **In transit**: Use HTTPS (configure via reverse proxy)
+- **At rest**: Depends on your PostgreSQL setup
+
+Rustrak doesn't add additional encryption.
+
+## Troubleshooting
+
+### Why are my errors grouped incorrectly?
+
+Rustrak groups by exception type, message, and transaction. Use custom fingerprints for better control:
+
+```javascript
+Sentry.captureException(error, {
+  fingerprint: ['my-custom-group'],
+});
+```
+
+### Why don't I see stack traces?
+
+Check that your SDK is configured to send them. For minified JavaScript, you'll need source maps (not yet supported by Rustrak).
+
+### Can I ignore certain errors?
+
+Use your SDK's `beforeSend` hook:
+
+```javascript
+Sentry.init({
+  dsn: 'YOUR_DSN',
+  beforeSend(event) {
+    if (event.message?.includes('Expected error')) {
+      return null; // Don't send
+    }
+    return event;
+  },
+});
+```
+
+Or mute issues in the dashboard.
+
+## Features
+
+### Does Rustrak support alerts?
+
+Not yet. This is planned for a future release.
+
+### Can I integrate with Slack/PagerDuty?
+
+Not built-in. You can use the API to build custom integrations.
+
+### Is there multi-user support?
+
+Yes. Create users and they can all access the dashboard. There's no role-based access control yet—all users have full access.
+
+### Is there multi-organization support?
+
+No. Rustrak is designed for single-team use. For multiple organizations, run separate instances.

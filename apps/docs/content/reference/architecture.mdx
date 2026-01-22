@@ -1,0 +1,134 @@
+# Architecture
+
+How Rustrak is designed and why.
+
+## Overview
+
+```
+┌─────────────────┐     ┌─────────────────────┐     ┌─────────────────┐
+│   Sentry SDK    │────▶│   Rustrak Server    │────▶│   PostgreSQL    │
+│   (your app)    │     │   (Rust/Actix-web)  │     │                 │
+└─────────────────┘     └─────────────────────┘     └─────────────────┘
+                                  │
+                                  ▼
+                        ┌─────────────────┐
+                        │  Dashboard      │ (optional)
+                        │  (Next.js)      │
+                        └─────────────────┘
+```
+
+## Key design decisions
+
+### Separation of server and UI
+
+The server and dashboard are independent:
+
+- **Server**: Rust binary, ~50MB RAM, handles all API and ingestion
+- **Dashboard**: Next.js app, can run anywhere
+
+This means you can:
+- Run only the server for minimal footprint
+- Host the dashboard on Vercel (free)
+- Run the dashboard on your laptop
+- Use the API without any dashboard
+
+### Two-phase ingestion
+
+Events go through two phases:
+
+```
+SDK → Server → Temp Storage → [Background] → Database
+         │
+         └→ Return 200 OK (<50ms)
+```
+
+1. **Ingest** (sync): Receive, validate, store temporarily, return 200
+2. **Digest** (async): Calculate grouping, create/update issue, store event
+
+This ensures your apps get fast responses while heavy processing happens in the background.
+
+### Sentry protocol compatibility
+
+Rustrak implements the Sentry envelope protocol. Benefits:
+- Use any official Sentry SDK
+- No custom SDK to maintain
+- Just change your DSN
+
+## Components
+
+### Server (Rust)
+
+Responsibilities:
+- Receive events from SDKs
+- Parse Sentry envelope format
+- Group events into issues
+- Store data in PostgreSQL
+- Provide REST API
+- Handle authentication
+- Enforce rate limits
+
+Tech: Rust + Actix-web + SQLx + Tokio
+
+### Database (PostgreSQL)
+
+Tables:
+- `projects` – Project configuration
+- `issues` – Grouped errors
+- `events` – Individual error events
+- `groupings` – Issue grouping keys
+- `users` – User accounts
+- `auth_tokens` – API tokens
+
+### Dashboard (Next.js)
+
+Features:
+- Project management
+- Issue browsing
+- Event details (stack traces, breadcrumbs)
+- Token management
+
+Can be deployed anywhere: Docker, Vercel, local.
+
+## Authentication
+
+| Method | Use case | How |
+|--------|----------|-----|
+| Session | Web dashboard | Login form → httpOnly cookie |
+| Bearer Token | API access | `Authorization: Bearer <token>` |
+| SentryAuth | SDK ingestion | DSN sentry_key |
+
+## Deployment options
+
+### Minimal (~50MB RAM)
+
+Server only. Access dashboard locally or via Vercel.
+
+```
+SDK → Server → PostgreSQL
+
+Dashboard runs on your laptop or Vercel
+```
+
+### Full stack (~200MB RAM)
+
+Everything together.
+
+```
+SDK → Server → PostgreSQL
+        ↓
+    Dashboard
+```
+
+### Production
+
+Multiple servers behind a load balancer.
+
+```
+         ┌─────────────┐
+SDKs → LB│  Server x N │→ PostgreSQL (replicated)
+         └─────────────┘
+               ↓
+         Dashboard (CDN/Vercel)
+```
+
+Servers are stateless—add more as needed.

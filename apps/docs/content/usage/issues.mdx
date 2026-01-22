@@ -1,0 +1,120 @@
+# Issues
+
+Rustrak groups similar errors into **Issues**. This reduces noise and helps you focus on what matters.
+
+## What's an issue?
+
+An Issue represents a unique error type. When the same error happens multiple times, each occurrence is an **Event** belonging to that Issue.
+
+```
+Issue: TypeError in checkout.js
+├── Event #1 - Jan 15, 10:30 AM
+├── Event #2 - Jan 15, 10:45 AM
+├── Event #3 - Jan 15, 11:02 AM
+└── Event #4 - Jan 15, 11:15 AM
+```
+
+## Issue ID
+
+Each issue has a human-readable ID:
+
+```
+PROJECT-SLUG-NUMBER
+```
+
+Examples: `MY-APP-1`, `API-SERVER-42`
+
+## How grouping works
+
+Events are grouped by a key calculated from:
+
+1. **Custom fingerprint** (if you set one)
+2. **Exception type + message + transaction**
+3. **Log message + transaction**
+4. **Fallback**
+
+This means:
+- Same error = one issue (multiple events)
+- Different code path = different issue
+- Different transaction = different issue
+
+## Issue states
+
+| State | Description |
+|-------|-------------|
+| **Open** | Needs attention |
+| **Resolved** | Fixed (reopens if error recurs) |
+| **Muted** | Ignored (won't reopen) |
+
+### Resolving issues
+
+1. Click on an issue
+2. Click **Resolve**
+
+If the same error happens again, Rustrak reopens it automatically.
+
+### Muting issues
+
+For known issues you don't want to track:
+
+1. Click on an issue
+2. Click **Mute**
+
+Muted issues won't reopen even if the error recurs.
+
+## Issue detail
+
+Click an issue to see:
+
+- **Stack trace** – Where the error happened
+- **Breadcrumbs** – What happened before the error
+- **Tags** – Environment, browser, custom tags
+- **Context** – User info, custom data
+- **Events** – All occurrences
+
+## Custom grouping
+
+Control how errors are grouped with fingerprints:
+
+```javascript
+// Group all network errors together
+Sentry.captureException(error, {
+  fingerprint: ['network-error', endpoint],
+});
+
+// Include default grouping plus user ID
+Sentry.captureException(error, {
+  fingerprint: ['{{ default }}', userId],
+});
+```
+
+### Special values
+
+- `{{ default }}` – Default grouping key
+- `{{ transaction }}` – Transaction name
+- `{{ type }}` – Exception type
+- `{{ value }}` – Exception message
+
+### Common patterns
+
+**Group by endpoint:**
+```javascript
+fingerprint: ['api-error', '/api/users']
+```
+
+**Separate by environment:**
+```javascript
+fingerprint: ['{{ default }}', process.env.NODE_ENV]
+```
+
+## Tips
+
+### Too many issues?
+
+- Use custom fingerprints for similar errors
+- Group by endpoint instead of full message
+
+### Unrelated errors grouped together?
+
+- Add transaction to fingerprint
+- Use more specific fingerprints

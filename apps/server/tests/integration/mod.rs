@@ -1,0 +1,15 @@
+//! Integration tests module
+//!
+//! Contains tests that require a database and test the full API.
+
+mod auth_test;
+mod bootstrap_test;
+mod concurrency_test;
+mod digest_test;
+mod events_api_test;
+mod health_test;
+mod ingest_test;
+mod issues_api_test;
+mod projects_api_test;
+mod rate_limit_test;
+mod tokens_api_test;

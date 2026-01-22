@@ -1,0 +1,132 @@
+# Production Checklist
+
+Essential steps before going live.
+
+## Security
+
+### 1. Generate secure secrets
+
+```bash
+# Session secret (required when using HTTPS)
+openssl rand -hex 32
+
+# Database password
+openssl rand -base64 24
+```
+
+### 2. Use HTTPS
+
+Put Rustrak behind a reverse proxy with SSL:
+
+```nginx
+# nginx example
+server {
+    listen 443 ssl http2;
+    server_name rustrak.yourcompany.com;
+
+    ssl_certificate /etc/ssl/certs/rustrak.crt;
+    ssl_certificate_key /etc/ssl/private/rustrak.key;
+
+    location / {
+        proxy_pass http://localhost:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Or use Caddy, Traefik, or your cloud provider's load balancer.
+
+### 3. Enable SSL_PROXY
+
+When running behind HTTPS, enable secure cookies:
+
+```bash
+# In your .env or environment
+SSL_PROXY=true
+SESSION_SECRET_KEY=$(openssl rand -hex 32)
+```
+
+This ensures:
+- Cookies are only sent over HTTPS
+- Sessions persist across server restarts
+
+### 4. Database security
+
+```bash
+# Enable SSL
+DATABASE_URL=postgres://user:pass@host:5432/rustrak?sslmode=require
+```
+
+- Use strong passwords
+- Restrict network access
+- Enable automated backups
+
+## Performance
+
+### Resource allocation
+
+| Component | CPU | Memory |
+|-----------|-----|--------|
+| Server | 1 vCPU | 256MB |
+| Database | 1 vCPU | 512MB |
+| Dashboard | 0.5 vCPU | 256MB |
+
+For minimal footprint, run only the server (~50MB RAM) and access the dashboard locally or via Vercel.
+
+### Rate limiting
+
+Adjust based on your expected volume:
+
+```bash
+# High volume
+MAX_EVENTS_PER_MINUTE=5000
+MAX_EVENTS_PER_HOUR=50000
+
+# Low volume / constrained resources
+MAX_EVENTS_PER_MINUTE=100
+MAX_EVENTS_PER_HOUR=1000
+```
+
+## Reliability
+
+### Health checks
+
+```bash
+GET /health        # Liveness
+GET /health/ready  # Readiness
+```
+
+### Restart policy
+
+```yaml
+# docker-compose.yml
+services:
+  server:
+    restart: unless-stopped
+```
+
+### Backups
+
+```bash
+# Daily database backup
+pg_dump -h localhost -U rustrak rustrak > backup_$(date +%Y%m%d).sql
+
+# Restore
+psql -h localhost -U rustrak rustrak < backup.sql
+```
+
+## Pre-launch checklist
+
+- [ ] Secure secrets generated (`SESSION_SECRET_KEY`)
+- [ ] HTTPS configured (reverse proxy)
+- [ ] `SSL_PROXY=true` set
+- [ ] Database SSL enabled
+- [ ] Rate limits set
+- [ ] Health checks monitored
+- [ ] Backup strategy in place
+- [ ] Restart policies configured
+- [ ] Admin user created
+- [ ] Test event sent and received

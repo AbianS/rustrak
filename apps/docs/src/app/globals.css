@@ -1,0 +1,172 @@
+@import 'tailwindcss';
+@import 'nextra-theme-docs/style.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* Brand colors - Light mode */
+  --primary: oklch(0.65 0.18 127); /* #84C800 darker lime */
+  --primary-foreground: oklch(0.98 0 0); /* White text on lime */
+
+  /* Backgrounds - Light mode */
+  --background: oklch(1 0 0); /* #FFFFFF white */
+  --foreground: oklch(0.15 0 0); /* #111827 dark text */
+
+  /* Surfaces - Light mode */
+  --card: oklch(0.98 0 0); /* #F8F9FA light gray */
+  --card-foreground: oklch(0.15 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0 0);
+
+  /* Neutral elements - Light mode */
+  --secondary: oklch(0.96 0 0); /* #F1F3F5 */
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.48 0 0); /* #6B7280 gray */
+  --accent: oklch(0.96 0 0);
+  --accent-foreground: oklch(0.15 0 0);
+
+  /* Borders and inputs - Light mode */
+  --border: oklch(0.91 0 0); /* #E5E7EB */
+  --input: oklch(0.91 0 0);
+  --ring: oklch(0.65 0.18 127); /* Lime focus ring */
+
+  /* Status colors */
+  --destructive: oklch(0.58 0.24 29); /* Red */
+
+  /* Nextra theme overrides */
+  --nextra-primary-hue: 85deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 45%;
+}
+
+.dark {
+  /* Brand colors - Dark mode */
+  --primary: oklch(0.91 0.18 127); /* #C5F11E lime green */
+  --primary-foreground: oklch(0.2 0 0); /* Dark text on lime */
+
+  /* Backgrounds - Dark mode */
+  --background: oklch(0.14 0 0); /* #121212 almost black */
+  --foreground: oklch(0.98 0 0); /* #FAFAFA white text */
+
+  /* Surfaces - Dark mode */
+  --card: oklch(0.18 0 0); /* #1A1A1A surface */
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.18 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+
+  /* Neutral elements - Dark mode */
+  --secondary: oklch(0.22 0 0); /* #2A2A2A elevated */
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.58 0 0); /* #888888 muted text */
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+
+  /* Borders and inputs - Dark mode */
+  --border: oklch(0.22 0 0); /* #2A2A2A */
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.91 0.18 127); /* Lime focus ring */
+
+  /* Status colors */
+  --destructive: oklch(0.63 0.24 29); /* Red */
+
+  /* Nextra theme overrides */
+  --nextra-primary-hue: 85deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 55%;
+  --nextra-bg: 18, 18, 18;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Custom styles for Rustrak documentation */
+.nextra-content {
+  max-width: 56rem;
+}
+
+/* Override Nextra theme colors with lime green */
+html {
+  --nextra-primary-hue: 85deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 45%;
+}
+
+html.dark {
+  --nextra-primary-hue: 85deg;
+  --nextra-primary-saturation: 100%;
+  --nextra-primary-lightness: 55%;
+}
+
+/* Force Nextra links to use lime green */
+.nextra-content a:not(.not-prose *) {
+  color: oklch(0.65 0.18 127);
+}
+
+.dark .nextra-content a:not(.not-prose *) {
+  color: oklch(0.91 0.18 127);
+}
+
+/* Nextra sidebar active item */
+.nextra-sidebar-container a[aria-current="true"],
+.nextra-sidebar-container a[aria-current="page"] {
+  color: oklch(0.65 0.18 127);
+}
+
+.dark .nextra-sidebar-container a[aria-current="true"],
+.dark .nextra-sidebar-container a[aria-current="page"] {
+  color: oklch(0.91 0.18 127);
+}
+
+/* Nextra TOC active item */
+.nextra-toc a[aria-current="true"] {
+  color: oklch(0.65 0.18 127);
+}
+
+.dark .nextra-toc a[aria-current="true"] {
+  color: oklch(0.91 0.18 127);
+}

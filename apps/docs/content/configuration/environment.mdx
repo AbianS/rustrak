@@ -1,0 +1,145 @@
+# Environment Variables
+
+All configuration options for the Rustrak server.
+
+## Required
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+
+### DATABASE_URL
+
+```bash
+# Format
+postgres://username:password@host:port/database
+
+# Examples
+DATABASE_URL=postgres://rustrak:rustrak@localhost:5432/rustrak
+DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak  # Docker
+DATABASE_URL=postgres://user:pass@host:5432/rustrak?sslmode=require  # With SSL
+```
+
+## Security
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SSL_PROXY` | `false` | Set to `true` when behind HTTPS proxy (nginx, Cloudflare) |
+| `SESSION_SECRET_KEY` | (random) | 64-character hex string for session encryption |
+
+### SSL_PROXY
+
+Set to `true` when running behind a reverse proxy that terminates SSL (nginx, Cloudflare, etc.). This enables secure cookies.
+
+```bash
+SSL_PROXY=true
+```
+
+**When `SSL_PROXY=true`:**
+- Cookies are sent only over HTTPS (`Secure` flag enabled)
+- `SESSION_SECRET_KEY` becomes **required**
+
+### SESSION_SECRET_KEY
+
+Generate with:
+```bash
+openssl rand -hex 32
+```
+
+- **Development**: Optional (a random key is used, sessions don't persist across restarts)
+- **Production with `SSL_PROXY=true`**: Required
+
+## Server
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HOST` | `0.0.0.0` | Server bind address |
+| `PORT` | `8080` | Server port |
+| `RUST_LOG` | `info` | Log level (trace, debug, info, warn, error) |
+
+## Database Pool
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_MAX_CONNECTIONS` | `10` | Maximum pool connections |
+| `DATABASE_MIN_CONNECTIONS` | `1` | Minimum pool connections |
+
+## Rate Limiting
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MAX_EVENTS_PER_MINUTE` | `1000` | Max events/minute (global) |
+| `MAX_EVENTS_PER_HOUR` | `10000` | Max events/hour (global) |
+| `MAX_EVENTS_PER_PROJECT_PER_MINUTE` | `500` | Max events/minute per project |
+| `MAX_EVENTS_PER_PROJECT_PER_HOUR` | `5000` | Max events/hour per project |
+
+## Storage
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INGEST_DIR` | `/tmp/rustrak/ingest` | Temporary event storage |
+
+## Bootstrap
+
+| Variable | Description |
+|----------|-------------|
+| `CREATE_SUPERUSER` | Create admin user on startup (`email:password`) |
+
+```bash
+CREATE_SUPERUSER="admin@example.com:secure-password"
+```
+
+Only creates user if database is empty.
+
+## Dashboard (Next.js)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend API URL |
+
+## Complete Example
+
+### Development
+
+```bash
+# .env file (development)
+
+# Required
+DATABASE_URL=postgres://rustrak:rustrak@localhost:5432/rustrak
+
+# Server
+HOST=0.0.0.0
+PORT=8080
+RUST_LOG=info
+
+# Dashboard
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+### Production
+
+```bash
+# .env file (production with HTTPS)
+
+# Required
+DATABASE_URL=postgres://rustrak:password@postgres:5432/rustrak
+
+# Security (required for production behind HTTPS proxy)
+SSL_PROXY=true
+SESSION_SECRET_KEY=a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890
+
+# Server
+HOST=0.0.0.0
+PORT=8080
+RUST_LOG=info
+
+# Database Pool
+DATABASE_MAX_CONNECTIONS=20
+
+# Rate Limiting
+MAX_EVENTS_PER_MINUTE=1000
+MAX_EVENTS_PER_HOUR=10000
+
+# Dashboard
+NEXT_PUBLIC_API_URL=https://rustrak.yourcompany.com
+```

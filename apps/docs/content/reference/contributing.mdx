@@ -1,0 +1,130 @@
+# Contributing
+
+How to contribute to Rustrak.
+
+## Setup
+
+### Prerequisites
+
+- Rust 1.75+
+- Node.js 20+
+- pnpm 9+
+- PostgreSQL 15+
+- Docker (optional)
+
+### Clone and install
+
+```bash
+git clone https://github.com/AbianS/rustrak.git
+cd rustrak
+pnpm install
+```
+
+### Start development
+
+```bash
+# Start PostgreSQL
+docker compose -f docker-compose.dev.yml up -d postgres
+
+# Run server
+cd apps/server && cargo run
+
+# Run dashboard (separate terminal)
+cd apps/webview-ui && pnpm dev
+```
+
+## Project structure
+
+```
+rustrak/
+├── apps/
+│   ├── server/         # Rust API server
+│   ├── webview-ui/     # Next.js dashboard
+│   └── docs/           # Documentation
+├── packages/
+│   ├── client/         # TypeScript API client
+│   └── test-sentry/    # Test CLI tool
+└── docker-compose.yml
+```
+
+## Workflow
+
+### Branches
+
+- `main` – Stable release
+- `feat/*` – New features
+- `fix/*` – Bug fixes
+
+### Commits
+
+Use conventional commits:
+
+```
+feat: Add issue muting
+fix: Correct rate limit calculation
+docs: Update deployment guide
+```
+
+### Pull requests
+
+1. Create feature branch
+2. Make changes
+3. Run tests
+4. Submit PR
+5. Address feedback
+
+## Server (Rust)
+
+### Tests
+
+```bash
+cd apps/server
+cargo test
+```
+
+### Style
+
+```bash
+cargo fmt
+cargo clippy
+```
+
+### Migrations
+
+```bash
+sqlx migrate add description
+sqlx migrate run
+```
+
+## Dashboard (Next.js)
+
+### Tests
+
+```bash
+cd apps/webview-ui
+pnpm test
+pnpm lint
+```
+
+## Documentation
+
+### Run locally
+
+```bash
+cd apps/docs
+pnpm dev
+```
+
+### Add pages
+
+1. Create `.mdx` in `content/`
+2. Add to `_meta.js`
+3. Link from related pages
+
+## Getting help
+
+- **Issues**: Report bugs
+- **Discussions**: Ask questions
+- **Docs**: Check documentation first
+
+Thanks for contributing!

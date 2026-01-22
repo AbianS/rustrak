@@ -1,0 +1,76 @@
+# Overview
+
+Rustrak is a lightweight, self-hosted error tracking system. It's compatible with Sentry SDKs, so you can use your existing setup—just change the DSN.
+
+## Why Rustrak?
+
+- **Self-hosted**: Your data stays on your servers
+- **Lightweight**: ~50MB RAM, ~20MB Docker image
+- **Fast**: Under 50ms ingestion latency
+- **Simple**: No complex configuration required
+- **Free**: No per-event pricing, no limits
+
+## How it works
+
+```
+Your App → Sentry SDK → Rustrak Server → PostgreSQL
+                              ↓
+                        Dashboard (optional)
+```
+
+Your application sends errors using any Sentry SDK. Rustrak receives them, groups similar errors into issues, and stores everything in PostgreSQL. You view and manage issues through the dashboard.
+
+## Deployment options
+
+Rustrak has a unique architecture that separates the server from the dashboard:
+
+| Option | Server | Dashboard | Best for |
+|--------|--------|-----------|----------|
+| **Full stack** | Your server | Your server | Small teams, development |
+| **Server only** | Your server | Your laptop | Minimal server resources |
+| **Server only** | Your server | Vercel (free) | Production with zero server overhead |
+
+### Server-only deployment
+
+The Rustrak server uses only **~50MB RAM**. If you run the dashboard locally or on Vercel, your server only needs to handle API requests—no frontend assets, no Node.js runtime.
+
+```bash
+# On your server: just the Rust binary
+docker run -d -p 8080:8080 abians7/rustrak-server:latest
+
+# Dashboard on another machine or Vercel
+docker run -d -p 3000:3000 \
+  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  abians7/rustrak-ui:latest
+```
+
+This is perfect for:
+- VPS with limited RAM (512MB-1GB)
+- Edge deployments
+- Cost-conscious setups
+
+## What's included
+
+- Error and exception tracking
+- Stack traces with source context
+- Issue grouping and deduplication
+- Issue states (open, resolved, muted)
+- User context and breadcrumbs
+- Tags and custom data
+- Rate limiting
+- API access
+
+## What's NOT included
+
+Rustrak focuses on error tracking. These features are not supported:
+
+- Performance monitoring (transactions, spans)
+- Session tracking
+- Release management
+- Attachments and replays
+
+If you need these, consider the hosted Sentry service.
+
+## Next steps
+
+Ready to get started? [Install Rustrak](/getting-started/installation) in a few minutes.

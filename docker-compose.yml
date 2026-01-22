@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rustrak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rustrak}
+      POSTGRES_DB: rustrak
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustrak -d rustrak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://rustrak:${POSTGRES_PASSWORD:-rustrak}@postgres:5432/rustrak
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

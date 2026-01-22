@@ -1,0 +1,49 @@
+{
+  "name": "@rustrak/client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript client for Rustrak API",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "rustrak",
+    "error-tracking",
+    "sentry",
+    "api-client"
+  ],
+  "author": "",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "ky": "1.14.2",
+    "zod": "4.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.9",
+    "@vitest/coverage-v8": "4.0.17",
+    "msw": "2.12.7",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "4.0.17"
+  }
+}

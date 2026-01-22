@@ -1,0 +1,26 @@
+# Build artifacts
+target/
+debug/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Documentation
+CLAUDE.md
+README.md
+*.md
+
+# Git
+.git/
+.gitignore
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
