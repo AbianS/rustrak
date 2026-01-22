@@ -26,6 +26,8 @@
 
 ---
 
+<img width="1280" height="640" alt="Frame 1" src="https://github.com/user-attachments/assets/3f498a0b-4e0d-47bb-b6b7-d40a38256529" />
+
 ## Why Rustrak?
 
 Most error tracking solutions are either expensive SaaS products or heavy self-hosted applications. Rustrak is different:
