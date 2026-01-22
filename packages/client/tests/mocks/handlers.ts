@@ -34,6 +34,7 @@ export const mockIssues = [
     project_id: 1,
     short_id: 'TEST-1',
     title: 'TypeError: Cannot read property',
+    value: "Cannot read property 'x' of undefined",
     first_seen: '2026-01-20T10:00:00.000Z',
     last_seen: '2026-01-20T11:00:00.000Z',
     event_count: 5,
@@ -47,6 +48,7 @@ export const mockIssues = [
     project_id: 1,
     short_id: 'TEST-2',
     title: 'ReferenceError: foo is not defined',
+    value: 'foo is not defined',
     first_seen: '2026-01-20T09:00:00.000Z',
     last_seen: '2026-01-20T10:00:00.000Z',
     event_count: 3,
@@ -122,7 +124,13 @@ export const mockAdminUser = {
 export const handlers = [
   // Projects
   http.get(`${BASE_URL}/api/projects`, () => {
-    return HttpResponse.json(mockProjects);
+    return HttpResponse.json({
+      items: mockProjects,
+      total_count: mockProjects.length,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
+    });
   }),
 
   http.get(`${BASE_URL}/api/projects/:id`, ({ params }) => {
@@ -186,20 +194,25 @@ export const handlers = [
   // Issues
   http.get(`${BASE_URL}/api/projects/:projectId/issues`, ({ request }) => {
     const url = new URL(request.url);
-    const cursor = url.searchParams.get('cursor');
+    const page = parseInt(url.searchParams.get('page') ?? '1', 10);
 
-    // Simple pagination mock
-    if (cursor) {
+    // Simple pagination mock - page 2 returns empty
+    if (page > 1) {
       return HttpResponse.json({
         items: [],
-        has_more: false,
+        total_count: mockIssues.length,
+        page: page,
+        per_page: 20,
+        total_pages: 1,
       });
     }
 
     return HttpResponse.json({
       items: mockIssues,
-      next_cursor: 'eyJzb3J0IjoiZGlnZXN0X29yZGVyIn0=',
-      has_more: true,
+      total_count: mockIssues.length,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
     });
   }),
 
@@ -276,11 +289,11 @@ export const handlers = [
   ),
 
   // Auth Tokens
-  http.get(`${BASE_URL}/api/auth-tokens`, () => {
+  http.get(`${BASE_URL}/api/tokens`, () => {
     return HttpResponse.json(mockTokens);
   }),
 
-  http.get(`${BASE_URL}/api/auth-tokens/:id`, ({ params }) => {
+  http.get(`${BASE_URL}/api/tokens/:id`, ({ params }) => {
     const { id } = params;
     const token = mockTokens.find((t) => t.id === Number(id));
 
@@ -291,7 +304,7 @@ export const handlers = [
     return HttpResponse.json(token);
   }),
 
-  http.post(`${BASE_URL}/api/auth-tokens`, async ({ request }) => {
+  http.post(`${BASE_URL}/api/tokens`, async ({ request }) => {
     const body = (await request.json()) as { description?: string };
 
     const newToken = {
@@ -304,7 +317,7 @@ export const handlers = [
     return HttpResponse.json(newToken, { status: 201 });
   }),
 
-  http.delete(`${BASE_URL}/api/auth-tokens/:id`, ({ params }) => {
+  http.delete(`${BASE_URL}/api/tokens/:id`, ({ params }) => {
     const { id } = params;
     const token = mockTokens.find((t) => t.id === Number(id));
 

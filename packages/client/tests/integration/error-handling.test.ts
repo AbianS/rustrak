@@ -213,19 +213,25 @@ describe('Error Handling', () => {
     it('should throw ValidationError with details', async () => {
       server.use(
         http.get('http://localhost:8080/api/projects', () => {
-          return HttpResponse.json([
-            {
-              id: 1,
-              name: 'Test',
-              slug: 'test',
-              sentry_key: 'invalid-uuid',
-              dsn: 'http://localhost:8080/1',
-              stored_event_count: 0,
-              digested_event_count: 0,
-              created_at: 'invalid-date',
-              updated_at: '2026-01-20T10:00:00.000Z',
-            },
-          ]);
+          return HttpResponse.json({
+            items: [
+              {
+                id: 1,
+                name: 'Test',
+                slug: 'test',
+                sentry_key: 'invalid-uuid',
+                dsn: 'http://localhost:8080/1',
+                stored_event_count: 0,
+                digested_event_count: 0,
+                created_at: 'invalid-date',
+                updated_at: '2026-01-20T10:00:00.000Z',
+              },
+            ],
+            total_count: 1,
+            page: 1,
+            per_page: 20,
+            total_pages: 1,
+          });
         }),
       );
 
@@ -275,12 +281,18 @@ describe('Error Handling', () => {
               { status: 500 },
             );
           }
-          return HttpResponse.json([]);
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
         }),
       );
 
-      const projects = await client.projects.list();
-      expect(projects).toEqual([]);
+      const response = await client.projects.list();
+      expect(response.items).toEqual([]);
       expect(attempts).toBe(2);
     });
 
@@ -296,7 +308,13 @@ describe('Error Handling', () => {
               { status: 503 },
             );
           }
-          return HttpResponse.json([]);
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
         }),
       );
 

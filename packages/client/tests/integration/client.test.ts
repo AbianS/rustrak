@@ -120,8 +120,8 @@ describe('RustrakClient', () => {
 
       // This will make a request and the token will be in the Authorization header
       // MSW will verify this indirectly by responding correctly
-      const projects = await client.projects.list();
-      expect(projects).toBeDefined();
+      const response = await client.projects.list();
+      expect(response.items).toBeDefined();
     });
   });
 
@@ -138,13 +138,13 @@ describe('RustrakClient', () => {
       });
 
       // Both clients should work independently
-      const [projects1, projects2] = await Promise.all([
+      const [response1, response2] = await Promise.all([
         client1.projects.list(),
         client2.projects.list(),
       ]);
 
-      expect(projects1).toHaveLength(2);
-      expect(projects2).toHaveLength(2);
+      expect(response1.items).toHaveLength(2);
+      expect(response2.items).toHaveLength(2);
     });
   });
 });

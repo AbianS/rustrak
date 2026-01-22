@@ -17,19 +17,19 @@ describe('IssuesResource Integration', () => {
       const response = await client.issues.list(1);
 
       expect(response.items).toHaveLength(2);
-      expect(response.has_more).toBe(true);
-      expect(response.next_cursor).toBeTruthy();
+      expect(response.total_count).toBe(2);
+      expect(response.page).toBe(1);
+      expect(response.per_page).toBe(20);
+      expect(response.total_pages).toBe(1);
     });
 
-    it('should support cursor pagination', async () => {
+    it('should support page pagination', async () => {
       const firstPage = await client.issues.list(1);
-      const secondPage = await client.issues.list(1, {
-        cursor: firstPage.next_cursor,
-      });
+      const secondPage = await client.issues.list(1, { page: 2 });
 
+      expect(firstPage.items).toHaveLength(2);
       expect(secondPage.items).toHaveLength(0);
-      expect(secondPage.has_more).toBe(false);
-      expect(secondPage.next_cursor).toBeUndefined();
+      expect(secondPage.page).toBe(2);
     });
 
     it('should support sort parameter', async () => {
@@ -48,21 +48,18 @@ describe('IssuesResource Integration', () => {
       expect(response.items).toBeDefined();
     });
 
-    it('should support include_resolved parameter', async () => {
+    it('should support filter parameter', async () => {
       const response = await client.issues.list(1, {
-        include_resolved: true,
+        filter: 'all',
       });
 
       expect(response.items).toBeDefined();
     });
 
     it('should handle empty results', async () => {
-      const response = await client.issues.list(1, {
-        cursor: 'some-cursor',
-      });
+      const response = await client.issues.list(1, { page: 99 });
 
       expect(response.items).toHaveLength(0);
-      expect(response.has_more).toBe(false);
     });
 
     it('should validate UUID format in response', async () => {
