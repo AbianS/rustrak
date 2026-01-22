@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.5
+
+### Patch Changes
+
+- [`433921b`](https://github.com/AbianS/rustrak/commit/433921b77a864f6974f467bc932fd943a6b908e1) Thanks [@AbianS](https://github.com/AbianS)! - fix: docs installation
+
 ## 0.1.4
 
 ### Patch Changes
