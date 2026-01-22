@@ -29,13 +29,98 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Create Release Pull Request or Publish
+      # Check if this is a version commit (no changesets = versions were just bumped)
+      - name: Check for changesets
+        id: check
+        run: |
+          # Count changeset files (excluding README.md and config.json)
+          CHANGESETS=$(ls .changeset/*.md 2>/dev/null | grep -v README.md | wc -l | tr -d ' ')
+          echo "changesets_count=$CHANGESETS"
+
+          if [ "$CHANGESETS" -eq "0" ]; then
+            echo "has_changesets=false" >> $GITHUB_OUTPUT
+            echo "📦 No changesets found - this might be a version commit"
+          else
+            echo "has_changesets=true" >> $GITHUB_OUTPUT
+            echo "📝 Found $CHANGESETS changeset(s)"
+          fi
+
+      # If there ARE changesets, create/update the Version Packages PR
+      - name: Create Release Pull Request
+        if: steps.check.outputs.has_changesets == 'true'
         uses: changesets/action@v1
         with:
           version: pnpm changeset version
-          publish: pnpm changeset tag
           title: "chore: version packages"
           commit: "chore: version packages"
-          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+      # If there are NO changesets, we just merged a version PR - create releases
+      - name: Get changed packages and create releases
+        if: steps.check.outputs.has_changesets == 'false'
+        run: |
+          # Get the packages that might have new versions
+          # We check if there's a git tag for the current version, if not, create a release
+
+          # Server
+          SERVER_VERSION=$(node -p "require('./apps/server/package.json').version")
+          SERVER_TAG="@rustrak/server@$SERVER_VERSION"
+          if ! git tag -l | grep -q "^$SERVER_TAG$"; then
+            echo "Creating release for $SERVER_TAG"
+            git tag "$SERVER_TAG"
+            git push origin "$SERVER_TAG"
+            gh release create "$SERVER_TAG" \
+              --title "🚀 @rustrak/server v$SERVER_VERSION" \
+              --notes "Release of @rustrak/server version $SERVER_VERSION" \
+              --latest=false
+          else
+            echo "Tag $SERVER_TAG already exists, skipping"
+          fi
+
+          # UI
+          UI_VERSION=$(node -p "require('./apps/webview-ui/package.json').version")
+          UI_TAG="webview-ui@$UI_VERSION"
+          if ! git tag -l | grep -q "^$UI_TAG$"; then
+            echo "Creating release for $UI_TAG"
+            git tag "$UI_TAG"
+            git push origin "$UI_TAG"
+            gh release create "$UI_TAG" \
+              --title "🎨 webview-ui v$UI_VERSION" \
+              --notes "Release of webview-ui version $UI_VERSION" \
+              --latest=false
+          else
+            echo "Tag $UI_TAG already exists, skipping"
+          fi
+
+          # Docs
+          DOCS_VERSION=$(node -p "require('./apps/docs/package.json').version")
+          DOCS_TAG="docs@$DOCS_VERSION"
+          if ! git tag -l | grep -q "^$DOCS_TAG$"; then
+            echo "Creating release for $DOCS_TAG"
+            git tag "$DOCS_TAG"
+            git push origin "$DOCS_TAG"
+            gh release create "$DOCS_TAG" \
+              --title "📚 docs v$DOCS_VERSION" \
+              --notes "Release of docs version $DOCS_VERSION" \
+              --latest=false
+          else
+            echo "Tag $DOCS_TAG already exists, skipping"
+          fi
+
+          # Client
+          CLIENT_VERSION=$(node -p "require('./packages/client/package.json').version")
+          CLIENT_TAG="@rustrak/client@$CLIENT_VERSION"
+          if ! git tag -l | grep -q "^$CLIENT_TAG$"; then
+            echo "Creating release for $CLIENT_TAG"
+            git tag "$CLIENT_TAG"
+            git push origin "$CLIENT_TAG"
+            gh release create "$CLIENT_TAG" \
+              --title "📦 @rustrak/client v$CLIENT_VERSION" \
+              --notes "Release of @rustrak/client version $CLIENT_VERSION" \
+              --latest=false
+          else
+            echo "Tag $CLIENT_TAG already exists, skipping"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
