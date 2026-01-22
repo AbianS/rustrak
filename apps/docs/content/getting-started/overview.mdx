@@ -36,7 +36,11 @@ The Rustrak server uses only **~50MB RAM**. If you run the dashboard locally or 
 
 ```bash
 # On your server: just the Rust binary
-docker run -d -p 8080:8080 abians7/rustrak-server:latest
+docker run -d -p 8080:8080 \
+  -e DATABASE_URL=postgres://user:pass@localhost:5432/rustrak \
+  -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
+  -e CREATE_SUPERUSER=admin@example.com:your-secure-password \
+  abians7/rustrak-server:latest
 
 # Dashboard on another machine or Vercel
 docker run -d -p 3000:3000 \

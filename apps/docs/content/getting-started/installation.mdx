@@ -165,21 +165,6 @@ CREATE_SUPERUSER=admin@example.com:yourpassword
 
 The format is `email:password`. This only creates the user if no users exist in the database yet.
 
-### Adding more users
-
-To add additional users after the initial setup, update the `CREATE_SUPERUSER` variable and restart:
-
-```bash
-# Update .env with the new user
-echo "CREATE_SUPERUSER=newuser@example.com:password123" > .env.tmp
-cat .env >> .env.tmp && mv .env.tmp .env
-
-# Restart the server
-docker compose restart server
-```
-
-Note: The user is only created if the email doesn't already exist.
-
 ## Verify the installation
 
 1. Open the dashboard (localhost:3000 or your Vercel URL)

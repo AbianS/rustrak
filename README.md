@@ -16,7 +16,7 @@
   </p>
 
   <p>
-    <a href="https://rustrak.dev">Documentation</a>
+    <a href="https://abians.github.io/rustrak">Documentation</a>
     ·
     <a href="https://github.com/AbianS/rustrak/issues">Report Bug</a>
     ·
