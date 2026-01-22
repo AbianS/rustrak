@@ -1,5 +1,11 @@
 # webview-ui
 
+## 0.1.3
+
+### Patch Changes
+
+- [`17291c5`](https://github.com/AbianS/rustrak/commit/17291c54ed7e41f9577588aeef29107194186199) Thanks [@AbianS](https://github.com/AbianS)! - fix: favicon
+
 ## 0.1.2
 
 ### Patch Changes
