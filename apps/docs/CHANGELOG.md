@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.7
+
+### Patch Changes
+
+- [`931d8c9`](https://github.com/AbianS/rustrak/commit/931d8c96d86354ec8069ce317eef3a4426ca8cac) Thanks [@AbianS](https://github.com/AbianS)! - fix: video source github pages
+
 ## 0.1.6
 
 ### Patch Changes
