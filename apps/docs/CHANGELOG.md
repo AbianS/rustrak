@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.3
+
+### Patch Changes
+
+- [`1d9438d`](https://github.com/AbianS/rustrak/commit/1d9438d83f35ffe8460d7399ccc1d4c58d6b0b3a) Thanks [@AbianS](https://github.com/AbianS)! - chore: publish docs
+
 ## 0.1.2
 
 ### Patch Changes
