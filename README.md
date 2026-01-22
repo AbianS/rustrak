@@ -115,6 +115,8 @@ docker compose up -d
 
 Open http://localhost:3000 and login with your `CREATE_SUPERUSER` credentials
 
+<video src="apps/docs/public/videos/overview.webm" autoplay loop muted playsinline></video>
+
 ## Connect Your App
 
 Create a project in the UI, copy your DSN, and add it to your application:
@@ -219,8 +221,3 @@ pnpm format
 
 GPL-3.0 License - see [LICENSE](LICENSE) for details.
 
----
-
-<div align="center">
-  <sub>Built with Rust and Next.js</sub>
-</div>
