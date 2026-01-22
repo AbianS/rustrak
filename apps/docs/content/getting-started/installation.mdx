@@ -6,15 +6,105 @@ There are several ways to run Rustrak depending on your needs. Pick the one that
 
 The fastest way to get everything running locally.
 
+### 1. Create the docker-compose.yml
+
+Create a `docker-compose.yml` file with the following content:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "${SERVER_PORT}:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=${RUST_LOG}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "${UI_PORT}:3000"
+    environment:
+      - RUSTRAK_API_URL=${RUSTRAK_API_URL}
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+**What each service does:**
+
+| Service | Description |
+|---------|-------------|
+| `postgres` | PostgreSQL 16 database with persistent storage. Includes a healthcheck to ensure it's ready before the server starts. |
+| `server` | The Rustrak API server (Rust/Actix-web). Handles event ingestion and API requests. Uses ~50MB RAM. |
+| `ui` | The Rustrak dashboard (Next.js). |
+
+### 2. Configure environment variables
+
+Create a `.env` file with all required configuration:
+
 ```bash
-# Download docker-compose.yml
-curl -O https://raw.githubusercontent.com/AbianS/rustrak/main/docker-compose.yml
+# ===================
+# Database (PostgreSQL)
+# ===================
+POSTGRES_USER=rustrak
+POSTGRES_PASSWORD=rustrak
+POSTGRES_DB=rustrak
 
-# Configure environment
-echo "SESSION_SECRET_KEY=$(openssl rand -hex 32)" > .env
-echo "CREATE_SUPERUSER=admin@example.com:changeme123" >> .env
+# ===================
+# Server
+# ===================
+SERVER_PORT=8080
+RUST_LOG=info
 
-# Start everything
+# Session secret (required) - generate with: openssl rand -hex 32
+SESSION_SECRET_KEY=your-64-char-hex-secret-here
+
+# Admin user (required) - format: email:password
+CREATE_SUPERUSER=admin@example.com:changeme123
+
+# ===================
+# Dashboard
+# ===================
+UI_PORT=3000
+RUSTRAK_API_URL=http://server:8080
+```
+
+To generate a secure session secret:
+
+```bash
+openssl rand -hex 32
+```
+
+### 3. Start Rustrak
+
+```bash
 docker compose up -d
 ```
 
@@ -23,7 +113,7 @@ This starts:
 - Rustrak Server on port 8080
 - Rustrak Dashboard on port 3000
 
-Open [http://localhost:3000](http://localhost:3000) to access the dashboard.
+Open [http://localhost:3000](http://localhost:3000) and log in with the credentials you set in `CREATE_SUPERUSER`.
 
 ## Server only (recommended for production)
 
@@ -38,6 +128,7 @@ docker run -d \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@db-host:5432/rustrak" \
   -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
+  -e CREATE_SUPERUSER="admin@example.com:changeme123" \
   abians7/rustrak-server:latest
 ```
 
@@ -51,7 +142,7 @@ The server uses **~50MB RAM** and handles all error ingestion and API requests.
 docker run -d \
   --name rustrak-ui \
   -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL="https://your-server.com" \
+  -e RUSTRAK_API_URL="https://your-server.com" \
   abians7/rustrak-ui:latest
 ```
 
@@ -59,19 +150,35 @@ docker run -d \
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/AbianS/rustrak/tree/main/apps/webview-ui)
 
-Set `NEXT_PUBLIC_API_URL` to your server URL in Vercel's environment variables.
+Set `RUSTRAK_API_URL` to your server URL in Vercel's environment variables.
 
-## Create your first user
+## User management
 
-After starting Rustrak, create an admin user:
+### First admin user
+
+The admin user is created automatically on first startup using the `CREATE_SUPERUSER` environment variable:
 
 ```bash
-# Docker Compose
-docker compose exec server sh -c 'CREATE_SUPERUSER="admin@example.com:yourpassword" ./rustrak'
-
-# Docker (server only)
-docker exec rustrak sh -c 'CREATE_SUPERUSER="admin@example.com:yourpassword" ./rustrak'
+# In your .env file
+CREATE_SUPERUSER=admin@example.com:yourpassword
 ```
+
+The format is `email:password`. This only creates the user if no users exist in the database yet.
+
+### Adding more users
+
+To add additional users after the initial setup, update the `CREATE_SUPERUSER` variable and restart:
+
+```bash
+# Update .env with the new user
+echo "CREATE_SUPERUSER=newuser@example.com:password123" > .env.tmp
+cat .env >> .env.tmp && mv .env.tmp .env
+
+# Restart the server
+docker compose restart server
+```
+
+Note: The user is only created if the email doesn't already exist.
 
 ## Verify the installation
 

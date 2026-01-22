@@ -40,7 +40,7 @@ docker run -d -p 8080:8080 abians7/rustrak-server:latest
 
 # Dashboard on another machine or Vercel
 docker run -d -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  -e RUSTRAK_API_URL=https://your-server.com \
   abians7/rustrak-ui:latest
 ```
 

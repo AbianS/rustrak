@@ -95,7 +95,7 @@ Only creates user if database is empty.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `NEXT_PUBLIC_API_URL` | `http://localhost:8080` | Backend API URL |
+| `RUSTRAK_API_URL` | `http://localhost:8080` | Backend API URL |
 
 ## Complete Example
 
@@ -113,7 +113,7 @@ PORT=8080
 RUST_LOG=info
 
 # Dashboard
-NEXT_PUBLIC_API_URL=http://localhost:8080
+RUSTRAK_API_URL=http://localhost:8080
 ```
 
 ### Production
@@ -141,5 +141,5 @@ MAX_EVENTS_PER_MINUTE=1000
 MAX_EVENTS_PER_HOUR=10000
 
 # Dashboard
-NEXT_PUBLIC_API_URL=https://rustrak.yourcompany.com
+RUSTRAK_API_URL=https://rustrak.yourcompany.com
 ```

@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: rustrak
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rustrak}
-      POSTGRES_DB: rustrak
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rustrak -d rustrak"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -17,14 +17,14 @@ services:
   server:
     image: abians7/rustrak-server:latest
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT}:8080"
     environment:
       - HOST=0.0.0.0
       - PORT=8080
-      - RUST_LOG=info
-      - DATABASE_URL=postgres://rustrak:${POSTGRES_PASSWORD:-rustrak}@postgres:5432/rustrak
+      - RUST_LOG=${RUST_LOG}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
-      - CREATE_SUPERUSER=${CREATE_SUPERUSER:-}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,9 +33,9 @@ services:
   ui:
     image: abians7/rustrak-ui:latest
     ports:
-      - "3000:3000"
+      - "${UI_PORT}:3000"
     environment:
-      - RUSTRAK_API_URL=http://server:8080
+      - RUSTRAK_API_URL=${RUSTRAK_API_URL}
     depends_on:
       - server
     restart: unless-stopped

@@ -75,7 +75,7 @@ If you're running the dashboard on your laptop connecting to a remote server:
 
 ```bash
 docker run -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  -e RUSTRAK_API_URL=https://your-server.com \
   abians7/rustrak-ui:latest
 ```
 
@@ -129,14 +129,20 @@ Check your token:
 
 ### Can't log in to dashboard
 
-1. Verify user was created:
+1. Verify user was created by checking your `.env` file has `CREATE_SUPERUSER` set:
 ```bash
-docker compose exec server sh -c 'CREATE_SUPERUSER="admin@example.com:password" ./rustrak'
+# In your .env file
+CREATE_SUPERUSER=admin@example.com:password
 ```
 
-2. Check you're using the correct email/password
+2. If you need to create/recreate the user, update `.env` and restart:
+```bash
+docker compose restart server
+```
 
-3. Clear browser cookies and try again
+3. Check you're using the correct email/password
+
+4. Clear browser cookies and try again
 
 ## High memory usage
 
@@ -160,7 +166,7 @@ docker run -d -p 8080:8080 abians7/rustrak-server:latest
 
 # Dashboard on another machine
 docker run -d -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://your-server.com \
+  -e RUSTRAK_API_URL=https://your-server.com \
   abians7/rustrak-ui:latest
 ```
 

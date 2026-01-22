@@ -37,34 +37,81 @@ Most error tracking solutions are either expensive SaaS products or heavy self-h
 
 ## Quick Start
 
-```bash
-# Create a docker-compose.yml
-curl -O https://raw.githubusercontent.com/AbianS/rustrak/main/docker-compose.yml
+### 1. Create `docker-compose.yml`
 
-# Configure environment
-echo "SESSION_SECRET_KEY=$(openssl rand -hex 32)" > .env
-echo "CREATE_SUPERUSER=admin@example.com:changeme123" >> .env
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-# Start with Docker
-docker-compose up -d
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "${SERVER_PORT}:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=${RUST_LOG}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "${UI_PORT}:3000"
+    environment:
+      - RUSTRAK_API_URL=${RUSTRAK_API_URL}
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
 ```
 
-Or run each service individually:
+### 2. Create `.env` file
 
 ```bash
-# Server only
-docker run -d -p 8080:8080 \
-  -e DATABASE_URL="postgres://user:pass@localhost:5432/rustrak" \
-  -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
-  abians7/rustrak-server:latest
+# Database
+POSTGRES_USER=rustrak
+POSTGRES_PASSWORD=rustrak
+POSTGRES_DB=rustrak
+
+# Server
+SERVER_PORT=8080
+RUST_LOG=info
+SESSION_SECRET_KEY=<run: openssl rand -hex 32>
+CREATE_SUPERUSER=admin@example.com:changeme123
 
 # Dashboard
-docker run -d -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL="http://localhost:8080" \
-  abians7/rustrak-ui:latest
+UI_PORT=3000
+RUSTRAK_API_URL=http://server:8080
 ```
 
-Open http://localhost:3000 and login with `admin@example.com` / `changeme123`
+### 3. Start Rustrak
+
+```bash
+docker compose up -d
+```
+
+Open http://localhost:3000 and login with your `CREATE_SUPERUSER` credentials
 
 ## Connect Your App
 
