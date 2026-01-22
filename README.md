@@ -115,7 +115,8 @@ docker compose up -d
 
 Open http://localhost:3000 and login with your `CREATE_SUPERUSER` credentials
 
-<video src="apps/docs/public/videos/overview.webm" autoplay loop muted playsinline></video>
+![ezgif-3519bd2e7e178ab7](https://github.com/user-attachments/assets/112376f3-67cf-440c-a8ab-fab6b74c9eb4)
+
 
 ## Connect Your App
 
