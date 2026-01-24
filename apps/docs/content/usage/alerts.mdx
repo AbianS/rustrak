@@ -1,0 +1,183 @@
+# Alerts
+
+Get notified when errors happen in your applications. Rustrak supports multiple notification channels and per-project alert rules.
+
+## How it works
+
+Alerts have two components:
+
+1. **Notification Channels** (Global): Where to send alerts (Slack, Email, Webhooks)
+2. **Alert Rules** (Per-Project): When to trigger alerts and which channels to use
+
+## Setting up notification channels
+
+Channels are configured globally in **Settings** → **Global Alerts**.
+
+### Webhook
+
+Send JSON payloads to any HTTP endpoint.
+
+1. Go to **Settings** → **Global Alerts**
+2. Click **Configure** on Webhooks
+3. Enter:
+   - **Name**: e.g., "Production Alerts"
+   - **URL**: Your webhook endpoint
+   - **Secret** (optional): For HMAC signature verification
+4. Click **Create Webhook**
+
+#### Webhook payload
+
+```json
+{
+  "alert_id": "1-550e8400-1706140800000",
+  "alert_type": "new_issue",
+  "triggered_at": "2024-01-25T12:00:00.000Z",
+  "project": {
+    "id": 1,
+    "name": "My Project",
+    "slug": "my-project"
+  },
+  "issue": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "short_id": "MY-PROJECT-42",
+    "title": "TypeError: Cannot read property 'x' of undefined",
+    "level": "error",
+    "first_seen": "2024-01-25T11:55:00Z",
+    "last_seen": "2024-01-25T12:00:00Z",
+    "event_count": 5
+  },
+  "issue_url": "http://localhost:3000/projects/my-project/issues/550e8400...",
+  "actor": "Rustrak"
+}
+```
+
+#### Webhook headers
+
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Rustrak-Timestamp` | Unix timestamp |
+| `X-Rustrak-Request-ID` | Unique alert ID |
+| `X-Rustrak-Signature` | `sha256=<hmac>` (if secret configured) |
+
+#### Verifying signatures
+
+If you configure a secret, verify the `X-Rustrak-Signature` header:
+
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(payload, signature, secret) {
+  const expected = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+```
+
+### Slack
+
+Send alerts to Slack channels.
+
+1. Create an [Incoming Webhook](https://api.slack.com/messaging/webhooks) in Slack
+2. Go to **Settings** → **Global Alerts**
+3. Click **Configure** on Slack
+4. Enter:
+   - **Name**: e.g., "Slack Alerts"
+   - **Webhook URL**: The Slack webhook URL
+   - **Channel** (optional): Override default channel
+5. Click **Create Slack Integration**
+
+### Email (SMTP)
+
+Send alerts via email.
+
+1. Go to **Settings** → **Global Alerts**
+2. Click **Configure** on Email
+3. Enter:
+   - **Name**: e.g., "Email Alerts"
+   - **Recipients**: Comma-separated email addresses
+   - **SMTP Host**: e.g., `smtp.gmail.com`
+   - **Port**: `587` (STARTTLS) or `465` (SSL)
+   - **Username/Password**: SMTP credentials
+   - **From Address**: Sender email
+4. Click **Create Email Channel**
+
+**Note**: For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833).
+
+## Testing channels
+
+Before creating alert rules, test your channels:
+
+1. Go to **Settings** → **Global Alerts**
+2. Click **Configure** on a channel
+3. Click **Test**
+4. Check that you received the test notification
+
+## Creating alert rules
+
+Alert rules define when to send notifications for a specific project.
+
+1. Open a project
+2. Click the **bell icon** in the header
+3. Click **Add Alert Rule**
+4. Configure:
+   - **Name**: e.g., "Notify team on new issues"
+   - **Trigger**: When to alert
+   - **Channels**: Where to send (select one or more)
+   - **Cooldown**: Minimum time between alerts for the same issue
+5. Click **Create Rule**
+
+### Trigger types
+
+| Trigger | Description |
+|---------|-------------|
+| **New Issue** | When an issue is first detected |
+| **Regression** | When a resolved issue reappears |
+| **Unmute** | When a muted issue is unmuted |
+
+### Cooldown
+
+Prevents alert fatigue by limiting how often alerts fire for the same issue.
+
+- **0 minutes**: Alert on every event (not recommended)
+- **5 minutes**: Wait 5 minutes before alerting again
+- **60 minutes**: Good for high-traffic issues
+
+## Managing rules
+
+### Enable/disable
+
+Toggle the switch next to a rule to enable or disable it without deleting.
+
+### Edit
+
+Click the edit icon to modify a rule's name, channels, or cooldown.
+
+### Delete
+
+Click the delete icon and confirm to remove a rule.
+
+## Best practices
+
+### Channel organization
+
+- **Webhook**: For custom integrations, PagerDuty, Opsgenie
+- **Slack**: For team awareness
+- **Email**: For on-call or compliance
+
+### Alert rules
+
+- Create a **New Issue** rule for all projects
+- Use **Regression** for production projects
+- Set appropriate cooldowns to avoid alert fatigue
+
+### Testing
+
+1. Create channels with test endpoints first (e.g., [webhook.site](https://webhook.site))
+2. Verify payloads are correct
+3. Update to production endpoints
