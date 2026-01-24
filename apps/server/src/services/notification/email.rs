@@ -274,17 +274,34 @@ impl NotificationDispatcher for EmailNotifier {
             };
 
             // Build SMTP transport
-            let mailer_builder =
-                AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host).map_err(|e| {
-                    NotificationResult::failure(format!("Invalid SMTP host: {}", e), None)
-                });
+            // Port 465 = implicit TLS (SMTPS), Port 587 = STARTTLS
+            let mailer_builder = if smtp_port == 465 {
+                // Use implicit TLS for port 465
+                AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)
+                    .map(|b| {
+                        b.port(smtp_port).tls(lettre::transport::smtp::client::Tls::Wrapper(
+                            lettre::transport::smtp::client::TlsParameters::new(
+                                smtp_host.to_string(),
+                            )
+                            .expect("Invalid TLS parameters"),
+                        ))
+                    })
+                    .map_err(|e| {
+                        NotificationResult::failure(format!("Invalid SMTP host: {}", e), None)
+                    })
+            } else {
+                // Use STARTTLS for port 587 (starts plain, upgrades to TLS)
+                AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)
+                    .map(|b| b.port(smtp_port))
+                    .map_err(|e| {
+                        NotificationResult::failure(format!("Invalid SMTP host: {}", e), None)
+                    })
+            };
 
             let mailer_builder = match mailer_builder {
                 Ok(b) => b,
                 Err(result) => return result,
             };
-
-            let mailer_builder = mailer_builder.port(smtp_port);
 
             // Add credentials if configured
             let mailer = if let (Some(username), Some(password)) = (

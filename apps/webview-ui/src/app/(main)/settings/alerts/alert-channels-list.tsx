@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { ChannelType, NotificationChannel } from '@rustrak/client';
 import { Hash, Loader2, Mail, Play, Trash2, Webhook } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -336,9 +336,9 @@ function WebhookConfigDialog({
     },
   });
 
-  // Reset form when dialog opens with existing channel
-  const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen && existingChannel) {
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open && existingChannel) {
       const config = existingChannel.config as {
         url?: string;
         secret?: string;
@@ -349,7 +349,7 @@ function WebhookConfigDialog({
         secret: config.secret ?? '',
         is_enabled: existingChannel.is_enabled,
       });
-    } else if (newOpen) {
+    } else if (open) {
       form.reset({
         name: '',
         url: '',
@@ -357,8 +357,7 @@ function WebhookConfigDialog({
         is_enabled: true,
       });
     }
-    onOpenChange(newOpen);
-  };
+  }, [open, existingChannel, form]);
 
   const onSubmit = (data: WebhookFormData) => {
     startTransition(async () => {
@@ -395,7 +394,7 @@ function WebhookConfigDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -569,8 +568,9 @@ function SlackConfigDialog({
     },
   });
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen && existingChannel) {
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open && existingChannel) {
       const config = existingChannel.config as {
         webhook_url?: string;
         channel?: string;
@@ -581,7 +581,7 @@ function SlackConfigDialog({
         channel: config.channel ?? '',
         is_enabled: existingChannel.is_enabled,
       });
-    } else if (newOpen) {
+    } else if (open) {
       form.reset({
         name: '',
         webhook_url: '',
@@ -589,8 +589,7 @@ function SlackConfigDialog({
         is_enabled: true,
       });
     }
-    onOpenChange(newOpen);
-  };
+  }, [open, existingChannel, form]);
 
   const onSubmit = (data: SlackFormData) => {
     startTransition(async () => {
@@ -629,7 +628,7 @@ function SlackConfigDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
@@ -809,8 +808,9 @@ function EmailConfigDialog({
     },
   });
 
-  const handleOpenChange = (newOpen: boolean) => {
-    if (newOpen && existingChannel) {
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open && existingChannel) {
       const config = existingChannel.config as {
         recipients?: string[];
         smtp_host?: string;
@@ -829,7 +829,7 @@ function EmailConfigDialog({
         from_address: config.from_address ?? '',
         is_enabled: existingChannel.is_enabled,
       });
-    } else if (newOpen) {
+    } else if (open) {
       form.reset({
         name: '',
         recipients: '',
@@ -841,8 +841,7 @@ function EmailConfigDialog({
         is_enabled: true,
       });
     }
-    onOpenChange(newOpen);
-  };
+  }, [open, existingChannel, form]);
 
   const onSubmit = (data: EmailFormData) => {
     startTransition(async () => {
@@ -892,7 +891,7 @@ function EmailConfigDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
