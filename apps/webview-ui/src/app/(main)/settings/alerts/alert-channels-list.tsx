@@ -77,7 +77,7 @@ const webhookFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   url: z.string().url('Please enter a valid URL'),
   secret: z.string().optional(),
-  is_enabled: z.boolean().default(true),
+  is_enabled: z.boolean(),
 });
 
 const slackFormSchema = z.object({
@@ -90,18 +90,18 @@ const slackFormSchema = z.object({
       'Must be a valid Slack webhook URL',
     ),
   channel: z.string().optional(),
-  is_enabled: z.boolean().default(true),
+  is_enabled: z.boolean(),
 });
 
 const emailFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   recipients: z.string().min(1, 'At least one recipient is required'),
   smtp_host: z.string().min(1, 'SMTP host is required'),
-  smtp_port: z.coerce.number().int().min(1).max(65535).default(587),
+  smtp_port: z.number().int().min(1).max(65535),
   smtp_username: z.string().optional(),
   smtp_password: z.string().optional(),
   from_address: z.string().email('Please enter a valid email'),
-  is_enabled: z.boolean().default(true),
+  is_enabled: z.boolean(),
 });
 
 type WebhookFormData = z.infer<typeof webhookFormSchema>;
@@ -982,6 +982,9 @@ function EmailConfigDialog({
                         placeholder="587"
                         disabled={isLoading}
                         {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value, 10) || 587)
+                        }
                       />
                     </FormControl>
                     <FormMessage />

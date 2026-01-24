@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { listAlertRules, listNotificationChannels } from '@/actions/alerts';
 import { listIssues } from '@/actions/issues';
 import { getProject } from '@/actions/projects';
 import { IssuesList } from './issues-list';
@@ -41,20 +42,28 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Fetch issues with offset-based pagination
-  const issuesResponse = await listIssues(projectId, {
-    filter: filter as 'open' | 'resolved' | 'muted' | 'all',
-    page: currentPage,
-    per_page: 20,
-    sort: 'last_seen',
-    order: 'desc',
-  });
+  // Fetch issues and alert data in parallel
+  const [issuesResponse, alertRules, channels] = await Promise.all([
+    listIssues(projectId, {
+      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+      page: currentPage,
+      per_page: 20,
+      sort: 'last_seen',
+      order: 'desc',
+    }),
+    listAlertRules(projectId).catch(() => []),
+    listNotificationChannels().catch(() => []),
+  ]);
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header section - fixed */}
       <div className="shrink-0 max-w-[1600px] w-full mx-auto px-8 py-6 border-b">
-        <ProjectHeader project={project} />
+        <ProjectHeader
+          project={project}
+          alertRules={alertRules}
+          channels={channels}
+        />
       </div>
 
       {/* Content section - grows and handles overflow */}
