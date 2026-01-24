@@ -1,0 +1,11 @@
+# Build artifacts
+/target/
+
+# Results (keep only .gitkeep)
+/results/*.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

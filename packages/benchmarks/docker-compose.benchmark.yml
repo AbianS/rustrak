@@ -1,0 +1,95 @@
+# Docker Compose for Rustrak Benchmarks
+# Provides an isolated, reproducible environment for performance testing
+
+services:
+  # PostgreSQL database with fixed resource limits
+  postgres-bench:
+    image: postgres:16-alpine
+    container_name: rustrak-postgres-bench
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: rustrak_bench
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    # Performance tuning for benchmarks
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "max_connections=200"
+      - "-c"
+      - "synchronous_commit=off"  # Faster for benchmarks
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+    volumes:
+      - bench_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bench -d rustrak_bench"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bench-network
+
+  # Rustrak server with fixed resource limits
+  server-bench:
+    image: abians7/rustrak-server:latest
+    container_name: rustrak-server-bench
+    build:
+      context: ../../apps/server
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 256M
+        reservations:
+          cpus: "1"
+          memory: 128M
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=warn  # Minimal logging for accurate benchmarks
+      - DATABASE_URL=postgres://bench:bench@postgres-bench:5432/rustrak_bench
+      - DATABASE_MAX_CONNECTIONS=50
+      - DATABASE_MIN_CONNECTIONS=5
+      # Rate limiting - high limits for benchmarks
+      - MAX_EVENTS_PER_MINUTE=100000
+      - MAX_EVENTS_PER_HOUR=1000000
+      - MAX_EVENTS_PER_PROJECT_PER_MINUTE=50000
+      - MAX_EVENTS_PER_PROJECT_PER_HOUR=500000
+      # Create test project on startup
+      - CREATE_SUPERUSER=bench@test.local:benchpass123
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres-bench:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - bench-network
+
+networks:
+  bench-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  bench_postgres_data:
+    driver: local

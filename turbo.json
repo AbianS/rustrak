@@ -50,6 +50,27 @@
     },
     "clean": {
       "cache": false
+    },
+    "bench": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "inputs": ["$TURBO_DEFAULT$", "scenarios/**"]
+    },
+    "bench:baseline": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "bench:burst": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "bench:sustained": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "bench:stress": {
+      "dependsOn": ["build"],
+      "cache": false
     }
   }
 }

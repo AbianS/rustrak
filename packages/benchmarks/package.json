@@ -1,0 +1,20 @@
+{
+  "name": "@rustrak/benchmarks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Benchmark suite for Rustrak server",
+  "scripts": {
+    "build": "cargo build --release",
+    "build:dev": "cargo build",
+    "bench": "cargo run --release -- --scenario sustained",
+    "bench:baseline": "cargo run --release -- --scenario baseline",
+    "bench:burst": "cargo run --release -- --scenario burst",
+    "bench:sustained": "cargo run --release -- --scenario sustained",
+    "bench:stress": "cargo run --release -- --scenario stress",
+    "docker:up": "docker compose -f docker-compose.benchmark.yml up -d",
+    "docker:down": "docker compose -f docker-compose.benchmark.yml down -v",
+    "docker:logs": "docker compose -f docker-compose.benchmark.yml logs -f",
+    "clean": "cargo clean && rm -rf results/*.json",
+    "check-types": "echo 'Rust project - no TypeScript types to check'"
+  }
+}
