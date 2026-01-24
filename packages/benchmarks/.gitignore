@@ -4,6 +4,9 @@
 # Results (keep only .gitkeep)
 /results/*.json
 
+# Benchmark credentials (auto-generated)
+.bench-credentials
+
 # IDE
 .idea/
 .vscode/

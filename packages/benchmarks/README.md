@@ -21,11 +21,11 @@ A comprehensive benchmarking suite for the Rustrak error tracking server. Measur
 ### Using Docker Compose (Recommended)
 
 ```bash
-# Start the isolated benchmark environment
+# Start environment and auto-setup (creates project, gets credentials)
 pnpm docker:up
 
-# Wait for services to be ready, then run a benchmark
-cargo run --release -- --scenario sustained
+# Run benchmark (uses saved credentials automatically)
+pnpm bench
 
 # View results
 cat results/latest.json | jq '.results'
@@ -33,6 +33,11 @@ cat results/latest.json | jq '.results'
 # Clean up
 pnpm docker:down
 ```
+
+The `docker:up` command automatically:
+1. Starts PostgreSQL and Rustrak server containers
+2. Creates a benchmark project
+3. Saves credentials to `.bench-credentials`
 
 ### Against an Existing Server
 
@@ -230,8 +235,11 @@ The benchmark tool uses the Docker API (via `bollard`) to poll container stats e
 # Build release binary
 pnpm build
 
-# Start benchmark environment
+# Start benchmark environment (auto-creates project)
 pnpm docker:up
+
+# Re-run setup if needed (creates project, saves credentials)
+pnpm prepare-env
 
 # Run default benchmark (sustained)
 pnpm bench
@@ -248,7 +256,7 @@ pnpm docker:down
 # View logs
 pnpm docker:logs
 
-# Clean results
+# Clean results and credentials
 pnpm clean
 ```
 
