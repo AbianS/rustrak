@@ -1,6 +1,8 @@
 import type { KyInstance } from 'ky';
 import type { ClientConfig } from './config.js';
 import {
+  AlertChannelsResource,
+  AlertRulesResource,
   AuthResource,
   EventsResource,
   IssuesResource,
@@ -58,6 +60,16 @@ export class RustrakClient {
   public readonly tokens: TokensResource;
 
   /**
+   * Alert Channels API resource (global notification destinations)
+   */
+  public readonly alertChannels: AlertChannelsResource;
+
+  /**
+   * Alert Rules API resource (per-project alert configuration)
+   */
+  public readonly alertRules: AlertRulesResource;
+
+  /**
    * Create a new Rustrak API client
    *
    * @param config - Client configuration
@@ -71,5 +83,7 @@ export class RustrakClient {
     this.issues = new IssuesResource(this.http);
     this.events = new EventsResource(this.http);
     this.tokens = new TokensResource(this.http);
+    this.alertChannels = new AlertChannelsResource(this.http);
+    this.alertRules = new AlertRulesResource(this.http);
   }
 }

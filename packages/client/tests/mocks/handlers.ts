@@ -121,6 +121,109 @@ export const mockAdminUser = {
   is_admin: true,
 };
 
+export const mockNotificationChannels = [
+  {
+    id: 1,
+    name: 'Production Webhook',
+    channel_type: 'webhook',
+    config: {
+      url: 'https://example.com/webhook',
+      secret: 'webhook-secret',
+    },
+    is_enabled: true,
+    failure_count: 0,
+    last_failure_at: null,
+    last_failure_message: null,
+    last_success_at: '2026-01-20T11:00:00.000Z',
+    created_at: '2026-01-20T10:00:00.000Z',
+    updated_at: '2026-01-20T10:00:00.000Z',
+  },
+  {
+    id: 2,
+    name: 'Slack Alerts',
+    channel_type: 'slack',
+    config: {
+      webhook_url: 'https://hooks.slack.com/services/XXX',
+      channel: '#alerts',
+    },
+    is_enabled: true,
+    failure_count: 0,
+    last_failure_at: null,
+    last_failure_message: null,
+    last_success_at: '2026-01-20T10:30:00.000Z',
+    created_at: '2026-01-19T10:00:00.000Z',
+    updated_at: '2026-01-19T10:00:00.000Z',
+  },
+];
+
+export const mockAlertRules = [
+  {
+    id: 1,
+    project_id: 1,
+    name: 'New Issue Alert',
+    alert_type: 'new_issue',
+    is_enabled: true,
+    conditions: {},
+    cooldown_minutes: 0,
+    last_triggered_at: '2026-01-20T11:00:00.000Z',
+    channel_ids: [1, 2],
+    created_at: '2026-01-20T10:00:00.000Z',
+    updated_at: '2026-01-20T10:00:00.000Z',
+  },
+  {
+    id: 2,
+    project_id: 1,
+    name: 'Regression Alert',
+    alert_type: 'regression',
+    is_enabled: false,
+    conditions: {},
+    cooldown_minutes: 60,
+    last_triggered_at: null,
+    channel_ids: [1],
+    created_at: '2026-01-19T10:00:00.000Z',
+    updated_at: '2026-01-19T10:00:00.000Z',
+  },
+];
+
+export const mockAlertHistory = [
+  {
+    id: 1,
+    alert_rule_id: 1,
+    channel_id: 1,
+    issue_id: '323e4567-e89b-12d3-a456-426614174000',
+    project_id: 1,
+    alert_type: 'new_issue',
+    channel_type: 'webhook',
+    channel_name: 'Production Webhook',
+    status: 'sent',
+    attempt_count: 1,
+    next_retry_at: null,
+    error_message: null,
+    http_status_code: 200,
+    idempotency_key: '1-323e4567-1706183600000',
+    created_at: '2026-01-20T11:00:00.000Z',
+    sent_at: '2026-01-20T11:00:01.000Z',
+  },
+  {
+    id: 2,
+    alert_rule_id: 1,
+    channel_id: 2,
+    issue_id: '323e4567-e89b-12d3-a456-426614174000',
+    project_id: 1,
+    alert_type: 'new_issue',
+    channel_type: 'slack',
+    channel_name: 'Slack Alerts',
+    status: 'failed',
+    attempt_count: 3,
+    next_retry_at: null,
+    error_message: 'Slack API timeout',
+    http_status_code: 504,
+    idempotency_key: '1-323e4567-1706183600001',
+    created_at: '2026-01-20T11:00:00.000Z',
+    sent_at: null,
+  },
+];
+
 export const handlers = [
   // Projects
   http.get(`${BASE_URL}/api/projects`, () => {
@@ -445,4 +548,216 @@ export const handlers = [
     // Return current user based on session
     return HttpResponse.json(mockUser);
   }),
+
+  // Alert Channels (Global)
+  http.get(`${BASE_URL}/api/alert-channels`, () => {
+    return HttpResponse.json(mockNotificationChannels);
+  }),
+
+  http.get(`${BASE_URL}/api/alert-channels/:id`, ({ params }) => {
+    const { id } = params;
+    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+
+    if (!channel) {
+      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    }
+
+    return HttpResponse.json(channel);
+  }),
+
+  http.post(`${BASE_URL}/api/alert-channels`, async ({ request }) => {
+    const body = (await request.json()) as {
+      name: string;
+      channel_type: string;
+      config: Record<string, unknown>;
+      is_enabled?: boolean;
+    };
+
+    const newChannel = {
+      id: 3,
+      name: body.name,
+      channel_type: body.channel_type,
+      config: body.config,
+      is_enabled: body.is_enabled ?? true,
+      failure_count: 0,
+      last_failure_at: null,
+      last_failure_message: null,
+      last_success_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    return HttpResponse.json(newChannel, { status: 201 });
+  }),
+
+  http.patch(
+    `${BASE_URL}/api/alert-channels/:id`,
+    async ({ params, request }) => {
+      const { id } = params;
+      const body = (await request.json()) as {
+        name?: string;
+        config?: Record<string, unknown>;
+        is_enabled?: boolean;
+      };
+      const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+
+      if (!channel) {
+        return HttpResponse.json(
+          { error: 'Channel not found' },
+          { status: 404 },
+        );
+      }
+
+      const updated = {
+        ...channel,
+        ...body,
+        updated_at: new Date().toISOString(),
+      };
+
+      return HttpResponse.json(updated);
+    },
+  ),
+
+  http.delete(`${BASE_URL}/api/alert-channels/:id`, ({ params }) => {
+    const { id } = params;
+    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+
+    if (!channel) {
+      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    }
+
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post(`${BASE_URL}/api/alert-channels/:id/test`, ({ params }) => {
+    const { id } = params;
+    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+
+    if (!channel) {
+      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    }
+
+    return HttpResponse.json({
+      success: true,
+      message: 'Test notification sent successfully',
+    });
+  }),
+
+  // Alert Rules (Per-Project)
+  http.get(`${BASE_URL}/api/projects/:projectId/alert-rules`, ({ params }) => {
+    const { projectId } = params;
+    const rules = mockAlertRules.filter(
+      (r) => r.project_id === Number(projectId),
+    );
+
+    return HttpResponse.json(rules);
+  }),
+
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/alert-rules/:ruleId`,
+    ({ params }) => {
+      const { projectId, ruleId } = params;
+      const rule = mockAlertRules.find(
+        (r) => r.project_id === Number(projectId) && r.id === Number(ruleId),
+      );
+
+      if (!rule) {
+        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+      }
+
+      return HttpResponse.json(rule);
+    },
+  ),
+
+  http.post(
+    `${BASE_URL}/api/projects/:projectId/alert-rules`,
+    async ({ params, request }) => {
+      const { projectId } = params;
+      const body = (await request.json()) as {
+        name: string;
+        alert_type: string;
+        is_enabled?: boolean;
+        conditions?: Record<string, unknown>;
+        cooldown_minutes?: number;
+        channel_ids: number[];
+      };
+
+      const newRule = {
+        id: 3,
+        project_id: Number(projectId),
+        name: body.name,
+        alert_type: body.alert_type,
+        is_enabled: body.is_enabled ?? true,
+        conditions: body.conditions ?? {},
+        cooldown_minutes: body.cooldown_minutes ?? 0,
+        last_triggered_at: null,
+        channel_ids: body.channel_ids,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      return HttpResponse.json(newRule, { status: 201 });
+    },
+  ),
+
+  http.patch(
+    `${BASE_URL}/api/projects/:projectId/alert-rules/:ruleId`,
+    async ({ params, request }) => {
+      const { projectId, ruleId } = params;
+      const body = (await request.json()) as {
+        name?: string;
+        is_enabled?: boolean;
+        conditions?: Record<string, unknown>;
+        cooldown_minutes?: number;
+        channel_ids?: number[];
+      };
+      const rule = mockAlertRules.find(
+        (r) => r.project_id === Number(projectId) && r.id === Number(ruleId),
+      );
+
+      if (!rule) {
+        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+      }
+
+      const updated = {
+        ...rule,
+        ...body,
+        updated_at: new Date().toISOString(),
+      };
+
+      return HttpResponse.json(updated);
+    },
+  ),
+
+  http.delete(
+    `${BASE_URL}/api/projects/:projectId/alert-rules/:ruleId`,
+    ({ params }) => {
+      const { projectId, ruleId } = params;
+      const rule = mockAlertRules.find(
+        (r) => r.project_id === Number(projectId) && r.id === Number(ruleId),
+      );
+
+      if (!rule) {
+        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+      }
+
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
+
+  // Alert History
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/alert-history`,
+    ({ params, request }) => {
+      const { projectId } = params;
+      const url = new URL(request.url);
+      const limit = parseInt(url.searchParams.get('limit') ?? '50', 10);
+
+      const history = mockAlertHistory
+        .filter((h) => h.project_id === Number(projectId))
+        .slice(0, limit);
+
+      return HttpResponse.json(history);
+    },
+  ),
 ];
