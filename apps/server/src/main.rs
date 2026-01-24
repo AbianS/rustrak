@@ -120,6 +120,8 @@ async fn main() -> std::io::Result<()> {
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)
+            // Alert routes (channels and rules)
+            .configure(routes::alerts::configure)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure)
     })
