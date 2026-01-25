@@ -196,7 +196,7 @@ cd apps/webview-ui && pnpm dev
 
 ## Documentation
 
-Full documentation is available at **[rustrak.dev](https://rustrak.dev)**
+Full documentation is available at **[docs](https://abians.github.io/rustrak/)**
 
 - [Getting Started](https://rustrak.dev/getting-started)
 - [Configuration](https://rustrak.dev/configuration)
