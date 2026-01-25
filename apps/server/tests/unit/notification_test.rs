@@ -81,6 +81,28 @@ fn test_slack_validate_config_invalid_domain() {
     assert!(dispatcher.validate_config(&config).is_err());
 }
 
+#[test]
+fn test_slack_validate_config_rejects_subdomain_bypass() {
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    // This should be rejected - it's a subdomain bypass attempt
+    let config = json!({
+        "webhook_url": "https://hooks.slack.com.evil.com/services/T00000000/B00000000/XXXXXXXX"
+    });
+
+    assert!(dispatcher.validate_config(&config).is_err());
+}
+
+#[test]
+fn test_slack_validate_config_rejects_http() {
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    // HTTP should be rejected
+    let config = json!({
+        "webhook_url": "http://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
+    });
+
+    assert!(dispatcher.validate_config(&config).is_err());
+}
+
 // =============================================================================
 // Email Config Validation Tests
 // =============================================================================

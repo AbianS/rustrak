@@ -207,16 +207,24 @@ impl NotificationDispatcher for SlackNotifier {
             ));
         }
 
-        // Validate it looks like a Slack webhook URL
-        if !slack_config.webhook_url.contains("hooks.slack.com") {
+        // Validate URL format and extract components
+        let parsed_url = url::Url::parse(&slack_config.webhook_url)
+            .map_err(|_| AppError::Validation("Invalid Slack webhook URL format".to_string()))?;
+
+        // Slack webhooks must use HTTPS
+        if parsed_url.scheme() != "https" {
             return Err(AppError::Validation(
-                "Invalid Slack webhook URL: must contain hooks.slack.com".to_string(),
+                "Slack webhook URL must use HTTPS".to_string(),
             ));
         }
 
-        // Validate URL format
-        url::Url::parse(&slack_config.webhook_url)
-            .map_err(|_| AppError::Validation("Invalid Slack webhook URL format".to_string()))?;
+        // Validate exact host match to prevent bypass via subdomains
+        // e.g., hooks.slack.com.evil.com would fail this check
+        if parsed_url.host_str() != Some("hooks.slack.com") {
+            return Err(AppError::Validation(
+                "Invalid Slack webhook URL: host must be hooks.slack.com".to_string(),
+            ));
+        }
 
         Ok(())
     }

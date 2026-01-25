@@ -408,13 +408,27 @@ impl AlertService {
             }
         };
 
-        // 2. Check cooldown
-        if let Some(last_triggered) = rule.last_triggered_at {
-            let cooldown = Duration::minutes(rule.cooldown_minutes as i64);
-            if Utc::now() - last_triggered < cooldown {
-                log::debug!("Alert rule {} is in cooldown period", rule.id);
-                return Ok(());
-            }
+        // 2. Atomically check cooldown and update last_triggered_at
+        // This prevents race conditions where concurrent triggers bypass cooldown
+        let updated = sqlx::query(
+            r#"
+            UPDATE alert_rules
+            SET last_triggered_at = NOW()
+            WHERE id = $1
+              AND (
+                last_triggered_at IS NULL
+                OR last_triggered_at <= NOW() - make_interval(mins => $2)
+              )
+            "#,
+        )
+        .bind(rule.id)
+        .bind(rule.cooldown_minutes)
+        .execute(pool)
+        .await?;
+
+        if updated.rows_affected() == 0 {
+            log::debug!("Alert rule {} is in cooldown period", rule.id);
+            return Ok(());
         }
 
         // 3. Get associated channels
@@ -468,11 +482,7 @@ impl AlertService {
             actor: "Rustrak".to_string(),
         };
 
-        // 5. Update last_triggered_at
-        sqlx::query("UPDATE alert_rules SET last_triggered_at = NOW() WHERE id = $1")
-            .bind(rule.id)
-            .execute(pool)
-            .await?;
+        // Note: last_triggered_at was already updated atomically in step 2
 
         log::info!(
             "Triggering {} alert for issue {} in project {}",
@@ -512,23 +522,12 @@ impl AlertService {
     ) -> AppResult<()> {
         let idempotency_key = format!("{}-{}", payload.alert_id, channel.id);
 
-        // Check for duplicate (idempotency)
-        let existing: Option<(i64,)> =
-            sqlx::query_as("SELECT id FROM alert_history WHERE idempotency_key = $1")
-                .bind(&idempotency_key)
-                .fetch_optional(pool)
-                .await?;
-
-        if existing.is_some() {
-            log::debug!("Alert {} already processed, skipping", idempotency_key);
-            return Ok(());
-        }
-
         // Parse issue_id as UUID
         let issue_uuid = Uuid::parse_str(&payload.issue.id).ok();
 
-        // Create history record
-        let history_id: (i64,) = sqlx::query_as(
+        // Create history record with idempotent insert (ON CONFLICT DO NOTHING)
+        // This avoids TOCTOU race conditions from separate SELECT + INSERT
+        let history_id: Option<(i64,)> = sqlx::query_as(
             r#"
             INSERT INTO alert_history (
                 alert_rule_id, channel_id, issue_id, project_id,
@@ -536,6 +535,7 @@ impl AlertService {
                 status, idempotency_key
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
+            ON CONFLICT (idempotency_key) DO NOTHING
             RETURNING id
             "#,
         )
@@ -547,8 +547,16 @@ impl AlertService {
         .bind(channel.channel_type.to_string())
         .bind(&channel.name)
         .bind(&idempotency_key)
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await?;
+
+        let history_id = match history_id {
+            Some(id) => id,
+            None => {
+                log::debug!("Alert {} already processed, skipping", idempotency_key);
+                return Ok(());
+            }
+        };
 
         // Dispatch using appropriate notifier
         let dispatcher = create_dispatcher(channel.channel_type);

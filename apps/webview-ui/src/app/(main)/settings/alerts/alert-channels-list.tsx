@@ -85,17 +85,38 @@ const slackFormSchema = z.object({
   webhook_url: z
     .string()
     .url('Please enter a valid URL')
-    .refine(
-      (url) => url.includes('hooks.slack.com'),
-      'Must be a valid Slack webhook URL',
-    ),
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        // Validate exact hostname to prevent bypass via subdomains
+        // e.g., hooks.slack.com.evil.com would fail
+        return url.protocol === 'https:' && url.hostname === 'hooks.slack.com';
+      } catch {
+        return false;
+      }
+    }, 'Must be a valid Slack webhook URL (https://hooks.slack.com/...)'),
   channel: z.string().optional(),
   is_enabled: z.boolean(),
 });
 
+// Helper schema for email validation
+const emailAddressRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const emailFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
-  recipients: z.string().min(1, 'At least one recipient is required'),
+  recipients: z
+    .string()
+    .min(1, 'At least one recipient is required')
+    .refine((value) => {
+      const emails = value
+        .split(',')
+        .map((e) => e.trim())
+        .filter(Boolean);
+      return (
+        emails.length > 0 &&
+        emails.every((email) => emailAddressRegex.test(email))
+      );
+    }, 'Please provide valid comma-separated email addresses'),
   smtp_host: z.string().min(1, 'SMTP host is required'),
   smtp_port: z.number().int().min(1).max(65535),
   smtp_username: z.string().optional(),

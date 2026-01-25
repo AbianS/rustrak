@@ -235,6 +235,7 @@ impl NotificationDispatcher for EmailNotifier {
         let text_body = Self::format_text(payload);
 
         // Send to each recipient
+        let mut sent_any = false;
         for recipient in &config.recipients {
             // Build email message
             let email = match Message::builder()
@@ -277,14 +278,23 @@ impl NotificationDispatcher for EmailNotifier {
             // Port 465 = implicit TLS (SMTPS), Port 587 = STARTTLS
             let mailer_builder = if smtp_port == 465 {
                 // Use implicit TLS for port 465
+                // Build TLS parameters first to handle errors gracefully
+                let tls_params = match lettre::transport::smtp::client::TlsParameters::new(
+                    smtp_host.to_string(),
+                ) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return NotificationResult::failure(
+                            format!("Invalid TLS parameters for SMTP host: {}", e),
+                            None,
+                        )
+                    }
+                };
+
                 AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)
                     .map(|b| {
-                        b.port(smtp_port).tls(lettre::transport::smtp::client::Tls::Wrapper(
-                            lettre::transport::smtp::client::TlsParameters::new(
-                                smtp_host.to_string(),
-                            )
-                            .expect("Invalid TLS parameters"),
-                        ))
+                        b.port(smtp_port)
+                            .tls(lettre::transport::smtp::client::Tls::Wrapper(tls_params))
                     })
                     .map_err(|e| {
                         NotificationResult::failure(format!("Invalid SMTP host: {}", e), None)
@@ -324,6 +334,7 @@ impl NotificationDispatcher for EmailNotifier {
             // Send email
             match mailer.send(email).await {
                 Ok(_) => {
+                    sent_any = true;
                     log::debug!("Email sent successfully to {}", recipient);
                 }
                 Err(e) => {
@@ -333,6 +344,10 @@ impl NotificationDispatcher for EmailNotifier {
                     )
                 }
             }
+        }
+
+        if !sent_any {
+            return NotificationResult::failure("No valid email recipients".to_string(), None);
         }
 
         NotificationResult::success(None)
