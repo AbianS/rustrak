@@ -230,7 +230,11 @@ impl BenchmarkRunner {
         ));
 
         let duration = Duration::from_secs(self.config.duration_secs);
-        let interval_ns = 1_000_000_000 / self.config.target_rps;
+        let interval_ns = if self.config.target_rps > 0 {
+            1_000_000_000 / self.config.target_rps
+        } else {
+            1_000_000_000 // Default to 1 RPS if misconfigured
+        };
 
         let pb = ProgressBar::new(self.config.duration_secs);
         pb.set_style(
@@ -542,7 +546,7 @@ impl BenchmarkRunner {
             for _ in 0..self.config.concurrency {
                 let client = self.client.clone();
                 let url = self.envelope_url();
-                let stats = step_stats.clone();
+                let local_step_stats = step_stats.clone();
                 let global_stats = stats.clone();
                 let histogram = histogram.clone();
                 let generator = generator.clone();
@@ -586,7 +590,7 @@ impl BenchmarkRunner {
                             },
                         };
 
-                        stats.record(&request_result);
+                        local_step_stats.record(&request_result);
                         global_stats.record(&request_result);
 
                         if let Ok(mut hist) = histogram.try_lock() {

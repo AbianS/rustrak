@@ -211,7 +211,10 @@ impl BenchmarkResults {
                 errors: ErrorMetrics {
                     rate_limited_429: stats.rate_limited,
                     server_error_5xx: stats.server_errors,
-                    connection_failed: stats.failed - stats.rate_limited - stats.server_errors,
+                    connection_failed: stats
+                        .failed
+                        .saturating_sub(stats.rate_limited)
+                        .saturating_sub(stats.server_errors),
                 },
                 actual_duration_secs: duration_secs,
             },
@@ -397,14 +400,21 @@ pub fn compare(old: &BenchmarkResults, new: &BenchmarkResults) {
     );
     println!("{}", "═".repeat(60).cyan());
 
-    let throughput_change = (new.results.throughput.events_per_second
-        - old.results.throughput.events_per_second)
-        / old.results.throughput.events_per_second
-        * 100.0;
+    let throughput_change = if old.results.throughput.events_per_second > 0.0 {
+        (new.results.throughput.events_per_second - old.results.throughput.events_per_second)
+            / old.results.throughput.events_per_second
+            * 100.0
+    } else {
+        0.0
+    };
 
-    let latency_change = (new.results.latency_ms.p99 - old.results.latency_ms.p99)
-        / old.results.latency_ms.p99
-        * 100.0;
+    let latency_change = if old.results.latency_ms.p99 > 0.0 {
+        (new.results.latency_ms.p99 - old.results.latency_ms.p99)
+            / old.results.latency_ms.p99
+            * 100.0
+    } else {
+        0.0
+    };
 
     println!("\n{}", "Throughput".yellow().bold());
     println!(

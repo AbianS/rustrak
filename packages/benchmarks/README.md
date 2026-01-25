@@ -94,7 +94,7 @@ cargo run --release -- --config-file my-scenario.toml
 
 ## CLI Usage
 
-```
+```text
 rustrak-bench [OPTIONS] [COMMAND]
 
 Commands:
@@ -176,7 +176,7 @@ cargo run --release -- compare results/old-run.json results/new-run.json
 ```
 
 Output:
-```
+```text
 Comparison: 20260120-sustained-001 → 20260124-sustained-042
 
 Throughput

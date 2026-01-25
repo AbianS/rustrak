@@ -9,7 +9,7 @@ SCENARIO="${1:-sustained}"
 
 # Check if credentials file exists
 if [ ! -f "$CREDENTIALS_FILE" ]; then
-    echo "❌ Credentials file not found. Run 'pnpm setup' first."
+    echo "❌ Credentials file not found. Run 'pnpm prepare-env' first."
     exit 1
 fi
 
