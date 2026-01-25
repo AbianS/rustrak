@@ -32,6 +32,4 @@ For each CodeRabbit comment:
 
 3. **Fix only valid issues**: Implement only the ones that are genuinely problematic
 
-4. **Commit with reasoning**: Include why you're accepting/rejecting each comment
-
 Do NOT accept comments blindly. Be critical and provide clear justification.
