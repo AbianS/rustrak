@@ -18,7 +18,3 @@ model: haiku
 </git_diff>
 
 Generate a single-line conventional commit message (max 72 chars).
-
-Now run:
-
-!`git commit -m '<the message you decided>'`
