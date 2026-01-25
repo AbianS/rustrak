@@ -58,6 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -72,6 +75,7 @@ jobs:
         with:
           context: ./apps/server
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             abians7/rustrak-server:latest
             abians7/rustrak-server:v${{ needs.detect-package.outputs.version }}
@@ -84,6 +88,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -100,6 +107,7 @@ jobs:
           context: .
           file: ./apps/webview-ui/Dockerfile
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             abians7/rustrak-ui:latest
             abians7/rustrak-ui:v${{ needs.detect-package.outputs.version }}
