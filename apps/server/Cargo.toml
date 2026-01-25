@@ -80,13 +80,29 @@ actix-cors = "0.7.1"
 # Base64 encoding for pagination cursors
 base64 = "0.22.1"
 
+# HTTP client for notifications
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+
+# HMAC for webhook signatures
+hmac = "0.12.1"
+
+# URL parsing/validation
+url = "2.5.8"
+
+# Async trait support
+async-trait = "0.1.89"
+
+# Email sending
+lettre = { version = "0.11.19", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
+
 [dev-dependencies]
 # Test framework & fixtures
 rstest = "0.26.1"
+serial_test = "3.3.1"
 
 # HTTP testing for actix-web
 actix-test = "0.1.5"
-reqwest = { version = "0.13.1", features = ["json"] }
+# Note: reqwest available from main dependencies
 
 # Database testing with real PostgreSQL containers
 testcontainers = "0.26.3"

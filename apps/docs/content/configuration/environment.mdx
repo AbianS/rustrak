@@ -79,6 +79,24 @@ openssl rand -hex 32
 |----------|---------|-------------|
 | `INGEST_DIR` | `/tmp/rustrak/ingest` | Temporary event storage |
 
+## Email Alerts (SMTP)
+
+Global SMTP settings for email notifications. Channels can override these.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SMTP_HOST` | - | SMTP server hostname |
+| `SMTP_PORT` | `587` | SMTP port (587 for STARTTLS, 465 for SSL) |
+| `SMTP_USERNAME` | - | SMTP username |
+| `SMTP_PASSWORD` | - | SMTP password |
+| `SMTP_FROM` | `alerts@rustrak.local` | Default sender address |
+
+## Dashboard URL
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DASHBOARD_URL` | `http://localhost:3000` | URL for issue links in notifications |
+
 ## Bootstrap
 
 | Variable | Description |
@@ -142,4 +160,12 @@ MAX_EVENTS_PER_HOUR=10000
 
 # Dashboard
 RUSTRAK_API_URL=https://rustrak.yourcompany.com
+DASHBOARD_URL=https://rustrak.yourcompany.com
+
+# Email Alerts (optional - can also configure per-channel)
+SMTP_HOST=smtp.yourcompany.com
+SMTP_PORT=587
+SMTP_USERNAME=alerts@yourcompany.com
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM=alerts@yourcompany.com
 ```

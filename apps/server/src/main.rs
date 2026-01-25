@@ -114,12 +114,16 @@ async fn main() -> std::io::Result<()> {
             // Auth routes (public - no Bearer auth required)
             .configure(routes::auth::configure)
             // API routes (auth required)
-            // More specific routes first: events > issues > projects
+            // More specific routes first: events > issues > alert-rules > projects
             .configure(routes::events::configure)
             .configure(routes::issues::configure)
+            .configure(routes::alerts::configure_rules)
+            .configure(routes::alerts::configure_history)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)
+            // Alert channels (global, not nested under projects)
+            .configure(routes::alerts::configure_channels)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure)
     })

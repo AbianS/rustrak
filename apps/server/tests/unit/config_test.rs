@@ -1,14 +1,18 @@
 //! Unit tests for configuration parsing
 //!
 //! Tests environment variable parsing and default values.
+//!
+//! Note: These tests modify global environment variables and must run serially.
 
 use rustrak::config::RateLimitConfig;
+use serial_test::serial;
 
 // =============================================================================
 // Rate Limit Config Tests
 // =============================================================================
 
 #[test]
+#[serial]
 fn test_rate_limit_config_defaults() {
     // Clear any env vars that might affect this test
     std::env::remove_var("MAX_EVENTS_PER_MINUTE");
@@ -25,6 +29,7 @@ fn test_rate_limit_config_defaults() {
 }
 
 #[test]
+#[serial]
 fn test_rate_limit_config_custom_values() {
     // Set custom values
     std::env::set_var("MAX_EVENTS_PER_MINUTE", "100");
@@ -47,6 +52,7 @@ fn test_rate_limit_config_custom_values() {
 }
 
 #[test]
+#[serial]
 fn test_rate_limit_config_invalid_values_use_defaults() {
     // Set invalid (non-numeric) values
     std::env::set_var("MAX_EVENTS_PER_MINUTE", "not-a-number");
@@ -64,6 +70,7 @@ fn test_rate_limit_config_invalid_values_use_defaults() {
 }
 
 #[test]
+#[serial]
 fn test_rate_limit_config_zero_values() {
     std::env::set_var("MAX_EVENTS_PER_MINUTE", "0");
     std::env::set_var("MAX_EVENTS_PER_HOUR", "0");
@@ -80,6 +87,7 @@ fn test_rate_limit_config_zero_values() {
 }
 
 #[test]
+#[serial]
 fn test_rate_limit_config_negative_values() {
     std::env::set_var("MAX_EVENTS_PER_MINUTE", "-100");
 

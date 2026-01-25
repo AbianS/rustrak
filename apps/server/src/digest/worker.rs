@@ -8,8 +8,8 @@ use crate::error::{AppError, AppResult};
 use crate::ingest::{delete_event, read_event, EventMetadata};
 use crate::models::{Grouping, Issue};
 use crate::services::{
-    calculate_grouping_key, get_denormalized_fields, hash_grouping_key, DenormalizedFields,
-    EventService, ProjectService, RateLimitService,
+    calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
+    DenormalizedFields, EventService, ProjectService, RateLimitService,
 };
 
 /// Processes an event from temporary storage
@@ -107,6 +107,23 @@ pub async fn process_event(
         issue.id,
         if issue_created { "new" } else { "existing" }
     );
+
+    // 10. Trigger alerts for new issues
+    if issue_created {
+        let pool = pool.clone();
+        let project = project.clone();
+        let issue = issue.clone();
+        let dashboard_url =
+            std::env::var("DASHBOARD_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+        tokio::spawn(async move {
+            if let Err(e) =
+                AlertService::trigger_new_issue_alert(&pool, &project, &issue, &dashboard_url).await
+            {
+                log::error!("Failed to trigger new issue alert: {}", e);
+            }
+        });
+    }
 
     Ok(())
 }

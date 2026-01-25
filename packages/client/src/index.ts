@@ -25,13 +25,21 @@ export {
 } from './errors/index.js';
 // Types
 export type {
+  // Alerts
+  AlertHistory,
+  AlertRule,
+  AlertStatus,
+  AlertType,
   ApiError,
   // Auth
   AuthResponse,
   // Tokens
   AuthToken,
   AuthTokenCreated,
+  ChannelType,
+  CreateAlertRule,
   CreateAuthToken,
+  CreateNotificationChannel,
   CreateProject,
   // Events
   Event,
@@ -40,11 +48,13 @@ export type {
   Issue,
   IssueFilter,
   IssueSort,
+  ListAlertHistoryOptions,
   ListEventsOptions,
   ListIssuesOptions,
   ListProjectsOptions,
   LoginRequest,
   LoginResult,
+  NotificationChannel,
   // Common
   OffsetPaginatedResponse,
   PaginatedResponse,
@@ -52,7 +62,10 @@ export type {
   Project,
   RegisterRequest,
   SortOrder,
+  TestChannelResponse,
+  UpdateAlertRule,
   UpdateIssueState,
+  UpdateNotificationChannel,
   UpdateProject,
   User,
 } from './types/index.js';

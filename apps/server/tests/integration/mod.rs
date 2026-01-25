@@ -2,6 +2,7 @@
 //!
 //! Contains tests that require a database and test the full API.
 
+mod alerts_api_test;
 mod auth_test;
 mod bootstrap_test;
 mod concurrency_test;
