@@ -1,0 +1,35 @@
+# Stress Test Scenario
+# Finds server limits by ramping up load until errors occur
+
+name = "stress"
+description = "Find server limits by gradually increasing load until errors exceed threshold"
+scenario_type = "stress"
+
+# Duration and load settings
+duration_secs = 600   # 10 minutes max
+target_rps = 0        # Not used for stress
+concurrency = 100     # High concurrency for stress
+warmup_secs = 10
+
+# Stress test configuration
+[stress]
+initial_rps = 100         # Start at 100 RPS
+rps_increment = 200       # Increase by 200 RPS per step
+step_duration_secs = 30   # Each step lasts 30 seconds
+max_rps = 10000          # Maximum RPS to attempt
+error_threshold = 0.05    # Stop if error rate exceeds 5%
+
+# Event configuration
+[event]
+breadcrumb_count = 3      # Lighter events for stress test
+stack_depth = 5
+include_user = true
+include_tags = true
+include_extra = false
+
+# Docker resource limits
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"
