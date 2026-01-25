@@ -176,6 +176,9 @@ export function AlertChannelsList({ initialChannels }: AlertChannelsListProps) {
         await deleteNotificationChannel(deleteChannel.id);
         toast.success('Channel deleted');
         setDeleteChannel(null);
+        // Clear configure dialog state to prevent editing a deleted channel
+        setConfigureType(null);
+        setEditChannel(null);
         router.refresh();
       } catch (err) {
         const message =

@@ -5,6 +5,36 @@
 use rustrak::models::ChannelType;
 use rustrak::services::create_dispatcher;
 use serde_json::json;
+use std::sync::Mutex;
+
+/// Mutex to serialize tests that mutate SMTP_HOST environment variable.
+/// This prevents race conditions when tests run in parallel.
+static SMTP_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+/// RAII guard that restores SMTP_HOST to its previous value on drop.
+struct SmtpHostGuard {
+    previous: Option<String>,
+}
+
+impl SmtpHostGuard {
+    fn set(value: &str) -> Self {
+        let _lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let previous = std::env::var("SMTP_HOST").ok();
+        std::env::set_var("SMTP_HOST", value);
+        // Note: We don't store the lock - tests are short enough that
+        // holding it for the guard's lifetime is acceptable
+        Self { previous }
+    }
+}
+
+impl Drop for SmtpHostGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var("SMTP_HOST", value),
+            None => std::env::remove_var("SMTP_HOST"),
+        }
+    }
+}
 
 // =============================================================================
 // Webhook Config Validation Tests
@@ -109,8 +139,7 @@ fn test_slack_validate_config_rejects_http() {
 
 #[test]
 fn test_email_validate_config_valid() {
-    // Set global SMTP for test
-    std::env::set_var("SMTP_HOST", "smtp.example.com");
+    let _guard = SmtpHostGuard::set("smtp.example.com");
 
     let dispatcher = create_dispatcher(ChannelType::Email);
     let config = json!({
@@ -119,13 +148,11 @@ fn test_email_validate_config_valid() {
 
     let result = dispatcher.validate_config(&config);
     assert!(result.is_ok());
-
-    std::env::remove_var("SMTP_HOST");
 }
 
 #[test]
 fn test_email_validate_config_empty_recipients() {
-    std::env::set_var("SMTP_HOST", "smtp.example.com");
+    let _guard = SmtpHostGuard::set("smtp.example.com");
 
     let dispatcher = create_dispatcher(ChannelType::Email);
     let config = json!({
@@ -134,13 +161,11 @@ fn test_email_validate_config_empty_recipients() {
 
     let result = dispatcher.validate_config(&config);
     assert!(result.is_err());
-
-    std::env::remove_var("SMTP_HOST");
 }
 
 #[test]
 fn test_email_validate_config_invalid_email() {
-    std::env::set_var("SMTP_HOST", "smtp.example.com");
+    let _guard = SmtpHostGuard::set("smtp.example.com");
 
     let dispatcher = create_dispatcher(ChannelType::Email);
     let config = json!({
@@ -149,6 +174,4 @@ fn test_email_validate_config_invalid_email() {
 
     let result = dispatcher.validate_config(&config);
     assert!(result.is_err());
-
-    std::env::remove_var("SMTP_HOST");
 }
