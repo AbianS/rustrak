@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.1.3
+
+### Patch Changes
+
+- [#23](https://github.com/AbianS/rustrak/pull/23) [`169dc0c`](https://github.com/AbianS/rustrak/commit/169dc0ce73fee276b169f403daa0ed4a00404726) Thanks [@AbianS](https://github.com/AbianS)! - feat: system alert
+
 ## 0.1.2
 
 ### Patch Changes
