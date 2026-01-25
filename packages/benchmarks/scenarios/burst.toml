@@ -1,0 +1,33 @@
+# Burst Scenario
+# Tests server handling of traffic spikes
+
+name = "burst"
+description = "Test handling of traffic spikes with bursts of events followed by pauses"
+scenario_type = "burst"
+
+# Duration and load settings
+duration_secs = 120
+target_rps = 0  # Not used for burst
+concurrency = 50
+warmup_secs = 5
+
+# Burst-specific configuration
+[burst]
+burst_size = 10000    # Events per burst
+pause_secs = 10       # Pause between bursts
+cycles = 5            # Number of burst cycles
+
+# Event configuration
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+
+# Docker resource limits
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

@@ -1,0 +1,27 @@
+# Sustained Load Scenario
+# Tests sustained load handling and memory stability
+
+name = "sustained"
+description = "Test sustained load handling and memory stability over time"
+scenario_type = "sustained"
+
+# Duration and load settings
+duration_secs = 300   # 5 minutes
+target_rps = 1000     # 1000 events per second
+concurrency = 50      # 50 concurrent connections
+warmup_secs = 10
+
+# Event configuration
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+
+# Docker resource limits
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

@@ -1,0 +1,27 @@
+# Baseline Scenario
+# Measures baseline latency with minimal load
+
+name = "baseline"
+description = "Measure baseline latency with minimal load (1 request per second)"
+scenario_type = "baseline"
+
+# Duration and load settings
+duration_secs = 60
+target_rps = 1
+concurrency = 1
+warmup_secs = 5
+
+# Event configuration
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+
+# Docker resource limits
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"
