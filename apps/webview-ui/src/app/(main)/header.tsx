@@ -1,7 +1,7 @@
 'use client';
 
 import type { User } from '@rustrak/client';
-import { LogOut, Settings, Terminal } from 'lucide-react';
+import { LogOut, Settings, Terminal, Book } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface HeaderProps {
   user: User;
@@ -46,6 +47,21 @@ export function Header({ user }: HeaderProps) {
 
       {/* User Menu */}
       <div className="flex items-center gap-4">
+        {/* Documentation Link */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon" asChild>
+              <a href="https://abians.github.io/rustrak" 
+                target="_blank"
+                rel="noopener noreferrer">
+                  <Book className="size-4" />
+                  <span className="sr-only">Documentation</span>
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Documentation</TooltipContent>
+        </Tooltip>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
