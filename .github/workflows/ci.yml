@@ -8,32 +8,37 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+  SCCACHE_GHA_ENABLED: "true"
+  RUSTC_WRAPPER: "sccache"
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Setup Rust (required for server)
+      # Rust setup + caching
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      # Cache Rust dependencies
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/server -> target
 
-      # Setup Node.js + pnpm
+      # Node setup + caching
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'latest'
+          node-version: "latest"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
-      # Turbo runs everything: lint, test, build
-      # Includes Rust via apps/server/package.json scripts
+      # Turbo runs everything in parallel: Rust + Node tests/builds
       - run: pnpm test
       - run: pnpm build
