@@ -25,94 +25,142 @@ jobs:
           TAG="${{ github.event.release.tag_name }}"
           echo "Release tag: $TAG"
 
-          # Extract version (remove package name prefix)
           VERSION=$(echo "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # Check which package this release is for
           if [[ "$TAG" == *"server"* ]] || [[ "$TAG" == *"@rustrak/server"* ]]; then
             echo "is_server=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a SERVER release"
           else
             echo "is_server=false" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$TAG" == *"webview-ui"* ]] || [[ "$TAG" == *"ui"* ]]; then
             echo "is_ui=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a UI release"
           else
             echo "is_ui=false" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$TAG" == *"docs"* ]]; then
             echo "is_docs=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a DOCS release"
           else
             echo "is_docs=false" >> $GITHUB_OUTPUT
           fi
 
-  docker-server:
+  # Build server on native runners (no QEMU, no cross-compilation)
+  docker-server-build:
     needs: detect-package
     if: needs.detect-package.outputs.is_server == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push server image
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ./apps/server
+          platforms: ${{ matrix.platform }}
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            abians7/rustrak-server:latest
-            abians7/rustrak-server:v${{ needs.detect-package.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: abians7/rustrak-server:${{ needs.detect-package.outputs.version }}-${{ matrix.runner }}
+          cache-from: type=gha,scope=server-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=server-${{ matrix.runner }}
+          provenance: false
 
-  docker-ui:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_ui == 'true'
+  # Merge into multi-arch manifest
+  docker-server-manifest:
+    needs: [detect-package, docker-server-build]
+    if: needs.detect-package.outputs.is_server == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push UI image
+      - name: Create and push manifest
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+
+          docker manifest create abians7/rustrak-server:v${VERSION} \
+            abians7/rustrak-server:${VERSION}-ubuntu-latest \
+            abians7/rustrak-server:${VERSION}-ubuntu-24.04-arm
+          docker manifest push abians7/rustrak-server:v${VERSION}
+
+          docker manifest create abians7/rustrak-server:latest \
+            abians7/rustrak-server:${VERSION}-ubuntu-latest \
+            abians7/rustrak-server:${VERSION}-ubuntu-24.04-arm
+          docker manifest push abians7/rustrak-server:latest
+
+  # Build UI on native runners
+  docker-ui-build:
+    needs: detect-package
+    if: needs.detect-package.outputs.is_ui == 'true'
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./apps/webview-ui/Dockerfile
+          platforms: ${{ matrix.platform }}
           push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            abians7/rustrak-ui:latest
-            abians7/rustrak-ui:v${{ needs.detect-package.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: abians7/rustrak-ui:${{ needs.detect-package.outputs.version }}-${{ matrix.runner }}
+          cache-from: type=gha,scope=ui-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=ui-${{ matrix.runner }}
+          provenance: false
+
+  docker-ui-manifest:
+    needs: [detect-package, docker-ui-build]
+    if: needs.detect-package.outputs.is_ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create and push manifest
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+
+          docker manifest create abians7/rustrak-ui:v${VERSION} \
+            abians7/rustrak-ui:${VERSION}-ubuntu-latest \
+            abians7/rustrak-ui:${VERSION}-ubuntu-24.04-arm
+          docker manifest push abians7/rustrak-ui:v${VERSION}
+
+          docker manifest create abians7/rustrak-ui:latest \
+            abians7/rustrak-ui:${VERSION}-ubuntu-latest \
+            abians7/rustrak-ui:${VERSION}-ubuntu-24.04-arm
+          docker manifest push abians7/rustrak-ui:latest
 
   deploy-docs:
     needs: detect-package
@@ -127,7 +175,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 'latest'
+          node-version: "latest"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
