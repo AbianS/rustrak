@@ -39,6 +39,5 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Turbo runs everything in parallel: Rust + Node tests/builds
-      - run: pnpm test
-      - run: pnpm build
+      # Turbo runs test, build, lint, format:check in parallel
+      - run: pnpm run ci
