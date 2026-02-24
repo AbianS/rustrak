@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.9
+
+### Patch Changes
+
+- [#34](https://github.com/AbianS/rustrak/pull/34) [`54efbba`](https://github.com/AbianS/rustrak/commit/54efbba72d56130d3d3b987faf9b829c6041ab3e) Thanks [@AbianS](https://github.com/AbianS)! - chore: update dependencies
+
 ## 0.1.8
 
 ### Patch Changes
