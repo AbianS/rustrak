@@ -26,6 +26,10 @@ jobs:
           echo "Release tag: $TAG"
 
           VERSION=$(echo "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not extract semver version from tag '$TAG'. Expected format: package@X.Y.Z"
+            exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
           if [[ "$TAG" == *"server"* ]] || [[ "$TAG" == *"@rustrak/server"* ]]; then
