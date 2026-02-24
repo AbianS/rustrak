@@ -122,9 +122,7 @@ impl FromRequest for SentryAuth {
 
         // Extract sentry_key from query param
         let query_sentry_key = req.query_string().split('&').find_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            let key = parts.next()?;
-            let value = parts.next()?;
+            let (key, value) = pair.split_once('=')?;
             if key == "sentry_key" {
                 Some(value.to_string())
             } else {

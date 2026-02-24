@@ -1,4 +1,4 @@
-# Build stage - Rust 1.87 (latest stable with bookworm)
+# Build stage
 FROM rust:1.88-slim-bookworm AS builder
 
 WORKDIR /app
@@ -6,7 +6,7 @@ WORKDIR /app
 # Install dependencies first for better caching
 COPY Cargo.toml Cargo.lock* ./
 
-# Create a dummy main.rs to build dependencies
+# Create dummy main.rs to build dependencies
 RUN mkdir -p src && \
     echo "fn main() {}" > src/main.rs && \
     cargo build --release && \
@@ -16,10 +16,10 @@ RUN mkdir -p src && \
 COPY src ./src
 COPY migrations ./migrations
 
-# Build the actual application
+# Build the application
 RUN touch src/main.rs && cargo build --release
 
-# Runtime stage - distroless for minimal footprint (~32MB)
+# Runtime stage - distroless for minimal footprint
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 WORKDIR /app

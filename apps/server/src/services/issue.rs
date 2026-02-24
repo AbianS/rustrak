@@ -264,7 +264,7 @@ impl IssueService {
 
             // last_seen ASC - with cursor
             (IssueSort::LastSeen, SortOrder::Asc, Some(c)) => {
-                let last_seen = c.last_seen.unwrap_or_else(|| DateTime::UNIX_EPOCH);
+                let last_seen = c.last_seen.unwrap_or(DateTime::UNIX_EPOCH);
                 let last_id = c.last_id.unwrap_or(Uuid::nil());
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(

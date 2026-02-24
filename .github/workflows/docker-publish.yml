@@ -25,94 +25,204 @@ jobs:
           TAG="${{ github.event.release.tag_name }}"
           echo "Release tag: $TAG"
 
-          # Extract version (remove package name prefix)
           VERSION=$(echo "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          if [[ -z "$VERSION" ]]; then
+            echo "::error::Could not extract semver version from tag '$TAG'. Expected format: package@X.Y.Z"
+            exit 1
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # Check which package this release is for
           if [[ "$TAG" == *"server"* ]] || [[ "$TAG" == *"@rustrak/server"* ]]; then
             echo "is_server=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a SERVER release"
           else
             echo "is_server=false" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$TAG" == *"webview-ui"* ]] || [[ "$TAG" == *"ui"* ]]; then
             echo "is_ui=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a UI release"
           else
             echo "is_ui=false" >> $GITHUB_OUTPUT
           fi
 
           if [[ "$TAG" == *"docs"* ]]; then
             echo "is_docs=true" >> $GITHUB_OUTPUT
-            echo "📦 This is a DOCS release"
           else
             echo "is_docs=false" >> $GITHUB_OUTPUT
           fi
 
-  docker-server:
+  # Build server on native runners (no QEMU, no cross-compilation).
+  # Each platform pushes by digest only — no intermediate named tags appear in Docker Hub.
+  docker-server-build:
     needs: detect-package
+    if: needs.detect-package.outputs.is_server == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Prepare platform pair
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ./apps/server
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          tags: abians7/rustrak-server
+          cache-from: type=gha,scope=server-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=server-${{ matrix.runner }}
+
+      - name: Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digests-server-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Merge platform digests into a single multi-arch manifest using imagetools create.
+  # docker manifest create is still experimental and incompatible with provenance attestations;
+  # imagetools create is the stable, officially recommended approach.
+  docker-server-manifest:
+    needs: [detect-package, docker-server-build]
     if: needs.detect-package.outputs.is_server == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push server image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./apps/server
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            abians7/rustrak-server:latest
-            abians7/rustrak-server:v${{ needs.detect-package.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-  docker-ui:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-server-*
+          merge-multiple: true
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools create \
+            -t abians7/rustrak-server:v${VERSION} \
+            -t abians7/rustrak-server:latest \
+            $(printf 'abians7/rustrak-server@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools inspect abians7/rustrak-server:v${VERSION}
+
+  # Build UI on native runners
+  docker-ui-build:
     needs: detect-package
     if: needs.detect-package.outputs.is_ui == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Prepare platform pair
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push UI image
-        uses: docker/build-push-action@v6
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: ./apps/webview-ui/Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            abians7/rustrak-ui:latest
-            abians7/rustrak-ui:v${{ needs.detect-package.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          tags: abians7/rustrak-ui
+          cache-from: type=gha,scope=ui-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=ui-${{ matrix.runner }}
+
+      - name: Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digests-ui-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Merge platform digests into a single multi-arch manifest
+  docker-ui-manifest:
+    needs: [detect-package, docker-ui-build]
+    if: needs.detect-package.outputs.is_ui == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-ui-*
+          merge-multiple: true
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools create \
+            -t abians7/rustrak-ui:v${VERSION} \
+            -t abians7/rustrak-ui:latest \
+            $(printf 'abians7/rustrak-ui@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools inspect abians7/rustrak-ui:v${VERSION}
 
   deploy-docs:
     needs: detect-package
@@ -122,12 +232,12 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 'latest'
+          node-version: "latest"
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -136,10 +246,10 @@ jobs:
         run: pnpm build:docs
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: apps/docs/out
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

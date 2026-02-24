@@ -18,9 +18,7 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         .after_connect(|conn, _meta| {
             Box::pin(async move {
                 // Set timezone to UTC for all connections
-                sqlx::query("SET timezone = 'UTC'")
-                    .execute(conn)
-                    .await?;
+                sqlx::query("SET timezone = 'UTC'").execute(conn).await?;
                 Ok(())
             })
         })

@@ -134,6 +134,7 @@ pub async fn process_event(
 ///
 /// Advisory locks are automatically released when the transaction commits or rolls back.
 /// Different projects can process events concurrently (locks are per-project).
+#[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_with_lock(
     pool: &PgPool,
     project_id: i32,
@@ -183,6 +184,7 @@ async fn find_or_create_issue_and_grouping_with_lock(
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction
+#[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_inner(
     tx: &mut Transaction<'_, Postgres>,
     project_id: i32,

@@ -58,10 +58,7 @@ impl NotificationDispatcher for WebhookNotifier {
         let config: WebhookConfig = match serde_json::from_value(channel.config.clone()) {
             Ok(c) => c,
             Err(e) => {
-                return NotificationResult::failure(
-                    format!("Invalid webhook config: {}", e),
-                    None,
-                )
+                return NotificationResult::failure(format!("Invalid webhook config: {}", e), None)
             }
         };
 
@@ -69,7 +66,10 @@ impl NotificationDispatcher for WebhookNotifier {
         let body = match serde_json::to_vec(payload) {
             Ok(b) => b,
             Err(e) => {
-                return NotificationResult::failure(format!("Failed to serialize payload: {}", e), None)
+                return NotificationResult::failure(
+                    format!("Failed to serialize payload: {}", e),
+                    None,
+                )
             }
         };
 
@@ -130,9 +130,7 @@ impl NotificationDispatcher for WebhookNotifier {
             .map_err(|e| AppError::Validation(format!("Invalid webhook config: {}", e)))?;
 
         if webhook_config.url.is_empty() {
-            return Err(AppError::Validation(
-                "Webhook URL is required".to_string(),
-            ));
+            return Err(AppError::Validation("Webhook URL is required".to_string()));
         }
 
         // Validate URL format

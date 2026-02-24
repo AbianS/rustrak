@@ -286,7 +286,7 @@ pub async fn list_history(
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
 
-    let limit = query.limit.min(100).max(1);
+    let limit = query.limit.clamp(1, 100);
     let history = AlertService::list_history(pool.get_ref(), project_id, limit).await?;
 
     Ok(HttpResponse::Ok().json(history))

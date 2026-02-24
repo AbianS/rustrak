@@ -2,6 +2,7 @@
   "name": "rustrak",
   "private": true,
   "scripts": {
+    "ci": "turbo run test build lint format:check",
     "build": "turbo run build",
     "build:dev": "turbo run build:dev",
     "build:docs": "turbo run build --filter=docs",
