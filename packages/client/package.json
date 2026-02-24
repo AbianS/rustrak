@@ -35,15 +35,15 @@
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
-    "ky": "1.14.2",
+    "ky": "1.14.3",
     "zod": "4.3.6"
   },
   "devDependencies": {
-    "@types/node": "25.0.9",
-    "@vitest/coverage-v8": "4.0.17",
-    "msw": "2.12.7",
+    "@types/node": "25.3.0",
+    "@vitest/coverage-v8": "4.0.18",
+    "msw": "2.12.10",
     "tsup": "8.5.1",
     "typescript": "5.9.3",
-    "vitest": "4.0.17"
+    "vitest": "4.0.18"
   }
 }
