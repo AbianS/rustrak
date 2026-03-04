@@ -1,3 +1,9 @@
+#[cfg(all(feature = "postgres", feature = "sqlite"))]
+compile_error!("Features \"postgres\" and \"sqlite\" are mutually exclusive. Enable only one.");
+
+#[cfg(not(any(feature = "postgres", feature = "sqlite")))]
+compile_error!("Either feature \"postgres\" or \"sqlite\" must be enabled.");
+
 use crate::config::DatabaseConfig;
 
 #[cfg(feature = "postgres")]

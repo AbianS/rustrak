@@ -409,25 +409,23 @@ impl AlertService {
         };
 
         // 2. Atomically check cooldown and update last_triggered_at
-        // This prevents race conditions where concurrent triggers bypass cooldown
-        // Use application-level cooldown check for cross-DB compatibility
-        if let Some(last_triggered) = rule.last_triggered_at {
-            let cooldown = Duration::minutes(rule.cooldown_minutes as i64);
-            if Utc::now() - last_triggered < cooldown {
-                log::debug!("Alert rule {} is in cooldown period", rule.id);
-                return Ok(());
-            }
-        }
-
+        // Uses a conditional UPDATE to prevent TOCTOU race conditions
+        let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
         let updated = sqlx::query(
-            "UPDATE alert_rules SET last_triggered_at = CURRENT_TIMESTAMP WHERE id = $1",
+            r#"
+            UPDATE alert_rules
+            SET last_triggered_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND (last_triggered_at IS NULL OR last_triggered_at < $2)
+            "#,
         )
         .bind(rule.id)
+        .bind(cooldown_threshold)
         .execute(pool)
         .await?;
 
         if updated.rows_affected() == 0 {
-            log::debug!("Alert rule {} not found during trigger", rule.id);
+            log::debug!("Alert rule {} not found or in cooldown period", rule.id);
             return Ok(());
         }
 
