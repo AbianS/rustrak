@@ -84,7 +84,7 @@ impl AlertService {
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.constraint() == Some("notification_channels_name_key") {
+                if db_err.is_unique_violation() {
                     return AppError::Conflict(format!("Channel '{}' already exists", input.name));
                 }
             }
@@ -129,7 +129,7 @@ impl AlertService {
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.constraint() == Some("notification_channels_name_key") {
+                if db_err.is_unique_violation() {
                     return AppError::Conflict("Channel name already exists".to_string());
                 }
             }
@@ -227,7 +227,7 @@ impl AlertService {
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.constraint() == Some("alert_rules_project_id_alert_type_key") {
+                if db_err.is_unique_violation() {
                     return AppError::Conflict(format!(
                         "Alert rule for type '{}' already exists in this project",
                         input.alert_type

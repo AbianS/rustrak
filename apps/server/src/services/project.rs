@@ -143,16 +143,12 @@ impl ProjectService {
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.constraint() == Some("projects_name_key") {
+                if db_err.is_unique_violation() {
+                    // On PostgreSQL we can distinguish name vs slug via constraint(),
+                    // but for cross-DB compatibility use a generic message
                     return AppError::Conflict(format!(
-                        "Project with name '{}' already exists",
-                        name
-                    ));
-                }
-                if db_err.constraint() == Some("projects_slug_key") {
-                    return AppError::Conflict(format!(
-                        "Project with slug '{}' already exists",
-                        slug
+                        "Project with name '{}' or slug '{}' already exists",
+                        name, slug
                     ));
                 }
             }
@@ -194,7 +190,7 @@ impl ProjectService {
             .await
             .map_err(|e| {
                 if let sqlx::Error::Database(ref db_err) = e {
-                    if db_err.constraint() == Some("projects_name_key") {
+                    if db_err.is_unique_violation() {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
                             name

@@ -141,10 +141,14 @@ impl RateLimitService {
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
     ) -> AppResult<()> {
-        let installation = Self::get_installation(pool).await?;
+        // Atomically increment and get the new count
+        let new_count: i64 = sqlx::query_scalar(
+            "UPDATE installation SET digested_event_count = digested_event_count + 1 WHERE id = 1 RETURNING digested_event_count",
+        )
+        .fetch_one(pool)
+        .await?;
 
-        // Increment global digested count
-        let new_count = installation.digested_event_count + 1;
+        let installation = Self::get_installation(pool).await?;
 
         // Calculate minimum threshold for optimization
         let min_threshold = config.max_events_per_minute.min(config.max_events_per_hour);
@@ -187,25 +191,17 @@ impl RateLimitService {
             sqlx::query(
                 r#"
                 UPDATE installation
-                SET digested_event_count = $1,
-                    quota_exceeded_until = $2,
-                    quota_exceeded_reason = $3,
-                    next_quota_check = $4
+                SET quota_exceeded_until = $1,
+                    quota_exceeded_reason = $2,
+                    next_quota_check = $3
                 WHERE id = 1
                 "#,
             )
-            .bind(new_count)
             .bind(exceeded_until)
             .bind(exceeded_reason)
             .bind(new_count + check_again_after)
             .execute(pool)
             .await?;
-        } else {
-            // Just increment the counter
-            sqlx::query("UPDATE installation SET digested_event_count = $1 WHERE id = 1")
-                .bind(new_count)
-                .execute(pool)
-                .await?;
         }
 
         Ok(())
@@ -218,14 +214,20 @@ impl RateLimitService {
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
     ) -> AppResult<()> {
-        // Get current project state
+        // Atomically increment and get the new count
+        let new_count: i32 = sqlx::query_scalar(
+            "UPDATE projects SET digested_event_count = digested_event_count + 1 WHERE id = $1 RETURNING digested_event_count",
+        )
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+        let new_count = new_count as i64;
+
+        // Get current project quota state
         let project: Project = sqlx::query_as("SELECT * FROM projects WHERE id = $1")
             .bind(project_id)
             .fetch_one(pool)
             .await?;
-
-        // Increment project digested count
-        let new_count = project.digested_event_count as i64 + 1;
 
         // Calculate minimum threshold for optimization
         let min_threshold = config
@@ -270,8 +272,7 @@ impl RateLimitService {
             sqlx::query(
                 r#"
                 UPDATE projects
-                SET digested_event_count = digested_event_count + 1,
-                    quota_exceeded_until = $2,
+                SET quota_exceeded_until = $2,
                     quota_exceeded_reason = $3,
                     next_quota_check = $4
                 WHERE id = $1
@@ -281,14 +282,6 @@ impl RateLimitService {
             .bind(exceeded_until)
             .bind(exceeded_reason)
             .bind(new_count + check_again_after)
-            .execute(pool)
-            .await?;
-        } else {
-            // Just increment the counter
-            sqlx::query(
-                "UPDATE projects SET digested_event_count = digested_event_count + 1 WHERE id = $1",
-            )
-            .bind(project_id)
             .execute(pool)
             .await?;
         }
