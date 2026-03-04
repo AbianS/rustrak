@@ -1,29 +1,51 @@
-use sqlx::postgres::{PgPool, PgPoolOptions};
-
 use crate::config::DatabaseConfig;
 
-/// Type alias for the PostgreSQL connection pool
+#[cfg(feature = "postgres")]
+use sqlx::postgres::{PgPool, PgPoolOptions};
+
+#[cfg(feature = "sqlite")]
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+
+/// Type alias for the database connection pool
+#[cfg(feature = "postgres")]
 pub type DbPool = PgPool;
+
+#[cfg(feature = "sqlite")]
+pub type DbPool = SqlitePool;
 
 /// Creates a new database connection pool with the provided configuration
 pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error> {
     log::info!("Connecting to database...");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(config.max_connections)
-        .min_connections(config.min_connections)
-        .acquire_timeout(config.acquire_timeout)
-        .idle_timeout(Some(config.idle_timeout))
-        .max_lifetime(Some(config.max_lifetime))
-        .after_connect(|conn, _meta| {
-            Box::pin(async move {
-                // Set timezone to UTC for all connections
-                sqlx::query("SET timezone = 'UTC'").execute(conn).await?;
-                Ok(())
+    #[cfg(feature = "postgres")]
+    let pool = {
+        PgPoolOptions::new()
+            .max_connections(config.max_connections)
+            .min_connections(config.min_connections)
+            .acquire_timeout(config.acquire_timeout)
+            .idle_timeout(Some(config.idle_timeout))
+            .max_lifetime(Some(config.max_lifetime))
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    sqlx::query("SET timezone = 'UTC'").execute(conn).await?;
+                    Ok(())
+                })
             })
-        })
-        .connect(&config.url)
-        .await?;
+            .connect(&config.url)
+            .await?
+    };
+
+    #[cfg(feature = "sqlite")]
+    let pool = {
+        SqlitePoolOptions::new()
+            .max_connections(config.max_connections)
+            .min_connections(config.min_connections)
+            .acquire_timeout(config.acquire_timeout)
+            .idle_timeout(Some(config.idle_timeout))
+            .max_lifetime(Some(config.max_lifetime))
+            .connect(&config.url)
+            .await?
+    };
 
     log::info!(
         "Database connection pool established (max: {}, min: {})",
@@ -38,7 +60,11 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 pub async fn run_migrations(pool: &DbPool) -> Result<(), sqlx::migrate::MigrateError> {
     log::info!("Running database migrations...");
 
-    sqlx::migrate!("./migrations").run(pool).await?;
+    #[cfg(feature = "postgres")]
+    sqlx::migrate!("./migrations/postgres").run(pool).await?;
+
+    #[cfg(feature = "sqlite")]
+    sqlx::migrate!("./migrations/sqlite").run(pool).await?;
 
     log::info!("Database migrations completed successfully");
     Ok(())
