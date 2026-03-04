@@ -90,10 +90,21 @@ impl RateLimitService {
         pool: &DbPool,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE digested_at >= $1")
-            .bind(since)
-            .fetch_one(pool)
-            .await?;
+        #[cfg(feature = "postgres")]
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE digested_at >= $1")
+                .bind(since)
+                .fetch_one(pool)
+                .await?;
+
+        #[cfg(feature = "sqlite")]
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE datetime(digested_at) >= datetime($1)",
+        )
+        .bind(since.to_rfc3339())
+        .fetch_one(pool)
+        .await?;
+
         Ok(count)
     }
 
@@ -103,6 +114,7 @@ impl RateLimitService {
         project_id: i32,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
+        #[cfg(feature = "postgres")]
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM events WHERE project_id = $1 AND digested_at >= $2",
         )
@@ -110,6 +122,16 @@ impl RateLimitService {
         .bind(since)
         .fetch_one(pool)
         .await?;
+
+        #[cfg(feature = "sqlite")]
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE project_id = $1 AND datetime(digested_at) >= datetime($2)",
+        )
+        .bind(project_id)
+        .bind(since.to_rfc3339())
+        .fetch_one(pool)
+        .await?;
+
         Ok(count)
     }
 

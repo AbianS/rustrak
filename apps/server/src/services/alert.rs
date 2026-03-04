@@ -410,7 +410,10 @@ impl AlertService {
 
         // 2. Atomically check cooldown and update last_triggered_at
         // Uses a conditional UPDATE to prevent TOCTOU race conditions
+        // datetime() normalizes timestamp formats for safe comparison in SQLite
         let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
+
+        #[cfg(feature = "postgres")]
         let updated = sqlx::query(
             r#"
             UPDATE alert_rules
@@ -421,6 +424,20 @@ impl AlertService {
         )
         .bind(rule.id)
         .bind(cooldown_threshold)
+        .execute(pool)
+        .await?;
+
+        #[cfg(feature = "sqlite")]
+        let updated = sqlx::query(
+            r#"
+            UPDATE alert_rules
+            SET last_triggered_at = datetime('now')
+            WHERE id = $1
+              AND (last_triggered_at IS NULL OR datetime(last_triggered_at) < datetime($2))
+            "#,
+        )
+        .bind(rule.id)
+        .bind(cooldown_threshold.to_rfc3339())
         .execute(pool)
         .await?;
 
@@ -678,6 +695,7 @@ impl AlertService {
     /// Processes pending retries (for background worker)
     #[allow(dead_code)]
     pub async fn process_retry_queue(pool: &DbPool, max_retries: i32) -> AppResult<u32> {
+        #[cfg(feature = "postgres")]
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
             SELECT id, alert_rule_id, channel_id, issue_id, project_id,
@@ -686,6 +704,25 @@ impl AlertService {
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
             WHERE status = 'pending' AND next_retry_at <= CURRENT_TIMESTAMP AND attempt_count < $1
+            ORDER BY next_retry_at
+            LIMIT 100
+            "#,
+        )
+        .bind(max_retries)
+        .fetch_all(pool)
+        .await?;
+
+        #[cfg(feature = "sqlite")]
+        let pending: Vec<AlertHistory> = sqlx::query_as(
+            r#"
+            SELECT id, alert_rule_id, channel_id, issue_id, project_id,
+                   alert_type, channel_type, channel_name, status,
+                   attempt_count, next_retry_at, error_message,
+                   http_status_code, idempotency_key, created_at, sent_at
+            FROM alert_history
+            WHERE status = 'pending'
+              AND datetime(next_retry_at) <= datetime('now')
+              AND attempt_count < $1
             ORDER BY next_retry_at
             LIMIT 100
             "#,
