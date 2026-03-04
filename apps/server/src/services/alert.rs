@@ -6,9 +6,9 @@
 //! - Alert triggering and dispatching
 
 use chrono::{Duration, Utc};
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{
     AlertHistory, AlertPayload, AlertRule, AlertType, CreateAlertRule, CreateNotificationChannel,
@@ -25,7 +25,7 @@ impl AlertService {
     // =========================================================================
 
     /// Lists all notification channels
-    pub async fn list_channels(pool: &PgPool) -> AppResult<Vec<NotificationChannel>> {
+    pub async fn list_channels(pool: &DbPool) -> AppResult<Vec<NotificationChannel>> {
         let channels = sqlx::query_as::<_, NotificationChannel>(
             r#"
             SELECT id, name, channel_type, config, is_enabled, failure_count,
@@ -42,7 +42,7 @@ impl AlertService {
     }
 
     /// Gets a notification channel by ID
-    pub async fn get_channel(pool: &PgPool, id: i32) -> AppResult<NotificationChannel> {
+    pub async fn get_channel(pool: &DbPool, id: i32) -> AppResult<NotificationChannel> {
         sqlx::query_as::<_, NotificationChannel>(
             r#"
             SELECT id, name, channel_type, config, is_enabled, failure_count,
@@ -60,7 +60,7 @@ impl AlertService {
 
     /// Creates a notification channel
     pub async fn create_channel(
-        pool: &PgPool,
+        pool: &DbPool,
         input: CreateNotificationChannel,
     ) -> AppResult<NotificationChannel> {
         // Validate config based on channel type
@@ -70,7 +70,7 @@ impl AlertService {
         let channel = sqlx::query_as::<_, NotificationChannel>(
             r#"
             INSERT INTO notification_channels (name, channel_type, config, is_enabled)
-            VALUES ($1, $2::text::varchar, $3, $4)
+            VALUES ($1, $2, $3, $4)
             RETURNING id, name, channel_type, config, is_enabled, failure_count,
                       last_failure_at, last_failure_message, last_success_at,
                       created_at, updated_at
@@ -96,7 +96,7 @@ impl AlertService {
 
     /// Updates a notification channel
     pub async fn update_channel(
-        pool: &PgPool,
+        pool: &DbPool,
         id: i32,
         input: UpdateNotificationChannel,
     ) -> AppResult<NotificationChannel> {
@@ -114,7 +114,7 @@ impl AlertService {
             SET name = COALESCE($2, name),
                 config = COALESCE($3, config),
                 is_enabled = COALESCE($4, is_enabled),
-                updated_at = NOW()
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
             RETURNING id, name, channel_type, config, is_enabled, failure_count,
                       last_failure_at, last_failure_message, last_success_at,
@@ -140,7 +140,7 @@ impl AlertService {
     }
 
     /// Deletes a notification channel
-    pub async fn delete_channel(pool: &PgPool, id: i32) -> AppResult<()> {
+    pub async fn delete_channel(pool: &DbPool, id: i32) -> AppResult<()> {
         let result = sqlx::query("DELETE FROM notification_channels WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -158,7 +158,7 @@ impl AlertService {
     // =========================================================================
 
     /// Lists alert rules for a project
-    pub async fn list_rules(pool: &PgPool, project_id: i32) -> AppResult<Vec<AlertRule>> {
+    pub async fn list_rules(pool: &DbPool, project_id: i32) -> AppResult<Vec<AlertRule>> {
         let rules = sqlx::query_as::<_, AlertRule>(
             r#"
             SELECT id, project_id, name, alert_type, is_enabled, conditions,
@@ -176,7 +176,7 @@ impl AlertService {
     }
 
     /// Gets an alert rule by ID
-    pub async fn get_rule(pool: &PgPool, id: i32) -> AppResult<AlertRule> {
+    pub async fn get_rule(pool: &DbPool, id: i32) -> AppResult<AlertRule> {
         sqlx::query_as::<_, AlertRule>(
             r#"
             SELECT id, project_id, name, alert_type, is_enabled, conditions,
@@ -192,7 +192,7 @@ impl AlertService {
     }
 
     /// Gets channel IDs linked to a rule
-    pub async fn get_rule_channels(pool: &PgPool, rule_id: i32) -> AppResult<Vec<i32>> {
+    pub async fn get_rule_channels(pool: &DbPool, rule_id: i32) -> AppResult<Vec<i32>> {
         let channel_ids: Vec<(i32,)> =
             sqlx::query_as("SELECT channel_id FROM alert_rule_channels WHERE alert_rule_id = $1")
                 .bind(rule_id)
@@ -204,7 +204,7 @@ impl AlertService {
 
     /// Creates an alert rule
     pub async fn create_rule(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         input: CreateAlertRule,
     ) -> AppResult<AlertRule> {
@@ -213,7 +213,7 @@ impl AlertService {
         let rule = sqlx::query_as::<_, AlertRule>(
             r#"
             INSERT INTO alert_rules (project_id, name, alert_type, conditions, cooldown_minutes)
-            VALUES ($1, $2, $3::text::varchar, $4, $5)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING id, project_id, name, alert_type, is_enabled, conditions,
                       cooldown_minutes, last_triggered_at, created_at, updated_at
             "#,
@@ -263,7 +263,7 @@ impl AlertService {
 
     /// Updates an alert rule
     pub async fn update_rule(
-        pool: &PgPool,
+        pool: &DbPool,
         id: i32,
         input: UpdateAlertRule,
     ) -> AppResult<AlertRule> {
@@ -276,7 +276,7 @@ impl AlertService {
                 is_enabled = COALESCE($3, is_enabled),
                 conditions = COALESCE($4, conditions),
                 cooldown_minutes = COALESCE($5, cooldown_minutes),
-                updated_at = NOW()
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
             RETURNING id, project_id, name, alert_type, is_enabled, conditions,
                       cooldown_minutes, last_triggered_at, created_at, updated_at
@@ -325,7 +325,7 @@ impl AlertService {
     }
 
     /// Deletes an alert rule
-    pub async fn delete_rule(pool: &PgPool, id: i32) -> AppResult<()> {
+    pub async fn delete_rule(pool: &DbPool, id: i32) -> AppResult<()> {
         let result = sqlx::query("DELETE FROM alert_rules WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -344,7 +344,7 @@ impl AlertService {
 
     /// Triggers an alert for a new issue
     pub async fn trigger_new_issue_alert(
-        pool: &PgPool,
+        pool: &DbPool,
         project: &Project,
         issue: &Issue,
         dashboard_url: &str,
@@ -355,7 +355,7 @@ impl AlertService {
     /// Triggers an alert for a regression
     #[allow(dead_code)]
     pub async fn trigger_regression_alert(
-        pool: &PgPool,
+        pool: &DbPool,
         project: &Project,
         issue: &Issue,
         dashboard_url: &str,
@@ -366,7 +366,7 @@ impl AlertService {
     /// Triggers an alert for an unmute
     #[allow(dead_code)]
     pub async fn trigger_unmute_alert(
-        pool: &PgPool,
+        pool: &DbPool,
         project: &Project,
         issue: &Issue,
         dashboard_url: &str,
@@ -376,7 +376,7 @@ impl AlertService {
 
     /// Core alert triggering logic
     async fn trigger_alert(
-        pool: &PgPool,
+        pool: &DbPool,
         project: &Project,
         issue: &Issue,
         alert_type: AlertType,
@@ -388,7 +388,7 @@ impl AlertService {
             SELECT id, project_id, name, alert_type, is_enabled, conditions,
                    cooldown_minutes, last_triggered_at, created_at, updated_at
             FROM alert_rules
-            WHERE project_id = $1 AND alert_type = $2::text::varchar AND is_enabled = TRUE
+            WHERE project_id = $1 AND alert_type = $2 AND is_enabled = TRUE
             "#,
         )
         .bind(project.id)
@@ -410,24 +410,24 @@ impl AlertService {
 
         // 2. Atomically check cooldown and update last_triggered_at
         // This prevents race conditions where concurrent triggers bypass cooldown
+        // Use application-level cooldown check for cross-DB compatibility
+        if let Some(last_triggered) = rule.last_triggered_at {
+            let cooldown = Duration::minutes(rule.cooldown_minutes as i64);
+            if Utc::now() - last_triggered < cooldown {
+                log::debug!("Alert rule {} is in cooldown period", rule.id);
+                return Ok(());
+            }
+        }
+
         let updated = sqlx::query(
-            r#"
-            UPDATE alert_rules
-            SET last_triggered_at = NOW()
-            WHERE id = $1
-              AND (
-                last_triggered_at IS NULL
-                OR last_triggered_at <= NOW() - make_interval(mins => $2)
-              )
-            "#,
+            "UPDATE alert_rules SET last_triggered_at = CURRENT_TIMESTAMP WHERE id = $1",
         )
         .bind(rule.id)
-        .bind(rule.cooldown_minutes)
         .execute(pool)
         .await?;
 
         if updated.rows_affected() == 0 {
-            log::debug!("Alert rule {} is in cooldown period", rule.id);
+            log::debug!("Alert rule {} not found during trigger", rule.id);
             return Ok(());
         }
 
@@ -515,7 +515,7 @@ impl AlertService {
 
     /// Dispatches an alert to a single channel
     async fn dispatch_to_channel(
-        pool: &PgPool,
+        pool: &DbPool,
         channel: &NotificationChannel,
         payload: &AlertPayload,
         rule_id: i32,
@@ -567,7 +567,7 @@ impl AlertService {
             sqlx::query(
                 r#"
                 UPDATE alert_history
-                SET status = 'sent', sent_at = NOW(), http_status_code = $2
+                SET status = 'sent', sent_at = CURRENT_TIMESTAMP, http_status_code = $2
                 WHERE id = $1
                 "#,
             )
@@ -579,7 +579,7 @@ impl AlertService {
             sqlx::query(
                 r#"
                 UPDATE notification_channels
-                SET last_success_at = NOW(), failure_count = 0
+                SET last_success_at = CURRENT_TIMESTAMP, failure_count = 0
                 WHERE id = $1
                 "#,
             )
@@ -625,7 +625,7 @@ impl AlertService {
             sqlx::query(
                 r#"
                 UPDATE notification_channels
-                SET last_failure_at = NOW(),
+                SET last_failure_at = CURRENT_TIMESTAMP,
                     last_failure_message = $2,
                     failure_count = failure_count + 1
                 WHERE id = $1
@@ -653,7 +653,7 @@ impl AlertService {
 
     /// Lists alert history for a project
     pub async fn list_history(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         limit: i64,
     ) -> AppResult<Vec<AlertHistory>> {
@@ -679,7 +679,7 @@ impl AlertService {
 
     /// Processes pending retries (for background worker)
     #[allow(dead_code)]
-    pub async fn process_retry_queue(pool: &PgPool, max_retries: i32) -> AppResult<u32> {
+    pub async fn process_retry_queue(pool: &DbPool, max_retries: i32) -> AppResult<u32> {
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
             SELECT id, alert_rule_id, channel_id, issue_id, project_id,
@@ -687,7 +687,7 @@ impl AlertService {
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
-            WHERE status = 'pending' AND next_retry_at <= NOW() AND attempt_count < $1
+            WHERE status = 'pending' AND next_retry_at <= CURRENT_TIMESTAMP AND attempt_count < $1
             ORDER BY next_retry_at
             LIMIT 100
             "#,

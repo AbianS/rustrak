@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use ipnetwork::IpNetwork;
 use serde::Serialize;
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -29,7 +28,7 @@ pub struct Event {
     pub server_name: String,
     pub sdk_name: String,
     pub sdk_version: String,
-    pub remote_addr: Option<IpNetwork>,
+    pub remote_addr: Option<String>,
     pub digest_order: i32,
 }
 

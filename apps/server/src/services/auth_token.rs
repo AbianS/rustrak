@@ -1,6 +1,5 @@
-use sqlx::PgPool;
-
 use crate::auth::generate_token;
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{AuthToken, CreateAuthToken};
 
@@ -8,7 +7,7 @@ pub struct AuthTokenService;
 
 impl AuthTokenService {
     /// Lists all tokens
-    pub async fn list(pool: &PgPool) -> AppResult<Vec<AuthToken>> {
+    pub async fn list(pool: &DbPool) -> AppResult<Vec<AuthToken>> {
         let tokens = sqlx::query_as::<_, AuthToken>(
             r#"
             SELECT id, token, description, created_at, last_used_at
@@ -24,7 +23,7 @@ impl AuthTokenService {
 
     /// Gets a token by ID
     #[allow(dead_code)]
-    pub async fn get_by_id(pool: &PgPool, id: i32) -> AppResult<AuthToken> {
+    pub async fn get_by_id(pool: &DbPool, id: i32) -> AppResult<AuthToken> {
         let token = sqlx::query_as::<_, AuthToken>(
             r#"
             SELECT id, token, description, created_at, last_used_at
@@ -41,7 +40,7 @@ impl AuthTokenService {
     }
 
     /// Gets a token by token string (for authentication)
-    pub async fn get_by_token(pool: &PgPool, token: &str) -> AppResult<Option<AuthToken>> {
+    pub async fn get_by_token(pool: &DbPool, token: &str) -> AppResult<Option<AuthToken>> {
         let result = sqlx::query_as::<_, AuthToken>(
             r#"
             SELECT id, token, description, created_at, last_used_at
@@ -57,7 +56,7 @@ impl AuthTokenService {
     }
 
     /// Creates a new token
-    pub async fn create(pool: &PgPool, input: CreateAuthToken) -> AppResult<AuthToken> {
+    pub async fn create(pool: &DbPool, input: CreateAuthToken) -> AppResult<AuthToken> {
         let token_str = generate_token();
 
         let token = sqlx::query_as::<_, AuthToken>(
@@ -76,7 +75,7 @@ impl AuthTokenService {
     }
 
     /// Deletes a token (revoke)
-    pub async fn delete(pool: &PgPool, id: i32) -> AppResult<()> {
+    pub async fn delete(pool: &DbPool, id: i32) -> AppResult<()> {
         let result = sqlx::query("DELETE FROM auth_tokens WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -93,8 +92,8 @@ impl AuthTokenService {
     }
 
     /// Updates last_used_at timestamp
-    pub async fn update_last_used(pool: &PgPool, id: i32) -> AppResult<()> {
-        sqlx::query("UPDATE auth_tokens SET last_used_at = NOW() WHERE id = $1")
+    pub async fn update_last_used(pool: &DbPool, id: i32) -> AppResult<()> {
+        sqlx::query("UPDATE auth_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
@@ -103,7 +102,7 @@ impl AuthTokenService {
     }
 
     /// Checks if any tokens exist (for bootstrap check)
-    pub async fn has_any_token(pool: &PgPool) -> AppResult<bool> {
+    pub async fn has_any_token(pool: &DbPool) -> AppResult<bool> {
         let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM auth_tokens")
             .fetch_one(pool)
             .await?;

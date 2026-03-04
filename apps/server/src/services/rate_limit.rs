@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
-use sqlx::PgPool;
 
 use crate::config::RateLimitConfig;
+use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::{Installation, Project};
 
@@ -28,7 +28,7 @@ pub enum QuotaScope {
 
 impl RateLimitService {
     /// Gets the installation singleton
-    pub async fn get_installation(pool: &PgPool) -> AppResult<Installation> {
+    pub async fn get_installation(pool: &DbPool) -> AppResult<Installation> {
         let installation =
             sqlx::query_as::<_, Installation>("SELECT * FROM installation WHERE id = 1")
                 .fetch_one(pool)
@@ -38,7 +38,7 @@ impl RateLimitService {
 
     /// Checks if quota is exceeded for installation or project (call during ingest)
     /// Returns Some(QuotaExceeded) if rate limited, None if allowed
-    pub async fn check_quota(pool: &PgPool, project: &Project) -> AppResult<Option<QuotaExceeded>> {
+    pub async fn check_quota(pool: &DbPool, project: &Project) -> AppResult<Option<QuotaExceeded>> {
         let now = Utc::now();
 
         // 1. Check installation (global) quota
@@ -70,7 +70,7 @@ impl RateLimitService {
     /// Updates quota state after digesting an event
     /// Call this during digest, after the event is processed
     pub async fn update_quota_state(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         config: &RateLimitConfig,
     ) -> AppResult<()> {
@@ -87,7 +87,7 @@ impl RateLimitService {
 
     /// Counts events in a time window for the whole installation
     async fn count_global_events_since(
-        pool: &PgPool,
+        pool: &DbPool,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE digested_at >= $1")
@@ -99,7 +99,7 @@ impl RateLimitService {
 
     /// Counts events in a time window for a specific project
     async fn count_project_events_since(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
@@ -115,7 +115,7 @@ impl RateLimitService {
 
     /// Updates installation quota state
     async fn update_installation_quota(
-        pool: &PgPool,
+        pool: &DbPool,
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
     ) -> AppResult<()> {
@@ -191,7 +191,7 @@ impl RateLimitService {
 
     /// Updates project quota state
     async fn update_project_quota(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
