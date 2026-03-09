@@ -2,6 +2,7 @@
 //!
 //! Tests the complete event digest workflow: ingest -> grouping -> issue creation.
 
+use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
 use rustrak::digest::worker::process_event;
@@ -9,51 +10,8 @@ use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
 use rustrak::services::{EventService, IssueService, ProjectService};
 use serde_json::json;
-use sqlx::PgPool;
 use tempfile::TempDir;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
 
 fn create_rate_limit_config() -> RateLimitConfig {
     RateLimitConfig {
@@ -64,7 +22,7 @@ fn create_rate_limit_config() -> RateLimitConfig {
     }
 }
 
-async fn create_test_project(pool: &PgPool, name: &str) -> rustrak::models::Project {
+async fn create_test_project(pool: &rustrak::db::DbPool, name: &str) -> rustrak::models::Project {
     ProjectService::create(
         pool,
         CreateProject {

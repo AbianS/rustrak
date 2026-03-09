@@ -25,8 +25,7 @@ CREATE TABLE projects (
     -- Rate limiting fields
     quota_exceeded_until TEXT,
     quota_exceeded_reason TEXT,
-    next_quota_check INTEGER NOT NULL DEFAULT 0,
-    is_deleted INTEGER NOT NULL DEFAULT 0
+    next_quota_check INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_projects_sentry_key ON projects(sentry_key);
@@ -185,7 +184,12 @@ CREATE TABLE users (
     is_active INTEGER NOT NULL DEFAULT 1,
     is_admin INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    last_login TEXT
+    last_login TEXT,
+    CONSTRAINT email_format CHECK (
+        instr(email, '@') > 1
+        AND instr(email, '.') > 1
+        AND instr(email, '@') < length(email)
+    )
 );
 
 CREATE INDEX idx_users_email ON users(email);

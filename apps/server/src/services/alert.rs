@@ -437,7 +437,7 @@ impl AlertService {
             "#,
         )
         .bind(rule.id)
-        .bind(cooldown_threshold.to_rfc3339())
+        .bind(cooldown_threshold.naive_utc())
         .execute(pool)
         .await?;
 
