@@ -110,13 +110,24 @@ services:
 
 ### Backups
 
+**PostgreSQL:**
+
 ```bash
-# Daily database backup
+# Daily backup
 pg_dump -h localhost -U rustrak rustrak > backup_$(date +%Y%m%d).sql
 
 # Restore
 psql -h localhost -U rustrak rustrak < backup.sql
 ```
+
+**SQLite:**
+
+```bash
+# Use SQLite's online backup API (safe while server is running)
+sqlite3 /var/lib/rustrak/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db"
+```
+
+> Use `sqlite3 .backup` rather than `cp`. A plain file copy may capture an inconsistent state if a write is in progress.
 
 ## Pre-launch checklist
 

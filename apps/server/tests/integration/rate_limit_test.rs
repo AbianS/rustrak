@@ -2,58 +2,15 @@
 //!
 //! Tests that rate limiting is enforced during event ingestion.
 
+use crate::common::TestDb;
 use actix_web::{test, web, App};
 use chrono::{Duration, Utc};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
 use rustrak::services::ProjectService;
 use serde_json::json;
-use sqlx::PgPool;
 use std::time::Duration as StdDuration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        // Enable pgcrypto extension for gen_random_uuid()
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
 
 /// Creates a test config with given rate limits
 fn create_test_config(rate_limit: RateLimitConfig) -> Config {
@@ -88,7 +45,7 @@ fn default_rate_limit_config() -> RateLimitConfig {
 }
 
 /// Creates a test project and returns its sentry_key
-async fn create_test_project(pool: &PgPool, name: &str) -> (i32, String) {
+async fn create_test_project(pool: &rustrak::db::DbPool, name: &str) -> (i32, String) {
     let project = ProjectService::create(
         pool,
         rustrak::models::CreateProject {
@@ -102,7 +59,11 @@ async fn create_test_project(pool: &PgPool, name: &str) -> (i32, String) {
 }
 
 /// Sets project quota exceeded until the given time
-async fn set_project_quota_exceeded(pool: &PgPool, project_id: i32, until: chrono::DateTime<Utc>) {
+async fn set_project_quota_exceeded(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    until: chrono::DateTime<Utc>,
+) {
     sqlx::query("UPDATE projects SET quota_exceeded_until = $1 WHERE id = $2")
         .bind(until)
         .bind(project_id)
@@ -112,7 +73,7 @@ async fn set_project_quota_exceeded(pool: &PgPool, project_id: i32, until: chron
 }
 
 /// Sets installation quota exceeded until the given time
-async fn set_installation_quota_exceeded(pool: &PgPool, until: chrono::DateTime<Utc>) {
+async fn set_installation_quota_exceeded(pool: &rustrak::db::DbPool, until: chrono::DateTime<Utc>) {
     sqlx::query("UPDATE installation SET quota_exceeded_until = $1 WHERE id = 1")
         .bind(until)
         .execute(pool)

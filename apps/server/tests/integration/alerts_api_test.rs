@@ -3,6 +3,7 @@
 //! Tests the notification channels, alert rules, and alert triggering
 //! with a real PostgreSQL database.
 
+use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
@@ -13,51 +14,7 @@ use rustrak::models::{
 use rustrak::routes;
 use rustrak::services::{AlertService, ProjectService};
 use serde_json::json;
-use sqlx::PgPool;
 use std::time::Duration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
-
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        // Enable pgcrypto extension for gen_random_uuid()
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
 
 /// Creates a test config
 fn create_test_config() -> Config {
@@ -92,7 +49,7 @@ fn test_session_key() -> Key {
 }
 
 /// Creates a test project and returns its ID
-async fn create_test_project(pool: &PgPool) -> i32 {
+async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
     let project = ProjectService::create(
         pool,
         rustrak::models::CreateProject {

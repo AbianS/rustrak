@@ -6,60 +6,20 @@
 use actix_web::{middleware, web, App, HttpServer};
 use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
+use rustrak::db::DbPool;
 use rustrak::digest::worker::process_event;
 use rustrak::ingest::EventMetadata;
 use rustrak::models::CreateProject;
 use rustrak::routes;
 use rustrak::services::{IssueService, ProjectService};
 use sentry::protocol::{Event, Exception, Frame, Level, Stacktrace};
-use sqlx::PgPool;
 use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
 use tokio::sync::Notify;
 
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
+use crate::common::TestDb;
 
 fn create_test_config(ingest_dir: &str) -> Config {
     Config {
@@ -87,7 +47,7 @@ fn create_test_config(ingest_dir: &str) -> Config {
     }
 }
 
-async fn create_test_project(pool: &PgPool, name: &str) -> rustrak::models::Project {
+async fn create_test_project(pool: &DbPool, name: &str) -> rustrak::models::Project {
     ProjectService::create(
         pool,
         CreateProject {
@@ -108,7 +68,7 @@ fn get_available_port() -> u16 {
 /// Helper struct to manage test server lifecycle
 struct TestServer {
     port: u16,
-    pool: PgPool,
+    pool: DbPool,
     ingest_dir: TempDir,
     shutdown: Arc<Notify>,
 }

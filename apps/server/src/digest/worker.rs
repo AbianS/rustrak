@@ -1,9 +1,9 @@
 use chrono::Utc;
-use sqlx::{PgPool, Postgres, Transaction};
 use std::path::Path;
 use uuid::Uuid;
 
 use crate::config::RateLimitConfig;
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::ingest::{delete_event, read_event, EventMetadata};
 use crate::models::{Grouping, Issue};
@@ -14,7 +14,7 @@ use crate::services::{
 
 /// Processes an event from temporary storage
 pub async fn process_event(
-    pool: &PgPool,
+    pool: &DbPool,
     metadata: &EventMetadata,
     ingest_dir: &Path,
     rate_limit_config: &RateLimitConfig,
@@ -131,12 +131,13 @@ pub async fn process_event(
 /// Finds an existing grouping or creates a new one along with its issue.
 /// Uses a PostgreSQL advisory lock per project to prevent race conditions
 /// when creating new issues with sequential digest_order values.
+/// On SQLite, the advisory lock is skipped since SQLite serializes writes.
 ///
 /// Advisory locks are automatically released when the transaction commits or rolls back.
 /// Different projects can process events concurrently (locks are per-project).
 #[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_with_lock(
-    pool: &PgPool,
+    pool: &DbPool,
     project_id: i32,
     grouping_key: &str,
     grouping_key_hash: &str,
@@ -148,9 +149,9 @@ async fn find_or_create_issue_and_grouping_with_lock(
     // Start a transaction
     let mut tx = pool.begin().await?;
 
-    // Acquire advisory lock for this project (released automatically on commit/rollback)
-    // We use pg_advisory_xact_lock which is transaction-scoped
-    // The lock key is the project_id cast to bigint
+    // Acquire advisory lock for this project (Postgres only).
+    // SQLite serializes all writes, so no advisory lock needed.
+    #[cfg(feature = "postgres")]
     sqlx::query("SELECT pg_advisory_xact_lock($1)")
         .bind(project_id as i64)
         .execute(&mut *tx)
@@ -184,9 +185,14 @@ async fn find_or_create_issue_and_grouping_with_lock(
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction
+#[cfg(feature = "postgres")]
+type DbBackend = sqlx::Postgres;
+#[cfg(feature = "sqlite")]
+type DbBackend = sqlx::Sqlite;
+
 #[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_inner(
-    tx: &mut Transaction<'_, Postgres>,
+    tx: &mut sqlx::Transaction<'_, DbBackend>,
     project_id: i32,
     grouping_key: &str,
     grouping_key_hash: &str,
@@ -236,20 +242,22 @@ async fn find_or_create_issue_and_grouping_inner(
 
     let digest_order = max_order.unwrap_or(0) + 1;
 
-    // Create new issue
+    // Create new issue (generate UUID in application for cross-DB compatibility)
+    let issue_id = Uuid::new_v4();
     let issue: Issue = sqlx::query_as(
         r#"
         INSERT INTO issues (
-            project_id, digest_order, first_seen, last_seen,
+            id, project_id, digest_order, first_seen, last_seen,
             digested_event_count, stored_event_count,
-            calculated_type, calculated_value, transaction,
+            calculated_type, calculated_value, "transaction",
             last_frame_filename, last_frame_module, last_frame_function,
             level, platform
         )
-        VALUES ($1, $2, $3, $3, 1, 1, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $4, 1, 1, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
         "#,
     )
+    .bind(issue_id)
     .bind(project_id)
     .bind(digest_order)
     .bind(timestamp)

@@ -1,7 +1,7 @@
 use chrono::{Duration, Utc};
-use sqlx::PgPool;
 
 use crate::config::RateLimitConfig;
+use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::{Installation, Project};
 
@@ -28,7 +28,7 @@ pub enum QuotaScope {
 
 impl RateLimitService {
     /// Gets the installation singleton
-    pub async fn get_installation(pool: &PgPool) -> AppResult<Installation> {
+    pub async fn get_installation(pool: &DbPool) -> AppResult<Installation> {
         let installation =
             sqlx::query_as::<_, Installation>("SELECT * FROM installation WHERE id = 1")
                 .fetch_one(pool)
@@ -38,7 +38,7 @@ impl RateLimitService {
 
     /// Checks if quota is exceeded for installation or project (call during ingest)
     /// Returns Some(QuotaExceeded) if rate limited, None if allowed
-    pub async fn check_quota(pool: &PgPool, project: &Project) -> AppResult<Option<QuotaExceeded>> {
+    pub async fn check_quota(pool: &DbPool, project: &Project) -> AppResult<Option<QuotaExceeded>> {
         let now = Utc::now();
 
         // 1. Check installation (global) quota
@@ -70,7 +70,7 @@ impl RateLimitService {
     /// Updates quota state after digesting an event
     /// Call this during digest, after the event is processed
     pub async fn update_quota_state(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         config: &RateLimitConfig,
     ) -> AppResult<()> {
@@ -87,22 +87,33 @@ impl RateLimitService {
 
     /// Counts events in a time window for the whole installation
     async fn count_global_events_since(
-        pool: &PgPool,
+        pool: &DbPool,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
+        #[cfg(feature = "postgres")]
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE digested_at >= $1")
             .bind(since)
             .fetch_one(pool)
             .await?;
+
+        #[cfg(feature = "sqlite")]
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE datetime(digested_at) >= datetime($1)",
+        )
+        .bind(since.naive_utc())
+        .fetch_one(pool)
+        .await?;
+
         Ok(count)
     }
 
     /// Counts events in a time window for a specific project
     async fn count_project_events_since(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         since: chrono::DateTime<Utc>,
     ) -> AppResult<i64> {
+        #[cfg(feature = "postgres")]
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM events WHERE project_id = $1 AND digested_at >= $2",
         )
@@ -110,19 +121,33 @@ impl RateLimitService {
         .bind(since)
         .fetch_one(pool)
         .await?;
+
+        #[cfg(feature = "sqlite")]
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE project_id = $1 AND datetime(digested_at) >= datetime($2)",
+        )
+        .bind(project_id)
+        .bind(since.naive_utc())
+        .fetch_one(pool)
+        .await?;
+
         Ok(count)
     }
 
     /// Updates installation quota state
     async fn update_installation_quota(
-        pool: &PgPool,
+        pool: &DbPool,
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
     ) -> AppResult<()> {
-        let installation = Self::get_installation(pool).await?;
+        // Atomically increment and get the new count
+        let new_count: i64 = sqlx::query_scalar(
+            "UPDATE installation SET digested_event_count = digested_event_count + 1 WHERE id = 1 RETURNING digested_event_count",
+        )
+        .fetch_one(pool)
+        .await?;
 
-        // Increment global digested count
-        let new_count = installation.digested_event_count + 1;
+        let installation = Self::get_installation(pool).await?;
 
         // Calculate minimum threshold for optimization
         let min_threshold = config.max_events_per_minute.min(config.max_events_per_hour);
@@ -165,25 +190,17 @@ impl RateLimitService {
             sqlx::query(
                 r#"
                 UPDATE installation
-                SET digested_event_count = $1,
-                    quota_exceeded_until = $2,
-                    quota_exceeded_reason = $3,
-                    next_quota_check = $4
+                SET quota_exceeded_until = $1,
+                    quota_exceeded_reason = $2,
+                    next_quota_check = $3
                 WHERE id = 1
                 "#,
             )
-            .bind(new_count)
             .bind(exceeded_until)
             .bind(exceeded_reason)
             .bind(new_count + check_again_after)
             .execute(pool)
             .await?;
-        } else {
-            // Just increment the counter
-            sqlx::query("UPDATE installation SET digested_event_count = $1 WHERE id = 1")
-                .bind(new_count)
-                .execute(pool)
-                .await?;
         }
 
         Ok(())
@@ -191,19 +208,25 @@ impl RateLimitService {
 
     /// Updates project quota state
     async fn update_project_quota(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         config: &RateLimitConfig,
         now: chrono::DateTime<Utc>,
     ) -> AppResult<()> {
-        // Get current project state
+        // Atomically increment and get the new count
+        let new_count: i32 = sqlx::query_scalar(
+            "UPDATE projects SET digested_event_count = digested_event_count + 1 WHERE id = $1 RETURNING digested_event_count",
+        )
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+        let new_count = new_count as i64;
+
+        // Get current project quota state
         let project: Project = sqlx::query_as("SELECT * FROM projects WHERE id = $1")
             .bind(project_id)
             .fetch_one(pool)
             .await?;
-
-        // Increment project digested count
-        let new_count = project.digested_event_count as i64 + 1;
 
         // Calculate minimum threshold for optimization
         let min_threshold = config
@@ -248,8 +271,7 @@ impl RateLimitService {
             sqlx::query(
                 r#"
                 UPDATE projects
-                SET digested_event_count = digested_event_count + 1,
-                    quota_exceeded_until = $2,
+                SET quota_exceeded_until = $2,
                     quota_exceeded_reason = $3,
                     next_quota_check = $4
                 WHERE id = $1
@@ -259,14 +281,6 @@ impl RateLimitService {
             .bind(exceeded_until)
             .bind(exceeded_reason)
             .bind(new_count + check_again_after)
-            .execute(pool)
-            .await?;
-        } else {
-            // Just increment the counter
-            sqlx::query(
-                "UPDATE projects SET digested_event_count = digested_event_count + 1 WHERE id = $1",
-            )
-            .bind(project_id)
             .execute(pool)
             .await?;
         }

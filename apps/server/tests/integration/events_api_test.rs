@@ -2,6 +2,7 @@
 //!
 //! Tests the Events API endpoints with a real PostgreSQL database.
 
+use crate::common::TestDb;
 use actix_web::{test, web, App};
 use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
@@ -10,51 +11,8 @@ use rustrak::routes;
 use rustrak::services::grouping::DenormalizedFields;
 use rustrak::services::{AuthTokenService, EventService, IssueService, ProjectService};
 use serde_json::{json, Value};
-use sqlx::PgPool;
 use std::time::Duration as StdDuration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
 
 fn create_test_config() -> Config {
     Config {
@@ -82,7 +40,7 @@ fn create_test_config() -> Config {
     }
 }
 
-async fn create_test_token(pool: &PgPool) -> String {
+async fn create_test_token(pool: &rustrak::db::DbPool) -> String {
     AuthTokenService::create(
         pool,
         rustrak::models::CreateAuthToken {
@@ -94,7 +52,7 @@ async fn create_test_token(pool: &PgPool) -> String {
     .token
 }
 
-async fn create_test_project(pool: &PgPool, name: &str) -> rustrak::models::Project {
+async fn create_test_project(pool: &rustrak::db::DbPool, name: &str) -> rustrak::models::Project {
     ProjectService::create(
         pool,
         CreateProject {
@@ -122,7 +80,7 @@ fn create_denormalized_fields(
 }
 
 async fn create_test_issue(
-    pool: &PgPool,
+    pool: &rustrak::db::DbPool,
     project_id: i32,
     calc_type: &str,
     calc_value: &str,
@@ -140,7 +98,11 @@ async fn create_test_issue(
     .expect("Failed to create test issue")
 }
 
-async fn create_test_grouping(pool: &PgPool, project_id: i32, issue_id: Uuid) -> Grouping {
+async fn create_test_grouping(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    issue_id: Uuid,
+) -> Grouping {
     let grouping_key = format!("test_grouping_key_{}", Uuid::new_v4());
     let grouping_key_hash = format!("{:064x}", 0); // Simple hash for testing
 
@@ -161,7 +123,7 @@ async fn create_test_grouping(pool: &PgPool, project_id: i32, issue_id: Uuid) ->
 }
 
 async fn create_test_event(
-    pool: &PgPool,
+    pool: &rustrak::db::DbPool,
     project_id: i32,
     issue_id: Uuid,
     grouping_id: i32,

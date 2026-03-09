@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS alert_history;
+DROP TABLE IF EXISTS alert_rule_channels;
+DROP TABLE IF EXISTS alert_rules;
+DROP TABLE IF EXISTS notification_channels;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS installation;
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS groupings;
+DROP TABLE IF EXISTS issues;
+DROP TABLE IF EXISTS auth_tokens;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS schema_info;

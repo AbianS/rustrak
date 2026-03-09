@@ -1,7 +1,7 @@
 use log::{info, warn};
-use sqlx::PgPool;
 use std::env;
 
+use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::CreateUserRequest;
 use crate::services::UsersService;
@@ -9,7 +9,7 @@ use crate::services::UsersService;
 /// Bootstrap initial superuser from CREATE_SUPERUSER env var
 /// Format: "email:password"
 /// Only creates user if database is empty
-pub async fn create_superuser_if_needed(pool: &PgPool) -> AppResult<()> {
+pub async fn create_superuser_if_needed(pool: &DbPool) -> AppResult<()> {
     let create_superuser = match env::var("CREATE_SUPERUSER") {
         Ok(val) if !val.is_empty() => val,
         _ => {

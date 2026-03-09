@@ -6,9 +6,26 @@ All configuration options for the Rustrak server.
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
+| `DATABASE_URL` | Database connection string. **Optional for SQLite** (defaults to `sqlite:///data/rustrak.db`). Required for PostgreSQL. |
 
 ### DATABASE_URL
+
+Rustrak supports two database backends selected at compile time.
+
+**SQLite**:
+
+```bash
+# Relative file path
+DATABASE_URL=sqlite://./rustrak.db
+
+# Absolute path
+DATABASE_URL=sqlite:///var/lib/rustrak/rustrak.db
+
+# In-memory (for testing only — data lost on restart)
+DATABASE_URL=sqlite::memory:
+```
+
+**PostgreSQL**:
 
 ```bash
 # Format
@@ -117,13 +134,13 @@ Only creates user if database is empty.
 
 ## Complete Example
 
-### Development
+### SQLite (development / personal)
 
 ```bash
-# .env file (development)
+# .env file (SQLite — image tag: latest)
 
 # Required
-DATABASE_URL=postgres://rustrak:rustrak@localhost:5432/rustrak
+DATABASE_URL=sqlite:///data/rustrak.db
 
 # Server
 HOST=0.0.0.0
@@ -134,10 +151,10 @@ RUST_LOG=info
 RUSTRAK_API_URL=http://localhost:8080
 ```
 
-### Production
+### PostgreSQL (production)
 
 ```bash
-# .env file (production with HTTPS)
+# .env file (PostgreSQL — image tag: postgres)
 
 # Required
 DATABASE_URL=postgres://rustrak:password@postgres:5432/rustrak

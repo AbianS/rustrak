@@ -47,3 +47,8 @@ doc/
 # Temporary files
 *.tmp
 *.temp
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal

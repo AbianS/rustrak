@@ -3,6 +3,7 @@
 //! Tests the complete authentication flow with a real PostgreSQL database.
 //! Covers: register, login, logout, get current user, and session management.
 
+use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig};
@@ -11,51 +12,7 @@ use rustrak::models::User;
 use rustrak::routes;
 use rustrak::services::UsersService;
 use serde_json::{json, Value};
-use sqlx::PgPool;
 use std::time::Duration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
-use testcontainers_modules::postgres::Postgres;
-
-/// Test database container with connection pool
-struct TestDb {
-    #[allow(dead_code)]
-    container: ContainerAsync<Postgres>,
-    pool: PgPool,
-}
-
-impl TestDb {
-    async fn new() -> Self {
-        let container = Postgres::default()
-            .start()
-            .await
-            .expect("Failed to start PostgreSQL container");
-
-        let host = container.get_host().await.expect("Failed to get host");
-        let port = container
-            .get_host_port_ipv4(5432)
-            .await
-            .expect("Failed to get port");
-
-        let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
-
-        let pool = PgPool::connect(&database_url)
-            .await
-            .expect("Failed to connect to test database");
-
-        // Enable pgcrypto extension for gen_random_uuid()
-        sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-            .execute(&pool)
-            .await
-            .expect("Failed to enable pgcrypto extension");
-
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
-            .expect("Failed to run migrations");
-
-        TestDb { container, pool }
-    }
-}
 
 /// Creates a test config
 fn create_test_config() -> Config {
@@ -85,7 +42,12 @@ fn create_test_config() -> Config {
 }
 
 /// Helper to create test user directly in DB
-async fn create_test_user(pool: &PgPool, email: &str, password: &str, is_admin: bool) -> User {
+async fn create_test_user(
+    pool: &rustrak::db::DbPool,
+    email: &str,
+    password: &str,
+    is_admin: bool,
+) -> User {
     let req = rustrak::models::CreateUserRequest {
         email: email.to_string(),
         password: password.to_string(),

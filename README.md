@@ -33,13 +33,57 @@ Most error tracking solutions are either expensive SaaS products or heavy self-h
 - **Sentry Compatible** - Works with any existing Sentry SDK (Python, JavaScript, Go, Rust, etc.)
 - **Lightweight** - Server runs with ~50MB memory footprint
 - **Fast** - <50ms P99 ingestion latency, 10k+ events/second
-- **Simple** - Single binary + PostgreSQL, no Redis or complex infrastructure
+- **Simple** - Single binary, no Redis or complex infrastructure
+- **Flexible** - SQLite (zero setup) or PostgreSQL (production scale)
 
 <img width="1280" height="412" alt="Frame 2" src="https://github.com/user-attachments/assets/7ba6664b-7352-4955-8943-b1429d7491cd" />
 
 ## Quick Start
 
-### 1. Create `docker-compose.yml`
+### SQLite (default — no external database)
+
+The default image uses SQLite. No PostgreSQL needed.
+
+```yaml
+services:
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - rustrak_data:/data
+    environment:
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  rustrak_data:
+```
+
+```bash
+SESSION_SECRET_KEY=$(openssl rand -hex 32)
+CREATE_SUPERUSER=admin@example.com:changeme123
+docker compose up -d
+```
+
+Open http://localhost:3000 and login with your `CREATE_SUPERUSER` credentials.
+
+### PostgreSQL (production)
+
+Use the `:postgres` image tag when you need PostgreSQL.
+
+#### 1. Create `docker-compose.yml`
 
 ```yaml
 services:
@@ -59,7 +103,7 @@ services:
     restart: unless-stopped
 
   server:
-    image: abians7/rustrak-server:latest
+    image: abians7/rustrak-server:postgres
     ports:
       - "${SERVER_PORT}:8080"
     environment:
@@ -88,7 +132,7 @@ volumes:
   postgres_data:
 ```
 
-### 2. Create `.env` file
+#### 2. Create `.env` file
 
 ```bash
 # Database
@@ -107,7 +151,7 @@ UI_PORT=3000
 RUSTRAK_API_URL=http://server:8080
 ```
 
-### 3. Start Rustrak
+#### 3. Start Rustrak
 
 ```bash
 docker compose up -d
@@ -160,21 +204,23 @@ Works with **any** Sentry SDK - no code changes needed if you're migrating from 
 |-----------|------|---------|
 | Server | Rust + Actix-web | API & event ingestion |
 | UI | Next.js 16 | Dashboard |
-| Database | PostgreSQL 16 | Storage |
+| Database | SQLite or PostgreSQL | Storage |
 
 ## Docker Images
 
 Available on Docker Hub:
 
 ```bash
-docker pull abians7/rustrak-server
+docker pull abians7/rustrak-server         # SQLite (default)
+docker pull abians7/rustrak-server:postgres # PostgreSQL
 docker pull abians7/rustrak-ui
 ```
 
-| Image | Size | Description |
-|-------|------|-------------|
-| `rustrak-server` | ~20MB | API & event ingestion |
-| `rustrak-ui` | ~50MB | Next.js dashboard |
+| Image | Tag | Size | Description |
+|-------|-----|------|-------------|
+| `rustrak-server` | `latest`, `vX.Y.Z` | ~20MB | SQLite backend (no external DB) |
+| `rustrak-server` | `postgres`, `vX.Y.Z-postgres` | ~20MB | PostgreSQL backend |
+| `rustrak-ui` | `latest`, `vX.Y.Z` | ~50MB | Next.js dashboard |
 
 ## Development
 

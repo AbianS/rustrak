@@ -46,7 +46,7 @@ impl FromRequest for AuthenticatedUser {
 
             // Get database pool
             let pool = req
-                .app_data::<web::Data<sqlx::PgPool>>()
+                .app_data::<web::Data<crate::db::DbPool>>()
                 .ok_or_else(|| AppError::Internal("Database pool not found".to_string()))?;
 
             // Fetch user from database

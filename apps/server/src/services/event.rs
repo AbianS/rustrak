@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
-use ipnetwork::IpNetwork;
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::Event;
 use crate::pagination::{EventCursor, SortOrder};
@@ -16,7 +15,7 @@ impl EventService {
     /// Uses KEYSET pagination for efficient large dataset handling.
     /// Returns (events, has_more) where has_more indicates if there are more results.
     pub async fn list_paginated(
-        pool: &PgPool,
+        pool: &DbPool,
         issue_id: Uuid,
         order: SortOrder,
         cursor: Option<&EventCursor>,
@@ -100,7 +99,7 @@ impl EventService {
     }
 
     /// Gets an event by ID
-    pub async fn get_by_id(pool: &PgPool, id: Uuid) -> AppResult<Event> {
+    pub async fn get_by_id(pool: &DbPool, id: Uuid) -> AppResult<Event> {
         let event = sqlx::query_as::<_, Event>("SELECT * FROM events WHERE id = $1")
             .bind(id)
             .fetch_optional(pool)
@@ -113,7 +112,7 @@ impl EventService {
     /// Creates a new event
     #[allow(clippy::too_many_arguments)]
     pub async fn create(
-        pool: &PgPool,
+        pool: &DbPool,
         event_id: Uuid,
         project_id: i32,
         issue_id: Uuid,
@@ -177,24 +176,27 @@ impl EventService {
             .and_then(|v| v.as_str())
             .unwrap_or("");
 
-        // Parse remote_addr as IpNetwork if provided
-        let remote_addr_inet: Option<IpNetwork> =
-            remote_addr.and_then(|addr| addr.parse::<std::net::IpAddr>().ok().map(IpNetwork::from));
+        // Store remote_addr as string
+        let remote_addr_str: Option<String> = remote_addr.map(|s| s.to_string());
+
+        // Generate primary key UUID in application for cross-DB compatibility
+        let id = Uuid::new_v4();
 
         let event = sqlx::query_as::<_, Event>(
             r#"
             INSERT INTO events (
-                event_id, project_id, issue_id, grouping_id, data,
+                id, event_id, project_id, issue_id, grouping_id, data,
                 timestamp, ingested_at,
-                calculated_type, calculated_value, transaction,
+                calculated_type, calculated_value, "transaction",
                 last_frame_filename, last_frame_module, last_frame_function,
                 level, platform, release, environment, server_name,
                 sdk_name, sdk_version, digest_order, remote_addr
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
             RETURNING *
             "#,
         )
+        .bind(id)
         .bind(event_id)
         .bind(project_id)
         .bind(issue_id)
@@ -216,7 +218,7 @@ impl EventService {
         .bind(sdk_name)
         .bind(sdk_version)
         .bind(digest_order)
-        .bind(remote_addr_inet)
+        .bind(remote_addr_str)
         .fetch_one(pool)
         .await?;
 
@@ -224,15 +226,15 @@ impl EventService {
     }
 
     /// Checks if an event with this event_id already exists in the project
-    pub async fn exists(pool: &PgPool, project_id: i32, event_id: Uuid) -> AppResult<bool> {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM events WHERE project_id = $1 AND event_id = $2)",
+    pub async fn exists(pool: &DbPool, project_id: i32, event_id: Uuid) -> AppResult<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE project_id = $1 AND event_id = $2",
         )
         .bind(project_id)
         .bind(event_id)
         .fetch_one(pool)
         .await?;
 
-        Ok(exists)
+        Ok(count > 0)
     }
 }

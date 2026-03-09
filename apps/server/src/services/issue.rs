@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::Issue;
 use crate::pagination::{IssueCursor, IssueFilter, IssueSort, SortOrder};
@@ -15,7 +15,7 @@ impl IssueService {
     /// Uses KEYSET pagination for efficient large dataset handling.
     /// Returns (issues, has_more) where has_more indicates if there are more results.
     pub async fn list_paginated(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         sort: IssueSort,
         order: SortOrder,
@@ -201,7 +201,7 @@ impl IssueService {
                         r#"
                         SELECT * FROM issues
                         WHERE project_id = $1 AND NOT is_deleted
-                          AND (last_seen, id) < ($3, $4)
+                          AND (last_seen < $3 OR (last_seen = $3 AND id < $4))
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
                         "#,
@@ -217,7 +217,7 @@ impl IssueService {
                         r#"
                         SELECT * FROM issues
                         WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
-                          AND (last_seen, id) < ($3, $4)
+                          AND (last_seen < $3 OR (last_seen = $3 AND id < $4))
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
                         "#,
@@ -271,7 +271,7 @@ impl IssueService {
                         r#"
                         SELECT * FROM issues
                         WHERE project_id = $1 AND NOT is_deleted
-                          AND (last_seen, id) > ($3, $4)
+                          AND (last_seen > $3 OR (last_seen = $3 AND id > $4))
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
                         "#,
@@ -287,7 +287,7 @@ impl IssueService {
                         r#"
                         SELECT * FROM issues
                         WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
-                          AND (last_seen, id) > ($3, $4)
+                          AND (last_seen > $3 OR (last_seen = $3 AND id > $4))
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
                         "#,
@@ -312,7 +312,7 @@ impl IssueService {
     ///
     /// Returns (issues, total_count) where total_count is the total matching issues.
     pub async fn list_offset(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         sort: IssueSort,
         order: SortOrder,
@@ -365,7 +365,7 @@ impl IssueService {
     }
 
     /// Gets an issue by ID
-    pub async fn get_by_id(pool: &PgPool, id: Uuid) -> AppResult<Issue> {
+    pub async fn get_by_id(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
         let issue =
             sqlx::query_as::<_, Issue>("SELECT * FROM issues WHERE id = $1 AND NOT is_deleted")
                 .bind(id)
@@ -378,7 +378,7 @@ impl IssueService {
 
     /// Creates a new issue
     pub async fn create(
-        pool: &PgPool,
+        pool: &DbPool,
         project_id: i32,
         timestamp: DateTime<Utc>,
         denormalized: &DenormalizedFields,
@@ -394,19 +394,23 @@ impl IssueService {
 
         let digest_order = max_order.unwrap_or(0) + 1;
 
+        // Generate UUID in application for cross-DB compatibility
+        let issue_id = Uuid::new_v4();
+
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             INSERT INTO issues (
-                project_id, digest_order, first_seen, last_seen,
+                id, project_id, digest_order, first_seen, last_seen,
                 digested_event_count, stored_event_count,
-                calculated_type, calculated_value, transaction,
+                calculated_type, calculated_value, "transaction",
                 last_frame_filename, last_frame_module, last_frame_function,
                 level, platform
             )
-            VALUES ($1, $2, $3, $3, 1, 1, $4, $5, $6, $7, $8, $9, $10, $11)
+            VALUES ($1, $2, $3, $4, $4, 1, 1, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *
             "#,
         )
+        .bind(issue_id)
         .bind(project_id)
         .bind(digest_order)
         .bind(timestamp)
@@ -426,7 +430,7 @@ impl IssueService {
 
     /// Updates an existing issue for a new event
     pub async fn update_for_new_event(
-        pool: &PgPool,
+        pool: &DbPool,
         issue_id: Uuid,
         timestamp: DateTime<Utc>,
     ) -> AppResult<Issue> {
@@ -449,7 +453,7 @@ impl IssueService {
     }
 
     /// Marks an issue as resolved
-    pub async fn resolve(pool: &PgPool, id: Uuid) -> AppResult<Issue> {
+    pub async fn resolve(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             UPDATE issues
@@ -467,7 +471,7 @@ impl IssueService {
     }
 
     /// Reopens an issue
-    pub async fn unresolve(pool: &PgPool, id: Uuid) -> AppResult<Issue> {
+    pub async fn unresolve(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             UPDATE issues
@@ -485,7 +489,7 @@ impl IssueService {
     }
 
     /// Mutes an issue
-    pub async fn mute(pool: &PgPool, id: Uuid) -> AppResult<Issue> {
+    pub async fn mute(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             UPDATE issues
@@ -503,7 +507,7 @@ impl IssueService {
     }
 
     /// Unmutes an issue
-    pub async fn unmute(pool: &PgPool, id: Uuid) -> AppResult<Issue> {
+    pub async fn unmute(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             UPDATE issues
@@ -521,7 +525,7 @@ impl IssueService {
     }
 
     /// Deletes an issue (soft delete)
-    pub async fn delete(pool: &PgPool, id: Uuid) -> AppResult<()> {
+    pub async fn delete(pool: &DbPool, id: Uuid) -> AppResult<()> {
         let result = sqlx::query("UPDATE issues SET is_deleted = TRUE WHERE id = $1")
             .bind(id)
             .execute(pool)

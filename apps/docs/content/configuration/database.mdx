@@ -1,0 +1,213 @@
+# Database Backends
+
+Rustrak supports two database backends compiled as separate Docker images. Choose based on your use case.
+
+## Comparison
+
+| | SQLite | PostgreSQL |
+|---|--------|------------|
+| **Image tag** | `latest`, `vX.Y.Z` | `postgres`, `vX.Y.Z-postgres` |
+| **Setup** | Zero — data stored in a Docker volume | External PostgreSQL service required |
+| **Best for** | Personal use, low traffic, quick setup | Production, teams, high volume |
+| **Concurrency** | Single writer | Fully concurrent |
+| **Backup** | Copy the `.db` file | `pg_dump` |
+
+---
+
+## SQLite (default)
+
+The `latest` image uses SQLite. No external service needed.
+
+### Docker run
+
+```bash
+docker run -d \
+  --name rustrak \
+  -p 8080:8080 \
+  -v rustrak_data:/data \
+  -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
+  -e CREATE_SUPERUSER=admin@example.com:changeme123 \
+  abians7/rustrak-server:latest
+```
+
+> `DATABASE_URL` defaults to `sqlite:///data/rustrak.db`. Mount a volume at `/data` to persist data.
+
+### Docker Compose
+
+```yaml
+services:
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - rustrak_data:/data
+    environment:
+      # DATABASE_URL defaults to sqlite:///data/rustrak.db — no need to set it
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  rustrak_data:
+```
+
+### DATABASE_URL format
+
+```bash
+# Named Docker volume (recommended)
+DATABASE_URL=sqlite:///data/rustrak.db
+
+# Absolute path on host (bind mount)
+DATABASE_URL=sqlite:///var/lib/rustrak/rustrak.db
+```
+
+> Always use a Docker volume or bind mount. If you use a path inside the container without a mount, data will be lost when the container is removed.
+
+### Backup
+
+```bash
+# Use SQLite's online backup API (safe while server is running)
+docker run --rm \
+  -v rustrak_data:/data \
+  -v $(pwd)/backups:/backups \
+  alpine sh -c 'sqlite3 /data/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db"'
+```
+
+> Use `sqlite3 .backup` rather than `cp`. A plain file copy while the server is
+> running may capture an inconsistent state if a write is in progress.
+
+### Limitations
+
+- Single writer: not suitable for multi-instance deployments
+- Recommended max: ~1,000 events/hour for reliable performance
+
+---
+
+## PostgreSQL
+
+Use the `:postgres` image tag when you need PostgreSQL.
+
+### Docker run
+
+```bash
+docker run -d \
+  --name rustrak \
+  -p 8080:8080 \
+  -e DATABASE_URL=postgres://user:password@db-host:5432/rustrak \
+  -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
+  -e CREATE_SUPERUSER=admin@example.com:changeme123 \
+  abians7/rustrak-server:postgres
+```
+
+### Docker Compose
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: rustrak
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rustrak
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rustrak -d rustrak"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  server:
+    image: abians7/rustrak-server:postgres
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://rustrak:${POSTGRES_PASSWORD}@postgres:5432/rustrak
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+```
+
+### DATABASE_URL format
+
+```bash
+# Basic
+DATABASE_URL=postgres://username:password@host:5432/database
+
+# With SSL (recommended for production)
+DATABASE_URL=postgres://username:password@host:5432/database?sslmode=require
+```
+
+### Connection pool tuning
+
+```bash
+DATABASE_MAX_CONNECTIONS=10   # Default
+DATABASE_MIN_CONNECTIONS=1    # Default
+
+# High traffic
+DATABASE_MAX_CONNECTIONS=25
+DATABASE_MIN_CONNECTIONS=5
+```
+
+### Backup
+
+```bash
+# Dump
+pg_dump -h localhost -U rustrak rustrak > backup_$(date +%Y%m%d).sql
+
+# Restore
+psql -h localhost -U rustrak rustrak < backup.sql
+```
+
+---
+
+## Image tags reference
+
+| Tag | Backend | Arch |
+|-----|---------|------|
+| `latest` | SQLite | amd64, arm64 |
+| `vX.Y.Z` | SQLite | amd64, arm64 |
+| `postgres` | PostgreSQL | amd64, arm64 |
+| `vX.Y.Z-postgres` | PostgreSQL | amd64, arm64 |
+
+---
+
+## Migrations
+
+Migrations run automatically on startup. Both backends have their own migration set:
+
+```
+apps/server/migrations/
+├── postgres/   # PostgreSQL migrations
+└── sqlite/     # SQLite migrations
+```
+
+If you see a migration error, ensure your `DATABASE_URL` scheme (`sqlite://` or `postgres://`) matches the image tag you are using.

@@ -50,9 +50,10 @@ jobs:
             echo "is_docs=false" >> $GITHUB_OUTPUT
           fi
 
-  # Build server on native runners (no QEMU, no cross-compilation).
-  # Each platform pushes by digest only — no intermediate named tags appear in Docker Hub.
-  docker-server-build:
+  # ── SQLite image (default: latest) ───────────────────────────────────────────
+  # Build on native runners (no QEMU). Each platform pushes by digest only.
+
+  docker-server-sqlite-build:
     needs: detect-package
     if: needs.detect-package.outputs.is_server == 'true'
     strategy:
@@ -79,16 +80,17 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push by digest
+      - name: Build and push by digest (SQLite)
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./apps/server
           platforms: ${{ matrix.platform }}
+          build-args: FEATURES=sqlite
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
           tags: abians7/rustrak-server
-          cache-from: type=gha,scope=server-${{ matrix.runner }}
-          cache-to: type=gha,mode=max,scope=server-${{ matrix.runner }}
+          cache-from: type=gha,scope=server-sqlite-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=server-sqlite-${{ matrix.runner }}
 
       - name: Export digest
         run: |
@@ -98,16 +100,13 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: digests-server-${{ env.PLATFORM_PAIR }}
+          name: digests-server-sqlite-${{ env.PLATFORM_PAIR }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
 
-  # Merge platform digests into a single multi-arch manifest using imagetools create.
-  # docker manifest create is still experimental and incompatible with provenance attestations;
-  # imagetools create is the stable, officially recommended approach.
-  docker-server-manifest:
-    needs: [detect-package, docker-server-build]
+  docker-server-sqlite-manifest:
+    needs: [detect-package, docker-server-sqlite-build]
     if: needs.detect-package.outputs.is_server == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -121,10 +120,10 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: ${{ runner.temp }}/digests
-          pattern: digests-server-*
+          pattern: digests-server-sqlite-*
           merge-multiple: true
 
-      - name: Create manifest list and push
+      - name: Create manifest list and push (SQLite — latest)
         working-directory: ${{ runner.temp }}/digests
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
@@ -138,7 +137,94 @@ jobs:
           VERSION="${{ needs.detect-package.outputs.version }}"
           docker buildx imagetools inspect abians7/rustrak-server:v${VERSION}
 
-  # Build UI on native runners
+  # ── PostgreSQL image ──────────────────────────────────────────────────────────
+
+  docker-server-postgres-build:
+    needs: detect-package
+    if: needs.detect-package.outputs.is_server == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Prepare platform pair
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push by digest (PostgreSQL)
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ./apps/server
+          platforms: ${{ matrix.platform }}
+          build-args: FEATURES=postgres
+          outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          tags: abians7/rustrak-server
+          cache-from: type=gha,scope=server-postgres-${{ matrix.runner }}
+          cache-to: type=gha,mode=max,scope=server-postgres-${{ matrix.runner }}
+
+      - name: Export digest
+        run: |
+          mkdir -p ${{ runner.temp }}/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digests-server-postgres-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  docker-server-postgres-manifest:
+    needs: [detect-package, docker-server-postgres-build]
+    if: needs.detect-package.outputs.is_server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-server-postgres-*
+          merge-multiple: true
+
+      - name: Create manifest list and push (PostgreSQL)
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools create \
+            -t abians7/rustrak-server:v${VERSION}-postgres \
+            -t abians7/rustrak-server:postgres \
+            $(printf 'abians7/rustrak-server@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          VERSION="${{ needs.detect-package.outputs.version }}"
+          docker buildx imagetools inspect abians7/rustrak-server:v${VERSION}-postgres
+
+  # ── UI image ──────────────────────────────────────────────────────────────────
+
   docker-ui-build:
     needs: detect-package
     if: needs.detect-package.outputs.is_ui == 'true'
@@ -191,7 +277,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Merge platform digests into a single multi-arch manifest
   docker-ui-manifest:
     needs: [detect-package, docker-ui-build]
     if: needs.detect-package.outputs.is_ui == 'true'
@@ -223,6 +308,8 @@ jobs:
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
           docker buildx imagetools inspect abians7/rustrak-ui:v${VERSION}
+
+  # ── Docs ──────────────────────────────────────────────────────────────────────
 
   deploy-docs:
     needs: detect-package

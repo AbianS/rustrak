@@ -1,24 +1,30 @@
 //! Database test utilities
 //!
-//! Provides helpers for setting up test databases with testcontainers.
+//! Provides helpers for setting up test databases.
+//! - Postgres: uses testcontainers to spin up a real PostgreSQL container
+//! - SQLite: uses an in-memory database (no container needed)
 
-use sqlx::PgPool;
+use rustrak::db::DbPool;
+
+// ── Postgres ─────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "postgres")]
 use testcontainers::{runners::AsyncRunner, ContainerAsync};
+#[cfg(feature = "postgres")]
 use testcontainers_modules::postgres::Postgres;
 
-/// A test database container with connection pool
+/// A test database with connection pool (Postgres variant includes a container)
+#[cfg(feature = "postgres")]
 pub struct TestDb {
-    /// The running PostgreSQL container
+    /// The running PostgreSQL container (kept alive for the duration of the test)
     #[allow(dead_code)]
     container: ContainerAsync<Postgres>,
-    /// Connection pool to the test database
-    pub pool: PgPool,
+    pub pool: DbPool,
 }
 
+#[cfg(feature = "postgres")]
 impl TestDb {
-    /// Creates a new test database with a fresh PostgreSQL container
     pub async fn new() -> Self {
-        // Start PostgreSQL container
         let container = Postgres::default()
             .start()
             .await
@@ -32,23 +38,51 @@ impl TestDb {
 
         let database_url = format!("postgres://postgres:postgres@{}:{}/postgres", host, port);
 
-        // Create connection pool
-        let pool = PgPool::connect(&database_url)
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect(&database_url)
             .await
             .expect("Failed to connect to test database");
 
-        // Enable pgcrypto extension for gen_random_uuid()
+        // Enable pgcrypto extension (needed for some Postgres-specific functions)
         sqlx::query("CREATE EXTENSION IF NOT EXISTS pgcrypto")
             .execute(&pool)
             .await
             .expect("Failed to enable pgcrypto extension");
 
-        // Run migrations
-        sqlx::migrate!("./migrations")
+        sqlx::migrate!("./migrations/postgres")
             .run(&pool)
             .await
             .expect("Failed to run migrations");
 
         TestDb { container, pool }
+    }
+}
+
+// ── SQLite ────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "sqlite")]
+pub struct TestDb {
+    pub pool: DbPool,
+}
+
+#[cfg(feature = "sqlite")]
+impl TestDb {
+    pub async fn new() -> Self {
+        // max_connections(1): SQLite only allows one writer at a time.
+        // Using a single connection avoids SQLITE_LOCKED deadlocks when
+        // multiple tokio tasks try to write concurrently in tests.
+        // Each TestDb::new() gets its own private in-memory database.
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("Failed to create in-memory SQLite database");
+
+        sqlx::migrate!("./migrations/sqlite")
+            .run(&pool)
+            .await
+            .expect("Failed to run SQLite migrations");
+
+        TestDb { pool }
     }
 }

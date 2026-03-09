@@ -73,7 +73,7 @@ fn is_valid_email(email: &str) -> bool {
 /// POST /auth/register
 /// Create new user account
 pub async fn register(
-    pool: web::Data<sqlx::PgPool>,
+    pool: web::Data<crate::db::DbPool>,
     session: Session,
     req: web::Json<CreateUserRequest>,
 ) -> AppResult<impl Responder> {
@@ -99,7 +99,7 @@ pub async fn register(
 /// POST /auth/login
 /// Authenticate user and create session
 pub async fn login(
-    pool: web::Data<sqlx::PgPool>,
+    pool: web::Data<crate::db::DbPool>,
     session: Session,
     req: web::Json<LoginRequest>,
 ) -> AppResult<impl Responder> {

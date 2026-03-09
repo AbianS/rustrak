@@ -1,6 +1,6 @@
 use slug::slugify;
-use sqlx::PgPool;
 
+use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{CreateProject, Project, UpdateProject};
 use crate::pagination::SortOrder;
@@ -9,7 +9,7 @@ pub struct ProjectService;
 
 impl ProjectService {
     /// Lists all projects
-    pub async fn list(pool: &PgPool) -> AppResult<Vec<Project>> {
+    pub async fn list(pool: &DbPool) -> AppResult<Vec<Project>> {
         let projects = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
@@ -27,7 +27,7 @@ impl ProjectService {
 
     /// Lists projects with offset-based pagination
     pub async fn list_offset(
-        pool: &PgPool,
+        pool: &DbPool,
         order: SortOrder,
         page: i64,
         per_page: i64,
@@ -67,7 +67,7 @@ impl ProjectService {
     }
 
     /// Gets a project by ID
-    pub async fn get_by_id(pool: &PgPool, id: i32) -> AppResult<Project> {
+    pub async fn get_by_id(pool: &DbPool, id: i32) -> AppResult<Project> {
         let project = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
@@ -90,7 +90,7 @@ impl ProjectService {
     /// NOTE: Currently unused but kept for future API token scoping feature
     /// where tokens can be restricted to specific projects via sentry_key lookup.
     #[allow(dead_code)]
-    pub async fn get_by_sentry_key(pool: &PgPool, sentry_key: &uuid::Uuid) -> AppResult<Project> {
+    pub async fn get_by_sentry_key(pool: &DbPool, sentry_key: &uuid::Uuid) -> AppResult<Project> {
         let project = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
@@ -109,7 +109,7 @@ impl ProjectService {
     }
 
     /// Creates a new project
-    pub async fn create(pool: &PgPool, input: CreateProject) -> AppResult<Project> {
+    pub async fn create(pool: &DbPool, input: CreateProject) -> AppResult<Project> {
         // Validate name
         let name = input.name.trim();
         if name.is_empty() {
@@ -124,11 +124,13 @@ impl ProjectService {
         // Generate or validate slug
         let slug = Self::generate_unique_slug(pool, name, input.slug.as_deref()).await?;
 
-        // Insert project (sentry_key is auto-generated in DB)
+        // Generate sentry_key in application (for cross-DB compatibility)
+        let sentry_key = uuid::Uuid::new_v4();
+
         let project = sqlx::query_as::<_, Project>(
             r#"
-            INSERT INTO projects (name, slug)
-            VALUES ($1, $2)
+            INSERT INTO projects (name, slug, sentry_key)
+            VALUES ($1, $2, $3)
             RETURNING id, name, slug, sentry_key, stored_event_count,
                       digested_event_count, created_at, updated_at,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
@@ -136,20 +138,17 @@ impl ProjectService {
         )
         .bind(name)
         .bind(&slug)
+        .bind(sentry_key)
         .fetch_one(pool)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.constraint() == Some("projects_name_key") {
+                if db_err.is_unique_violation() {
+                    // On PostgreSQL we can distinguish name vs slug via constraint(),
+                    // but for cross-DB compatibility use a generic message
                     return AppError::Conflict(format!(
-                        "Project with name '{}' already exists",
-                        name
-                    ));
-                }
-                if db_err.constraint() == Some("projects_slug_key") {
-                    return AppError::Conflict(format!(
-                        "Project with slug '{}' already exists",
-                        slug
+                        "Project with name '{}' or slug '{}' already exists",
+                        name, slug
                     ));
                 }
             }
@@ -160,7 +159,7 @@ impl ProjectService {
     }
 
     /// Updates an existing project
-    pub async fn update(pool: &PgPool, id: i32, input: UpdateProject) -> AppResult<Project> {
+    pub async fn update(pool: &DbPool, id: i32, input: UpdateProject) -> AppResult<Project> {
         // Verify it exists
         Self::get_by_id(pool, id).await?;
 
@@ -178,7 +177,7 @@ impl ProjectService {
 
             let project = sqlx::query_as::<_, Project>(
                 r#"
-                UPDATE projects SET name = $1, updated_at = NOW()
+                UPDATE projects SET name = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
                 RETURNING id, name, slug, sentry_key, stored_event_count,
                           digested_event_count, created_at, updated_at,
@@ -191,7 +190,7 @@ impl ProjectService {
             .await
             .map_err(|e| {
                 if let sqlx::Error::Database(ref db_err) = e {
-                    if db_err.constraint() == Some("projects_name_key") {
+                    if db_err.is_unique_violation() {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
                             name
@@ -209,7 +208,7 @@ impl ProjectService {
     }
 
     /// Deletes a project (hard delete)
-    pub async fn delete(pool: &PgPool, id: i32) -> AppResult<()> {
+    pub async fn delete(pool: &DbPool, id: i32) -> AppResult<()> {
         let result = sqlx::query("DELETE FROM projects WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -227,7 +226,7 @@ impl ProjectService {
 
     /// Generates a unique slug based on the name
     async fn generate_unique_slug(
-        pool: &PgPool,
+        pool: &DbPool,
         name: &str,
         custom_slug: Option<&str>,
     ) -> AppResult<String> {
