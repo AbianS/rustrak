@@ -185,12 +185,12 @@ async fn find_or_create_issue_and_grouping_with_lock(
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction
-#[allow(clippy::too_many_arguments)]
 #[cfg(feature = "postgres")]
 type DbBackend = sqlx::Postgres;
 #[cfg(feature = "sqlite")]
 type DbBackend = sqlx::Sqlite;
 
+#[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_inner(
     tx: &mut sqlx::Transaction<'_, DbBackend>,
     project_id: i32,
