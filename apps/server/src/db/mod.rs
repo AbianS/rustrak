@@ -10,7 +10,9 @@ use crate::config::DatabaseConfig;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 #[cfg(feature = "sqlite")]
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+#[cfg(feature = "sqlite")]
+use std::str::FromStr;
 
 /// Type alias for the database connection pool
 #[cfg(feature = "postgres")]
@@ -43,13 +45,16 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 
     #[cfg(feature = "sqlite")]
     let pool = {
+        let opts = SqliteConnectOptions::from_str(&config.url)
+            .map_err(|e| sqlx::Error::Configuration(e.into()))?
+            .create_if_missing(true);
         SqlitePoolOptions::new()
             .max_connections(config.max_connections)
             .min_connections(config.min_connections)
             .acquire_timeout(config.acquire_timeout)
             .idle_timeout(Some(config.idle_timeout))
             .max_lifetime(Some(config.max_lifetime))
-            .connect(&config.url)
+            .connect_with(opts)
             .await?
     };
 

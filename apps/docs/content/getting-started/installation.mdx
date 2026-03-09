@@ -2,7 +2,34 @@
 
 There are several ways to run Rustrak depending on your needs. Pick the one that fits your setup.
 
-## Quick install (Docker Compose)
+## SQLite (default — no external database)
+
+The default `latest` image uses SQLite. No PostgreSQL needed — data persists in a Docker volume.
+
+```bash
+docker run -d \
+  --name rustrak \
+  -p 8080:8080 \
+  -v rustrak_data:/data \
+  -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
+  -e CREATE_SUPERUSER=admin@example.com:changeme123 \
+  abians7/rustrak-server:latest
+```
+
+The server starts on **http://localhost:8080**. No other services needed.
+
+> `DATABASE_URL` defaults to `sqlite:///data/rustrak.db` — no need to set it. The Docker volume `rustrak_data` mounts at `/data` so data persists across container restarts.
+
+### When to use SQLite
+
+- Personal projects or solo developers
+- Low to medium traffic (under ~1,000 events/hour)
+- Environments where running PostgreSQL is impractical
+- Trying out Rustrak quickly
+
+---
+
+## Quick install (Docker Compose — PostgreSQL)
 
 The fastest way to get everything running locally.
 
@@ -28,7 +55,7 @@ services:
     restart: unless-stopped
 
   server:
-    image: abians7/rustrak-server:latest
+    image: abians7/rustrak-server:postgres
     ports:
       - "${SERVER_PORT}:8080"
     environment:
@@ -121,15 +148,29 @@ For production, you often want minimal resource usage on your server. Run only t
 
 ### On your server
 
+**With SQLite (no external DB):**
+
 ```bash
-# Pull and run just the server
+docker run -d \
+  --name rustrak \
+  -p 8080:8080 \
+  -v rustrak_data:/data \
+  -e DATABASE_URL="sqlite:///data/rustrak.db" \
+  -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
+  -e CREATE_SUPERUSER="admin@example.com:changeme123" \
+  abians7/rustrak-server:latest
+```
+
+**With PostgreSQL:**
+
+```bash
 docker run -d \
   --name rustrak \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@db-host:5432/rustrak" \
   -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
   -e CREATE_SUPERUSER="admin@example.com:changeme123" \
-  abians7/rustrak-server:latest
+  abians7/rustrak-server:postgres
 ```
 
 The server uses **~50MB RAM** and handles all error ingestion and API requests.

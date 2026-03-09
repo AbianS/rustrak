@@ -110,12 +110,21 @@ services:
 
 ### Backups
 
+**PostgreSQL:**
+
 ```bash
-# Daily database backup
+# Daily backup
 pg_dump -h localhost -U rustrak rustrak > backup_$(date +%Y%m%d).sql
 
 # Restore
 psql -h localhost -U rustrak rustrak < backup.sql
+```
+
+**SQLite:**
+
+```bash
+# Simple file copy (safe while server is running)
+cp /var/lib/rustrak/rustrak.db /backups/rustrak-$(date +%Y%m%d).db
 ```
 
 ## Pre-launch checklist

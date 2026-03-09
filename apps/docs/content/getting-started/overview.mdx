@@ -15,12 +15,23 @@ Rustrak is a lightweight, self-hosted error tracking system. It's compatible wit
 ## How it works
 
 ```
-Your App → Sentry SDK → Rustrak Server → PostgreSQL
+Your App → Sentry SDK → Rustrak Server → SQLite or PostgreSQL
                               ↓
                         Dashboard (optional)
 ```
 
-Your application sends errors using any Sentry SDK. Rustrak receives them, groups similar errors into issues, and stores everything in PostgreSQL. You view and manage issues through the dashboard.
+Your application sends errors using any Sentry SDK. Rustrak receives them, groups similar errors into issues, and stores everything in the database. You view and manage issues through the dashboard.
+
+## Database backends
+
+Rustrak ships two Docker image variants, each compiled for a different database backend:
+
+| Image tag | Backend | Use case |
+|-----------|---------|----------|
+| `latest`, `vX.Y.Z` | **SQLite** | Personal projects, low traffic, zero-ops setup |
+| `postgres`, `vX.Y.Z-postgres` | **PostgreSQL** | Production, teams, high throughput |
+
+SQLite is the default — no external service needed. PostgreSQL is available for production deployments that need concurrent writes or high volume.
 
 ## Deployment options
 

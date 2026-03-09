@@ -90,6 +90,10 @@ impl RateLimitConfig {
 impl DatabaseConfig {
     /// Load database configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
+        #[cfg(feature = "sqlite")]
+        let url =
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:///data/rustrak.db".to_string());
+        #[cfg(not(feature = "sqlite"))]
         let url = env::var("DATABASE_URL").map_err(|_| ConfigError::MissingDatabaseUrl)?;
 
         Ok(Self {
