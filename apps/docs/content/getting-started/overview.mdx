@@ -53,7 +53,7 @@ docker run -d -p 8080:8080 \
   -e DATABASE_URL=postgres://user:pass@localhost:5432/rustrak \
   -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
   -e CREATE_SUPERUSER=admin@example.com:your-secure-password \
-  abians7/rustrak-server:latest
+  abians7/rustrak-server:postgres
 
 # Dashboard on another machine or Vercel
 docker run -d -p 3000:3000 \

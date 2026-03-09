@@ -45,12 +45,23 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 
     #[cfg(feature = "sqlite")]
     let pool = {
+        let is_in_memory = config.url.ends_with(":memory:") || config.url.contains("mode=memory");
         let opts = SqliteConnectOptions::from_str(&config.url)
             .map_err(|e| sqlx::Error::Configuration(e.into()))?
             .create_if_missing(true);
+        let max_connections = if is_in_memory {
+            1
+        } else {
+            config.max_connections
+        };
+        let min_connections = if is_in_memory {
+            1
+        } else {
+            config.min_connections
+        };
         SqlitePoolOptions::new()
-            .max_connections(config.max_connections)
-            .min_connections(config.min_connections)
+            .max_connections(max_connections)
+            .min_connections(min_connections)
             .acquire_timeout(config.acquire_timeout)
             .idle_timeout(Some(config.idle_timeout))
             .max_lifetime(Some(config.max_lifetime))

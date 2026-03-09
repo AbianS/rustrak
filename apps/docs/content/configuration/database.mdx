@@ -77,12 +77,15 @@ DATABASE_URL=sqlite:///var/lib/rustrak/rustrak.db
 ### Backup
 
 ```bash
-# Copy the database file (safe while server is running)
+# Use SQLite's online backup API (safe while server is running)
 docker run --rm \
   -v rustrak_data:/data \
   -v $(pwd)/backups:/backups \
-  alpine cp /data/rustrak.db /backups/rustrak-$(date +%Y%m%d).db
+  alpine sh -c 'sqlite3 /data/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db"'
 ```
+
+> Use `sqlite3 .backup` rather than `cp`. A plain file copy while the server is
+> running may capture an inconsistent state if a write is in progress.
 
 ### Limitations
 

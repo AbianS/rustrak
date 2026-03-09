@@ -123,9 +123,11 @@ psql -h localhost -U rustrak rustrak < backup.sql
 **SQLite:**
 
 ```bash
-# Simple file copy (safe while server is running)
-cp /var/lib/rustrak/rustrak.db /backups/rustrak-$(date +%Y%m%d).db
+# Use SQLite's online backup API (safe while server is running)
+sqlite3 /var/lib/rustrak/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db"
 ```
+
+> Use `sqlite3 .backup` rather than `cp`. A plain file copy may capture an inconsistent state if a write is in progress.
 
 ## Pre-launch checklist
 
