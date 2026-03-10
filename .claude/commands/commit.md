@@ -1,7 +1,6 @@
 ---
 description: Create a git commit with a conventional message
 allowed-tools: Bash(git add:*), Bash(git commit:*)
-model: haiku
 ---
 
 # Commit Changes
