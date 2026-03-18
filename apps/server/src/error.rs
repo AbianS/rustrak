@@ -1,13 +1,14 @@
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde::Serialize;
+use utoipa::ToSchema;
 
 /// JSON error response structure
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ErrorResponse {
     pub error: ErrorDetail,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct ErrorDetail {
     #[serde(rename = "type")]
     pub error_type: String,

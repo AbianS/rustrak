@@ -75,6 +75,9 @@ sha2 = "0.10.9"
 # CORS support
 actix-cors = "0.7.1"
 
+# OpenAPI schema generation (build-time only, no runtime overhead)
+utoipa = { version = "5", features = ["chrono", "uuid", "actix_extras"] }
+
 # Base64 encoding for pagination cursors
 base64 = "0.22.1"
 
@@ -117,21 +120,6 @@ pretty_assertions = "1.4.1"
 
 # Temp directories for tests
 tempfile = "3.24.0"
-
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-strip = true
-# panic = "abort" is intentionally disabled:
-# actix-web uses catch_unwind per request to isolate handler panics and return HTTP 500.
-# With panic = "abort", that safety net is silently bypassed and any panic kills the entire
-# process — which is unacceptable for a server that must stay always on.
-#panic = "abort"
-
-[profile.dev]
-opt-level = 0
-debug = true
 
 [features]
 default = ["sqlite"]

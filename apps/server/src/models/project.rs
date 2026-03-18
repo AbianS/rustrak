@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Project model for reading from the database
@@ -25,7 +26,7 @@ pub struct Project {
 }
 
 /// DTO for creating a new project
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateProject {
     pub name: String,
     #[serde(default)]
@@ -33,13 +34,13 @@ pub struct CreateProject {
 }
 
 /// DTO for updating a project
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateProject {
     pub name: Option<String>,
 }
 
 /// Response with DSN included
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ProjectResponse {
     pub id: i32,
     pub name: String,

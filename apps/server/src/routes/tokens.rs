@@ -7,6 +7,15 @@ use crate::models::CreateAuthToken;
 use crate::services::AuthTokenService;
 
 /// GET /api/tokens - List all tokens (masked)
+#[utoipa::path(
+    get,
+    path = "/api/tokens",
+    tag = "tokens",
+    responses(
+        (status = 200, description = "List of tokens (masked)", body = Vec<crate::models::auth_token::AuthTokenResponse>),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_tokens(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser, // Requires authentication
@@ -18,6 +27,16 @@ pub async fn list_tokens(
 }
 
 /// POST /api/tokens - Create a new token
+#[utoipa::path(
+    post,
+    path = "/api/tokens",
+    tag = "tokens",
+    request_body = CreateAuthToken,
+    responses(
+        (status = 201, description = "Token created (full token shown once)", body = crate::models::auth_token::AuthTokenCreatedResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn create_token(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser, // Requires authentication
@@ -30,6 +49,17 @@ pub async fn create_token(
 }
 
 /// DELETE /api/tokens/{id} - Revoke a token
+#[utoipa::path(
+    delete,
+    path = "/api/tokens/{id}",
+    tag = "tokens",
+    params(("id" = i32, Path, description = "Token ID")),
+    responses(
+        (status = 204, description = "Token revoked"),
+        (status = 404, description = "Token not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn delete_token(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser, // Requires authentication

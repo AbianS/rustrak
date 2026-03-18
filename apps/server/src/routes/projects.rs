@@ -5,10 +5,20 @@ use crate::config::Config;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::{CreateProject, UpdateProject};
-use crate::pagination::{ListProjectsQuery, OffsetPaginatedResponse};
+use crate::pagination::{ListProjectsQuery, OffsetPaginatedProjectResponse, OffsetPaginatedResponse};
 use crate::services::ProjectService;
 
 /// GET /api/projects - List projects with pagination
+#[utoipa::path(
+    get,
+    path = "/api/projects",
+    tag = "projects",
+    params(ListProjectsQuery),
+    responses(
+        (status = 200, description = "List of projects", body = OffsetPaginatedProjectResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_projects(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
@@ -31,6 +41,17 @@ pub async fn list_projects(
 }
 
 /// GET /api/projects/{id} - Get a project by ID
+#[utoipa::path(
+    get,
+    path = "/api/projects/{id}",
+    tag = "projects",
+    params(("id" = i32, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "Project details", body = crate::models::project::ProjectResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn get_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
@@ -45,6 +66,18 @@ pub async fn get_project(
 }
 
 /// POST /api/projects - Create a new project
+#[utoipa::path(
+    post,
+    path = "/api/projects",
+    tag = "projects",
+    request_body = CreateProject,
+    responses(
+        (status = 201, description = "Project created", body = crate::models::project::ProjectResponse),
+        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
+        (status = 409, description = "Conflict (name/slug taken)", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn create_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
@@ -58,6 +91,18 @@ pub async fn create_project(
 }
 
 /// PATCH /api/projects/{id} - Update a project
+#[utoipa::path(
+    patch,
+    path = "/api/projects/{id}",
+    tag = "projects",
+    params(("id" = i32, Path, description = "Project ID")),
+    request_body = UpdateProject,
+    responses(
+        (status = 200, description = "Project updated", body = crate::models::project::ProjectResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn update_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
@@ -73,6 +118,17 @@ pub async fn update_project(
 }
 
 /// DELETE /api/projects/{id} - Delete a project
+#[utoipa::path(
+    delete,
+    path = "/api/projects/{id}",
+    tag = "projects",
+    params(("id" = i32, Path, description = "Project ID")),
+    responses(
+        (status = 204, description = "Project deleted"),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn delete_project(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,

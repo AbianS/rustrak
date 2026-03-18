@@ -3,6 +3,7 @@ pub mod cursor;
 pub use cursor::{EventCursor, IssueCursor};
 
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 /// Default page size for pagination
 pub const PAGE_SIZE: i64 = 20;
@@ -50,7 +51,7 @@ impl<T> OffsetPaginatedResponse<T> {
 }
 
 /// Sort mode for issues listing
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueSort {
     /// Sort by digest_order (stable, unique per project)
@@ -76,7 +77,7 @@ impl std::fmt::Display for IssueSort {
 }
 
 /// Sort order direction
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     Asc,
@@ -105,7 +106,7 @@ impl std::fmt::Display for SortOrder {
 }
 
 /// Query parameters for listing issues (offset-based)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListIssuesQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
@@ -137,7 +138,7 @@ fn default_per_page() -> i64 {
 }
 
 /// Filter for issues listing
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum IssueFilter {
     /// Only open issues (not resolved and not muted)
@@ -152,7 +153,7 @@ pub enum IssueFilter {
 }
 
 /// Query parameters for listing events
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListEventsQuery {
     /// Sort order direction (default: desc = newest first)
     #[serde(default)]
@@ -163,7 +164,7 @@ pub struct ListEventsQuery {
 }
 
 /// Query parameters for listing projects (offset-based)
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct ListProjectsQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
@@ -176,4 +177,37 @@ pub struct ListProjectsQuery {
     /// Sort order direction (default: desc = newest first)
     #[serde(default)]
     pub order: SortOrder,
+}
+
+// =============================================================================
+// Concrete pagination types for OpenAPI schema generation
+// =============================================================================
+
+/// Paginated event response (cursor-based) - concrete type for OpenAPI
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaginatedEventResponse {
+    pub items: Vec<crate::models::event::EventResponse>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    pub has_more: bool,
+}
+
+/// Paginated project response (offset-based) - concrete type for OpenAPI
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OffsetPaginatedProjectResponse {
+    pub items: Vec<crate::models::project::ProjectResponse>,
+    pub total_count: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub total_pages: i64,
+}
+
+/// Paginated issue response (offset-based) - concrete type for OpenAPI
+#[derive(Debug, Serialize, ToSchema)]
+pub struct OffsetPaginatedIssueResponse {
+    pub items: Vec<crate::models::issue::IssueResponse>,
+    pub total_count: i64,
+    pub page: i64,
+    pub per_page: i64,
+    pub total_pages: i64,
 }

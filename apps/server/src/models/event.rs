@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Event model - a single error occurrence
@@ -33,7 +34,7 @@ pub struct Event {
 }
 
 /// Response for API (list view)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct EventResponse {
     pub id: Uuid,
     pub event_id: Uuid,
@@ -47,7 +48,7 @@ pub struct EventResponse {
 }
 
 /// Response for API (full detail)
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct EventDetailResponse {
     pub id: Uuid,
     pub event_id: Uuid,

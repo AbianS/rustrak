@@ -5,11 +5,25 @@ use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::UpdateIssueState;
-use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
+use crate::pagination::{ListIssuesQuery, OffsetPaginatedIssueResponse, OffsetPaginatedResponse};
 use crate::services::{IssueService, ProjectService};
 
 /// GET /api/projects/{project_id}/issues
 /// Lists issues for a project with offset-based pagination
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues",
+    tag = "issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ListIssuesQuery,
+    ),
+    responses(
+        (status = 200, description = "List of issues", body = OffsetPaginatedIssueResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_issues(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
@@ -49,6 +63,20 @@ pub async fn list_issues(
 
 /// GET /api/projects/{project_id}/issues/{issue_id}
 /// Gets a single issue by ID
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Issue details", body = crate::models::issue::IssueResponse),
+        (status = 404, description = "Issue not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn get_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
@@ -71,6 +99,21 @@ pub async fn get_issue(
 
 /// PATCH /api/projects/{project_id}/issues/{issue_id}
 /// Updates issue state (resolve, mute, etc.)
+#[utoipa::path(
+    patch,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = UpdateIssueState,
+    responses(
+        (status = 200, description = "Issue updated", body = crate::models::issue::IssueResponse),
+        (status = 404, description = "Issue not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn update_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
@@ -103,6 +146,20 @@ pub async fn update_issue(
 
 /// DELETE /api/projects/{project_id}/issues/{issue_id}
 /// Soft-deletes an issue
+#[utoipa::path(
+    delete,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 204, description = "Issue deleted"),
+        (status = 404, description = "Issue not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn delete_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,

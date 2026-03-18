@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 /// Issue model - a group of similar events
@@ -27,7 +28,7 @@ pub struct Issue {
 }
 
 /// Response for API
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct IssueResponse {
     pub id: Uuid,
     pub project_id: i32,
@@ -44,7 +45,7 @@ pub struct IssueResponse {
 }
 
 /// Request to update issue state
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateIssueState {
     pub is_resolved: Option<bool>,
     pub is_muted: Option<bool>,

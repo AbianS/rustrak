@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::error::AppError;
+use utoipa::ToSchema;
 
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct User {
@@ -20,13 +21,13 @@ pub struct User {
     pub last_login: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateUserRequest {
     pub email: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,

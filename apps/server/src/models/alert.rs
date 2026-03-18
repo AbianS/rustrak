@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::collections::HashMap;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 // =============================================================================
@@ -14,7 +15,7 @@ use uuid::Uuid;
 // =============================================================================
 
 /// Type of notification channel
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelType {
@@ -38,7 +39,7 @@ impl std::fmt::Display for ChannelType {
 // =============================================================================
 
 /// Type of alert trigger
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum AlertType {
@@ -62,7 +63,7 @@ impl std::fmt::Display for AlertType {
 // =============================================================================
 
 /// Status of an alert delivery attempt
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum AlertStatus {
@@ -77,7 +78,7 @@ pub enum AlertStatus {
 // =============================================================================
 
 /// Global notification channel (e.g., Slack workspace, webhook endpoint)
-#[derive(Debug, Clone, Serialize, FromRow)]
+#[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
 pub struct NotificationChannel {
     pub id: i32,
     pub name: String,
@@ -93,7 +94,7 @@ pub struct NotificationChannel {
 }
 
 /// DTO for creating a notification channel
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateNotificationChannel {
     pub name: String,
     pub channel_type: ChannelType,
@@ -107,7 +108,7 @@ fn default_true() -> bool {
 }
 
 /// DTO for updating a notification channel
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateNotificationChannel {
     pub name: Option<String>,
     pub config: Option<serde_json::Value>,
@@ -119,7 +120,7 @@ pub struct UpdateNotificationChannel {
 // =============================================================================
 
 /// Webhook channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WebhookConfig {
     pub url: String,
     #[serde(default)]
@@ -129,7 +130,7 @@ pub struct WebhookConfig {
 }
 
 /// Email channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EmailConfig {
     pub recipients: Vec<String>,
     #[serde(default)]
@@ -145,7 +146,7 @@ pub struct EmailConfig {
 }
 
 /// Slack channel configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SlackConfig {
     pub webhook_url: String,
     #[serde(default)]
@@ -161,7 +162,7 @@ pub struct SlackConfig {
 // =============================================================================
 
 /// Per-project alert rule configuration
-#[derive(Debug, Clone, Serialize, FromRow)]
+#[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
 pub struct AlertRule {
     pub id: i32,
     pub project_id: i32,
@@ -176,7 +177,7 @@ pub struct AlertRule {
 }
 
 /// DTO for creating an alert rule
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct CreateAlertRule {
     pub name: String,
     pub alert_type: AlertType,
@@ -193,7 +194,7 @@ fn default_conditions() -> serde_json::Value {
 }
 
 /// DTO for updating an alert rule
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateAlertRule {
     pub name: Option<String>,
     pub is_enabled: Option<bool>,
@@ -203,7 +204,7 @@ pub struct UpdateAlertRule {
 }
 
 /// Response for alert rule including linked channel IDs
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct AlertRuleResponse {
     pub id: i32,
     pub project_id: i32,
@@ -242,7 +243,7 @@ impl AlertRule {
 // =============================================================================
 
 /// Alert delivery history record (audit log and retry queue)
-#[derive(Debug, Clone, Serialize, FromRow)]
+#[derive(Debug, Clone, Serialize, FromRow, ToSchema)]
 pub struct AlertHistory {
     pub id: i64,
     pub alert_rule_id: Option<i32>,

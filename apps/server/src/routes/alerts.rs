@@ -20,7 +20,8 @@
 
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
@@ -31,11 +32,27 @@ use crate::models::{
 };
 use crate::services::{create_dispatcher, AlertService, ProjectService};
 
+/// Response for test channel endpoint
+#[derive(Serialize, ToSchema)]
+pub(crate) struct TestChannelResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 // =============================================================================
 // Notification Channel Endpoints
 // =============================================================================
 
 /// GET /api/alert-channels
+#[utoipa::path(
+    get,
+    path = "/api/alert-channels",
+    tag = "alerts",
+    responses(
+        (status = 200, description = "List of notification channels", body = Vec<crate::models::alert::NotificationChannel>),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_channels(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -45,6 +62,17 @@ pub async fn list_channels(
 }
 
 /// POST /api/alert-channels
+#[utoipa::path(
+    post,
+    path = "/api/alert-channels",
+    tag = "alerts",
+    request_body = CreateNotificationChannel,
+    responses(
+        (status = 201, description = "Channel created", body = crate::models::alert::NotificationChannel),
+        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn create_channel(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -55,6 +83,17 @@ pub async fn create_channel(
 }
 
 /// GET /api/alert-channels/{id}
+#[utoipa::path(
+    get,
+    path = "/api/alert-channels/{id}",
+    tag = "alerts",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 200, description = "Channel details", body = crate::models::alert::NotificationChannel),
+        (status = 404, description = "Channel not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn get_channel(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -65,6 +104,18 @@ pub async fn get_channel(
 }
 
 /// PATCH /api/alert-channels/{id}
+#[utoipa::path(
+    patch,
+    path = "/api/alert-channels/{id}",
+    tag = "alerts",
+    params(("id" = i32, Path, description = "Channel ID")),
+    request_body = UpdateNotificationChannel,
+    responses(
+        (status = 200, description = "Channel updated", body = crate::models::alert::NotificationChannel),
+        (status = 404, description = "Channel not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn update_channel(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -77,6 +128,17 @@ pub async fn update_channel(
 }
 
 /// DELETE /api/alert-channels/{id}
+#[utoipa::path(
+    delete,
+    path = "/api/alert-channels/{id}",
+    tag = "alerts",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 204, description = "Channel deleted"),
+        (status = 404, description = "Channel not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn delete_channel(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -87,6 +149,17 @@ pub async fn delete_channel(
 }
 
 /// POST /api/alert-channels/{id}/test
+#[utoipa::path(
+    post,
+    path = "/api/alert-channels/{id}/test",
+    tag = "alerts",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 200, description = "Test result", body = TestChannelResponse),
+        (status = 404, description = "Channel not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn test_channel(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -122,15 +195,17 @@ pub async fn test_channel(
     let result = dispatcher.send(&channel, &test_payload).await;
 
     if result.success {
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": true,
-            "message": "Test notification sent successfully"
-        })))
+        Ok(HttpResponse::Ok().json(TestChannelResponse {
+            success: true,
+            message: "Test notification sent successfully".to_string(),
+        }))
     } else {
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": false,
-            "message": result.error_message.unwrap_or_else(|| "Unknown error".to_string())
-        })))
+        Ok(HttpResponse::Ok().json(TestChannelResponse {
+            success: false,
+            message: result
+                .error_message
+                .unwrap_or_else(|| "Unknown error".to_string()),
+        }))
     }
 }
 
@@ -139,6 +214,17 @@ pub async fn test_channel(
 // =============================================================================
 
 /// GET /api/projects/{project_id}/alert-rules
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-rules",
+    tag = "alerts",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "List of alert rules", body = Vec<crate::models::alert::AlertRuleResponse>),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_rules(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -162,6 +248,19 @@ pub async fn list_rules(
 }
 
 /// POST /api/projects/{project_id}/alert-rules
+#[utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/alert-rules",
+    tag = "alerts",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    request_body = CreateAlertRule,
+    responses(
+        (status = 201, description = "Rule created", body = crate::models::alert::AlertRuleResponse),
+        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn create_rule(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -179,13 +278,24 @@ pub async fn create_rule(
     Ok(HttpResponse::Created().json(rule.to_response(channel_ids)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct RulePath {
     pub project_id: i32,
     pub rule_id: i32,
 }
 
 /// GET /api/projects/{project_id}/alert-rules/{rule_id}
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "alerts",
+    params(("project_id" = i32, Path, description = "Project ID"), ("rule_id" = i32, Path, description = "Rule ID")),
+    responses(
+        (status = 200, description = "Alert rule details", body = crate::models::alert::AlertRuleResponse),
+        (status = 404, description = "Rule not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn get_rule(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -211,6 +321,18 @@ pub async fn get_rule(
 }
 
 /// PATCH /api/projects/{project_id}/alert-rules/{rule_id}
+#[utoipa::path(
+    patch,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "alerts",
+    params(("project_id" = i32, Path, description = "Project ID"), ("rule_id" = i32, Path, description = "Rule ID")),
+    request_body = UpdateAlertRule,
+    responses(
+        (status = 200, description = "Rule updated", body = crate::models::alert::AlertRuleResponse),
+        (status = 404, description = "Rule not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn update_rule(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -237,6 +359,17 @@ pub async fn update_rule(
 }
 
 /// DELETE /api/projects/{project_id}/alert-rules/{rule_id}
+#[utoipa::path(
+    delete,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "alerts",
+    params(("project_id" = i32, Path, description = "Project ID"), ("rule_id" = i32, Path, description = "Rule ID")),
+    responses(
+        (status = 204, description = "Rule deleted"),
+        (status = 404, description = "Rule not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn delete_rule(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
@@ -264,7 +397,7 @@ pub async fn delete_rule(
 // Alert History Endpoints
 // =============================================================================
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
 pub struct HistoryQuery {
     #[serde(default = "default_limit")]
     pub limit: i64,
@@ -275,6 +408,20 @@ fn default_limit() -> i64 {
 }
 
 /// GET /api/projects/{project_id}/alert-history
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-history",
+    tag = "alerts",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        HistoryQuery,
+    ),
+    responses(
+        (status = 200, description = "Alert history", body = Vec<crate::models::alert::AlertHistory>),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_history(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,

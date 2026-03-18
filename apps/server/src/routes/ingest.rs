@@ -1,7 +1,6 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use chrono::Utc;
-
 use crate::auth::SentryAuth;
 use crate::config::Config;
 use crate::db::DbPool;
@@ -20,7 +19,9 @@ pub struct IngestResponse {
 }
 
 /// POST /api/{project_id}/envelope/
-/// Main ingestion endpoint compatible with Sentry SDK
+/// Main ingestion endpoint compatible with Sentry SDK.
+/// Accepts a Sentry envelope (newline-delimited binary format, optionally compressed).
+/// Note: Not included in OpenAPI spec — binary Sentry protocol, not for CLI/API clients.
 pub async fn ingest_envelope(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
@@ -123,6 +124,7 @@ pub async fn ingest_envelope(
 
 /// POST /api/{project_id}/store/
 /// Legacy endpoint (deprecated)
+/// Note: Not included in OpenAPI spec.
 pub async fn ingest_store(
     _pool: web::Data<DbPool>,
     _config: web::Data<Config>,

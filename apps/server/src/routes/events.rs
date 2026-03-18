@@ -4,11 +4,26 @@ use uuid::Uuid;
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::pagination::{EventCursor, ListEventsQuery, PaginatedResponse, PAGE_SIZE};
+use crate::pagination::{EventCursor, ListEventsQuery, PaginatedEventResponse, PaginatedResponse, PAGE_SIZE};
 use crate::services::{EventService, IssueService};
 
 /// GET /api/projects/{project_id}/issues/{issue_id}/events
 /// Lists events for an issue with cursor-based pagination
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/events",
+    tag = "events",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = Uuid, Path, description = "Issue ID"),
+        ListEventsQuery,
+    ),
+    responses(
+        (status = 200, description = "List of events", body = PaginatedEventResponse),
+        (status = 404, description = "Issue not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn list_events(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
@@ -58,6 +73,21 @@ pub async fn list_events(
 
 /// GET /api/projects/{project_id}/issues/{issue_id}/events/{event_id}
 /// Gets a single event with full data
+#[utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/events/{event_id}",
+    tag = "events",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = Uuid, Path, description = "Issue ID"),
+        ("event_id" = Uuid, Path, description = "Event ID"),
+    ),
+    responses(
+        (status = 200, description = "Event details", body = crate::models::event::EventDetailResponse),
+        (status = 404, description = "Event not found", body = crate::error::ErrorResponse),
+    ),
+    security(("session_auth" = []), ("bearer_auth" = [])),
+)]
 pub async fn get_event(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid, Uuid)>,

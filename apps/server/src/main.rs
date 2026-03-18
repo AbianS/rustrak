@@ -12,6 +12,16 @@ use rustrak::services::AuthTokenService;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Check for --dump-schema flag before anything else
+    if std::env::args().any(|arg| arg == "--dump-schema") {
+        use utoipa::OpenApi;
+        let spec = rustrak::openapi::ApiDoc::openapi().to_json().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, format!("Failed to serialize OpenAPI spec: {}", e))
+        })?;
+        print!("{}", spec);
+        return Ok(());
+    }
+
     // Load .env file if present
     dotenvy::dotenv().ok();
 
