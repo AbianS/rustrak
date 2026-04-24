@@ -1,6 +1,6 @@
 # TEA Workflow Step Files
 
-This folder contains the Test Architect (TEA) workflows converted to step-file architecture for strict LLM compliance. Each workflow is tri-modal (create, edit, validate) and uses small, ordered step files instead of a single monolithic instruction file.
+This folder contains the Test Architect (TEA) workflows converted to skill-driven step-file architecture for strict LLM compliance. Each workflow is tri-modal (create, edit, validate) and uses small, ordered step files routed from `SKILL.md` instead of a single monolithic instruction file.
 
 ## Why Step Files
 
@@ -12,7 +12,8 @@ This folder contains the Test Architect (TEA) workflows converted to step-file a
 
 ```
 <workflow>/
-├── workflow.md             # Mode routing (create / edit / validate)
+├── SKILL.md                # Canonical entrypoint and mode routing
+├── customize.toml          # Workflow customization surface
 ├── workflow-plan.md        # Design reference for step order and intent
 ├── workflow.yaml           # Installer metadata
 ├── instructions.md         # Short entrypoint / summary
@@ -69,6 +70,7 @@ This folder contains the Test Architect (TEA) workflows converted to step-file a
 
 ## Notes
 
-- `workflow.md` is the canonical entrypoint. `instructions.md` is a short summary for quick context.
+- `SKILL.md` is the canonical entrypoint. `instructions.md` is a short summary for quick context.
+- `customize.toml` defines activation hooks, persistent facts, and the optional `on_complete` hook.
 - Output files typically use `{test_artifacts}` or `{project-root}` variables.
 - If a workflow produces multiple artifacts (e.g., system-level vs epic-level), the step file will specify which templates and output paths to use.

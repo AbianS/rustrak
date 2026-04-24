@@ -18,8 +18,8 @@ importers:
         specifier: 2.29.8
         version: 2.29.8(@types/node@25.3.0)
       bmad-method:
-        specifier: 6.0.4
-        version: 6.0.4
+        specifier: 6.3.0
+        version: 6.3.0
       turbo:
         specifier: 2.8.10
         version: 2.8.10
@@ -2414,8 +2414,8 @@ packages:
     peerDependencies:
       react: '>=16.8'
 
-  bmad-method@6.0.4:
-    resolution: {integrity: sha512-lsBc2K2aUIaEstRJDxF2B7OxUREEomo7pKWFAHtCk8T/VUgm7cLpWFkOBE1C6UIHhnSsTF9gFfz1JGRvH9GPrA==}
+  bmad-method@6.3.0:
+    resolution: {integrity: sha512-DJyfEXKbOnRkqaMTK/MW8jVorIwIQ4dOsCdWAKRpmlRDmD8lZEhCowpHdT3Hx+WbWciVAZIRvWPc5yGGJIMdog==}
     engines: {node: '>=20.0.0'}
     hasBin: true
 
@@ -6857,7 +6857,7 @@ snapshots:
       mathjax-full: 3.2.2
       react: 19.2.4
 
-  bmad-method@6.0.4:
+  bmad-method@6.3.0:
     dependencies:
       '@clack/core': 1.1.0
       '@clack/prompts': 1.1.0
