@@ -53,7 +53,7 @@ async fn main() -> std::io::Result<()> {
             log::warn!(
                 "SESSION_SECRET_KEY not set, using random key (sessions won't persist across restarts)"
             );
-            use rand::Rng;
+            use rand::RngExt;
             let random_bytes: Vec<u8> = (0..64).map(|_| rand::rng().random()).collect();
             hex::encode(random_bytes)
         }
