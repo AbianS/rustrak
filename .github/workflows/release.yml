@@ -48,7 +48,7 @@ jobs:
       # If there ARE changesets, create/update the Version Packages PR
       - name: Create Release Pull Request
         if: steps.check.outputs.has_changesets == 'true'
-        uses: changesets/action@v1
+        uses: changesets/action@v3
         with:
           version: pnpm changeset version
           title: "chore: version packages"
