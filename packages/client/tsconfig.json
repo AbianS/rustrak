@@ -20,6 +20,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
     "types": ["node"]
   },
   "include": ["src/**/*"],
