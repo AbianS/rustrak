@@ -43,7 +43,7 @@ fn default_grouping_key(
 pub fn hash_grouping_key(grouping_key: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(grouping_key.as_bytes());
-    format!("{:x}", hasher.finalize())
+    hex::encode(hasher.finalize())
 }
 
 /// Extracts type and value from the event

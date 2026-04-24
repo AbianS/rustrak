@@ -1,7 +1,6 @@
-import { ArrowRight, Github } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-
-import { Badge } from '@/components/ui/badge';
+import { GithubIcon } from '@/components/icons/github';
 import { Button } from '@/components/ui/button';
 
 export function HeroSection() {
@@ -30,8 +29,9 @@ export function HeroSection() {
 
         {/* Subtitle */}
         <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-          Ultra-lightweight Rust server (~50MB RAM). Run only the server on your VPS,
-          access the dashboard from anywhere. Your data, your infrastructure.
+          Ultra-lightweight Rust server (~50MB RAM). Run only the server on your
+          VPS, access the dashboard from anywhere. Your data, your
+          infrastructure.
         </p>
 
         {/* CTA Buttons */}
@@ -52,7 +52,7 @@ export function HeroSection() {
             className="w-full sm:w-auto px-8 py-6 text-sm font-bold uppercase tracking-widest"
           >
             <Link href="https://github.com/AbianS/rustrak" target="_blank">
-              <Github className="mr-2 size-4" /> View on GitHub
+              <GithubIcon className="mr-2 size-4" /> View on GitHub
             </Link>
           </Button>
         </div>

@@ -1,8 +1,9 @@
 'use client';
 
-import { Github, Menu, Terminal, X } from 'lucide-react';
+import { Menu, Terminal, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { GithubIcon } from '@/components/icons/github';
 
 import { Button } from '@/components/ui/button';
 
@@ -36,7 +37,7 @@ export function LandingNavbar() {
             rel="noopener noreferrer"
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
           >
-            <Github className="size-4" />
+            <GithubIcon className="size-4" />
             GitHub
           </Link>
           <Button asChild size="sm">
@@ -74,7 +75,7 @@ export function LandingNavbar() {
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 py-2"
               onClick={() => setIsMenuOpen(false)}
             >
-              <Github className="size-4" />
+              <GithubIcon className="size-4" />
               GitHub
             </Link>
             <Button asChild size="sm" className="w-full">

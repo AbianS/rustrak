@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 
 /// Generates a cryptographically secure 40-character hex token
 pub fn generate_token() -> String {
