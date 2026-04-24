@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
           token: ${{ secrets.PAT_TOKEN }}
 
       - uses: pnpm/action-setup@v4
