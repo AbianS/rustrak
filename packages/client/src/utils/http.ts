@@ -1,4 +1,4 @@
-import ky, { type HTTPError, type KyInstance } from 'ky';
+import ky, { type HTTPError, isHTTPError, type KyInstance } from 'ky';
 import type { ClientConfig } from '../config.js';
 import {
   AuthenticationError,
@@ -11,26 +11,16 @@ import {
   ServerError,
 } from '../errors/index.js';
 
-/**
- * Transform ky HTTPError to custom RustrakError
- */
-async function transformHttpError(error: HTTPError): Promise<RustrakError> {
+function transformHttpError(error: HTTPError): RustrakError {
   const { response } = error;
   const status = response.status;
 
-  // Try to extract error message from response body
   let errorMessage = `HTTP ${status} error`;
-  try {
-    const body = (await response.json()) as {
-      error?: string;
-      message?: string;
-    };
+  const body = error.data as { error?: string; message?: string } | null;
+  if (body) {
     errorMessage = body.error || body.message || errorMessage;
-  } catch {
-    // Unable to parse body, use default message
   }
 
-  // Map status codes to specific error types
   switch (status) {
     case 400:
       return new BadRequestError(errorMessage);
@@ -54,11 +44,7 @@ async function transformHttpError(error: HTTPError): Promise<RustrakError> {
   }
 }
 
-/**
- * Create a configured ky instance with hooks and retry logic
- */
 export function createKyInstance(config: ClientConfig): KyInstance {
-  // Build headers object, only including Authorization if token is provided
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...config.headers,
@@ -69,31 +55,26 @@ export function createKyInstance(config: ClientConfig): KyInstance {
   }
 
   return ky.create({
-    prefixUrl: config.baseUrl,
+    prefix: config.baseUrl,
     timeout: config.timeout ?? 30000,
-    // Enable credentials to send cookies with requests (for session auth)
     credentials: 'include',
     retry: {
       limit: config.maxRetries ?? 2,
-      statusCodes: [408, 429, 500, 502, 503, 504],
+      statusCodes: [408, 500, 502, 503, 504],
       methods: ['get', 'post', 'put', 'patch', 'delete'],
     },
     headers,
     hooks: {
       beforeError: [
-        async (error) => {
-          // Transform network errors
+        ({ error }) => {
           if (error.name === 'TimeoutError') {
             throw new NetworkError('Request timed out', error);
           }
 
-          // Transform HTTP errors
-          if (error.response) {
-            const rustrakError = await transformHttpError(error);
-            throw rustrakError;
+          if (isHTTPError(error)) {
+            throw transformHttpError(error);
           }
 
-          // Generic network error
           throw new NetworkError(error.message, error);
         },
       ],
