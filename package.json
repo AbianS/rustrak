@@ -24,10 +24,10 @@
     "@changesets/cli": "2.31.0",
     "bmad-method": "6.3.0",
     "turbo": "2.9.6",
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   },
   "packageManager": "pnpm@10.33.2",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }
