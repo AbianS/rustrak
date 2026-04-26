@@ -1,0 +1,55 @@
+name: "CodeQL SAST"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/server/**"
+      - "apps/webview-ui/**"
+      - "packages/**"
+      - ".github/workflows/codeql.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "apps/server/**"
+      - "apps/webview-ui/**"
+      - "packages/**"
+  schedule:
+    - cron: "27 3 * * 1" # Weekly Monday 03:27 UTC
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: rust
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "language:${{ matrix.language }}"

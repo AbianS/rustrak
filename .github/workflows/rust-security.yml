@@ -1,0 +1,56 @@
+name: "Rust Security"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "apps/server/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "apps/server/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+  schedule:
+    - cron: "0 4 * * 1" # Weekly Monday 04:00 UTC — catches new advisories
+  workflow_dispatch:
+
+jobs:
+  cargo-deny:
+    name: "cargo-deny (advisories + licenses)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
+
+  cargo-audit:
+    name: "cargo audit (RustSec)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/audit@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  clippy:
+    name: "clippy (security + correctness lints)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/server -> target"
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::suspicious -W clippy::correctness
+        working-directory: apps/server

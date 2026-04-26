@@ -1,0 +1,12 @@
+name: "Rustrak CodeQL Config"
+
+paths-ignore:
+  - "**/node_modules"
+  - "**/dist"
+  - "**/.next"
+  - "**/target"
+  - "**/coverage"
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/test-data"
+  - "packages/test-sentry/**"
