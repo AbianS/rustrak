@@ -5,15 +5,11 @@ on:
     branches: ["main"]
     paths:
       - "apps/server/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
       - "deny.toml"
   pull_request:
     branches: ["main"]
     paths:
       - "apps/server/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
       - "deny.toml"
   schedule:
     - cron: "0 4 * * 1" # Weekly Monday 04:00 UTC — catches new advisories
@@ -29,6 +25,7 @@ jobs:
         with:
           command: check
           arguments: --all-features
+          manifest-path: apps/server/Cargo.toml
 
   cargo-audit:
     name: "cargo audit (RustSec)"
@@ -38,6 +35,7 @@ jobs:
       - uses: actions-rust-lang/audit@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: apps/server
 
   clippy:
     name: "clippy (security + correctness lints)"
