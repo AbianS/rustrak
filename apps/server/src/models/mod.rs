@@ -12,10 +12,10 @@ pub use alert::{
     CreateAlertRule, CreateNotificationChannel, EmailConfig, IssueInfo, NotificationChannel,
     ProjectInfo, SlackConfig, UpdateAlertRule, UpdateNotificationChannel, WebhookConfig,
 };
-pub use auth_token::{AuthToken, CreateAuthToken};
-pub use event::Event;
+pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
+pub use event::{Event, EventDetailResponse, EventResponse};
 pub use grouping::Grouping;
 pub use installation::Installation;
-pub use issue::{Issue, UpdateIssueState};
-pub use project::{CreateProject, Project, UpdateProject};
+pub use issue::{Issue, IssueResponse, UpdateIssueState};
+pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use user::{CreateUserRequest, LoginRequest, User};

@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 /// Type of notification channel
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ChannelType {
@@ -39,6 +40,7 @@ impl std::fmt::Display for ChannelType {
 
 /// Type of alert trigger
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum AlertType {
@@ -63,6 +65,7 @@ impl std::fmt::Display for AlertType {
 
 /// Status of an alert delivery attempt
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[sqlx(type_name = "varchar", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum AlertStatus {
@@ -78,10 +81,12 @@ pub enum AlertStatus {
 
 /// Global notification channel (e.g., Slack workspace, webhook endpoint)
 #[derive(Debug, Clone, Serialize, FromRow)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct NotificationChannel {
     pub id: i32,
     pub name: String,
     pub channel_type: ChannelType,
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub config: serde_json::Value,
     pub is_enabled: bool,
     pub failure_count: i32,
@@ -94,9 +99,11 @@ pub struct NotificationChannel {
 
 /// DTO for creating a notification channel
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateNotificationChannel {
     pub name: String,
     pub channel_type: ChannelType,
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub config: serde_json::Value,
     #[serde(default = "default_true")]
     pub is_enabled: bool,
@@ -108,8 +115,10 @@ fn default_true() -> bool {
 
 /// DTO for updating a notification channel
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateNotificationChannel {
     pub name: Option<String>,
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<Object>))]
     pub config: Option<serde_json::Value>,
     pub is_enabled: Option<bool>,
 }
@@ -162,12 +171,14 @@ pub struct SlackConfig {
 
 /// Per-project alert rule configuration
 #[derive(Debug, Clone, Serialize, FromRow)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertRule {
     pub id: i32,
     pub project_id: i32,
     pub name: String,
     pub alert_type: AlertType,
     pub is_enabled: bool,
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub conditions: serde_json::Value,
     pub cooldown_minutes: i32,
     pub last_triggered_at: Option<DateTime<Utc>>,
@@ -177,10 +188,12 @@ pub struct AlertRule {
 
 /// DTO for creating an alert rule
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateAlertRule {
     pub name: String,
     pub alert_type: AlertType,
     #[serde(default = "default_conditions")]
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub conditions: serde_json::Value,
     #[serde(default)]
     pub cooldown_minutes: i32,
@@ -194,9 +207,11 @@ fn default_conditions() -> serde_json::Value {
 
 /// DTO for updating an alert rule
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateAlertRule {
     pub name: Option<String>,
     pub is_enabled: Option<bool>,
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<Object>))]
     pub conditions: Option<serde_json::Value>,
     pub cooldown_minutes: Option<i32>,
     pub channel_ids: Option<Vec<i32>>,
@@ -204,12 +219,14 @@ pub struct UpdateAlertRule {
 
 /// Response for alert rule including linked channel IDs
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertRuleResponse {
     pub id: i32,
     pub project_id: i32,
     pub name: String,
     pub alert_type: AlertType,
     pub is_enabled: bool,
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub conditions: serde_json::Value,
     pub cooldown_minutes: i32,
     pub last_triggered_at: Option<DateTime<Utc>>,

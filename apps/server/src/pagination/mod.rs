@@ -9,6 +9,8 @@ pub const PAGE_SIZE: i64 = 20;
 
 /// Paginated response wrapper (cursor-based)
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(bound = "T: utoipa::ToSchema"))]
 pub struct PaginatedResponse<T> {
     pub items: Vec<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -28,6 +30,8 @@ impl<T> PaginatedResponse<T> {
 
 /// Offset-based paginated response wrapper
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(bound = "T: utoipa::ToSchema"))]
 pub struct OffsetPaginatedResponse<T> {
     pub items: Vec<T>,
     pub total_count: i64,
@@ -51,6 +55,7 @@ impl<T> OffsetPaginatedResponse<T> {
 
 /// Sort mode for issues listing
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum IssueSort {
     /// Sort by digest_order (stable, unique per project)
@@ -77,6 +82,7 @@ impl std::fmt::Display for IssueSort {
 
 /// Sort order direction
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     Asc,
@@ -106,6 +112,7 @@ impl std::fmt::Display for SortOrder {
 
 /// Query parameters for listing issues (offset-based)
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct ListIssuesQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
@@ -138,6 +145,7 @@ fn default_per_page() -> i64 {
 
 /// Filter for issues listing
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum IssueFilter {
     /// Only open issues (not resolved and not muted)
@@ -153,6 +161,7 @@ pub enum IssueFilter {
 
 /// Query parameters for listing events
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct ListEventsQuery {
     /// Sort order direction (default: desc = newest first)
     #[serde(default)]
@@ -164,6 +173,7 @@ pub struct ListEventsQuery {
 
 /// Query parameters for listing projects (offset-based)
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct ListProjectsQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]

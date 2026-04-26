@@ -28,6 +28,7 @@ pub struct Issue {
 
 /// Response for API
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct IssueResponse {
     pub id: Uuid,
     pub project_id: i32,
@@ -45,6 +46,7 @@ pub struct IssueResponse {
 
 /// Request to update issue state
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateIssueState {
     pub is_resolved: Option<bool>,
     pub is_muted: Option<bool>,

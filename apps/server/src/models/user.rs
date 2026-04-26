@@ -21,12 +21,14 @@ pub struct User {
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateUserRequest {
     pub email: String,
     pub password: String,
 }
 
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,

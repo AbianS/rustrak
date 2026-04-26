@@ -34,6 +34,7 @@ pub struct Event {
 
 /// Response for API (list view)
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct EventResponse {
     pub id: Uuid,
     pub event_id: Uuid,
@@ -48,6 +49,7 @@ pub struct EventResponse {
 
 /// Response for API (full detail)
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct EventDetailResponse {
     pub id: Uuid,
     pub event_id: Uuid,
@@ -62,6 +64,7 @@ pub struct EventDetailResponse {
     pub server_name: String,
     pub sdk_name: String,
     pub sdk_version: String,
+    #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub data: serde_json::Value,
 }
 

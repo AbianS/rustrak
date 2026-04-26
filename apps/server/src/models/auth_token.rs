@@ -14,6 +14,7 @@ pub struct AuthToken {
 
 /// DTO for creating a new token
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateAuthToken {
     #[serde(default)]
     pub description: Option<String>,
@@ -21,6 +22,7 @@ pub struct CreateAuthToken {
 
 /// Response that includes the full token (only on creation)
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AuthTokenCreatedResponse {
     pub id: i32,
     pub token: String, // Only shown once!
@@ -30,6 +32,7 @@ pub struct AuthTokenCreatedResponse {
 
 /// Response for listing (token is masked)
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AuthTokenResponse {
     pub id: i32,
     pub token_prefix: String, // First 8 chars only

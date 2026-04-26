@@ -3,11 +3,13 @@ use serde::Serialize;
 
 /// JSON error response structure
 #[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ErrorResponse {
     pub error: ErrorDetail,
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ErrorDetail {
     #[serde(rename = "type")]
     pub error_type: String,

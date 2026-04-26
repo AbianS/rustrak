@@ -29,12 +29,27 @@ use crate::models::{
     AlertPayload, CreateAlertRule, CreateNotificationChannel, IssueInfo, ProjectInfo,
     UpdateAlertRule, UpdateNotificationChannel,
 };
+#[cfg(feature = "openapi")]
+use crate::models::{AlertRuleResponse, NotificationChannel};
 use crate::services::{create_dispatcher, AlertService, ProjectService};
+
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
 
 // =============================================================================
 // Notification Channel Endpoints
 // =============================================================================
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/alert-channels",
+    tag = "Alert Channels",
+    responses(
+        (status = 200, description = "List of notification channels", body = Vec<NotificationChannel>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/alert-channels
 pub async fn list_channels(
     pool: web::Data<DbPool>,
@@ -44,6 +59,17 @@ pub async fn list_channels(
     Ok(HttpResponse::Ok().json(channels))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/alert-channels",
+    tag = "Alert Channels",
+    request_body = CreateNotificationChannel,
+    responses(
+        (status = 201, description = "Channel created", body = NotificationChannel),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /api/alert-channels
 pub async fn create_channel(
     pool: web::Data<DbPool>,
@@ -54,6 +80,18 @@ pub async fn create_channel(
     Ok(HttpResponse::Created().json(channel))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/alert-channels/{id}",
+    tag = "Alert Channels",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 200, description = "Channel details", body = NotificationChannel),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/alert-channels/{id}
 pub async fn get_channel(
     pool: web::Data<DbPool>,
@@ -64,6 +102,19 @@ pub async fn get_channel(
     Ok(HttpResponse::Ok().json(channel))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    patch,
+    path = "/api/alert-channels/{id}",
+    tag = "Alert Channels",
+    params(("id" = i32, Path, description = "Channel ID")),
+    request_body = UpdateNotificationChannel,
+    responses(
+        (status = 200, description = "Channel updated", body = NotificationChannel),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PATCH /api/alert-channels/{id}
 pub async fn update_channel(
     pool: web::Data<DbPool>,
@@ -76,6 +127,18 @@ pub async fn update_channel(
     Ok(HttpResponse::Ok().json(channel))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    delete,
+    path = "/api/alert-channels/{id}",
+    tag = "Alert Channels",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 204, description = "Channel deleted"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// DELETE /api/alert-channels/{id}
 pub async fn delete_channel(
     pool: web::Data<DbPool>,
@@ -86,6 +149,18 @@ pub async fn delete_channel(
     Ok(HttpResponse::NoContent().finish())
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/alert-channels/{id}/test",
+    tag = "Alert Channels",
+    params(("id" = i32, Path, description = "Channel ID")),
+    responses(
+        (status = 200, description = "Test notification sent"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /api/alert-channels/{id}/test
 pub async fn test_channel(
     pool: web::Data<DbPool>,
@@ -138,6 +213,18 @@ pub async fn test_channel(
 // Alert Rule Endpoints
 // =============================================================================
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-rules",
+    tag = "Alert Rules",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "List of alert rules", body = Vec<AlertRuleResponse>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/alert-rules
 pub async fn list_rules(
     pool: web::Data<DbPool>,
@@ -161,6 +248,19 @@ pub async fn list_rules(
     Ok(HttpResponse::Ok().json(responses))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/alert-rules",
+    tag = "Alert Rules",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    request_body = CreateAlertRule,
+    responses(
+        (status = 201, description = "Alert rule created", body = AlertRuleResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /api/projects/{project_id}/alert-rules
 pub async fn create_rule(
     pool: web::Data<DbPool>,
@@ -185,6 +285,21 @@ pub struct RulePath {
     pub rule_id: i32,
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "Alert Rules",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("rule_id" = i32, Path, description = "Alert rule ID"),
+    ),
+    responses(
+        (status = 200, description = "Alert rule details", body = AlertRuleResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn get_rule(
     pool: web::Data<DbPool>,
@@ -210,6 +325,22 @@ pub async fn get_rule(
     Ok(HttpResponse::Ok().json(rule.to_response(channel_ids)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    patch,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "Alert Rules",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("rule_id" = i32, Path, description = "Alert rule ID"),
+    ),
+    request_body = UpdateAlertRule,
+    responses(
+        (status = 200, description = "Alert rule updated", body = AlertRuleResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PATCH /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn update_rule(
     pool: web::Data<DbPool>,
@@ -236,6 +367,21 @@ pub async fn update_rule(
     Ok(HttpResponse::Ok().json(rule.to_response(channel_ids)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    delete,
+    path = "/api/projects/{project_id}/alert-rules/{rule_id}",
+    tag = "Alert Rules",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("rule_id" = i32, Path, description = "Alert rule ID"),
+    ),
+    responses(
+        (status = 204, description = "Alert rule deleted"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// DELETE /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn delete_rule(
     pool: web::Data<DbPool>,
@@ -274,6 +420,21 @@ fn default_limit() -> i64 {
     50
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/alert-history",
+    tag = "Alert Rules",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("limit" = Option<i64>, Query, description = "Max records to return (default 50, max 100)"),
+    ),
+    responses(
+        (status = 200, description = "Alert history"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/alert-history
 pub async fn list_history(
     pool: web::Data<DbPool>,
@@ -295,6 +456,28 @@ pub async fn list_history(
 // =============================================================================
 // Route Configuration
 // =============================================================================
+
+#[cfg(feature = "openapi")]
+#[derive(OpenApi)]
+#[openapi(
+    paths(
+        list_channels, create_channel, get_channel, update_channel, delete_channel, test_channel,
+        list_rules, create_rule, get_rule, update_rule, delete_rule,
+        list_history,
+    ),
+    components(schemas(
+        crate::models::NotificationChannel,
+        crate::models::CreateNotificationChannel,
+        crate::models::UpdateNotificationChannel,
+        crate::models::ChannelType,
+        crate::models::AlertRuleResponse,
+        crate::models::CreateAlertRule,
+        crate::models::UpdateAlertRule,
+        crate::models::AlertType,
+        crate::models::AlertStatus,
+    )),
+)]
+pub struct AlertsApi;
 
 /// Configure alert channel routes (global)
 pub fn configure_channels(cfg: &mut web::ServiceConfig) {

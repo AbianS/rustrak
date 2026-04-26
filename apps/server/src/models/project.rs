@@ -26,6 +26,7 @@ pub struct Project {
 
 /// DTO for creating a new project
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CreateProject {
     pub name: String,
     #[serde(default)]
@@ -34,12 +35,14 @@ pub struct CreateProject {
 
 /// DTO for updating a project
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateProject {
     pub name: Option<String>,
 }
 
 /// Response with DSN included
 #[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProjectResponse {
     pub id: i32,
     pub name: String,
