@@ -43,3 +43,11 @@ jobs:
 
       # Turbo runs test, build, lint, format:check in parallel
       - run: pnpm run ci
+
+      # Fail the PR if openapi.json is out of sync with the server code
+      - name: Check OpenAPI spec is up to date
+        run: |
+          cd apps/server && cargo run --bin gen_openapi --features openapi
+          cp apps/server/openapi.json apps/docs/public/openapi.json
+          git diff --exit-code -- apps/server/openapi.json apps/docs/public/openapi.json || \
+            (echo "::error::openapi.json is out of date. Run: cd apps/server && cargo run --bin gen_openapi --features openapi && cp openapi.json ../docs/public/openapi.json" && exit 1)

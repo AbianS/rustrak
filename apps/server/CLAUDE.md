@@ -754,6 +754,38 @@ apps/server/
 
 ---
 
+## OpenAPI Spec
+
+The server generates an OpenAPI 3.x spec via the `openapi` Cargo feature (utoipa 5). The spec is **committed to the repo** — both `apps/server/openapi.json` and `apps/docs/public/openapi.json` must be regenerated and committed whenever the API changes.
+
+### When to regenerate
+
+Regenerate after any of these changes:
+- Adding or removing a route
+- Changing a request body, response schema, or path/query parameter
+- Adding or removing a field on any model struct that derives `ToSchema`
+
+### How to regenerate
+
+```bash
+cd apps/server
+cargo run --bin gen_openapi --features openapi
+cp openapi.json ../docs/public/openapi.json
+git add openapi.json ../docs/public/openapi.json
+git commit -m "chore(openapi): update spec"
+```
+
+### How the feature works
+
+- Feature flag: `openapi` (optional — production builds ship without it)
+- All utoipa derives use `#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]`
+- Root spec: `src/openapi.rs` — `ApiDoc` struct composing all 32 paths + `SecurityAddon` (bearer_auth scheme)
+- Each route module has a local `*Api` struct with `#[derive(OpenApi)]`
+- `src/bin/gen_openapi.rs` — writes spec to `$CARGO_MANIFEST_DIR/openapi.json`
+- Interactive UI at `/docs` + raw spec at `/api-docs/openapi.json` (both auth-exempt)
+
+---
+
 ## Skills
 
 When working on the server, leverage these skills:

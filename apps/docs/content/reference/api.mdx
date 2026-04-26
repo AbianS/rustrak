@@ -1,439 +1,57 @@
 # API Reference
 
-Complete reference for the Rustrak REST API.
+The full interactive API reference is available at [/api-reference](/api-reference).
 
-## Base URL
+It is generated automatically from the OpenAPI spec built into the server and documents all endpoints, request/response schemas, and authentication requirements.
 
-```
-http://your-server:8080/api
-```
+## Interactive Explorer
+
+→ **[Open API Reference](/api-reference)**
+
+The explorer lets you browse all endpoints, inspect schemas, and send live requests directly from the browser using your Bearer token.
 
 ## Authentication
 
-All API requests require authentication via Bearer token:
+All management API endpoints require a Bearer token:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" \
   http://localhost:8080/api/projects
 ```
 
-Create tokens in **Settings** → **API Tokens** in the dashboard.
-
-## Responses
-
-All responses are JSON. Successful responses return the requested data. Errors return:
-
-```json
-{
-  "error": "Error message"
-}
-```
-
-## Projects
-
-### List projects
-
-```bash
-GET /api/projects
-```
-
-Response:
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "name": "my-app",
-      "slug": "my-app",
-      "sentry_key": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ]
-}
-```
-
-### Get project
-
-```bash
-GET /api/projects/{id}
-```
-
-### Create project
-
-```bash
-POST /api/projects
-Content-Type: application/json
-
-{
-  "name": "my-app"
-}
-```
-
-### Update project
-
-```bash
-PATCH /api/projects/{id}
-Content-Type: application/json
-
-{
-  "name": "new-name"
-}
-```
-
-### Delete project
-
-```bash
-DELETE /api/projects/{id}
-```
-
-## Issues
-
-### List issues
-
-```bash
-GET /api/projects/{project_id}/issues
-GET /api/projects/{project_id}/issues?state=open
-GET /api/projects/{project_id}/issues?state=resolved
-GET /api/projects/{project_id}/issues?state=muted
-```
-
-Response:
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "short_id": "MY-APP-1",
-      "type": "TypeError",
-      "message": "Cannot read property 'name' of null",
-      "state": "open",
-      "event_count": 42,
-      "first_seen": "2024-01-10T08:00:00Z",
-      "last_seen": "2024-01-15T14:30:00Z"
-    }
-  ]
-}
-```
-
-### Get issue
-
-```bash
-GET /api/issues/{id}
-```
-
-### Update issue state
-
-```bash
-PATCH /api/issues/{id}
-Content-Type: application/json
-
-{
-  "state": "resolved"
-}
-```
-
-States: `open`, `resolved`, `muted`
-
-### Delete issue
-
-```bash
-DELETE /api/issues/{id}
-```
-
-## Events
-
-### List events for issue
-
-```bash
-GET /api/issues/{issue_id}/events
-```
-
-Response:
-```json
-{
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "timestamp": "2024-01-15T14:30:00Z",
-      "environment": "production",
-      "release": "1.0.0",
-      "user": {
-        "id": "123",
-        "email": "user@example.com"
-      }
-    }
-  ]
-}
-```
-
-### Get event
-
-```bash
-GET /api/events/{id}
-```
-
-Returns full event data including:
-- Stack traces
-- Breadcrumbs
-- Tags
-- Context
-- Request data
-
-## Tokens
-
-### List tokens
-
-```bash
-GET /api/tokens
-```
-
-Response (tokens are masked):
-```json
-{
-  "data": [
-    {
-      "id": 1,
-      "token": "a1b2...****",
-      "description": "CI/CD Pipeline",
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ]
-}
-```
-
-### Create token
+Create tokens in **Settings → API Tokens** in the dashboard, or via:
 
 ```bash
 POST /api/tokens
 Content-Type: application/json
+Authorization: Bearer EXISTING_TOKEN
 
-{
-  "description": "My Token"
-}
+{ "description": "CI/CD Pipeline" }
 ```
 
-Response (full token shown once):
-```json
-{
-  "id": 1,
-  "token": "a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4",
-  "description": "My Token",
-  "created_at": "2024-01-15T10:30:00Z"
-}
-```
+## Self-hosted spec
 
-### Delete token
+The server exposes the spec directly when built with the `openapi` feature:
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api-docs/openapi.json` | Raw OpenAPI 3.x JSON spec |
+| `GET /docs` | Scalar interactive UI served by the server itself |
+
+Both endpoints are public — no authentication required.
+
+### Generating the spec file
 
 ```bash
-DELETE /api/tokens/{id}
+cargo run --bin gen_openapi --features openapi
+# writes apps/server/openapi.json
 ```
 
-## Notification Channels
+### Production builds
 
-### List channels
+The `openapi` feature is **not** enabled by default. Production binaries ship without any utoipa code:
 
 ```bash
-GET /api/alert-channels
+cargo build --release                         # no openapi, no extra deps
+cargo build --release --features openapi      # includes /docs and /api-docs/openapi.json
 ```
-
-Response:
-```json
-[
-  {
-    "id": 1,
-    "name": "Slack Alerts",
-    "channel_type": "slack",
-    "config": { "webhook_url": "https://hooks.slack.com/..." },
-    "is_enabled": true,
-    "failure_count": 0,
-    "last_success_at": "2024-01-15T14:30:00Z",
-    "created_at": "2024-01-15T10:00:00Z"
-  }
-]
-```
-
-### Create channel
-
-```bash
-POST /api/alert-channels
-Content-Type: application/json
-
-{
-  "name": "Slack Alerts",
-  "channel_type": "slack",
-  "config": {
-    "webhook_url": "https://hooks.slack.com/services/..."
-  },
-  "is_enabled": true
-}
-```
-
-Channel types: `webhook`, `email`, `slack`
-
-### Update channel
-
-```bash
-PATCH /api/alert-channels/{id}
-Content-Type: application/json
-
-{
-  "name": "Updated Name",
-  "is_enabled": false
-}
-```
-
-### Delete channel
-
-```bash
-DELETE /api/alert-channels/{id}
-```
-
-### Test channel
-
-```bash
-POST /api/alert-channels/{id}/test
-```
-
-Response:
-```json
-{
-  "success": true,
-  "message": "Test notification sent successfully"
-}
-```
-
-## Alert Rules
-
-### List rules for project
-
-```bash
-GET /api/projects/{project_id}/alert-rules
-```
-
-Response:
-```json
-[
-  {
-    "id": 1,
-    "project_id": 1,
-    "name": "Notify on new issues",
-    "alert_type": "new_issue",
-    "is_enabled": true,
-    "conditions": {},
-    "cooldown_minutes": 5,
-    "channel_ids": [1, 2],
-    "created_at": "2024-01-15T10:00:00Z"
-  }
-]
-```
-
-### Create rule
-
-```bash
-POST /api/projects/{project_id}/alert-rules
-Content-Type: application/json
-
-{
-  "name": "Notify on new issues",
-  "alert_type": "new_issue",
-  "channel_ids": [1, 2],
-  "is_enabled": true,
-  "cooldown_minutes": 5
-}
-```
-
-Alert types: `new_issue`, `regression`, `unmute`
-
-### Update rule
-
-```bash
-PATCH /api/projects/{project_id}/alert-rules/{rule_id}
-Content-Type: application/json
-
-{
-  "name": "Updated Name",
-  "is_enabled": false,
-  "channel_ids": [1]
-}
-```
-
-### Delete rule
-
-```bash
-DELETE /api/projects/{project_id}/alert-rules/{rule_id}
-```
-
-### Get alert history
-
-```bash
-GET /api/projects/{project_id}/alert-history
-GET /api/projects/{project_id}/alert-history?limit=50
-```
-
-Response:
-```json
-[
-  {
-    "id": 1,
-    "alert_type": "new_issue",
-    "channel_type": "slack",
-    "channel_name": "Slack Alerts",
-    "status": "sent",
-    "created_at": "2024-01-15T14:30:00Z",
-    "sent_at": "2024-01-15T14:30:01Z"
-  }
-]
-```
-
-## Health
-
-### Health check
-
-```bash
-GET /health
-```
-
-Response:
-```json
-{
-  "status": "ok"
-}
-```
-
-### Readiness check
-
-```bash
-GET /health/ready
-```
-
-Response:
-```json
-{
-  "status": "ok",
-  "database": "connected"
-}
-```
-
-## Event Ingestion
-
-SDKs send events to:
-
-```
-POST /api/{project_id}/envelope/
-```
-
-Authentication via DSN sentry_key or `X-Sentry-Auth` header.
-
-This endpoint accepts Sentry envelope format and is not meant for direct use—use a Sentry SDK instead.
-
-## Error Codes
-
-| Status | Meaning |
-|--------|---------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad request |
-| 401 | Unauthorized |
-| 404 | Not found |
-| 429 | Rate limited |
-| 500 | Server error |
