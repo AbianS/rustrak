@@ -87,10 +87,11 @@ The server generates an OpenAPI 3.x spec via the `openapi` feature flag.
 
 ```bash
 cargo run --bin gen_openapi --features openapi
-cp openapi.json ../docs/public/openapi.json
-git add openapi.json ../docs/public/openapi.json
+git add openapi.json
 git commit -m "chore(openapi): update spec"
 ```
+
+The docs site copies the spec at CI build time — `apps/docs/public/openapi.json` is not committed.
 
 To run the server with the interactive explorer at `/docs`:
 

@@ -249,11 +249,11 @@ The interactive API explorer is served by the server at `/docs` when built with 
 ```bash
 cd apps/server
 cargo run --bin gen_openapi --features openapi
-# updates apps/server/openapi.json AND apps/docs/public/openapi.json
-cp openapi.json ../docs/public/openapi.json
-git add openapi.json ../docs/public/openapi.json
+git add openapi.json
 git commit -m "chore(openapi): update spec"
 ```
+
+The docs site copies the spec automatically at build time — `apps/docs/public/openapi.json` is not committed.
 
 ## Documentation
 

@@ -770,10 +770,11 @@ Regenerate after any of these changes:
 ```bash
 cd apps/server
 cargo run --bin gen_openapi --features openapi
-cp openapi.json ../docs/public/openapi.json
-git add openapi.json ../docs/public/openapi.json
+git add openapi.json
 git commit -m "chore(openapi): update spec"
 ```
+
+`apps/docs/public/openapi.json` is **not** committed — the docs CI copies it from `apps/server/openapi.json` at build time.
 
 ### How the feature works
 
