@@ -99,7 +99,7 @@ fn test_parse_sentry_auth_header_missing_value() {
     let result = parse_sentry_auth_header(header);
 
     // No "=" means no value, should be skipped
-    assert!(result.get("sentry_key").is_none());
+    assert!(!result.contains_key("sentry_key"));
 }
 
 #[test]

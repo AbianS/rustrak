@@ -6,6 +6,9 @@ ignore = [
     # rsa 0.9.x Marvin timing attack — no fix available upstream;
     # comes from sqlx-mysql (sqlx-macros-core transitive dep), we don't use MySQL.
     "RUSTSEC-2023-0071",
+    # rand 0.8.x unsound with custom logger — no fix without sqlx upgrade;
+    # comes from sqlx-postgres (transitive dep), sqlx 0.8.x pins rand 0.8.
+    "RUSTSEC-2026-0097",
 ]
 
 [licenses]
