@@ -32,10 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/audit@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: apps/server
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --quiet
+      - name: Run cargo audit
+        run: cargo audit
+        working-directory: apps/server
 
   clippy:
     name: "clippy (security + correctness lints)"
@@ -50,7 +51,7 @@ jobs:
         with:
           workspaces: "apps/server -> target"
       - name: Run clippy (postgres + openapi)
-        run: cargo clippy --all-targets --features postgres,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
+        run: cargo clippy --all-targets --no-default-features --features postgres,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
         working-directory: apps/server
       - name: Run clippy (sqlite)
         run: cargo clippy --all-targets --features sqlite -- -D warnings -W clippy::suspicious -W clippy::correctness

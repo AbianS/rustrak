@@ -16,6 +16,9 @@ allow = [
     "Unicode-3.0",
     "OpenSSL",
     "Zlib",
+    "0BSD",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-only",
 ]
 private = { ignore = true }
 
