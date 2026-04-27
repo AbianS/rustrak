@@ -7,8 +7,8 @@
       "name": "Rustrak Team"
     },
     "license": {
-      "name": "GPL-3.0",
-      "identifier": "GPL-3.0"
+      "name": "GPL-3.0-only",
+      "identifier": "GPL-3.0-only"
     },
     "version": "0.1.0"
   },
