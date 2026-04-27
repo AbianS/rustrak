@@ -937,7 +937,6 @@ async fn test_session_persists_across_requests() {
     let cookies: Vec<_> = login_resp
         .headers()
         .get_all("set-cookie")
-        .into_iter()
         .collect();
     let cookie_value = cookies[0].to_str().unwrap();
 
@@ -990,7 +989,6 @@ async fn test_logout_invalidates_session() {
     let cookies: Vec<_> = login_resp
         .headers()
         .get_all("set-cookie")
-        .into_iter()
         .collect();
     let cookie_value = cookies[0].to_str().unwrap();
 

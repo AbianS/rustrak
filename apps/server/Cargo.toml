@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Rustrak Team"]
 description = "Ultra-lightweight error tracking server compatible with Sentry SDKs"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 
 [dependencies]
 # Web framework

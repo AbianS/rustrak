@@ -219,7 +219,7 @@ async fn test_concurrent_same_errors_same_project_groups_into_one_issue() {
 
     assert_eq!(issues.len(), 1, "Expected 1 issue, got {}", issues.len());
     assert_eq!(
-        issues[0].digested_event_count, num_events as i32,
+        issues[0].digested_event_count, num_events,
         "Expected {} events in issue, got {}",
         num_events, issues[0].digested_event_count
     );
@@ -513,7 +513,7 @@ async fn test_concurrent_mixed_create_and_update() {
     // Verify each issue has 4 events
     for issue in &issues {
         assert_eq!(
-            issue.digested_event_count, copies_per_error as i32,
+            issue.digested_event_count, copies_per_error,
             "Each issue should have {} events, issue {} has {}",
             copies_per_error, issue.id, issue.digested_event_count
         );
