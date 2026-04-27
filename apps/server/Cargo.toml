@@ -95,7 +95,6 @@ lettre = { version = "0.11.21", default-features = false, features = ["tokio1", 
 
 # OpenAPI spec generation (optional, behind `openapi` feature flag)
 utoipa = { version = "5", features = ["actix_extras", "uuid", "chrono"], optional = true }
-utoipa-actix-web = { version = "0.1", optional = true }
 utoipa-scalar = { version = "0.3", features = ["actix-web"], optional = true }
 
 [dev-dependencies]
@@ -151,4 +150,4 @@ debug = true
 default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
-openapi = ["dep:utoipa", "dep:utoipa-actix-web", "dep:utoipa-scalar"]
+openapi = ["dep:utoipa", "dep:utoipa-scalar"]

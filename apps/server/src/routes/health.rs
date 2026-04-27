@@ -73,6 +73,6 @@ pub async fn readiness(pool: web::Data<DbPool>) -> HttpResponse {
 #[derive(OpenApi)]
 #[openapi(
     paths(liveness, readiness),
-    components(schemas(LivenessResponse, ReadinessResponse, ReadinessChecks)),
+    components(schemas(LivenessResponse, ReadinessResponse, ReadinessChecks))
 )]
 pub struct HealthApi;

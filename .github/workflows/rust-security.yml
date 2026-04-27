@@ -24,7 +24,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          arguments: --features postgres,openapi
           manifest-path: apps/server/Cargo.toml
 
   cargo-audit:
@@ -49,6 +49,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "apps/server -> target"
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::suspicious -W clippy::correctness
+      - name: Run clippy (postgres + openapi)
+        run: cargo clippy --all-targets --features postgres,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
+        working-directory: apps/server
+      - name: Run clippy (sqlite)
+        run: cargo clippy --all-targets --features sqlite -- -D warnings -W clippy::suspicious -W clippy::correctness
         working-directory: apps/server

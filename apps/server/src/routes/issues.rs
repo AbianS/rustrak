@@ -4,9 +4,9 @@ use uuid::Uuid;
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::UpdateIssueState;
 #[cfg(feature = "openapi")]
 use crate::models::IssueResponse;
+use crate::models::UpdateIssueState;
 use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
 use crate::services::{IssueService, ProjectService};
 
@@ -191,10 +191,7 @@ pub async fn delete_issue(
 #[derive(OpenApi)]
 #[openapi(
     paths(list_issues, get_issue, update_issue, delete_issue),
-    components(schemas(
-        crate::models::IssueResponse,
-        crate::models::UpdateIssueState,
-    )),
+    components(schemas(crate::models::IssueResponse, crate::models::UpdateIssueState,))
 )]
 pub struct IssuesApi;
 

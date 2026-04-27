@@ -192,7 +192,7 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
         crate::models::LoginRequest,
         AuthResponse,
         UserResponse,
-    )),
+    ))
 )]
 pub struct AuthApi;
 

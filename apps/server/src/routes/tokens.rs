@@ -87,7 +87,7 @@ pub async fn delete_token(
         crate::models::AuthTokenResponse,
         crate::models::AuthTokenCreatedResponse,
         crate::models::CreateAuthToken,
-    )),
+    ))
 )]
 pub struct TokensApi;
 

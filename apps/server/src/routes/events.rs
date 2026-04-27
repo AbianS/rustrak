@@ -122,10 +122,7 @@ pub async fn get_event(
 #[derive(OpenApi)]
 #[openapi(
     paths(list_events, get_event),
-    components(schemas(
-        crate::models::EventResponse,
-        crate::models::EventDetailResponse,
-    )),
+    components(schemas(crate::models::EventResponse, crate::models::EventDetailResponse,))
 )]
 pub struct EventsApi;
 

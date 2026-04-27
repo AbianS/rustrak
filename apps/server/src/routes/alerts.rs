@@ -461,8 +461,17 @@ pub async fn list_history(
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        list_channels, create_channel, get_channel, update_channel, delete_channel, test_channel,
-        list_rules, create_rule, get_rule, update_rule, delete_rule,
+        list_channels,
+        create_channel,
+        get_channel,
+        update_channel,
+        delete_channel,
+        test_channel,
+        list_rules,
+        create_rule,
+        get_rule,
+        update_rule,
+        delete_rule,
         list_history,
     ),
     components(schemas(
@@ -475,7 +484,7 @@ pub async fn list_history(
         crate::models::UpdateAlertRule,
         crate::models::AlertType,
         crate::models::AlertStatus,
-    )),
+    ))
 )]
 pub struct AlertsApi;
 

@@ -4,9 +4,9 @@ use crate::auth::AuthenticatedUser;
 use crate::config::Config;
 use crate::db::DbPool;
 use crate::error::AppResult;
-use crate::models::{CreateProject, UpdateProject};
 #[cfg(feature = "openapi")]
 use crate::models::ProjectResponse;
+use crate::models::{CreateProject, UpdateProject};
 use crate::pagination::{ListProjectsQuery, OffsetPaginatedResponse};
 use crate::services::ProjectService;
 
@@ -169,13 +169,19 @@ fn build_base_url(config: &Config) -> String {
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(list_projects, get_project, create_project, update_project, delete_project),
+    paths(
+        list_projects,
+        get_project,
+        create_project,
+        update_project,
+        delete_project
+    ),
     components(schemas(
         crate::models::ProjectResponse,
         crate::models::CreateProject,
         crate::models::UpdateProject,
         crate::error::ErrorResponse,
         crate::error::ErrorDetail,
-    )),
+    ))
 )]
 pub struct ProjectsApi;
