@@ -17,8 +17,6 @@ allow = [
     "OpenSSL",
     "Zlib",
 ]
-deny = []
-copyleft = "warn"
 private = { ignore = true }
 
 [bans]
