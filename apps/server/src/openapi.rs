@@ -1,4 +1,4 @@
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 
 struct SecurityAddon;
@@ -14,6 +14,10 @@ impl Modify for SecurityAddon {
                     .bearer_format("40-char hex token")
                     .build(),
             ),
+        );
+        components.add_security_scheme(
+            "session_cookie",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new("session"))),
         );
     }
 }
@@ -77,6 +81,7 @@ impl Modify for SecurityAddon {
         crate::models::UpdateAlertRule,
         crate::models::AlertType,
         crate::models::AlertStatus,
+        crate::models::AlertHistory,
         crate::error::ErrorResponse,
         crate::error::ErrorDetail,
         crate::routes::health::LivenessResponse,

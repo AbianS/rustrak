@@ -335,17 +335,20 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "format": "int64",
+              "minimum": 1
             }
           },
           {
             "name": "per_page",
             "in": "query",
-            "description": "Items per page (default: 20)",
+            "description": "Items per page (default: 20, max: 100)",
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           },
           {
@@ -684,6 +687,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -724,7 +737,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Alert history"
+            "description": "Alert history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertHistory"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized",
@@ -1109,17 +1132,20 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "format": "int64",
+              "minimum": 1
             }
           },
           {
             "name": "per_page",
             "in": "query",
-            "description": "Items per page (default: 20)",
+            "description": "Items per page (default: 20, max: 100)",
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           },
           {
@@ -1892,7 +1918,10 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/auth/logout": {
@@ -1906,7 +1935,12 @@
           "204": {
             "description": "Logged out"
           }
-        }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
       }
     },
     "/auth/me": {
@@ -1937,7 +1971,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
       }
     },
     "/auth/register": {
@@ -1988,7 +2027,10 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/health": {
@@ -2046,6 +2088,104 @@
   },
   "components": {
     "schemas": {
+      "AlertHistory": {
+        "type": "object",
+        "description": "Alert delivery history record (audit log and retry queue)",
+        "required": [
+          "id",
+          "alert_type",
+          "channel_type",
+          "channel_name",
+          "status",
+          "attempt_count",
+          "idempotency_key",
+          "created_at"
+        ],
+        "properties": {
+          "alert_rule_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "alert_type": {
+            "type": "string"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "channel_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "channel_name": {
+            "type": "string"
+          },
+          "channel_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "http_status_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "issue_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "next_retry_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AlertStatus"
+          }
+        }
+      },
       "AlertRuleResponse": {
         "type": "object",
         "description": "Response for alert rule including linked channel IDs",
@@ -2806,6 +2946,11 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "40-char hex token"
+      },
+      "session_cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session"
       }
     }
   }

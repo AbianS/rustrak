@@ -54,5 +54,5 @@ jobs:
         run: cargo clippy --all-targets --no-default-features --features postgres,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
         working-directory: apps/server
       - name: Run clippy (sqlite)
-        run: cargo clippy --all-targets --features sqlite -- -D warnings -W clippy::suspicious -W clippy::correctness
+        run: cargo clippy --all-targets --features sqlite,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
         working-directory: apps/server

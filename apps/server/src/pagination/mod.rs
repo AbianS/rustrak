@@ -42,7 +42,8 @@ pub struct OffsetPaginatedResponse<T> {
 
 impl<T> OffsetPaginatedResponse<T> {
     pub fn new(items: Vec<T>, total_count: i64, page: i64, per_page: i64) -> Self {
-        let total_pages = (total_count + per_page - 1) / per_page; // Ceiling division
+        let per_page = per_page.max(1);
+        let total_pages = (total_count + per_page - 1) / per_page;
         Self {
             items,
             total_count,
@@ -116,10 +117,12 @@ impl std::fmt::Display for SortOrder {
 pub struct ListIssuesQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
     pub page: i64,
 
-    /// Items per page (default: 20)
+    /// Items per page (default: 20, max: 100)
     #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
     pub per_page: i64,
 
     /// Sort mode (default: last_seen)
@@ -177,10 +180,12 @@ pub struct ListEventsQuery {
 pub struct ListProjectsQuery {
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
     pub page: i64,
 
-    /// Items per page (default: 20)
+    /// Items per page (default: 20, max: 100)
     #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
     pub per_page: i64,
 
     /// Sort order direction (default: desc = newest first)

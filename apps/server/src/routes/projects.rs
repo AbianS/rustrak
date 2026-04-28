@@ -107,6 +107,7 @@ pub async fn create_project(
         (status = 200, description = "Project updated", body = ProjectResponse),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+        (status = 409, description = "Conflict", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]

@@ -85,6 +85,7 @@ fn is_valid_email(email: &str) -> bool {
         (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
         (status = 409, description = "Email already in use", body = crate::error::ErrorResponse),
     ),
+    security(()),
 ))]
 /// POST /auth/register
 /// Create new user account
@@ -121,6 +122,7 @@ pub async fn register(
         (status = 200, description = "Logged in", body = AuthResponse),
         (status = 401, description = "Invalid credentials", body = crate::error::ErrorResponse),
     ),
+    security(()),
 ))]
 /// POST /auth/login
 /// Authenticate user and create session
@@ -160,6 +162,7 @@ pub async fn login(
     responses(
         (status = 204, description = "Logged out"),
     ),
+    security(("session_cookie" = [])),
 ))]
 /// POST /auth/logout
 /// Clear session
@@ -176,6 +179,7 @@ pub async fn logout(session: Session) -> impl Responder {
         (status = 200, description = "Current user", body = UserResponse),
         (status = 401, description = "Not authenticated", body = crate::error::ErrorResponse),
     ),
+    security(("session_cookie" = [])),
 ))]
 /// GET /auth/me
 /// Get current authenticated user

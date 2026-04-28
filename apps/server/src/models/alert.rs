@@ -260,6 +260,7 @@ impl AlertRule {
 
 /// Alert delivery history record (audit log and retry queue)
 #[derive(Debug, Clone, Serialize, FromRow)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertHistory {
     pub id: i64,
     pub alert_rule_id: Option<i32>,

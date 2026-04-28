@@ -429,7 +429,7 @@ fn default_limit() -> i64 {
         ("limit" = Option<i64>, Query, description = "Max records to return (default 50, max 100)"),
     ),
     responses(
-        (status = 200, description = "Alert history"),
+        (status = 200, description = "Alert history", body = Vec<crate::models::AlertHistory>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
     ),
@@ -484,6 +484,7 @@ pub async fn list_history(
         crate::models::UpdateAlertRule,
         crate::models::AlertType,
         crate::models::AlertStatus,
+        crate::models::AlertHistory,
     ))
 )]
 pub struct AlertsApi;
