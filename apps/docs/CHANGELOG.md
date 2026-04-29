@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.12
+
+### Patch Changes
+
+- [#46](https://github.com/AbianS/rustrak/pull/46) [`c64ebe0`](https://github.com/AbianS/rustrak/commit/c64ebe09d1e2700faf956c757cb21402aa062e5a) Thanks [@AbianS](https://github.com/AbianS)! - Add interactive API reference powered by OpenAPI spec
+
 ## 0.1.11
 
 ### Patch Changes
