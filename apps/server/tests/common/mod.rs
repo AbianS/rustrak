@@ -2,6 +2,8 @@
 //!
 //! This module provides shared functionality for all tests.
 
+#![allow(unused_imports, dead_code)]
+
 pub mod db;
 pub mod fixtures;
 

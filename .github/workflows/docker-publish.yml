@@ -329,6 +329,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Copy OpenAPI spec into docs
+        run: cp apps/server/openapi.json apps/docs/public/openapi.json
+
       - name: Build docs
         run: pnpm build:docs
 

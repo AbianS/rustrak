@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Rustrak Team"]
 description = "Ultra-lightweight error tracking server compatible with Sentry SDKs"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 
 [dependencies]
 # Web framework
@@ -93,6 +93,10 @@ async-trait = "0.1.89"
 # Email sending
 lettre = { version = "0.11.21", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 
+# OpenAPI spec generation (optional, behind `openapi` feature flag)
+utoipa = { version = "5", features = ["actix_extras", "uuid", "chrono"], optional = true }
+utoipa-scalar = { version = "0.3", features = ["actix-web"], optional = true }
+
 [dev-dependencies]
 # Test framework & fixtures
 rstest = "0.26.1"
@@ -118,6 +122,15 @@ pretty_assertions = "1.4.1"
 # Temp directories for tests
 tempfile = "3.27.0"
 
+[[bin]]
+name = "rustrak"
+path = "src/main.rs"
+
+[[bin]]
+name = "gen_openapi"
+path = "src/bin/gen_openapi.rs"
+required-features = ["openapi"]
+
 [profile.release]
 opt-level = 3
 lto = true
@@ -137,3 +150,4 @@ debug = true
 default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
+openapi = ["dep:utoipa", "dep:utoipa-scalar"]

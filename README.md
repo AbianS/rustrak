@@ -240,6 +240,21 @@ cd apps/server && cargo run
 cd apps/webview-ui && pnpm dev
 ```
 
+### API Reference (OpenAPI spec)
+
+The interactive API explorer is served by the server at `/docs` when built with the `openapi` feature, and is also embedded in the documentation site.
+
+**The spec file must be regenerated and committed whenever the API changes** (new endpoints, changed request/response shapes, added parameters):
+
+```bash
+cd apps/server
+cargo run --bin gen_openapi --features openapi
+git add openapi.json
+git commit -m "chore(openapi): update spec"
+```
+
+The docs site copies the spec automatically at build time — `apps/docs/public/openapi.json` is not committed.
+
 ## Documentation
 
 Full documentation is available at **[docs](https://abians.github.io/rustrak/)**

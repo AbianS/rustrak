@@ -10,6 +10,11 @@ use rustrak::models;
 use rustrak::routes;
 use rustrak::services::AuthTokenService;
 
+#[cfg(feature = "openapi")]
+use rustrak::openapi;
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Load .env file if present
@@ -65,6 +70,16 @@ async fn main() -> std::io::Result<()> {
     let host = config.host.clone();
     let port = config.port;
 
+    // Pre-compute OpenAPI spec once per process (not once per worker)
+    #[cfg(feature = "openapi")]
+    let openapi_spec = web::Data::new(
+        openapi::ApiDoc::openapi()
+            .to_pretty_json()
+            .expect("valid openapi spec"),
+    );
+    #[cfg(feature = "openapi")]
+    let openapi_scalar_doc = openapi::ApiDoc::openapi();
+
     let server = HttpServer::new(move || {
         // CORS configuration - permissive for event ingestion
         // Sentry SDKs can send from any origin. CORS protects the user from
@@ -85,7 +100,7 @@ async fn main() -> std::io::Result<()> {
             ])
             .max_age(3600);
 
-        App::new()
+        let app = App::new()
             // Share database pool and config with all handlers
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
@@ -125,7 +140,24 @@ async fn main() -> std::io::Result<()> {
             // Alert channels (global, not nested under projects)
             .configure(routes::alerts::configure_channels)
             // Ingest routes (Sentry SDK auth)
-            .configure(routes::ingest::configure)
+            .configure(routes::ingest::configure);
+
+        #[cfg(feature = "openapi")]
+        let app = {
+            use utoipa_scalar::{Scalar, Servable};
+            app.app_data(openapi_spec.clone())
+                .service(Scalar::with_url("/docs", openapi_scalar_doc.clone()))
+                .route(
+                    "/api-docs/openapi.json",
+                    web::get().to(|s: web::Data<String>| async move {
+                        actix_web::HttpResponse::Ok()
+                            .content_type("application/json")
+                            .body(s.get_ref().clone())
+                    }),
+                )
+        };
+
+        app
     })
     .bind((host.as_str(), port))?
     .shutdown_timeout(30)

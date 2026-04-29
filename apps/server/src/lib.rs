@@ -11,6 +11,8 @@ pub mod error;
 pub mod ingest;
 pub mod middleware;
 pub mod models;
+#[cfg(feature = "openapi")]
+pub mod openapi;
 pub mod pagination;
 pub mod routes;
 pub mod services;

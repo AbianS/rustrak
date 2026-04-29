@@ -1,56 +1,37 @@
-# Database backend: sqlite (default) or postgres
 ARG FEATURES=sqlite
 
-# Build stage
-FROM rust:1.88-slim-bookworm AS builder
-
+# ── Stage 1: base image with cargo-chef installed ────────────────────────────
+FROM rust:1.88-slim-bookworm AS chef
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-chef --locked
 WORKDIR /app
 
-# build-essential provides gcc, needed to compile bundled SQLite from C source
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# ── Stage 2: compute dependency recipe from manifest ─────────────────────────
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Install dependencies first for better caching
-COPY Cargo.toml Cargo.lock* ./
-
-# Redeclare ARG so it's available inside this build stage
+# ── Stage 3: compile dependencies (Docker-cached layer) ──────────────────────
+FROM chef AS builder
 ARG FEATURES
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --no-default-features --features ${FEATURES} --recipe-path recipe.json
 
-# Create dummy main.rs to build dependencies
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release --no-default-features --features ${FEATURES} && \
-    rm -rf src
+# Build the application binary
+COPY . .
+RUN cargo build --release --no-default-features --features ${FEATURES}
 
-# Copy actual source code and migrations
-COPY src ./src
-COPY migrations ./migrations
-
-# Build the application
-RUN touch src/main.rs && cargo build --release --no-default-features --features ${FEATURES}
-
-# Create /data directory owned by nonroot (uid 65532) for SQLite storage
+# Create /data directory for SQLite storage (used when FEATURES=sqlite)
 RUN mkdir -p /data && chown 65532:65532 /data
 
-# Runtime stage - distroless for minimal footprint
-# SQLite is bundled (statically compiled) so no libsqlite3 runtime dep needed
+# ── Stage 4: minimal distroless runtime ──────────────────────────────────────
 FROM gcr.io/distroless/cc-debian12:nonroot
-
 WORKDIR /app
-
-# Copy the binary from builder
 COPY --from=builder /app/target/release/rustrak /app/rustrak
-
-# Copy /data directory with correct ownership for nonroot user (uid 65532)
 COPY --chown=65532:65532 --from=builder /data /data
-
-# Persist SQLite data (default DATABASE_URL writes to /data/rustrak.db)
 VOLUME /data
-
-# Expose port
 EXPOSE 8080
-
-# Run as non-root user (already set by :nonroot tag)
 USER nonroot
 CMD ["/app/rustrak"]

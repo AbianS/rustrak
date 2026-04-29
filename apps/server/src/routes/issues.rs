@@ -4,10 +4,30 @@ use uuid::Uuid;
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
+#[cfg(feature = "openapi")]
+use crate::models::IssueResponse;
 use crate::models::UpdateIssueState;
 use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
 use crate::services::{IssueService, ProjectService};
 
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ListIssuesQuery,
+    ),
+    responses(
+        (status = 200, description = "List of issues", body = inline(crate::pagination::OffsetPaginatedResponse<IssueResponse>)),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues
 /// Lists issues for a project with offset-based pagination
 pub async fn list_issues(
@@ -47,6 +67,21 @@ pub async fn list_issues(
     )))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Issue details", body = IssueResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}
 /// Gets a single issue by ID
 pub async fn get_issue(
@@ -69,6 +104,22 @@ pub async fn get_issue(
     Ok(HttpResponse::Ok().json(issue.to_response(&project.slug)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    patch,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = UpdateIssueState,
+    responses(
+        (status = 200, description = "Issue updated", body = IssueResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PATCH /api/projects/{project_id}/issues/{issue_id}
 /// Updates issue state (resolve, mute, etc.)
 pub async fn update_issue(
@@ -101,6 +152,21 @@ pub async fn update_issue(
     Ok(HttpResponse::Ok().json(updated.to_response(&project.slug)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    delete,
+    path = "/api/projects/{project_id}/issues/{issue_id}",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 204, description = "Issue deleted"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// DELETE /api/projects/{project_id}/issues/{issue_id}
 /// Soft-deletes an issue
 pub async fn delete_issue(
@@ -120,6 +186,14 @@ pub async fn delete_issue(
 
     Ok(HttpResponse::NoContent().finish())
 }
+
+#[cfg(feature = "openapi")]
+#[derive(OpenApi)]
+#[openapi(
+    paths(list_issues, get_issue, update_issue, delete_issue),
+    components(schemas(crate::models::IssueResponse, crate::models::UpdateIssueState,))
+)]
+pub struct IssuesApi;
 
 /// Configure issue routes
 pub fn configure(cfg: &mut web::ServiceConfig) {

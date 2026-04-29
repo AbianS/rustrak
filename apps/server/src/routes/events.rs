@@ -4,9 +4,30 @@ use uuid::Uuid;
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
+#[cfg(feature = "openapi")]
+use crate::models::{EventDetailResponse, EventResponse};
 use crate::pagination::{EventCursor, ListEventsQuery, PaginatedResponse, PAGE_SIZE};
 use crate::services::{EventService, IssueService};
 
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/events",
+    tag = "Events",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+        ListEventsQuery,
+    ),
+    responses(
+        (status = 200, description = "Paginated event list", body = inline(crate::pagination::PaginatedResponse<EventResponse>)),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}/events
 /// Lists events for an issue with cursor-based pagination
 pub async fn list_events(
@@ -56,6 +77,22 @@ pub async fn list_events(
     Ok(HttpResponse::Ok().json(PaginatedResponse::new(responses, next_cursor, has_more)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/events/{event_id}",
+    tag = "Events",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+        ("event_id" = uuid::Uuid, Path, description = "Event ID"),
+    ),
+    responses(
+        (status = 200, description = "Full event detail", body = EventDetailResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}/events/{event_id}
 /// Gets a single event with full data
 pub async fn get_event(
@@ -80,6 +117,14 @@ pub async fn get_event(
     // Return full detail response (includes data field)
     Ok(HttpResponse::Ok().json(event.to_detail_response()))
 }
+
+#[cfg(feature = "openapi")]
+#[derive(OpenApi)]
+#[openapi(
+    paths(list_events, get_event),
+    components(schemas(crate::models::EventResponse, crate::models::EventDetailResponse,))
+)]
+pub struct EventsApi;
 
 /// Configure event routes
 pub fn configure(cfg: &mut web::ServiceConfig) {

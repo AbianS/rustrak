@@ -15,6 +15,7 @@ use testcontainers_modules::postgres::Postgres;
 
 /// A test database with connection pool (Postgres variant includes a container)
 #[cfg(feature = "postgres")]
+#[allow(dead_code)]
 pub struct TestDb {
     /// The running PostgreSQL container (kept alive for the duration of the test)
     #[allow(dead_code)]

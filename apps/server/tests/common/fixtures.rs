@@ -2,6 +2,8 @@
 //!
 //! Provides reusable test data for events, projects, and other entities.
 
+#![allow(dead_code, clippy::wrong_self_convention)]
+
 use serde_json::{json, Value};
 use uuid::Uuid;
 

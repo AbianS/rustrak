@@ -520,11 +520,7 @@ async fn test_get_current_user_authenticated() {
     assert_eq!(login_resp.status(), 200);
 
     // Extract session cookie
-    let cookies: Vec<_> = login_resp
-        .headers()
-        .get_all("set-cookie")
-        .into_iter()
-        .collect();
+    let cookies: Vec<_> = login_resp.headers().get_all("set-cookie").collect();
     assert!(!cookies.is_empty());
 
     let cookie_value = cookies[0].to_str().unwrap();
@@ -694,11 +690,7 @@ async fn test_middleware_allows_authenticated_access() {
         .to_request();
 
     let login_resp = test::call_service(&app, login_req).await;
-    let cookies: Vec<_> = login_resp
-        .headers()
-        .get_all("set-cookie")
-        .into_iter()
-        .collect();
+    let cookies: Vec<_> = login_resp.headers().get_all("set-cookie").collect();
     let cookie_value = cookies[0].to_str().unwrap();
 
     // Now access protected route with session
@@ -934,11 +926,7 @@ async fn test_session_persists_across_requests() {
         .to_request();
 
     let login_resp = test::call_service(&app, login_req).await;
-    let cookies: Vec<_> = login_resp
-        .headers()
-        .get_all("set-cookie")
-        .into_iter()
-        .collect();
+    let cookies: Vec<_> = login_resp.headers().get_all("set-cookie").collect();
     let cookie_value = cookies[0].to_str().unwrap();
 
     // Make multiple requests with same session
@@ -987,11 +975,7 @@ async fn test_logout_invalidates_session() {
         .to_request();
 
     let login_resp = test::call_service(&app, login_req).await;
-    let cookies: Vec<_> = login_resp
-        .headers()
-        .get_all("set-cookie")
-        .into_iter()
-        .collect();
+    let cookies: Vec<_> = login_resp.headers().get_all("set-cookie").collect();
     let cookie_value = cookies[0].to_str().unwrap();
 
     // Verify session works

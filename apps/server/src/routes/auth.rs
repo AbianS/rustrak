@@ -7,12 +7,17 @@ use crate::error::{AppError, AppResult};
 use crate::models::{CreateUserRequest, LoginRequest, User};
 use crate::services::UsersService;
 
+#[cfg(feature = "openapi")]
+use utoipa::OpenApi;
+
 #[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 struct AuthResponse {
     user: UserResponse,
 }
 
 #[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 struct UserResponse {
     id: i32,
     email: String,
@@ -70,6 +75,18 @@ fn is_valid_email(email: &str) -> bool {
     true
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/register",
+    tag = "Auth",
+    request_body = CreateUserRequest,
+    responses(
+        (status = 201, description = "User registered", body = AuthResponse),
+        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
+        (status = 409, description = "Email already in use", body = crate::error::ErrorResponse),
+    ),
+    security(()),
+))]
 /// POST /auth/register
 /// Create new user account
 pub async fn register(
@@ -96,6 +113,17 @@ pub async fn register(
     Ok(HttpResponse::Created().json(AuthResponse { user: user.into() }))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/login",
+    tag = "Auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Logged in", body = AuthResponse),
+        (status = 401, description = "Invalid credentials", body = crate::error::ErrorResponse),
+    ),
+    security(()),
+))]
 /// POST /auth/login
 /// Authenticate user and create session
 pub async fn login(
@@ -127,6 +155,15 @@ pub async fn login(
     Ok(HttpResponse::Ok().json(AuthResponse { user: user.into() }))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/logout",
+    tag = "Auth",
+    responses(
+        (status = 204, description = "Logged out"),
+    ),
+    security(("session_cookie" = [])),
+))]
 /// POST /auth/logout
 /// Clear session
 pub async fn logout(session: Session) -> impl Responder {
@@ -134,11 +171,34 @@ pub async fn logout(session: Session) -> impl Responder {
     HttpResponse::NoContent().finish()
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/auth/me",
+    tag = "Auth",
+    responses(
+        (status = 200, description = "Current user", body = UserResponse),
+        (status = 401, description = "Not authenticated", body = crate::error::ErrorResponse),
+    ),
+    security(("session_cookie" = [])),
+))]
 /// GET /auth/me
 /// Get current authenticated user
 pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
     HttpResponse::Ok().json(UserResponse::from(user.0))
 }
+
+#[cfg(feature = "openapi")]
+#[derive(OpenApi)]
+#[openapi(
+    paths(register, login, logout, get_current_user),
+    components(schemas(
+        crate::models::CreateUserRequest,
+        crate::models::LoginRequest,
+        AuthResponse,
+        UserResponse,
+    ))
+)]
+pub struct AuthApi;
 
 /// Configure auth routes
 pub fn configure(cfg: &mut web::ServiceConfig) {

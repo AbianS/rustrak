@@ -79,6 +79,28 @@ cargo fmt
 cargo clippy
 ```
 
+### OpenAPI spec
+
+The server generates an OpenAPI 3.x spec via the `openapi` feature flag.
+
+**Regenerate and commit the spec after any API change** (new route, changed body/response, added param):
+
+```bash
+cargo run --bin gen_openapi --features openapi
+git add openapi.json
+git commit -m "chore(openapi): update spec"
+```
+
+The docs site copies the spec at CI build time — `apps/docs/public/openapi.json` is not committed.
+
+To run the server with the interactive explorer at `/docs`:
+
+```bash
+cargo run --features openapi
+# → http://localhost:8080/docs
+# → http://localhost:8080/api-docs/openapi.json
+```
+
 ## License
 
 GPL-3.0

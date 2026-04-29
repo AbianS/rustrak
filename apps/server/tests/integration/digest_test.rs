@@ -126,7 +126,7 @@ async fn test_digest_groups_similar_events() {
     let rate_limit_config = create_rate_limit_config();
 
     // Create two events with the same error type and message
-    for i in 0..2 {
+    for _i in 0..2 {
         let event_id = Uuid::new_v4().to_string().replace("-", "");
         let event_json = json!({
             "event_id": &event_id,

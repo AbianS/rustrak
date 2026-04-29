@@ -56,8 +56,19 @@ where
         // - /api/* - API routes (authentication handled by extractors:
         //            SentryAuth for ingest, AuthenticatedUser for management)
         // - /health - health check routes
-        let is_exempt =
-            path.starts_with("/auth") || path.starts_with("/api/") || path.starts_with("/health");
+        let is_exempt = path.starts_with("/auth")
+            || path.starts_with("/api/")
+            || path.starts_with("/health")
+            || {
+                #[cfg(feature = "openapi")]
+                {
+                    path.starts_with("/docs") || path.starts_with("/api-docs/")
+                }
+                #[cfg(not(feature = "openapi"))]
+                {
+                    false
+                }
+            };
 
         if is_exempt {
             let service = Rc::clone(&self.service);

@@ -186,7 +186,7 @@ fn test_logentry_prefers_message_over_formatted() {
         }
     });
 
-    let (type_, value) = get_type_and_value(&event);
+    let (_type, value) = get_type_and_value(&event);
     // Should prefer 'message' (parameterized) for grouping
     assert_eq!(value, "User %s logged in");
 }

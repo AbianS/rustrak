@@ -829,7 +829,7 @@ async fn test_sentry_sdk_separates_different_errors() {
     .expect("Failed to list issues");
 
     // Should have separate issues for different error types
-    assert!(issues.len() >= 1);
+    assert!(!issues.is_empty());
 
     server.shutdown();
 }

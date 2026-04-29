@@ -29,7 +29,7 @@ export default {
     title: 'Reference',
     type: 'menu',
     items: {
-      api: { title: 'API Reference', href: '/reference/api' },
+      'api-reference': { title: 'API Reference', href: '/api-reference' },
       architecture: { title: 'Architecture', href: '/reference/architecture' },
       contributing: { title: 'Contributing', href: '/reference/contributing' },
     },

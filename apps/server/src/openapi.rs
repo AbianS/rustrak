@@ -1,0 +1,93 @@
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::{Modify, OpenApi};
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer_auth",
+            SecurityScheme::Http(
+                HttpBuilder::new()
+                    .scheme(HttpAuthScheme::Bearer)
+                    .bearer_format("40-char hex token")
+                    .build(),
+            ),
+        );
+        components.add_security_scheme(
+            "session_cookie",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new("session"))),
+        );
+    }
+}
+
+#[derive(OpenApi)]
+#[openapi(
+    info(title = "Rustrak", version = env!("CARGO_PKG_VERSION")),
+    paths(
+        crate::routes::projects::list_projects,
+        crate::routes::projects::get_project,
+        crate::routes::projects::create_project,
+        crate::routes::projects::update_project,
+        crate::routes::projects::delete_project,
+        crate::routes::issues::list_issues,
+        crate::routes::issues::get_issue,
+        crate::routes::issues::update_issue,
+        crate::routes::issues::delete_issue,
+        crate::routes::events::list_events,
+        crate::routes::events::get_event,
+        crate::routes::tokens::list_tokens,
+        crate::routes::tokens::create_token,
+        crate::routes::tokens::delete_token,
+        crate::routes::auth::register,
+        crate::routes::auth::login,
+        crate::routes::auth::logout,
+        crate::routes::auth::get_current_user,
+        crate::routes::health::liveness,
+        crate::routes::health::readiness,
+        crate::routes::alerts::list_channels,
+        crate::routes::alerts::create_channel,
+        crate::routes::alerts::get_channel,
+        crate::routes::alerts::update_channel,
+        crate::routes::alerts::delete_channel,
+        crate::routes::alerts::test_channel,
+        crate::routes::alerts::list_rules,
+        crate::routes::alerts::create_rule,
+        crate::routes::alerts::get_rule,
+        crate::routes::alerts::update_rule,
+        crate::routes::alerts::delete_rule,
+        crate::routes::alerts::list_history,
+    ),
+    components(schemas(
+        crate::models::ProjectResponse,
+        crate::models::CreateProject,
+        crate::models::UpdateProject,
+        crate::models::IssueResponse,
+        crate::models::UpdateIssueState,
+        crate::models::EventResponse,
+        crate::models::EventDetailResponse,
+        crate::models::AuthTokenResponse,
+        crate::models::AuthTokenCreatedResponse,
+        crate::models::CreateAuthToken,
+        crate::models::CreateUserRequest,
+        crate::models::LoginRequest,
+        crate::models::NotificationChannel,
+        crate::models::CreateNotificationChannel,
+        crate::models::UpdateNotificationChannel,
+        crate::models::ChannelType,
+        crate::models::AlertRuleResponse,
+        crate::models::CreateAlertRule,
+        crate::models::UpdateAlertRule,
+        crate::models::AlertType,
+        crate::models::AlertStatus,
+        crate::models::AlertHistory,
+        crate::error::ErrorResponse,
+        crate::error::ErrorDetail,
+        crate::routes::health::LivenessResponse,
+        crate::routes::health::ReadinessResponse,
+        crate::routes::health::ReadinessChecks,
+    )),
+    modifiers(&SecurityAddon),
+)]
+pub struct ApiDoc;

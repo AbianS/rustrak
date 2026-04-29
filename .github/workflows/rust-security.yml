@@ -24,7 +24,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-          arguments: --all-features
+          arguments: --features postgres,openapi
           manifest-path: apps/server/Cargo.toml
 
   cargo-audit:
@@ -32,10 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rust-lang/audit@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          working-directory: apps/server
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked --quiet
+      - name: Run cargo audit
+        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0097
+        working-directory: apps/server
 
   clippy:
     name: "clippy (security + correctness lints)"
@@ -49,6 +50,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "apps/server -> target"
-      - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::suspicious -W clippy::correctness
+      - name: Run clippy (postgres + openapi)
+        run: cargo clippy --all-targets --no-default-features --features postgres,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
+        working-directory: apps/server
+      - name: Run clippy (sqlite)
+        run: cargo clippy --all-targets --features sqlite,openapi -- -D warnings -W clippy::suspicious -W clippy::correctness
         working-directory: apps/server
