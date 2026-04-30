@@ -18,4 +18,4 @@ pub use grouping::Grouping;
 pub use installation::Installation;
 pub use issue::{Issue, IssueResponse, UpdateIssueState};
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
-pub use user::{CreateUserRequest, LoginRequest, User};
+pub use user::{ChangePasswordRequest, CreateUserRequest, LoginRequest, User};

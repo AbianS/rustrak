@@ -33,6 +33,7 @@ export type {
   ApiError,
   // Auth
   AuthResponse,
+  ChangePasswordRequest,
   // Tokens
   AuthToken,
   AuthTokenCreated,
