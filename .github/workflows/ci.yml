@@ -50,3 +50,29 @@ jobs:
           cargo run --manifest-path apps/server/Cargo.toml --bin gen_openapi --features openapi
           git diff --exit-code -- apps/server/openapi.json || \
             (echo "::error::openapi.json is out of date. Run: cd apps/server && cargo run --bin gen_openapi --features openapi" && exit 1)
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          workspaces: apps/server -> target
+
+      - name: Run coverage
+        working-directory: apps/server
+        run: cargo llvm-cov --lcov --output-path lcov.info
+        env:
+          CARGO_TERM_COLOR: always
+
+      - uses: codecov/codecov-action@5ecb98a3c6b75edfda59eb837ba9351cb56fc89d # v5
+        with:
+          files: apps/server/lcov.info
+          working-directory: apps/server

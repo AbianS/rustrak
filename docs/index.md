@@ -38,6 +38,7 @@
 
 ### Architecture per Part
 - [Architecture — Server](./architecture-server.md) — Two-phase ingestion, auth, rate limiting, grouping, alerts
+- [Architecture — Crates](./architecture-crates.md) — Complete crate inventory, module layout, design patterns
 - [Architecture — WebView UI](./architecture-webview-ui.md) — RSC-first, Server Actions, auth flow, routes
 - [Architecture — Docs](./architecture-docs.md) — Nextra setup, content structure, deployment to GitHub Pages
 - [Architecture — Client](./architecture-client.md) — Schema-first (Zod), resource pattern, error hierarchy

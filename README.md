@@ -7,6 +7,9 @@
     <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
       <img src="https://github.com/AbianS/rustrak/actions/workflows/ci.yml/badge.svg" alt="CI" />
     </a>
+    <a href="https://codecov.io/gh/AbianS/rustrak">
+      <img src="https://codecov.io/gh/AbianS/rustrak/graph/badge.svg" alt="Coverage" />
+    </a>
     <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License" />
     </a>

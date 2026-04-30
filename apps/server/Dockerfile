@@ -19,17 +19,36 @@ ARG FEATURES
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --no-default-features --features ${FEATURES} --recipe-path recipe.json
 
-# Build the application binary
-COPY . .
-RUN cargo build --release --no-default-features --features ${FEATURES}
+# Create dummy main.rs + dummy seed.rs to build dependencies.
+# Both [[bin]] targets in Cargo.toml must have a placeholder source file
+# for the dep-only compile to succeed.
+RUN mkdir -p src/bin && \
+    echo "fn main() {}" > src/main.rs && \
+    echo "fn main() {}" > src/bin/seed.rs && \
+    cargo build --release --no-default-features --features ${FEATURES} && \
+    rm -rf src
 
-# Create /data directory for SQLite storage (used when FEATURES=sqlite)
+# Copy actual source code and migrations
+COPY src ./src
+COPY migrations ./migrations
+
+# Build the application (both binaries)
+RUN touch src/main.rs src/bin/seed.rs && \
+    cargo build --release --no-default-features --features ${FEATURES} \
+        --bin rustrak --bin rustrak-seed
+
+# Create /data directory owned by nonroot (uid 65532) for SQLite storage
 RUN mkdir -p /data && chown 65532:65532 /data
 
 # ── Stage 4: minimal distroless runtime ──────────────────────────────────────
 FROM gcr.io/distroless/cc-debian12:nonroot
 WORKDIR /app
+
+# Copy the binaries from builder
 COPY --from=builder /app/target/release/rustrak /app/rustrak
+COPY --from=builder /app/target/release/rustrak-seed /app/rustrak-seed
+
+# Copy /data directory with correct ownership for nonroot user (uid 65532)
 COPY --chown=65532:65532 --from=builder /data /data
 VOLUME /data
 EXPOSE 8080

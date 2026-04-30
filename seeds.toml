@@ -1,0 +1,49 @@
+# Rustrak seed configuration
+#
+# Loaded by the `rustrak-seed` binary. Idempotent: rows are matched by their
+# unique constraint (email / project name / token value) and skipped if they
+# already exist.
+#
+# IMPORTANT: this file produces *deterministic* IDs and tokens so DSNs are
+# stable across `docker-compose up` cycles. These values are clearly fake
+# and MUST NOT be reused in production.
+
+[[users]]
+email    = "admin@admin.com"
+password = "password123"
+is_admin = true
+
+# Add additional users if you want to test multi-user flows. Example:
+# [[users]]
+# email    = "dev@admin.com"
+# password = "password123"
+# is_admin = false
+
+# ---------------------------------------------------------------------------
+# Projects
+# ---------------------------------------------------------------------------
+# `sentry_key` MUST be a valid UUID. Use distinct values per project.
+# The DSN will be:   http://<sentry_key_no_hyphens>@<host>:<port>/<project_id>
+
+[[projects]]
+name       = "demo"
+slug       = "demo"
+sentry_key = "00000000-0000-4000-8000-000000000001"
+
+[[projects]]
+name       = "api"
+slug       = "api"
+sentry_key = "00000000-0000-4000-8000-000000000002"
+
+# ---------------------------------------------------------------------------
+# Auth tokens
+# ---------------------------------------------------------------------------
+# Token values MUST be exactly 40 lowercase hex characters (matches the
+# `auth_tokens.token CHAR(40)` schema constraint).
+#
+# Tokens are used as `Authorization: Bearer <token>` for API access — they are
+# NOT scoped to a single project; any token grants access to all projects.
+
+[[tokens]]
+token       = "0000000000000000000000000000000000000001"
+description = "Seeded dev token"

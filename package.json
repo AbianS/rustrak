@@ -13,6 +13,7 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "check-types": "turbo run check-types",
+    "coverage": "turbo run coverage",
     "clean": "turbo run clean",
     "changeset": "changeset",
     "version-packages": "changeset version",

@@ -6,7 +6,10 @@ services:
       POSTGRES_PASSWORD: rustrak
       POSTGRES_DB: rustrak
     ports:
-      - "5432:5432"
+      # Mapped to 5433 on the host to avoid colliding with a host-side
+      # postgres or another compose stack on 5432. Inside the docker network
+      # it's still 5432.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,6 +22,8 @@ services:
     build:
       context: ./apps/server
       dockerfile: Dockerfile
+      args:
+        FEATURES: postgres
     ports:
       - "8080:8080"
     environment:
@@ -27,10 +32,68 @@ services:
       - RUST_LOG=info
       - DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak
       - SESSION_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      - CREATE_SUPERUSER=admin@admin.com:password123
+      # CREATE_SUPERUSER intentionally omitted: the `seed` service handles
+      # user/project/token creation deterministically. Re-enable this if you
+      # want to run the stack without `seed`.
     depends_on:
       postgres:
         condition: service_healthy
+
+  # One-shot seeder. Inserts the users / projects / tokens defined in
+  # `seeds.toml` (mounted from the repo root). Idempotent — safe to re-run.
+  # Exits 0 on success.
+  #
+  # The seeder polls for the `projects` table on startup, so it transparently
+  # waits for the server's migrations to complete — no server healthcheck
+  # is required.
+  seed:
+    build:
+      context: ./apps/server
+      dockerfile: Dockerfile
+      args:
+        FEATURES: postgres
+    entrypoint: ["/app/rustrak-seed"]
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak
+      # HOST/PORT are used to compose the DSN strings printed at the end.
+      # We point at the host-exposed address (localhost:8080) so SDKs
+      # running on the host can use the printed DSNs directly.
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUSTRAK_PUBLIC_HOST=localhost
+      - SEEDS_FILE=/app/seeds.toml
+    volumes:
+      - ./seeds.toml:/app/seeds.toml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      server:
+        condition: service_started
+    restart: "no"
+
+  # One-shot event seeder. Runs after `seed` has created the deterministic
+  # demo project, then sends representative Sentry events through the normal
+  # ingestion path. Idempotency is intentionally not enforced here: re-running
+  # this service creates a fresh batch of realistic events.
+  seed-events:
+    image: node:lts-alpine
+    working_dir: /app
+    environment:
+      - CI=true
+    command: >
+      sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @rustrak/test-sentry start --dsn
+      http://00000000000040008000000000000001@server:8080/1 --all"
+    volumes:
+      - .:/app
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      server:
+        condition: service_started
+    restart: "no"
 
   webview-ui:
     build:

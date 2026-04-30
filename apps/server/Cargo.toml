@@ -6,6 +6,14 @@ authors = ["Rustrak Team"]
 description = "Ultra-lightweight error tracking server compatible with Sentry SDKs"
 license = "GPL-3.0-only"
 
+[[bin]]
+name = "rustrak"
+path = "src/main.rs"
+
+[[bin]]
+name = "rustrak-seed"
+path = "src/bin/seed.rs"
+
 [dependencies]
 # Web framework
 actix-web = { version = "4.13.0", features = ["cookies"] }
@@ -96,6 +104,9 @@ lettre = { version = "0.11.21", default-features = false, features = ["tokio1", 
 # OpenAPI spec generation (optional, behind `openapi` feature flag)
 utoipa = { version = "5", features = ["actix_extras", "uuid", "chrono"], optional = true }
 utoipa-scalar = { version = "0.3", features = ["actix-web"], optional = true }
+
+# TOML parsing (used by rustrak-seed binary)
+toml = "0.8"
 
 [dev-dependencies]
 # Test framework & fixtures

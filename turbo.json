@@ -51,6 +51,9 @@
     "clean": {
       "cache": false
     },
+    "coverage": {
+      "cache": false
+    },
     "bench": {
       "dependsOn": ["build"],
       "cache": false,
