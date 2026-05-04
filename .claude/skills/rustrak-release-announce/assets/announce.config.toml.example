@@ -1,0 +1,18 @@
+# Rustrak Release Announcer — Configuration Template
+# Copy to {project-root}/.announce.config.toml (gitignored) and fill in your credentials.
+# See references/reddit-setup.md for how to obtain Reddit API credentials.
+
+[reddit]
+# From https://www.reddit.com/prefs/apps (create a "script" type app)
+client_id = ""
+client_secret = ""
+# Permanent refresh token from PRAW OAuth flow — see references/reddit-setup.md
+refresh_token = ""
+user_agent = "rustrak-announce/1.0 by u/YOUR_REDDIT_USERNAME"
+
+# Subreddits to post to (without the r/ prefix)
+subreddits = [
+  "selfhosted",
+  # "rust",
+  # "opensource",
+]
