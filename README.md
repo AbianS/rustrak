@@ -259,10 +259,10 @@ The docs site copies the spec automatically at build time — `apps/docs/public/
 
 Full documentation is available at **[docs](https://abians.github.io/rustrak/)**
 
-- [Getting Started](https://rustrak.dev/getting-started)
-- [Configuration](https://rustrak.dev/configuration)
-- [API Reference](https://rustrak.dev/api)
-- [Self-Hosting Guide](https://rustrak.dev/self-hosting)
+- [Getting Started](https://abians.github.io/rustrak/getting-started)
+- [Configuration](https://abians.github.io/rustrak/configuration)
+- [API Reference](https://abians.github.io/rustrak/api)
+- [Self-Hosting Guide](https://abians.github.io/rustrak/self-hosting)
 
 ## Contributing
 
