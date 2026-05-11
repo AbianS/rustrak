@@ -61,14 +61,28 @@ impl ResponseError for AppError {
             AppError::Conflict(_) => "Conflict",
             AppError::Unauthorized(_) => "Unauthorized",
             AppError::PayloadTooLarge(_) => "PayloadTooLarge",
-            AppError::Database(_) => "DatabaseError",
+            AppError::Database(_) => "InternalError",
             AppError::Internal(_) => "InternalError",
+        };
+
+        // Database and Internal errors must never expose internal details to clients.
+        // Log the full error server-side and return a safe generic message.
+        let message = match self {
+            AppError::Database(e) => {
+                log::error!("Database error: {:?}", e);
+                "An internal error occurred".to_string()
+            }
+            AppError::Internal(msg) => {
+                log::error!("Internal error: {}", msg);
+                "An internal error occurred".to_string()
+            }
+            other => other.to_string(),
         };
 
         let response = ErrorResponse {
             error: ErrorDetail {
                 error_type: error_type.to_string(),
-                message: self.to_string(),
+                message,
             },
         };
 

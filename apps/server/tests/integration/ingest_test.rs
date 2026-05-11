@@ -558,3 +558,51 @@ async fn test_store_endpoint_deprecated() {
     // Should return 400 because store is deprecated
     assert_eq!(resp.status(), 400);
 }
+
+// =============================================================================
+// Payload Size Tests (M-1)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_ingest_oversized_body_returns_413_json() {
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Payload Limit Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    // 300KB plain body — exceeds actix-web default 256KB Bytes extractor limit
+    let large_body = vec![b'x'; 300 * 1024];
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .set_payload(large_body)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        413,
+        "Oversized body must return 413, not {}",
+        resp.status()
+    );
+
+    let body = test::read_body(resp).await;
+    let body_str = std::str::from_utf8(&body).unwrap();
+    let json: Value = serde_json::from_str(body_str)
+        .expect(&format!("413 response must be JSON, got: {body_str}"));
+    assert_eq!(
+        json["error"]["type"], "PayloadTooLarge",
+        "Error type must be PayloadTooLarge: {body_str}"
+    );
+}

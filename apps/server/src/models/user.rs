@@ -8,6 +8,12 @@ use sqlx::FromRow;
 
 use crate::error::AppError;
 
+// Pre-computed Argon2id hash of a dummy password used to equalize timing
+// when the requested email doesn't exist (H-1: timing oracle prevention).
+// The specific hash value doesn't matter — it's never used to grant access.
+const DUMMY_PASSWORD_HASH: &str =
+    "$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHRzb21lc2FsdA$3K5rjsHVK+G7t2t7ZkxjkE6iuHQYCbGfn1y/jNF0dSE";
+
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct User {
     pub id: i32,
@@ -52,5 +58,14 @@ impl User {
         Ok(Argon2::default()
             .verify_password(password.as_bytes(), &parsed_hash)
             .is_ok())
+    }
+
+    /// Run Argon2 verification against a dummy hash to equalize timing when the
+    /// requested user does not exist. Always returns false — never grants access.
+    pub fn run_dummy_password_verify(password: &str) -> bool {
+        if let Ok(parsed) = PasswordHash::new(DUMMY_PASSWORD_HASH) {
+            let _ = Argon2::default().verify_password(password.as_bytes(), &parsed);
+        }
+        false
     }
 }
