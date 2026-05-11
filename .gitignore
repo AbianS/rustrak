@@ -38,5 +38,8 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# Reddit API credentials for the release-announce skill
+.announce.config.toml
+
 # Generated release card images
 release-cards/

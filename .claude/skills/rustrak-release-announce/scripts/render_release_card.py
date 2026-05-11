@@ -26,11 +26,13 @@ def ensure_browser(verbose: bool = False) -> None:
     """Install Playwright's Chromium on first use. Idempotent — fast if already installed."""
     if verbose:
         print("[render] Ensuring Chromium is available...", file=sys.stderr)
-    subprocess.run(
+    result = subprocess.run(
         [sys.executable, "-m", "playwright", "install", "chromium"],
         capture_output=not verbose,
         check=False,
     )
+    if result.returncode != 0 and not verbose:
+        print("[render] Warning: playwright install chromium failed; browser may be missing.", file=sys.stderr)
 
 
 def render(version: str, template: Path, output: Path, verbose: bool = False) -> None:
@@ -87,6 +89,16 @@ def main() -> None:
         status, error = "fail", str(exc)
         traceback.print_exc(file=sys.stderr)
 
+    err_lower = (error or "").lower()
+    if "executable" in err_lower or "playwright" in err_lower or "chromium" in err_lower:
+        fix_hint = "Run: uv run --with playwright playwright install chromium"
+    elif "no such file" in err_lower or "not found" in err_lower:
+        fix_hint = f"Verify the HTML template exists at {template}"
+    elif "permission" in err_lower:
+        fix_hint = f"Check write permissions for {output}"
+    else:
+        fix_hint = "See traceback above for details."
+
     result = {
         "script":    "render_release_card",
         "version":   "1.0.0",
@@ -97,7 +109,7 @@ def main() -> None:
             "severity": "critical", "category": "structure",
             "location": {"file": "render", "line": 0},
             "issue":    error,
-            "fix":      "Run: uv run --with playwright playwright install chromium",
+            "fix":      fix_hint,
         }],
         "summary": {
             "total":    0 if status == "pass" else 1,

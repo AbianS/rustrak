@@ -90,7 +90,7 @@ def main() -> None:
 
     config = load_config(config_path)
 
-    body = args.body if args.body else Path(args.body_file).read_text(encoding="utf-8")
+    body = args.body if args.body is not None else Path(args.body_file).read_text(encoding="utf-8")
 
     if args.verbose:
         print(f"[reddit] Config loaded from {config_path}", file=sys.stderr)

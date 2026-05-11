@@ -1,5 +1,6 @@
 # Rustrak Release Announcer — Configuration Template
-# Copy to {project-root}/.announce.config.toml (gitignored) and fill in your credentials.
+# Copy to {skill-root}/.announce.config.toml (gitignored) and fill in your credentials.
+# i.e. .claude/skills/rustrak-release-announce/.announce.config.toml
 # See references/reddit-setup.md for how to obtain Reddit API credentials.
 
 [reddit]
