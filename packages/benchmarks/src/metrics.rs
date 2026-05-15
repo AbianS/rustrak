@@ -1,6 +1,6 @@
 //! Metrics collection from Docker containers.
 
-use bollard::container::StatsOptions;
+use bollard::query_parameters::StatsOptions;
 use bollard::Docker;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -98,54 +98,62 @@ struct MetricsAccumulator {
 }
 
 impl MetricsAccumulator {
-    fn add_sample(&mut self, stats: &bollard::container::Stats) {
-        // CPU calculation
-        let cpu_delta = stats.cpu_stats.cpu_usage.total_usage.saturating_sub(self.previous_cpu);
-        let system_delta = stats
-            .cpu_stats
-            .system_cpu_usage
-            .unwrap_or(0)
-            .saturating_sub(self.previous_system_cpu);
+    fn add_sample(&mut self, stats: &bollard::models::ContainerStatsResponse) {
+        // CPU calculation — all sub-structs are Option<T> in bollard 0.21
+        if let Some(cpu_stats) = &stats.cpu_stats {
+            let total_usage = cpu_stats
+                .cpu_usage
+                .as_ref()
+                .and_then(|u| u.total_usage)
+                .unwrap_or(0);
+            let system_usage = cpu_stats.system_cpu_usage.unwrap_or(0);
 
-        if system_delta > 0 && self.previous_cpu > 0 {
-            let num_cpus = stats.cpu_stats.online_cpus.unwrap_or(1) as f64;
-            let cpu_percent = (cpu_delta as f64 / system_delta as f64) * num_cpus * 100.0;
+            let cpu_delta = total_usage.saturating_sub(self.previous_cpu);
+            let system_delta = system_usage.saturating_sub(self.previous_system_cpu);
 
-            self.cpu_total += cpu_percent;
-            self.cpu_peak = self.cpu_peak.max(cpu_percent);
-            self.cpu_samples += 1;
+            if system_delta > 0 && self.previous_cpu > 0 {
+                let num_cpus = cpu_stats.online_cpus.unwrap_or(1) as f64;
+                let cpu_percent = (cpu_delta as f64 / system_delta as f64) * num_cpus * 100.0;
+                self.cpu_total += cpu_percent;
+                self.cpu_peak = self.cpu_peak.max(cpu_percent);
+                self.cpu_samples += 1;
+            }
+
+            self.previous_cpu = total_usage;
+            self.previous_system_cpu = system_usage;
         }
-
-        self.previous_cpu = stats.cpu_stats.cpu_usage.total_usage;
-        self.previous_system_cpu = stats.cpu_stats.system_cpu_usage.unwrap_or(0);
 
         // Memory calculation
-        let memory_bytes = stats.memory_stats.usage.unwrap_or(0) as f64;
-        let memory_mb = memory_bytes / (1024.0 * 1024.0);
+        if let Some(memory_stats) = &stats.memory_stats {
+            let memory_bytes = memory_stats.usage.unwrap_or(0) as f64;
+            let memory_mb = memory_bytes / (1024.0 * 1024.0);
 
-        if self.memory_idle.is_none() {
-            self.memory_idle = Some(memory_mb);
-        }
+            if self.memory_idle.is_none() {
+                self.memory_idle = Some(memory_mb);
+            }
+            self.memory_total += memory_mb;
+            self.memory_peak = self.memory_peak.max(memory_mb);
+            self.memory_samples += 1;
 
-        self.memory_total += memory_mb;
-        self.memory_peak = self.memory_peak.max(memory_mb);
-        self.memory_samples += 1;
-
-        if self.memory_limit.is_none() {
-            if let Some(limit) = stats.memory_stats.limit {
-                if limit > 0 && limit < u64::MAX / 2 {
-                    self.memory_limit = Some(limit as f64 / (1024.0 * 1024.0));
+            if self.memory_limit.is_none() {
+                if let Some(limit) = memory_stats.limit {
+                    if limit > 0 && limit < u64::MAX / 2 {
+                        self.memory_limit = Some(limit as f64 / (1024.0 * 1024.0));
+                    }
                 }
             }
         }
 
         // I/O metrics
-        if let Some(ref io_stats) = stats.blkio_stats.io_service_bytes_recursive {
-            for stat in io_stats {
-                match stat.op.as_str() {
-                    "read" | "Read" => self.io_read = stat.value,
-                    "write" | "Write" => self.io_write = stat.value,
-                    _ => {}
+        if let Some(blkio_stats) = &stats.blkio_stats {
+            if let Some(ref io_stats) = blkio_stats.io_service_bytes_recursive {
+                for stat in io_stats {
+                    let value = stat.value.unwrap_or(0);
+                    match stat.op.as_deref().unwrap_or("") {
+                        "read" | "Read" => self.io_read = value,
+                        "write" | "Write" => self.io_write = value,
+                        _ => {}
+                    }
                 }
             }
         }
@@ -153,7 +161,7 @@ impl MetricsAccumulator {
         // Network metrics
         if let Some(ref networks) = stats.networks {
             let (rx, tx) = networks.values().fold((0u64, 0u64), |(rx, tx), net| {
-                (rx + net.rx_bytes, tx + net.tx_bytes)
+                (rx + net.rx_bytes.unwrap_or(0), tx + net.tx_bytes.unwrap_or(0))
             });
             self.network_rx = rx;
             self.network_tx = tx;
@@ -300,7 +308,7 @@ pub async fn snapshot(container_name: &str) -> Result<ContainerMetrics, MetricsE
         one_shot: true,
     };
 
-    let mut stream = docker.stats(container_name, Some(options));
+    let mut stream = docker.stats(container_name, Some(options.clone()));
 
     if let Some(Ok(stats)) = stream.next().await {
         let mut acc = MetricsAccumulator::default();

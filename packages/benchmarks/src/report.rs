@@ -6,7 +6,7 @@ use crate::runner::StatsSnapshot;
 use chrono::{DateTime, Utc};
 use colored::Colorize;
 use hdrhistogram::Histogram;
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -409,8 +409,7 @@ pub fn compare(old: &BenchmarkResults, new: &BenchmarkResults) {
     };
 
     let latency_change = if old.results.latency_ms.p99 > 0.0 {
-        (new.results.latency_ms.p99 - old.results.latency_ms.p99)
-            / old.results.latency_ms.p99
+        (new.results.latency_ms.p99 - old.results.latency_ms.p99) / old.results.latency_ms.p99
             * 100.0
     } else {
         0.0
