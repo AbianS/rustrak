@@ -1,5 +1,5 @@
-import { Terminal } from 'lucide-react';
 import type { Metadata } from 'next';
+import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import {
   Card,
   CardContent,
@@ -30,9 +30,7 @@ export default function AboutPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="size-10 bg-primary rounded-lg flex items-center justify-center">
-                <Terminal className="size-6 text-primary-foreground" />
-              </div>
+              <RustrakLogoIcon className="size-10" />
               <div>
                 <CardTitle>Rustrak</CardTitle>
                 <CardDescription>

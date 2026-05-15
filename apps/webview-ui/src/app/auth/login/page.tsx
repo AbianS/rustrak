@@ -1,6 +1,6 @@
-import { Terminal } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import { APP_VERSION } from '@/lib/constants';
 import { LoginForm } from './login-form';
 
@@ -20,9 +20,7 @@ export default function LoginPage() {
 
         {/* Brand */}
         <Link href="/" className="relative z-20 flex items-center gap-2 w-fit">
-          <div className="size-8 bg-primary rounded-sm flex items-center justify-center shadow-[0_0_15px_hsl(var(--primary)/0.3)]">
-            <Terminal className="size-5 text-primary-foreground" />
-          </div>
+          <RustrakLogoIcon className="size-8" />
           <span className="text-lg font-extrabold tracking-tight uppercase">
             Rustrak
           </span>
@@ -72,9 +70,7 @@ export default function LoginPage() {
         <div className="w-full max-w-[420px] space-y-10">
           {/* Mobile brand (hidden on desktop) */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="size-8 bg-primary rounded-sm flex items-center justify-center">
-              <Terminal className="size-5 text-primary-foreground" />
-            </div>
+            <RustrakLogoIcon className="size-8" />
             <span className="text-lg font-extrabold tracking-tight uppercase">
               Rustrak
             </span>

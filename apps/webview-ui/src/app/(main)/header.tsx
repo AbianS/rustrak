@@ -1,11 +1,12 @@
 'use client';
 
 import type { User } from '@rustrak/client';
-import { LogOut, Settings, Terminal } from 'lucide-react';
+import { LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { logout } from '@/actions/auth';
+import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -35,9 +36,7 @@ export function Header({ user }: HeaderProps) {
       <div className="flex items-center gap-4 md:gap-10">
         {/* Logo */}
         <Link href="/projects" className="flex items-center gap-2">
-          <div className="size-6 bg-primary rounded-sm flex items-center justify-center">
-            <Terminal className="size-4 text-primary-foreground" />
-          </div>
+          <RustrakLogoIcon className="size-6" />
           <span className="text-sm font-extrabold tracking-tight uppercase">
             Rustrak
           </span>
