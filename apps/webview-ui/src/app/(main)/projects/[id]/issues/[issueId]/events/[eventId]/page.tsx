@@ -182,7 +182,7 @@ export default async function EventPage({ params }: EventPageProps) {
             </div>
 
             {/* Sidebar */}
-            <aside className="lg:col-span-4 space-y-6">
+            <aside className="lg:col-span-4 space-y-6 sticky top-6 self-start">
               {/* Issue Stats */}
               <div className="bg-card rounded-xl border p-6 space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
