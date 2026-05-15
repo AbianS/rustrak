@@ -18,7 +18,7 @@ actix-session = { version = "0.11", features = ["cookie-session"] }
 argon2 = "0.5.3"
 
 # Async runtime
-tokio = { version = "1.52.1", features = ["full"] }
+tokio = { version = "1.52.3", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
@@ -79,7 +79,7 @@ actix-cors = "0.7.1"
 base64 = "0.22.1"
 
 # HTTP client for notifications
-reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls"] }
+reqwest = { version = "0.13.3", default-features = false, features = ["json", "rustls"] }
 
 # HMAC for webhook signatures
 hmac = "0.13.0"
@@ -91,11 +91,11 @@ url = "2.5.8"
 async-trait = "0.1.89"
 
 # Email sending
-lettre = { version = "0.11.21", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
+lettre = { version = "0.11.22", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 
 # OpenAPI spec generation (optional, behind `openapi` feature flag)
-utoipa = { version = "5", features = ["actix_extras", "uuid", "chrono"], optional = true }
-utoipa-scalar = { version = "0.3", features = ["actix-web"], optional = true }
+utoipa = { version = "5.5.0", features = ["actix_extras", "uuid", "chrono"], optional = true }
+utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
 
 [dev-dependencies]
 # Test framework & fixtures
@@ -111,7 +111,7 @@ testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 
 # Sentry SDK for E2E tests
-sentry = { version = "0.47.0", features = ["test"] }
+sentry = { version = "0.48.2", features = ["test"] }
 
 # Property-based testing
 proptest = "1.11.0"
