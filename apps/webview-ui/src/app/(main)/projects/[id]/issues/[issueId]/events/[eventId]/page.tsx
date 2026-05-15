@@ -74,8 +74,8 @@ export default async function EventPage({ params }: EventPageProps) {
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header */}
       <header className="shrink-0 bg-background border-b">
-        <div className="max-w-[1600px] w-full mx-auto px-8 py-6">
-          <div className="flex items-start justify-between gap-6">
+        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
             <div className="space-y-2 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 {issue.is_resolved && (
@@ -127,7 +127,7 @@ export default async function EventPage({ params }: EventPageProps) {
               )}
             </div>
 
-            <div className="flex flex-col items-end gap-3 shrink-0">
+            <div className="flex flex-row flex-wrap items-center gap-2 md:flex-col md:items-end md:gap-3 md:shrink-0">
               <EventNavigationBar
                 projectId={projectId}
                 issueId={issueId}
@@ -141,19 +141,21 @@ export default async function EventPage({ params }: EventPageProps) {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-auto">
-        <div className="max-w-[1600px] w-full mx-auto px-8 py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
             {/* Main Content */}
             <div className="lg:col-span-8">
               <Tabs defaultValue="stacktrace">
-                <TabsList>
-                  <TabsTrigger value="stacktrace">Stack Trace</TabsTrigger>
-                  <TabsTrigger value="breadcrumbs">Breadcrumbs</TabsTrigger>
-                  <TabsTrigger value="details">Event Details</TabsTrigger>
-                  <TabsTrigger value="tags">Tags</TabsTrigger>
-                  <TabsTrigger value="context">Context</TabsTrigger>
-                  <TabsTrigger value="raw">Raw JSON</TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto">
+                  <TabsList>
+                    <TabsTrigger value="stacktrace">Stack Trace</TabsTrigger>
+                    <TabsTrigger value="breadcrumbs">Breadcrumbs</TabsTrigger>
+                    <TabsTrigger value="details">Event Details</TabsTrigger>
+                    <TabsTrigger value="tags">Tags</TabsTrigger>
+                    <TabsTrigger value="context">Context</TabsTrigger>
+                    <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+                  </TabsList>
+                </div>
 
                 <TabsContent value="stacktrace" className="mt-6">
                   <StackTrace exception={exception} />
@@ -182,7 +184,7 @@ export default async function EventPage({ params }: EventPageProps) {
             </div>
 
             {/* Sidebar */}
-            <aside className="lg:col-span-4 space-y-6 sticky top-6 self-start">
+            <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 self-start">
               {/* Issue Stats */}
               <div className="bg-card rounded-xl border p-6 space-y-4">
                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">

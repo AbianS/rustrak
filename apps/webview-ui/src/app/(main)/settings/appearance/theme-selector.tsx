@@ -25,7 +25,7 @@ export function ThemeSelector() {
         {themes.map((t) => (
           <div
             key={t.value}
-            className="h-20 w-24 md:h-24 md:w-28 rounded-lg border bg-muted animate-pulse"
+            className="flex-1 h-20 md:h-24 rounded-lg border bg-muted animate-pulse"
           />
         ))}
       </div>
@@ -43,7 +43,7 @@ export function ThemeSelector() {
             key={t.value}
             onClick={() => setTheme(t.value)}
             className={cn(
-              'flex flex-col items-center justify-center gap-2 h-20 w-24 md:h-24 md:w-28 rounded-lg border transition-colors cursor-pointer',
+              'flex flex-1 flex-col items-center justify-center gap-2 h-20 md:h-24 rounded-lg border transition-colors cursor-pointer',
               isActive
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground',

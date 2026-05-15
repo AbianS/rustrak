@@ -123,15 +123,15 @@ Sentry.init({
           <Settings className="size-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-xl flex flex-col max-h-[90svh]">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Project Settings</DialogTitle>
           <DialogDescription>
             Configure your project and view integration details.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto min-h-0 pr-1">
           {/* Project Name */}
           <div className="space-y-2">
             <Label
@@ -219,7 +219,7 @@ Sentry.init({
                 )}
               </Button>
             </div>
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-lg border overflow-hidden overflow-x-auto">
               {Highlighter && highlighterStyle ? (
                 <Highlighter
                   language="javascript"
