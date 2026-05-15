@@ -24,8 +24,10 @@ export default async function AccountPage() {
 
   return (
     <>
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight">Account</h1>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
+          Account
+        </h1>
         <p className="text-muted-foreground mt-1">
           Manage your account information
         </p>

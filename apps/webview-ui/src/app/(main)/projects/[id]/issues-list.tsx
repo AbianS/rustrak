@@ -95,9 +95,10 @@ export function IssuesList({
 
   const handleBatchAction = async (
     action: 'resolve' | 'unresolve' | 'mute' | 'unmute',
+    ids: Set<string> = selectedIds,
   ) => {
     startTransition(async () => {
-      for (const id of selectedIds) {
+      for (const id of ids) {
         await updateIssueState(projectId, id, {
           is_resolved:
             action === 'resolve'
@@ -147,21 +148,22 @@ export function IssuesList({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Filters - fixed at top */}
-      <div className="shrink-0 flex items-center justify-between mb-4">
-        <Tabs value={currentFilter} onValueChange={handleFilterChange}>
-          <TabsList>
-            {FILTERS.map((filter) => (
-              <TabsTrigger key={filter.value} value={filter.value}>
-                {filter.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+      {/* Filters + Batch Actions */}
+      <div className="shrink-0 flex flex-col gap-2 mb-4">
+        <div className="flex items-center justify-between gap-2">
+          <Tabs value={currentFilter} onValueChange={handleFilterChange}>
+            <TabsList>
+              {FILTERS.map((filter) => (
+                <TabsTrigger key={filter.value} value={filter.value}>
+                  {filter.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </div>
 
-        {/* Batch Actions */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">
               {selectedIds.size} selected
             </span>
@@ -219,10 +221,10 @@ export function IssuesList({
             <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
               Issue
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
+            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
               Events
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
+            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
               Last Seen
             </span>
             <span className="w-8" />
@@ -256,7 +258,7 @@ export function IssuesList({
                         {issue.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                       {issue.platform && (
                         <Badge variant="outline" className="text-[10px]">
                           {issue.platform}
@@ -275,17 +277,22 @@ export function IssuesList({
                         </Badge>
                       )}
                       <span className="font-mono">{issue.short_id}</span>
+                      <span className="sm:hidden text-muted-foreground/70">
+                        {formatDistanceToNow(new Date(issue.last_seen), {
+                          addSuffix: true,
+                        })}
+                      </span>
                     </div>
                   </Link>
                 </div>
 
-                <div className="w-24 text-right">
+                <div className="hidden sm:block w-24 text-right">
                   <span className="font-mono text-sm">
                     {issue.event_count.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="w-32 text-right">
+                <div className="hidden sm:block w-32 text-right">
                   <span className="text-sm text-muted-foreground">
                     {formatDistanceToNow(new Date(issue.last_seen), {
                       addSuffix: true,
@@ -302,10 +309,9 @@ export function IssuesList({
                   <DropdownMenuContent align="end">
                     {!issue.is_resolved && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('resolve');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('resolve', new Set([issue.id]))
+                        }
                       >
                         <Check className="mr-2 size-4" />
                         Resolve
@@ -313,10 +319,9 @@ export function IssuesList({
                     )}
                     {issue.is_resolved && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('unresolve');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('unresolve', new Set([issue.id]))
+                        }
                       >
                         <AlertCircle className="mr-2 size-4" />
                         Unresolve
@@ -324,10 +329,9 @@ export function IssuesList({
                     )}
                     {!issue.is_muted && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('mute');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('mute', new Set([issue.id]))
+                        }
                       >
                         <BellOff className="mr-2 size-4" />
                         Mute
@@ -335,10 +339,9 @@ export function IssuesList({
                     )}
                     {issue.is_muted && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('unmute');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('unmute', new Set([issue.id]))
+                        }
                       >
                         <Bell className="mr-2 size-4" />
                         Unmute
@@ -361,7 +364,7 @@ export function IssuesList({
 
       {/* Pagination - fixed at bottom */}
       {total_pages > 0 && (
-        <div className="shrink-0 flex items-center justify-between pt-4">
+        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
             {total_count > 0
               ? `Showing ${startIndex}-${endIndex} of ${total_count}`
