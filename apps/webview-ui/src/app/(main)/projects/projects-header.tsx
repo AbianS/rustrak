@@ -73,7 +73,9 @@ export function ProjectsHeader() {
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Projects</h1>
+        <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
+          Projects
+        </h1>
         <p className="text-muted-foreground mt-1">
           Manage your error tracking projects
         </p>

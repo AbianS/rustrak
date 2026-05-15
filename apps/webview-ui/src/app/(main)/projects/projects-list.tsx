@@ -190,7 +190,7 @@ export function ProjectsList({
             <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
               Project
             </span>
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
+            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
               Created
             </span>
             <span className="w-8" />
@@ -224,14 +224,14 @@ export function ProjectsList({
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="font-mono">{project.slug}</span>
                       <span className="text-muted-foreground/30">•</span>
-                      <span className="font-mono text-muted-foreground/70 truncate max-w-[400px]">
+                      <span className="hidden sm:block font-mono text-muted-foreground/70 truncate max-w-50 md:max-w-100">
                         {project.dsn}
                       </span>
                     </div>
                   </Link>
                 </div>
 
-                <div className="w-32 text-right">
+                <div className="hidden sm:block w-32 text-right">
                   <span className="text-sm text-muted-foreground">
                     {formatDistanceToNow(new Date(project.created_at), {
                       addSuffix: true,
@@ -263,7 +263,7 @@ export function ProjectsList({
 
       {/* Pagination */}
       {total_pages > 0 && (
-        <div className="shrink-0 flex items-center justify-between pt-4">
+        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
             {total_count > 0
               ? `Showing ${startIndex}-${endIndex} of ${total_count}`

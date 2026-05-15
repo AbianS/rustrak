@@ -31,8 +31,8 @@ export function Header({ user }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 flex items-center justify-between px-8 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
-      <div className="flex items-center gap-10">
+    <header className="h-16 flex items-center justify-between px-4 md:px-8 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
+      <div className="flex items-center gap-4 md:gap-10">
         {/* Logo */}
         <Link href="/projects" className="flex items-center gap-2">
           <div className="size-6 bg-primary rounded-sm flex items-center justify-center">
