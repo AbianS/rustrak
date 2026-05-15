@@ -36,7 +36,8 @@ Most error tracking solutions are either expensive SaaS products or heavy self-h
 - **Simple** - Single binary, no Redis or complex infrastructure
 - **Flexible** - SQLite (zero setup) or PostgreSQL (production scale)
 
-<img width="1280" height="412" alt="Frame 2" src="https://github.com/user-attachments/assets/7ba6664b-7352-4955-8943-b1429d7491cd" />
+<img width="1280" height="412" alt="Frame 2" src="https://github.com/user-attachments/assets/208baa3c-9680-4bdf-bd81-901fa3a398c3" />
+
 
 ## Quick Start
 
