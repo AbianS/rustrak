@@ -113,7 +113,6 @@ function FormControl({ children }: { children: React.ReactElement }) {
       ? `${formDescriptionId}`
       : `${formDescriptionId} ${formMessageId}`,
     'aria-invalid': !!error,
-    ...child.props,
   });
 }
 
