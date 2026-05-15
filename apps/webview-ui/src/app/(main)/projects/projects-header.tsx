@@ -82,11 +82,9 @@ export function ProjectsHeader() {
       </div>
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogTrigger asChild>
-          <Button>
-            <Plus className="mr-2 size-4" />
-            New Project
-          </Button>
+        <DialogTrigger render={<Button />}>
+          <Plus className="mr-2 size-4" />
+          New Project
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>

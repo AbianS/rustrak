@@ -93,7 +93,8 @@
         "useButtonType": "off",
         "useKeyWithClickEvents": "off",
         "noSvgWithoutTitle": "off",
-        "noStaticElementInteractions": "off"
+        "noStaticElementInteractions": "off",
+        "noLabelWithoutControl": "off"
       },
       "suspicious": {
         "noExplicitAny": "off",

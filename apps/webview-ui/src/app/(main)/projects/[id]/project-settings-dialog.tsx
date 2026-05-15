@@ -118,10 +118,12 @@ Sentry.init({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" title="Project Settings">
-          <Settings className="size-4" />
-        </Button>
+      <DialogTrigger
+        render={
+          <Button variant="outline" size="icon" title="Project Settings" />
+        }
+      >
+        <Settings className="size-4" />
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl flex flex-col max-h-[90svh]">
         <DialogHeader className="shrink-0">

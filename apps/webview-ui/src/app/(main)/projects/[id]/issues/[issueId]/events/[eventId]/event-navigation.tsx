@@ -39,30 +39,24 @@ export function EventNavigationBar({
   const baseUrl = `/projects/${projectId}/issues/${issueId}/events`;
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delay={300}>
       <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
         {/* First */}
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                disabled={!firstEventId || currentIndex === 1}
-                asChild={!!firstEventId && currentIndex !== 1}
-              >
-                {firstEventId && currentIndex !== 1 ? (
-                  <Link href={`${baseUrl}/${firstEventId}`}>
-                    <ChevronFirst className="size-4" />
-                  </Link>
-                ) : (
-                  <span>
-                    <ChevronFirst className="size-4" />
-                  </span>
-                )}
-              </Button>
-            </span>
+          <TooltipTrigger render={<span />}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={!firstEventId || currentIndex === 1}
+              render={
+                firstEventId && currentIndex !== 1 ? (
+                  <Link href={`${baseUrl}/${firstEventId}`} />
+                ) : undefined
+              }
+            >
+              <ChevronFirst className="size-4" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>First event</p>
@@ -71,26 +65,20 @@ export function EventNavigationBar({
 
         {/* Previous */}
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                disabled={!prevEventId}
-                asChild={!!prevEventId}
-              >
-                {prevEventId ? (
-                  <Link href={`${baseUrl}/${prevEventId}`}>
-                    <ChevronLeft className="size-4" />
-                  </Link>
-                ) : (
-                  <span>
-                    <ChevronLeft className="size-4" />
-                  </span>
-                )}
-              </Button>
-            </span>
+          <TooltipTrigger render={<span />}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={!prevEventId}
+              render={
+                prevEventId ? (
+                  <Link href={`${baseUrl}/${prevEventId}`} />
+                ) : undefined
+              }
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Previous event</p>
@@ -107,26 +95,20 @@ export function EventNavigationBar({
 
         {/* Next */}
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                disabled={!nextEventId}
-                asChild={!!nextEventId}
-              >
-                {nextEventId ? (
-                  <Link href={`${baseUrl}/${nextEventId}`}>
-                    <ChevronRight className="size-4" />
-                  </Link>
-                ) : (
-                  <span>
-                    <ChevronRight className="size-4" />
-                  </span>
-                )}
-              </Button>
-            </span>
+          <TooltipTrigger render={<span />}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={!nextEventId}
+              render={
+                nextEventId ? (
+                  <Link href={`${baseUrl}/${nextEventId}`} />
+                ) : undefined
+              }
+            >
+              <ChevronRight className="size-4" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Next event</p>
@@ -135,26 +117,20 @@ export function EventNavigationBar({
 
         {/* Last */}
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                disabled={!lastEventId || currentIndex === totalCount}
-                asChild={!!lastEventId && currentIndex !== totalCount}
-              >
-                {lastEventId && currentIndex !== totalCount ? (
-                  <Link href={`${baseUrl}/${lastEventId}`}>
-                    <ChevronLast className="size-4" />
-                  </Link>
-                ) : (
-                  <span>
-                    <ChevronLast className="size-4" />
-                  </span>
-                )}
-              </Button>
-            </span>
+          <TooltipTrigger render={<span />}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={!lastEventId || currentIndex === totalCount}
+              render={
+                lastEventId && currentIndex !== totalCount ? (
+                  <Link href={`${baseUrl}/${lastEventId}`} />
+                ) : undefined
+              }
+            >
+              <ChevronLast className="size-4" />
+            </Button>
           </TooltipTrigger>
           <TooltipContent>
             <p>Last event</p>

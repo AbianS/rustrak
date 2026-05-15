@@ -50,11 +50,13 @@ export default async function EmptyEventsPage({
     <div className="max-w-[1600px] w-full mx-auto px-8 py-10">
       {/* Breadcrumb */}
       <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/projects/${projectId}`}>
-            <ChevronLeft className="mr-1 size-4" />
-            {project.name}
-          </Link>
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href={`/projects/${projectId}`} />}
+        >
+          <ChevronLeft className="mr-1 size-4" />
+          {project.name}
         </Button>
       </div>
 
