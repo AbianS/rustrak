@@ -95,9 +95,10 @@ export function IssuesList({
 
   const handleBatchAction = async (
     action: 'resolve' | 'unresolve' | 'mute' | 'unmute',
+    ids: Set<string> = selectedIds,
   ) => {
     startTransition(async () => {
-      for (const id of selectedIds) {
+      for (const id of ids) {
         await updateIssueState(projectId, id, {
           is_resolved:
             action === 'resolve'
@@ -308,10 +309,9 @@ export function IssuesList({
                   <DropdownMenuContent align="end">
                     {!issue.is_resolved && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('resolve');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('resolve', new Set([issue.id]))
+                        }
                       >
                         <Check className="mr-2 size-4" />
                         Resolve
@@ -319,10 +319,9 @@ export function IssuesList({
                     )}
                     {issue.is_resolved && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('unresolve');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('unresolve', new Set([issue.id]))
+                        }
                       >
                         <AlertCircle className="mr-2 size-4" />
                         Unresolve
@@ -330,10 +329,9 @@ export function IssuesList({
                     )}
                     {!issue.is_muted && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('mute');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('mute', new Set([issue.id]))
+                        }
                       >
                         <BellOff className="mr-2 size-4" />
                         Mute
@@ -341,10 +339,9 @@ export function IssuesList({
                     )}
                     {issue.is_muted && (
                       <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedIds(new Set([issue.id]));
-                          handleBatchAction('unmute');
-                        }}
+                        onClick={() =>
+                          handleBatchAction('unmute', new Set([issue.id]))
+                        }
                       >
                         <Bell className="mr-2 size-4" />
                         Unmute
