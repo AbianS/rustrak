@@ -227,14 +227,52 @@ export function TokensList({ initialTokens }: TokensListProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+            {/* Mobile: card list */}
+            <div className="md:hidden space-y-3">
+              {initialTokens.map((token) => (
+                <div
+                  key={token.id}
+                  className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <code className="text-xs font-mono bg-muted px-2 py-1 rounded block w-fit">
+                      {token.token_prefix}
+                    </code>
+                    {token.description && (
+                      <p className="text-sm truncate">{token.description}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Created{' '}
+                      {format(new Date(token.created_at), 'MMM d, yyyy')}
+                      {' · '}
+                      {token.last_used_at
+                        ? `Used ${formatDistanceToNow(new Date(token.last_used_at), { addSuffix: true })}`
+                        : 'Never used'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(token.id)}
+                    disabled={isPending}
+                    className="shrink-0 text-destructive hover:text-destructive"
+                    aria-label={`Delete token ${token.description || token.token_prefix}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: table */}
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Token</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Last Used</TableHead>
-                  <TableHead className="w-[50px]" />
+                  <TableHead className="w-12.5" />
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -14,8 +14,10 @@ export default async function TokensPage() {
 
   return (
     <>
-      <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight">API Tokens</h1>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
+          API Tokens
+        </h1>
         <p className="text-muted-foreground mt-1">
           Manage your API tokens for programmatic access
         </p>

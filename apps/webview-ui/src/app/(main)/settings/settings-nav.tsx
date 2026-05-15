@@ -13,7 +13,11 @@ const navItems = [
   { href: '/settings/about', label: 'About', icon: Info },
 ];
 
-export function SettingsNav() {
+interface SettingsNavProps {
+  onNavigate?: () => void;
+}
+
+export function SettingsNav({ onNavigate }: SettingsNavProps) {
   const pathname = usePathname();
 
   return (
@@ -26,6 +30,7 @@ export function SettingsNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
               isActive
