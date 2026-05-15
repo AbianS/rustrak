@@ -58,7 +58,7 @@ export default async function ProjectPage({
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header section - fixed */}
-      <div className="shrink-0 max-w-[1600px] w-full mx-auto px-8 py-6 border-b">
+      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
         <ProjectHeader
           project={project}
           alertRules={alertRules}
@@ -67,7 +67,7 @@ export default async function ProjectPage({
       </div>
 
       {/* Content section - grows and handles overflow */}
-      <div className="flex-1 overflow-hidden max-w-[1600px] w-full mx-auto px-8 py-6">
+      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
         <IssuesList
           projectId={projectId}
           initialIssues={issuesResponse}

@@ -17,17 +17,17 @@ export function ProjectHeader({
 }: ProjectHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">
+      <div className="min-w-0">
+        <h1 className="text-xl md:text-2xl font-extrabold tracking-tight truncate">
           {project.name}
         </h1>
-        <p className="text-muted-foreground mt-1 font-mono text-sm">
+        <p className="text-muted-foreground mt-1 font-mono text-sm truncate">
           {project.slug}
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
-        <div className="text-right mr-4">
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="text-right mr-2">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Events
           </p>
