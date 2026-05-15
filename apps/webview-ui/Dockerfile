@@ -13,12 +13,10 @@ RUN apk update && apk add --no-cache libc6-compat
 FROM base AS builder
 WORKDIR /app
 
-RUN pnpm add -g turbo
-
 COPY . .
 
 # Genera workspace aislado (json + package.json de subworkspaces)
-RUN turbo prune webview-ui --docker
+RUN pnpm dlx turbo prune webview-ui --docker
 
 # --------- INSTALLER ---------
 FROM base AS installer
