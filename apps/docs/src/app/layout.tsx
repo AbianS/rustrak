@@ -1,8 +1,8 @@
-import { Terminal } from 'lucide-react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Head } from 'nextra/components';
 import { getPageMap } from 'nextra/page-map';
 import { Footer, Layout, Navbar } from 'nextra-theme-docs';
+import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import './globals.css';
 
 const geistSans = Geist({
@@ -25,9 +25,7 @@ export const metadata = {
 
 const logo = (
   <span className="flex items-center gap-2 font-bold">
-    <span className="size-6 bg-primary rounded-sm flex items-center justify-center">
-      <Terminal className="size-4 text-primary-foreground" />
-    </span>
+    <RustrakLogoIcon className="size-6" />
     <span className="text-sm font-extrabold tracking-tight uppercase">
       Rustrak
     </span>

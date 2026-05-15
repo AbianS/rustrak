@@ -1,9 +1,10 @@
 'use client';
 
-import { Menu, Terminal, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { GithubIcon } from '@/components/icons/github';
+import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 
 import { Button } from '@/components/ui/button';
 
@@ -15,9 +16,7 @@ export function LandingNavbar() {
       <nav className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6 md:px-12">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold">
-          <div className="size-8 bg-primary rounded-md flex items-center justify-center">
-            <Terminal className="size-5 text-primary-foreground" />
-          </div>
+          <RustrakLogoIcon className="size-8" />
           <span className="text-base font-extrabold tracking-tight uppercase">
             Rustrak
           </span>
