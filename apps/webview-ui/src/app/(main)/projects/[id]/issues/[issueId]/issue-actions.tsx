@@ -94,10 +94,8 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
       </Button>
 
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon">
-            <MoreVertical className="size-4" />
-          </Button>
+        <DropdownMenuTrigger render={<Button variant="outline" size="icon" />}>
+          <MoreVertical className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem

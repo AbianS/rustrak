@@ -43,11 +43,9 @@ export default function MainError({ error, reset }: ErrorProps) {
             <RefreshCw className="mr-2 size-4" />
             Try again
           </Button>
-          <Button variant="outline" asChild>
-            <Link href="/projects">
-              <Home className="mr-2 size-4" />
-              Go to Projects
-            </Link>
+          <Button variant="outline" render={<Link href="/projects" />}>
+            <Home className="mr-2 size-4" />
+            Go to Projects
           </Button>
         </div>
       </div>

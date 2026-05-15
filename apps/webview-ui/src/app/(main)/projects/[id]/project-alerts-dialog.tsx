@@ -182,10 +182,12 @@ export function ProjectAlertsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="icon" title="Project Alerts">
-            <Bell className="size-4" />
-          </Button>
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="icon" title="Project Alerts" />
+          }
+        >
+          <Bell className="size-4" />
         </DialogTrigger>
         <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>

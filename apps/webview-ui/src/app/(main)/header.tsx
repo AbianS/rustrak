@@ -47,20 +47,19 @@ export function Header({ user }: HeaderProps) {
       {/* User Menu */}
       <div className="flex items-center gap-4">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              className="size-8 rounded-full p-0 bg-primary/20 hover:bg-primary/30"
-              aria-label="Open user menu"
-            >
-              <span
-                className="text-xs font-bold text-primary"
-                aria-hidden="true"
-              >
-                {user.email.charAt(0).toUpperCase()}
-              </span>
-              <span className="sr-only">User menu for {user.email}</span>
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                className="size-8 rounded-full p-0 bg-primary/20 hover:bg-primary/30"
+                aria-label="Open user menu"
+              />
+            }
+          >
+            <span className="text-xs font-bold text-primary" aria-hidden="true">
+              {user.email.charAt(0).toUpperCase()}
+            </span>
+            <span className="sr-only">User menu for {user.email}</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
@@ -70,11 +69,11 @@ export function Header({ user }: HeaderProps) {
               )}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/settings" className="cursor-pointer">
-                <Settings className="mr-2 size-4" />
-                Settings
-              </Link>
+            <DropdownMenuItem
+              render={<Link href="/settings" className="cursor-pointer" />}
+            >
+              <Settings className="mr-2 size-4" />
+              Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

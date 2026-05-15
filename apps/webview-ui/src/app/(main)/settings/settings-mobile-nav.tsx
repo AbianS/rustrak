@@ -17,11 +17,11 @@ export function SettingsMobileNav() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden">
-          <Menu className="size-5" />
-          <span className="sr-only">Open settings menu</span>
-        </Button>
+      <SheetTrigger
+        render={<Button variant="ghost" size="icon" className="md:hidden" />}
+      >
+        <Menu className="size-5" />
+        <span className="sr-only">Open settings menu</span>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-6">
         <SheetHeader className="p-0 mb-4">

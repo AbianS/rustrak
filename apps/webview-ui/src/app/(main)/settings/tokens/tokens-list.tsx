@@ -113,11 +113,11 @@ export function TokensList({ initialTokens }: TokensListProps) {
           else setIsCreateOpen(true);
         }}
       >
-        <DialogTrigger asChild>
-          <Button className="font-bold uppercase tracking-wider">
-            <Plus className="mr-2 size-4" />
-            New Token
-          </Button>
+        <DialogTrigger
+          render={<Button className="font-bold uppercase tracking-wider" />}
+        >
+          <Plus className="mr-2 size-4" />
+          New Token
         </DialogTrigger>
         <DialogContent>
           {!newToken ? (
