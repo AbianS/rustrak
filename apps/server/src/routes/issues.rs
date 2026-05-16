@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use uuid::Uuid;
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::ApiAuth;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 #[cfg(feature = "openapi")]
@@ -34,7 +34,7 @@ pub async fn list_issues(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
     query: web::Query<ListIssuesQuery>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
 
@@ -87,7 +87,7 @@ pub async fn list_issues(
 pub async fn get_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
 
@@ -126,7 +126,7 @@ pub async fn update_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
     body: web::Json<UpdateIssueState>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
 
@@ -172,7 +172,7 @@ pub async fn update_issue(
 pub async fn delete_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
 

@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse};
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::ApiAuth;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::CreateAuthToken;
@@ -22,10 +22,7 @@ use utoipa::OpenApi;
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/tokens - List all tokens (masked)
-pub async fn list_tokens(
-    pool: web::Data<DbPool>,
-    _user: AuthenticatedUser, // Requires authentication
-) -> AppResult<HttpResponse> {
+pub async fn list_tokens(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult<HttpResponse> {
     let tokens = AuthTokenService::list(pool.get_ref()).await?;
     let responses: Vec<_> = tokens.iter().map(|t| t.to_response()).collect();
 
@@ -46,7 +43,7 @@ pub async fn list_tokens(
 /// POST /api/tokens - Create a new token
 pub async fn create_token(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
     body: web::Json<CreateAuthToken>,
 ) -> AppResult<HttpResponse> {
     let token = AuthTokenService::create(pool.get_ref(), body.into_inner()).await?;
@@ -70,7 +67,7 @@ pub async fn create_token(
 /// DELETE /api/tokens/{id} - Revoke a token
 pub async fn delete_token(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();

@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use uuid::Uuid;
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::ApiAuth;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 #[cfg(feature = "openapi")]
@@ -34,7 +34,7 @@ pub async fn list_events(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
     query: web::Query<ListEventsQuery>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
 
@@ -98,7 +98,7 @@ pub async fn list_events(
 pub async fn get_event(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid, Uuid)>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id, event_id) = path.into_inner();
 

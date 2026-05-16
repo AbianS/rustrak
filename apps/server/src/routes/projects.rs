@@ -1,6 +1,6 @@
 use actix_web::{web, HttpResponse};
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::ApiAuth;
 use crate::config::Config;
 use crate::db::DbPool;
 use crate::error::AppResult;
@@ -29,7 +29,7 @@ pub async fn list_projects(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     query: web::Query<ListProjectsQuery>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let (projects, total_count) =
         ProjectService::list_offset(pool.get_ref(), query.order, query.page, query.per_page)
@@ -63,7 +63,7 @@ pub async fn get_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     path: web::Path<i32>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
     let project = ProjectService::get_by_id(pool.get_ref(), id).await?;
@@ -89,7 +89,7 @@ pub async fn create_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     body: web::Json<CreateProject>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let project = ProjectService::create(pool.get_ref(), body.into_inner()).await?;
     let base_url = build_base_url(&config);
@@ -117,7 +117,7 @@ pub async fn update_project(
     config: web::Data<Config>,
     path: web::Path<i32>,
     body: web::Json<UpdateProject>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
     let project = ProjectService::update(pool.get_ref(), id, body.into_inner()).await?;
@@ -142,7 +142,7 @@ pub async fn update_project(
 pub async fn delete_project(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    _user: AuthenticatedUser, // Requires authentication
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
     ProjectService::delete(pool.get_ref(), id).await?;
