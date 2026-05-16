@@ -186,13 +186,21 @@ impl FromRequest for ApiAuth {
         let session_future = AuthenticatedUser::from_request(req, payload);
 
         Box::pin(async move {
-            if bearer_future.await.is_ok() {
-                return Ok(ApiAuth);
+            match bearer_future.await {
+                Ok(_) => return Ok(ApiAuth),
+                Err(AppError::Unauthorized(_)) => {} // auth rejected — fall through to session
+                Err(e) => return Err(e),             // Internal/Database — propagate
             }
             session_future
                 .await
                 .map(|_| ApiAuth)
-                .map_err(|_| AppError::Unauthorized("Not authenticated".to_string()))
+                .map_err(|e| {
+                    if e.as_response_error().status_code().is_server_error() {
+                        AppError::Internal(format!("Session error: {e}"))
+                    } else {
+                        AppError::Unauthorized("Not authenticated".to_string())
+                    }
+                })
         })
     }
 }
