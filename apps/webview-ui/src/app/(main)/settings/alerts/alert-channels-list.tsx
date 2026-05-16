@@ -126,9 +126,18 @@ const slackFormSchema = z
     } else if (data.method === 'bot_token') {
       const tokenEmpty = !data.token || data.token.trim() === '';
 
-      // Edit mode with blank token = user left it unchanged.
-      // The config won't be patched server-side, so skip config validation.
-      if (data.is_edit && tokenEmpty) return;
+      if (data.is_edit && tokenEmpty) {
+        // Token left blank in edit mode = user didn't change it, that's fine.
+        // Still validate channel — it must not be empty even on edits.
+        if (!data.channel || data.channel.trim() === '') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Channel is required for bot token method',
+            path: ['channel'],
+          });
+        }
+        return;
+      }
 
       if (tokenEmpty) {
         ctx.addIssue({
@@ -715,14 +724,30 @@ function SlackConfigDialog({
         }
 
         if (existingChannel) {
-          // For bot_token edit with blank token: omit config so the server
-          // keeps the existing stored token unchanged.
-          const tokenReentered =
-            data.method === 'bot_token' &&
-            !!data.token &&
-            data.token.trim() !== '';
+          const tokenEmpty = !data.token || data.token.trim() === '';
+          const tokenReentered = data.method === 'bot_token' && !tokenEmpty;
           const shouldUpdateConfig =
             data.method === 'webhook' || tokenReentered;
+
+          // If the user changed bot_token config fields (channel, username,
+          // icon_emoji) without re-entering the token, we cannot safely send
+          // the config — the server replaces it entirely and would lose the
+          // stored token. Block the submit and require the token.
+          if (data.method === 'bot_token' && tokenEmpty) {
+            const orig = existingChannel.config as Record<string, unknown>;
+            const configChanged =
+              data.channel !== (orig.channel ?? '') ||
+              data.username !== (orig.username ?? '') ||
+              data.icon_emoji !== (orig.icon_emoji ?? '');
+            if (configChanged) {
+              form.setError('token', {
+                message:
+                  'Re-enter your bot token to save configuration changes',
+              });
+              return;
+            }
+          }
+
           await updateNotificationChannel(existingChannel.id, {
             name: data.name,
             ...(shouldUpdateConfig ? { config } : {}),
