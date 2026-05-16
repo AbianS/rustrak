@@ -51,10 +51,12 @@ pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json
         && config.get("method").and_then(|v| v.as_str()) == Some("bot_token")
     {
         if let Some(obj) = config.as_object_mut() {
-            obj.insert(
-                "token".to_string(),
-                serde_json::Value::String("xoxb-****".to_string()),
-            );
+            if obj.contains_key("token") {
+                obj.insert(
+                    "token".to_string(),
+                    serde_json::Value::String("xoxb-****".to_string()),
+                );
+            }
         }
     }
 }
@@ -593,6 +595,18 @@ mod tests {
             config["webhook_url"],
             "https://hooks.slack.com/services/T/B/X"
         );
+    }
+
+    #[test]
+    fn test_redact_slack_bot_token_noop_when_token_key_absent() {
+        let mut config = serde_json::json!({
+            "method": "bot_token",
+            "channel": "#alerts"
+            // no "token" key — malformed but possible via direct DB insert
+        });
+        redact_slack_bot_token(ChannelType::Slack, &mut config);
+        // must NOT synthesise a fake token key that wasn't there
+        assert!(config.get("token").is_none());
     }
 
     #[test]

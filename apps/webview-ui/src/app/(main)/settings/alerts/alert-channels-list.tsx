@@ -84,6 +84,9 @@ const slackFormSchema = z
   .object({
     name: z.string().min(1, 'Name is required').max(255),
     method: z.enum(['webhook', 'bot_token']),
+    // true when editing an existing channel — token validation is relaxed
+    // because the server never returns the real token (returns "xoxb-****")
+    is_edit: z.boolean(),
     // Webhook fields
     webhook_url: z.string().optional(),
     // Bot token fields
@@ -121,13 +124,19 @@ const slackFormSchema = z
         }
       }
     } else if (data.method === 'bot_token') {
-      if (!data.token || data.token.trim() === '') {
+      const tokenEmpty = !data.token || data.token.trim() === '';
+
+      // Edit mode with blank token = user left it unchanged.
+      // The config won't be patched server-side, so skip config validation.
+      if (data.is_edit && tokenEmpty) return;
+
+      if (tokenEmpty) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Bot token is required',
           path: ['token'],
         });
-      } else if (!data.token.startsWith('xoxb-')) {
+      } else if (!data.token!.startsWith('xoxb-')) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Bot token must start with xoxb-',
@@ -634,6 +643,7 @@ function SlackConfigDialog({
     defaultValues: {
       name: '',
       method: 'webhook',
+      is_edit: false,
       webhook_url: '',
       token: '',
       channel: '',
@@ -660,6 +670,7 @@ function SlackConfigDialog({
       form.reset({
         name: existingChannel.name,
         method: existingMethod,
+        is_edit: true,
         webhook_url: config.webhook_url ?? '',
         // Never pre-fill the token (it is redacted on the server as "xoxb-****")
         token: '',
@@ -672,6 +683,7 @@ function SlackConfigDialog({
       form.reset({
         name: '',
         method: 'webhook',
+        is_edit: false,
         webhook_url: '',
         token: '',
         channel: '',
@@ -703,9 +715,17 @@ function SlackConfigDialog({
         }
 
         if (existingChannel) {
+          // For bot_token edit with blank token: omit config so the server
+          // keeps the existing stored token unchanged.
+          const tokenReentered =
+            data.method === 'bot_token' &&
+            !!data.token &&
+            data.token.trim() !== '';
+          const shouldUpdateConfig =
+            data.method === 'webhook' || tokenReentered;
           await updateNotificationChannel(existingChannel.id, {
             name: data.name,
-            config,
+            ...(shouldUpdateConfig ? { config } : {}),
             is_enabled: data.is_enabled,
           });
           toast.success('Slack channel updated');
