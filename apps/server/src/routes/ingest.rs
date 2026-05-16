@@ -9,7 +9,7 @@ use crate::digest;
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
     decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeParser,
-    EventMetadata,
+    EventMetadata, MAX_COMPRESSED_SIZE,
 };
 use crate::services::RateLimitService;
 
@@ -144,6 +144,7 @@ pub async fn options() -> HttpResponse {
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/{project_id}")
+            .app_data(web::PayloadConfig::new(MAX_COMPRESSED_SIZE))
             .route("/envelope/", web::post().to(ingest_envelope))
             .route(
                 "/envelope/",

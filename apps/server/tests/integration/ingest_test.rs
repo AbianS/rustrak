@@ -528,6 +528,67 @@ async fn test_ingest_response_has_cors_headers() {
 }
 
 // =============================================================================
+// Payload Size Tests
+// =============================================================================
+
+#[actix_web::test]
+async fn test_ingest_large_payload_above_256kb_is_accepted() {
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Large Payload Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    // Build an event whose JSON exceeds actix-web's default 256KB body limit.
+    // Without an explicit PayloadConfig, the framework rejects this before the
+    // handler runs, returning 413 instead of 200.
+    let padding = "x".repeat(300_000);
+    let event_json = json!({
+        "event_id": event_id,
+        "timestamp": 1704801600.0,
+        "level": "error",
+        "platform": "python",
+        "exception": {
+            "values": [{"type": "ValueError", "value": "large stack trace"}]
+        },
+        "_padding": padding
+    })
+    .to_string();
+
+    assert!(
+        event_json.len() > 256 * 1024,
+        "test payload must exceed 256KB, got {} bytes",
+        event_json.len()
+    );
+
+    let envelope = create_envelope(&event_id, &event_json);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        200,
+        "payloads above 256KB must be accepted by the ingest endpoint"
+    );
+}
+
+// =============================================================================
 // Legacy Store Endpoint Tests
 // =============================================================================
 
