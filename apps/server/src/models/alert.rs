@@ -153,12 +153,29 @@ pub struct EmailConfig {
     pub from_address: Option<String>,
 }
 
-/// Slack channel configuration
+/// Slack channel configuration — tagged enum over delivery method.
+///
+/// Serialises as `{"method":"webhook",...}` or `{"method":"bot_token",...}`.
+/// The DB migration backfills `method:"webhook"` on all existing rows so serde
+/// always sees the tag field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SlackConfig {
+#[serde(tag = "method", rename_all = "snake_case")]
+pub enum SlackConfig {
+    Webhook(SlackWebhookConfig),
+    BotToken(SlackBotTokenConfig),
+}
+
+/// Config for the Incoming Webhook delivery method.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlackWebhookConfig {
     pub webhook_url: String,
-    #[serde(default)]
-    pub channel: Option<String>,
+}
+
+/// Config for the Bot Token (chat.postMessage) delivery method.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlackBotTokenConfig {
+    pub token: String,
+    pub channel: String,
     #[serde(default)]
     pub username: Option<String>,
     #[serde(default)]

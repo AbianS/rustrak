@@ -175,11 +175,12 @@ async fn test_channel_invalid_config_fails() {
 async fn test_slack_channel_config_validation() {
     let db = TestDb::new().await;
 
-    // Invalid Slack webhook URL
+    // Invalid Slack webhook URL (wrong host, but method field present)
     let create_input = CreateNotificationChannel {
         name: "Invalid Slack".to_string(),
         channel_type: ChannelType::Slack,
         config: json!({
+            "method": "webhook",
             "webhook_url": "https://example.com/not-slack"
         }),
         is_enabled: true,
@@ -193,6 +194,7 @@ async fn test_slack_channel_config_validation() {
         name: "Valid Slack".to_string(),
         channel_type: ChannelType::Slack,
         config: json!({
+            "method": "webhook",
             "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
         }),
         is_enabled: true,

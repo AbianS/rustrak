@@ -80,24 +80,69 @@ const webhookFormSchema = z.object({
   is_enabled: z.boolean(),
 });
 
-const slackFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255),
-  webhook_url: z
-    .string()
-    .url('Please enter a valid URL')
-    .refine((value) => {
-      try {
-        const url = new URL(value);
-        // Validate exact hostname to prevent bypass via subdomains
-        // e.g., hooks.slack.com.evil.com would fail
-        return url.protocol === 'https:' && url.hostname === 'hooks.slack.com';
-      } catch {
-        return false;
+const slackFormSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required').max(255),
+    method: z.enum(['webhook', 'bot_token']),
+    // Webhook fields
+    webhook_url: z.string().optional(),
+    // Bot token fields
+    token: z.string().optional(),
+    channel: z.string().optional(),
+    username: z.string().optional(),
+    icon_emoji: z.string().optional(),
+    is_enabled: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.method === 'webhook') {
+      if (!data.webhook_url || data.webhook_url.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Webhook URL is required',
+          path: ['webhook_url'],
+        });
+      } else {
+        try {
+          const url = new URL(data.webhook_url);
+          if (url.protocol !== 'https:' || url.hostname !== 'hooks.slack.com') {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                'Must be a valid Slack webhook URL (https://hooks.slack.com/...)',
+              path: ['webhook_url'],
+            });
+          }
+        } catch {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Please enter a valid URL',
+            path: ['webhook_url'],
+          });
+        }
       }
-    }, 'Must be a valid Slack webhook URL (https://hooks.slack.com/...)'),
-  channel: z.string().optional(),
-  is_enabled: z.boolean(),
-});
+    } else if (data.method === 'bot_token') {
+      if (!data.token || data.token.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Bot token is required',
+          path: ['token'],
+        });
+      } else if (!data.token.startsWith('xoxb-')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Bot token must start with xoxb-',
+          path: ['token'],
+        });
+      }
+      if (!data.channel || data.channel.trim() === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Channel is required for bot token method',
+          path: ['channel'],
+        });
+      }
+    }
+  });
 
 // Helper schema for email validation
 const emailAddressRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -128,6 +173,8 @@ const emailFormSchema = z.object({
 type WebhookFormData = z.infer<typeof webhookFormSchema>;
 type SlackFormData = z.infer<typeof slackFormSchema>;
 type EmailFormData = z.infer<typeof emailFormSchema>;
+
+type SlackMethod = 'webhook' | 'bot_token';
 
 interface AlertChannelsListProps {
   initialChannels: NotificationChannel[];
@@ -586,30 +633,50 @@ function SlackConfigDialog({
     resolver: zodResolver(slackFormSchema),
     defaultValues: {
       name: '',
+      method: 'webhook',
       webhook_url: '',
+      token: '',
       channel: '',
+      username: '',
+      icon_emoji: '',
       is_enabled: true,
     },
   });
+
+  const method = form.watch('method') as SlackMethod;
 
   // Reset form when dialog opens
   useEffect(() => {
     if (open && existingChannel) {
       const config = existingChannel.config as {
+        method?: SlackMethod;
         webhook_url?: string;
+        token?: string;
         channel?: string;
+        username?: string;
+        icon_emoji?: string;
       };
+      const existingMethod: SlackMethod = config.method ?? 'webhook';
       form.reset({
         name: existingChannel.name,
+        method: existingMethod,
         webhook_url: config.webhook_url ?? '',
+        // Never pre-fill the token (it is redacted on the server as "xoxb-****")
+        token: '',
         channel: config.channel ?? '',
+        username: config.username ?? '',
+        icon_emoji: config.icon_emoji ?? '',
         is_enabled: existingChannel.is_enabled,
       });
     } else if (open) {
       form.reset({
         name: '',
+        method: 'webhook',
         webhook_url: '',
+        token: '',
         channel: '',
+        username: '',
+        icon_emoji: '',
         is_enabled: true,
       });
     }
@@ -618,11 +685,21 @@ function SlackConfigDialog({
   const onSubmit = (data: SlackFormData) => {
     startTransition(async () => {
       try {
-        const config: Record<string, unknown> = {
-          webhook_url: data.webhook_url,
-        };
-        if (data.channel) {
-          config.channel = data.channel;
+        let config: Record<string, unknown>;
+
+        if (data.method === 'webhook') {
+          config = {
+            method: 'webhook',
+            webhook_url: data.webhook_url,
+          };
+        } else {
+          config = {
+            method: 'bot_token',
+            token: data.token,
+            channel: data.channel,
+          };
+          if (data.username) config.username = data.username;
+          if (data.icon_emoji) config.icon_emoji = data.icon_emoji;
         }
 
         if (existingChannel) {
@@ -659,12 +736,13 @@ function SlackConfigDialog({
             {existingChannel ? 'Edit Slack Integration' : 'Configure Slack'}
           </DialogTitle>
           <DialogDescription>
-            Send alerts to your Slack workspace using incoming webhooks.
+            Send alerts to your Slack workspace.
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Channel name */}
             <FormField
               control={form.control}
               name="name"
@@ -685,53 +763,134 @@ function SlackConfigDialog({
               )}
             />
 
+            {/* Method selector */}
             <FormField
               control={form.control}
-              name="webhook_url"
+              name="method"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Webhook URL
+                    Delivery Method
                   </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="url"
-                      placeholder="https://hooks.slack.com/services/..."
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
                       disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Create an incoming webhook in your Slack app settings
-                  </FormDescription>
+                      onClick={() => field.onChange('webhook')}
+                      className={cn(
+                        'rounded-md border px-3 py-2 text-sm text-left transition-colors',
+                        field.value === 'webhook'
+                          ? 'border-primary bg-primary/10 text-primary font-semibold'
+                          : 'border-muted-foreground/30 hover:border-primary/50',
+                      )}
+                    >
+                      <div className="font-medium">Incoming Webhook</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Paste a webhook URL
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isLoading}
+                      onClick={() => field.onChange('bot_token')}
+                      className={cn(
+                        'rounded-md border px-3 py-2 text-sm text-left transition-colors',
+                        field.value === 'bot_token'
+                          ? 'border-primary bg-primary/10 text-primary font-semibold'
+                          : 'border-muted-foreground/30 hover:border-primary/50',
+                      )}
+                    >
+                      <div className="font-medium">Bot Token</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Use an xoxb- bot token
+                      </div>
+                    </button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="channel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Channel (optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="#alerts"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Override the default channel configured in Slack
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Webhook-specific fields */}
+            {method === 'webhook' && (
+              <FormField
+                control={form.control}
+                name="webhook_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Webhook URL
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="url"
+                        placeholder="https://hooks.slack.com/services/..."
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Create an incoming webhook in your Slack app settings
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
+            {/* Bot token-specific fields */}
+            {method === 'bot_token' && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="token"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Bot Token
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="xoxb-..."
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        OAuth bot token starting with xoxb- from your Slack app
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="channel"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                        Channel
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="#alerts or C1234567890"
+                          disabled={isLoading}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Channel name or ID where alerts will be posted
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            {/* Enabled toggle */}
             <FormField
               control={form.control}
               name="is_enabled"

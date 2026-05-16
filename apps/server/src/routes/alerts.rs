@@ -25,6 +25,7 @@ use serde::Deserialize;
 use crate::auth::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::AppResult;
+use crate::models::ChannelType;
 use crate::models::{
     AlertPayload, CreateAlertRule, CreateNotificationChannel, IssueInfo, ProjectInfo,
     UpdateAlertRule, UpdateNotificationChannel,
@@ -35,6 +36,28 @@ use crate::services::{create_dispatcher, AlertService, ProjectService};
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
+
+// =============================================================================
+// Token redaction
+// =============================================================================
+
+/// Redacts the bot token in a Slack channel's config before sending the
+/// channel over the API. Replaces `config.token` with `"xoxb-****"` when
+/// `channel_type == slack` and `config.method == "bot_token"`.
+///
+/// This prevents live `xoxb-…` tokens from being exposed via GET responses.
+pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json::Value) {
+    if channel_type == ChannelType::Slack {
+        if config.get("method").and_then(|v| v.as_str()) == Some("bot_token") {
+            if let Some(obj) = config.as_object_mut() {
+                obj.insert(
+                    "token".to_string(),
+                    serde_json::Value::String("xoxb-****".to_string()),
+                );
+            }
+        }
+    }
+}
 
 // =============================================================================
 // Notification Channel Endpoints
@@ -50,13 +73,23 @@ use utoipa::OpenApi;
     ),
     security(("bearer_auth" = [])),
 ))]
+/// Returns a `serde_json::Value` for `channel` with the bot token redacted.
+fn channel_to_safe_json(channel: &crate::models::NotificationChannel) -> serde_json::Value {
+    let mut value = serde_json::to_value(channel).unwrap_or_default();
+    if let Some(config) = value.get_mut("config") {
+        redact_slack_bot_token(channel.channel_type, config);
+    }
+    value
+}
+
 /// GET /api/alert-channels
 pub async fn list_channels(
     pool: web::Data<DbPool>,
     _user: AuthenticatedUser,
 ) -> AppResult<HttpResponse> {
     let channels = AlertService::list_channels(pool.get_ref()).await?;
-    Ok(HttpResponse::Ok().json(channels))
+    let safe: Vec<serde_json::Value> = channels.iter().map(channel_to_safe_json).collect();
+    Ok(HttpResponse::Ok().json(safe))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -77,7 +110,7 @@ pub async fn create_channel(
     body: web::Json<CreateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::create_channel(pool.get_ref(), body.into_inner()).await?;
-    Ok(HttpResponse::Created().json(channel))
+    Ok(HttpResponse::Created().json(channel_to_safe_json(&channel)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -99,7 +132,7 @@ pub async fn get_channel(
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(channel))
+    Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -124,7 +157,7 @@ pub async fn update_channel(
 ) -> AppResult<HttpResponse> {
     let channel =
         AlertService::update_channel(pool.get_ref(), path.into_inner(), body.into_inner()).await?;
-    Ok(HttpResponse::Ok().json(channel))
+    Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -527,4 +560,50 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     configure_channels(cfg);
     configure_rules(cfg);
     configure_history(cfg);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Cycle 5 RED: redact_slack_bot_token replaces token value for bot_token method
+    #[test]
+    fn test_redact_slack_bot_token_replaces_token() {
+        let mut config = serde_json::json!({
+            "method": "bot_token",
+            "token": "xoxb-real-secret-token",
+            "channel": "#alerts"
+        });
+        redact_slack_bot_token(ChannelType::Slack, &mut config);
+        assert_eq!(config["token"], "xoxb-****");
+        // Other fields untouched
+        assert_eq!(config["channel"], "#alerts");
+        assert_eq!(config["method"], "bot_token");
+    }
+
+    #[test]
+    fn test_redact_slack_bot_token_noop_for_webhook_method() {
+        let mut config = serde_json::json!({
+            "method": "webhook",
+            "webhook_url": "https://hooks.slack.com/services/T/B/X"
+        });
+        redact_slack_bot_token(ChannelType::Slack, &mut config);
+        // Must not touch webhook config at all
+        assert!(config.get("token").is_none());
+        assert_eq!(
+            config["webhook_url"],
+            "https://hooks.slack.com/services/T/B/X"
+        );
+    }
+
+    #[test]
+    fn test_redact_slack_bot_token_noop_for_non_slack_channel() {
+        let mut config = serde_json::json!({
+            "method": "bot_token",
+            "token": "xoxb-real-secret"
+        });
+        // Using ChannelType::Webhook — should not redact
+        redact_slack_bot_token(ChannelType::Webhook, &mut config);
+        assert_eq!(config["token"], "xoxb-real-secret");
+    }
 }

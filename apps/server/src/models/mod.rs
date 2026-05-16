@@ -10,7 +10,8 @@ pub mod user;
 pub use alert::{
     AlertHistory, AlertPayload, AlertRule, AlertRuleResponse, AlertStatus, AlertType, ChannelType,
     CreateAlertRule, CreateNotificationChannel, EmailConfig, IssueInfo, NotificationChannel,
-    ProjectInfo, SlackConfig, UpdateAlertRule, UpdateNotificationChannel, WebhookConfig,
+    ProjectInfo, SlackBotTokenConfig, SlackConfig, SlackWebhookConfig, UpdateAlertRule,
+    UpdateNotificationChannel, WebhookConfig,
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};
