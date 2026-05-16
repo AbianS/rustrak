@@ -47,14 +47,14 @@ use utoipa::OpenApi;
 ///
 /// This prevents live `xoxb-…` tokens from being exposed via GET responses.
 pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json::Value) {
-    if channel_type == ChannelType::Slack {
-        if config.get("method").and_then(|v| v.as_str()) == Some("bot_token") {
-            if let Some(obj) = config.as_object_mut() {
-                obj.insert(
-                    "token".to_string(),
-                    serde_json::Value::String("xoxb-****".to_string()),
-                );
-            }
+    if channel_type == ChannelType::Slack
+        && config.get("method").and_then(|v| v.as_str()) == Some("bot_token")
+    {
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert(
+                "token".to_string(),
+                serde_json::Value::String("xoxb-****".to_string()),
+            );
         }
     }
 }
@@ -62,6 +62,14 @@ pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json
 // =============================================================================
 // Notification Channel Endpoints
 // =============================================================================
+
+fn channel_to_safe_json(channel: &crate::models::NotificationChannel) -> serde_json::Value {
+    let mut value = serde_json::to_value(channel).unwrap_or_default();
+    if let Some(config) = value.get_mut("config") {
+        redact_slack_bot_token(channel.channel_type, config);
+    }
+    value
+}
 
 #[cfg_attr(feature = "openapi", utoipa::path(
     get,
@@ -73,15 +81,6 @@ pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json
     ),
     security(("bearer_auth" = [])),
 ))]
-/// Returns a `serde_json::Value` for `channel` with the bot token redacted.
-fn channel_to_safe_json(channel: &crate::models::NotificationChannel) -> serde_json::Value {
-    let mut value = serde_json::to_value(channel).unwrap_or_default();
-    if let Some(config) = value.get_mut("config") {
-        redact_slack_bot_token(channel.channel_type, config);
-    }
-    value
-}
-
 /// GET /api/alert-channels
 pub async fn list_channels(
     pool: web::Data<DbPool>,
