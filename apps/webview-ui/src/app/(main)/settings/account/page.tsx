@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { ChangePasswordForm } from './change-password-form';
 
 export const metadata: Metadata = {
   title: 'Account | Rustrak',
@@ -50,6 +51,18 @@ export default async function AccountPage() {
                 <p className="text-sm font-medium">Administrator</p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Change Password</CardTitle>
+            <CardDescription>
+              Update your password to keep your account secure
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm />
           </CardContent>
         </Card>
       </div>

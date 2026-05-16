@@ -34,6 +34,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 impl User {
     /// Hash a password using Argon2id
     pub fn hash_password(password: &str) -> Result<String, AppError> {

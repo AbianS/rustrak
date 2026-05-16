@@ -39,3 +39,11 @@ export const registerRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
+
+/**
+ * Change password request schema
+ */
+export const changePasswordRequestSchema = z.object({
+  current_password: z.string().min(1),
+  new_password: z.string().min(8),
+});

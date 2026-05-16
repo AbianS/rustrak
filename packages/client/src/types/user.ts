@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type {
   authResponseSchema,
+  changePasswordRequestSchema,
   loginRequestSchema,
   loginResultSchema,
   registerRequestSchema,
@@ -32,3 +33,8 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
  * RegisterRequest - data needed to create a new user account
  */
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
+
+/**
+ * ChangePasswordRequest - data needed to change the user's password
+ */
+export type ChangePasswordRequest = z.infer<typeof changePasswordRequestSchema>;

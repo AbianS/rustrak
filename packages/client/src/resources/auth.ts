@@ -1,10 +1,12 @@
 import {
   authResponseSchema,
+  changePasswordRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
   userSchema,
 } from '../schemas/user.js';
 import type {
+  ChangePasswordRequest,
   LoginRequest,
   LoginResult,
   RegisterRequest,
@@ -87,5 +89,19 @@ export class AuthResource extends BaseResource {
   async getCurrentUser(): Promise<User> {
     const data = await this.http.get('auth/me').json();
     return this.validate(data, userSchema);
+  }
+
+  /**
+   * Change the current user's password
+   * Requires a valid session cookie and the correct current password
+   * @param request - Current password and new password
+   */
+  async changePassword(request: ChangePasswordRequest): Promise<void> {
+    // Validate input
+    const validatedInput = this.validate(request, changePasswordRequestSchema);
+
+    await this.http.post('auth/change-password', {
+      json: validatedInput,
+    });
   }
 }

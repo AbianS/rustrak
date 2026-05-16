@@ -96,4 +96,21 @@ impl UsersService {
 
         Ok(count.0)
     }
+
+    /// Updates the password for a user
+    pub async fn update_password(pool: &DbPool, user_id: i32, new_password_hash: &str) -> AppResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_hash = $1
+            WHERE id = $2
+            "#,
+        )
+        .bind(new_password_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+
+        Ok(())
+    }
 }

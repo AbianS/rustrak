@@ -2,9 +2,9 @@ use actix_session::Session;
 use actix_web::{web, HttpResponse, Responder};
 use serde::Serialize;
 
-use crate::auth::{self, AuthenticatedUser};
+use crate::auth::{self, validate_password_strength, AuthenticatedUser};
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUserRequest, LoginRequest, User};
+use crate::models::{ChangePasswordRequest, CreateUserRequest, LoginRequest, User};
 use crate::services::UsersService;
 
 #[cfg(feature = "openapi")]
@@ -99,9 +99,9 @@ pub async fn register(
         return Err(AppError::Validation("Invalid email format".to_string()));
     }
 
-    // Validate password is provided
-    if req.password.is_empty() {
-        return Err(AppError::Validation("Password is required".to_string()));
+    // Validate password strength
+    if let Err(errors) = validate_password_strength(&req.password) {
+        return Err(AppError::Validation(errors.join("; ")));
     }
 
     // Create user (non-admin by default)
@@ -187,13 +187,50 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
     HttpResponse::Ok().json(UserResponse::from(user.0))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/change-password",
+    tag = "Auth",
+    request_body = ChangePasswordRequest,
+    responses(
+        (status = 204, description = "Password changed successfully"),
+        (status = 400, description = "Validation error (password too weak)", body = crate::error::ErrorResponse),
+        (status = 401, description = "Invalid current password", body = crate::error::ErrorResponse),
+    ),
+    security(("session_cookie" = [])),
+))]
+/// POST /auth/change-password
+/// Change current user's password
+pub async fn change_password(
+    pool: web::Data<crate::db::DbPool>,
+    user: AuthenticatedUser,
+    req: web::Json<ChangePasswordRequest>,
+) -> AppResult<impl Responder> {
+    // Verify current password
+    if !user.0.verify_password(&req.current_password)? {
+        return Err(AppError::Unauthorized("Invalid current password".to_string()));
+    }
+
+    // Validate new password strength
+    if let Err(errors) = validate_password_strength(&req.new_password) {
+        return Err(AppError::Validation(errors.join("; ")));
+    }
+
+    // Hash and update password
+    let new_hash = User::hash_password(&req.new_password)?;
+    UsersService::update_password(pool.get_ref(), user.0.id, &new_hash).await?;
+
+    Ok(HttpResponse::NoContent().finish())
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(register, login, logout, get_current_user),
+    paths(register, login, logout, get_current_user, change_password),
     components(schemas(
         crate::models::CreateUserRequest,
         crate::models::LoginRequest,
+        crate::models::ChangePasswordRequest,
         AuthResponse,
         UserResponse,
     ))
@@ -207,6 +244,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/register", web::post().to(register))
             .route("/login", web::post().to(login))
             .route("/logout", web::post().to(logout))
-            .route("/me", web::get().to(get_current_user)),
+            .route("/me", web::get().to(get_current_user))
+            .route("/change-password", web::post().to(change_password)),
     );
 }
