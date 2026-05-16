@@ -83,10 +83,15 @@ fn test_webhook_validate_config_invalid_scheme() {
 // Slack Config Validation Tests
 // =============================================================================
 
+// =============================================================================
+// Slack Config Validation Tests — webhook method
+// =============================================================================
+
 #[test]
 fn test_slack_validate_config_valid() {
     let dispatcher = create_dispatcher(ChannelType::Slack);
     let config = json!({
+        "method": "webhook",
         "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
     });
 
@@ -96,7 +101,20 @@ fn test_slack_validate_config_valid() {
 #[test]
 fn test_slack_validate_config_missing_url() {
     let dispatcher = create_dispatcher(ChannelType::Slack);
-    let config = json!({});
+    // method field present but webhook_url missing — serde should fail
+    let config = json!({ "method": "webhook" });
+
+    assert!(dispatcher.validate_config(&config).is_err());
+}
+
+#[test]
+fn test_slack_validate_config_missing_method_field_is_err() {
+    // Legacy shape without method field — should fail after migration
+    // (migration adds the field; configs missing it are invalid at validate time)
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    let config = json!({
+        "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
+    });
 
     assert!(dispatcher.validate_config(&config).is_err());
 }
@@ -105,6 +123,7 @@ fn test_slack_validate_config_missing_url() {
 fn test_slack_validate_config_invalid_domain() {
     let dispatcher = create_dispatcher(ChannelType::Slack);
     let config = json!({
+        "method": "webhook",
         "webhook_url": "https://example.com/webhook"
     });
 
@@ -114,8 +133,8 @@ fn test_slack_validate_config_invalid_domain() {
 #[test]
 fn test_slack_validate_config_rejects_subdomain_bypass() {
     let dispatcher = create_dispatcher(ChannelType::Slack);
-    // This should be rejected - it's a subdomain bypass attempt
     let config = json!({
+        "method": "webhook",
         "webhook_url": "https://hooks.slack.com.evil.com/services/T00000000/B00000000/XXXXXXXX"
     });
 
@@ -125,12 +144,56 @@ fn test_slack_validate_config_rejects_subdomain_bypass() {
 #[test]
 fn test_slack_validate_config_rejects_http() {
     let dispatcher = create_dispatcher(ChannelType::Slack);
-    // HTTP should be rejected
     let config = json!({
+        "method": "webhook",
         "webhook_url": "http://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
     });
 
     assert!(dispatcher.validate_config(&config).is_err());
+}
+
+// =============================================================================
+// Slack Config Validation Tests — bot_token method
+// =============================================================================
+
+#[test]
+fn test_slack_bot_token_validate_config_valid() {
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    let config = json!({
+        "method": "bot_token",
+        "token": "xoxb-123456789-abcdefghij",
+        "channel": "C1234567890"
+    });
+
+    assert!(dispatcher.validate_config(&config).is_ok());
+}
+
+#[test]
+fn test_slack_bot_token_validate_rejects_non_xoxb_prefix() {
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    let config = json!({
+        "method": "bot_token",
+        "token": "xoxa-should-fail",
+        "channel": "#alerts"
+    });
+
+    let result = dispatcher.validate_config(&config);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("xoxb-"));
+}
+
+#[test]
+fn test_slack_bot_token_validate_rejects_empty_channel() {
+    let dispatcher = create_dispatcher(ChannelType::Slack);
+    let config = json!({
+        "method": "bot_token",
+        "token": "xoxb-valid",
+        "channel": ""
+    });
+
+    let result = dispatcher.validate_config(&config);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Channel"));
 }
 
 // =============================================================================

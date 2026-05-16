@@ -374,6 +374,19 @@ impl AlertService {
         Self::trigger_alert(pool, project, issue, AlertType::Unmute, dashboard_url).await
     }
 
+    /// Builds the dashboard URL for viewing an issue.
+    /// Uses project_id (numeric) — the frontend routes by ID, not slug.
+    pub(crate) fn build_issue_url(
+        dashboard_url: &str,
+        project_id: i32,
+        issue_id: uuid::Uuid,
+    ) -> String {
+        format!(
+            "{}/projects/{}/issues/{}",
+            dashboard_url, project_id, issue_id
+        )
+    }
+
     /// Core alert triggering logic
     async fn trigger_alert(
         pool: &DbPool,
@@ -490,10 +503,7 @@ impl AlertService {
                 last_seen: issue.last_seen,
                 event_count: issue.digested_event_count,
             },
-            issue_url: format!(
-                "{}/projects/{}/issues/{}",
-                dashboard_url, project.slug, issue.id
-            ),
+            issue_url: Self::build_issue_url(dashboard_url, project.id, issue.id),
             actor: "Rustrak".to_string(),
         };
 
@@ -758,5 +768,20 @@ impl AlertService {
         }
 
         Ok(processed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_issue_url_uses_numeric_project_id_not_slug() {
+        let url = AlertService::build_issue_url("http://localhost:3000", 42, uuid::Uuid::nil());
+        assert!(
+            url.contains("/projects/42/"),
+            "URL must use numeric project id, got: {}",
+            url
+        );
     }
 }
