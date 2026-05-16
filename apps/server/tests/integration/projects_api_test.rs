@@ -7,9 +7,9 @@ use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
-use rustrak::models::CreateProject;
+use rustrak::models::{CreateAuthToken, CreateProject};
 use rustrak::routes;
-use rustrak::services::ProjectService;
+use rustrak::services::{AuthTokenService, ProjectService};
 use std::time::Duration;
 
 /// Creates a test config
@@ -152,6 +152,41 @@ async fn test_delete_project_not_found() {
 #[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_projects_with_data() {
     // This test requires proper session cookie handling
+}
+
+// =============================================================================
+// Bearer Token Auth Tests
+// =============================================================================
+
+/// A valid Bearer token must be accepted by management endpoints.
+/// Currently FAILS because handlers use AuthenticatedUser (session-only).
+/// After the fix (ApiAuth composite extractor), this must return 200.
+#[actix_web::test]
+async fn test_list_projects_with_valid_bearer_token_returns_200() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+
+    // Create a real token in the DB
+    let token = AuthTokenService::create(&db.pool, CreateAuthToken { description: None })
+        .await
+        .expect("token creation must succeed");
+
+    // No SessionMiddleware — Bearer auth must work standalone
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri("/api/projects")
+        .insert_header(("Authorization", format!("Bearer {}", token.token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
 }
 
 // =============================================================================

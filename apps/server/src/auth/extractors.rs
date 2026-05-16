@@ -3,6 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use crate::auth::sentry_auth::parse_sentry_auth_header;
+use crate::auth::session::AuthenticatedUser;
 use crate::db::DbPool;
 use crate::error::AppError;
 use crate::models::{AuthToken, Project};
@@ -166,6 +167,37 @@ impl FromRequest for SentryAuth {
             }
 
             Ok(SentryAuth { project })
+        })
+    }
+}
+
+/// Composite extractor for management API endpoints.
+///
+/// Accepts either a Bearer token (`Authorization: Bearer <token>`) or a valid
+/// session cookie, in that order. Returns 401 only if both are absent/invalid.
+pub struct ApiAuth;
+
+impl FromRequest for ApiAuth {
+    type Error = AppError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let bearer_future = BearerAuth::from_request(req, payload);
+        let session_future = AuthenticatedUser::from_request(req, payload);
+
+        Box::pin(async move {
+            match bearer_future.await {
+                Ok(_) => return Ok(ApiAuth),
+                Err(AppError::Unauthorized(_)) => {} // auth rejected — fall through to session
+                Err(e) => return Err(e),             // Internal/Database — propagate
+            }
+            session_future.await.map(|_| ApiAuth).map_err(|e| {
+                if e.as_response_error().status_code().is_server_error() {
+                    AppError::Internal(format!("Session error: {e}"))
+                } else {
+                    AppError::Unauthorized("Not authenticated".to_string())
+                }
+            })
         })
     }
 }
