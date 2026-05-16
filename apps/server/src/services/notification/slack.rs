@@ -317,7 +317,7 @@ fn validate_bot_token_config(cfg: &SlackBotTokenConfig) -> AppResult<()> {
         ));
     }
 
-    if cfg.channel.is_empty() {
+    if cfg.channel.trim().is_empty() {
         return Err(AppError::Validation(
             "Channel is required for bot token method".to_string(),
         ));
