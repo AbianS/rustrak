@@ -19,6 +19,8 @@ services:
     build:
       context: ./apps/server
       dockerfile: Dockerfile
+      args:
+        FEATURES: postgres
     ports:
       - "8080:8080"
     environment:
