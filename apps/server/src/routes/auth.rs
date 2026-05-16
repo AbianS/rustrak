@@ -1,6 +1,12 @@
+use actix_governor::governor::middleware::NoOpMiddleware;
+use actix_governor::{
+    Governor, GovernorConfig, GovernorConfigBuilder, KeyExtractor, SimpleKeyExtractionError,
+};
 use actix_session::Session;
+use actix_web::dev::ServiceRequest;
 use actix_web::{web, HttpResponse, Responder};
 use serde::Serialize;
+use std::net::{IpAddr, Ipv4Addr};
 
 use crate::auth::{self, AuthenticatedUser};
 use crate::error::{AppError, AppResult};
@@ -9,6 +15,53 @@ use crate::services::UsersService;
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
+
+/// Key extractor that uses peer IP, falling back to 127.0.0.1 when unavailable (e.g. in tests).
+#[derive(Clone)]
+pub struct IpOrLocalKeyExtractor;
+
+impl KeyExtractor for IpOrLocalKeyExtractor {
+    type Key = IpAddr;
+    type KeyExtractionError = SimpleKeyExtractionError<&'static str>;
+
+    fn extract(&self, req: &ServiceRequest) -> Result<Self::Key, Self::KeyExtractionError> {
+        Ok(req
+            .peer_addr()
+            .map(|addr| addr.ip())
+            .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)))
+    }
+
+    #[cfg(feature = "log")]
+    fn name(&self) -> &'static str {
+        "ip_or_local"
+    }
+}
+
+pub type AuthRateLimiter = GovernorConfig<IpOrLocalKeyExtractor, NoOpMiddleware>;
+
+fn default_auth_limiter() -> AuthRateLimiter {
+    let mut b = GovernorConfigBuilder::default().key_extractor(IpOrLocalKeyExtractor);
+    b.seconds_per_request(30).burst_size(10).finish().unwrap()
+}
+
+/// Configure auth routes with a custom rate limiter (used in tests to inject a tight limiter).
+pub fn configure_with_limiter(cfg: &mut web::ServiceConfig, limiter: AuthRateLimiter) {
+    cfg.service(
+        web::scope("/auth")
+            .service(
+                web::resource("/login")
+                    .wrap(Governor::new(&limiter))
+                    .route(web::post().to(login)),
+            )
+            .service(
+                web::resource("/register")
+                    .wrap(Governor::new(&limiter))
+                    .route(web::post().to(register)),
+            )
+            .route("/logout", web::post().to(logout))
+            .route("/me", web::get().to(get_current_user)),
+    );
+}
 
 #[derive(Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -200,13 +253,7 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
 )]
 pub struct AuthApi;
 
-/// Configure auth routes
+/// Configure auth routes with production rate limiting (10 burst, 1 token per 30s).
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/auth")
-            .route("/register", web::post().to(register))
-            .route("/login", web::post().to(login))
-            .route("/logout", web::post().to(logout))
-            .route("/me", web::get().to(get_current_user)),
-    );
+    configure_with_limiter(cfg, default_auth_limiter());
 }

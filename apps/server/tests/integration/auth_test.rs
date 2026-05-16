@@ -4,14 +4,17 @@
 //! Covers: register, login, logout, get current user, and session management.
 
 use crate::common::TestDb;
+use actix_governor::GovernorConfigBuilder;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig};
 use rustrak::middleware::auth::RequireAuth;
 use rustrak::models::User;
 use rustrak::routes;
+use rustrak::routes::auth::{configure_with_limiter, IpOrLocalKeyExtractor};
 use rustrak::services::UsersService;
 use serde_json::{json, Value};
+use std::net::SocketAddr;
 use std::time::Duration;
 
 /// Creates a test config
@@ -1001,4 +1004,109 @@ async fn test_logout_invalidates_session() {
         .to_request();
     let me_resp2 = test::call_service(&app, me_req2).await;
     assert_eq!(me_resp2.status(), 401);
+}
+
+// =============================================================================
+// Rate Limiting Tests
+// =============================================================================
+
+fn tight_auth_limiter() -> rustrak::routes::auth::AuthRateLimiter {
+    let mut b = GovernorConfigBuilder::default().key_extractor(IpOrLocalKeyExtractor);
+    b.seconds_per_request(60).burst_size(2).finish().unwrap()
+}
+
+/// After exhausting the burst (2 attempts), the 3rd login from the same IP must return 429.
+#[actix_web::test]
+async fn test_login_rate_limit_returns_429_after_burst_exhausted() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(|cfg| configure_with_limiter(cfg, tight_auth_limiter())),
+    )
+    .await;
+
+    let peer: SocketAddr = "10.0.0.1:1234".parse().unwrap();
+
+    // First 2 requests: within burst — must NOT be rate limited (wrong creds → 401)
+    for i in 0..2 {
+        let req = test::TestRequest::post()
+            .uri("/auth/login")
+            .peer_addr(peer)
+            .set_json(json!({"email": "x@x.com", "password": "wrongpass"}))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_ne!(
+            resp.status().as_u16(),
+            429,
+            "attempt {} should not be rate limited yet",
+            i + 1
+        );
+    }
+
+    // 3rd request: burst exhausted — must return 429
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .peer_addr(peer)
+        .set_json(json!({"email": "x@x.com", "password": "wrongpass"}))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status().as_u16(), 429, "3rd attempt must be rate limited");
+}
+
+/// After exhausting the burst (2 attempts), the 3rd register from the same IP must return 429.
+#[actix_web::test]
+async fn test_register_rate_limit_returns_429_after_burst_exhausted() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(|cfg| configure_with_limiter(cfg, tight_auth_limiter())),
+    )
+    .await;
+
+    let peer: SocketAddr = "10.0.0.2:1234".parse().unwrap();
+
+    // First 2 requests: within burst — 201/400 but NOT 429
+    for i in 0..2 {
+        let req = test::TestRequest::post()
+            .uri("/auth/register")
+            .peer_addr(peer)
+            .set_json(json!({"email": format!("user{}@x.com", i), "password": "pass"}))
+            .to_request();
+        let resp = test::call_service(&app, req).await;
+        assert_ne!(
+            resp.status().as_u16(),
+            429,
+            "attempt {} should not be rate limited yet",
+            i + 1
+        );
+    }
+
+    // 3rd request: burst exhausted — must return 429
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .peer_addr(peer)
+        .set_json(json!({"email": "user3@x.com", "password": "pass"}))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status().as_u16(), 429, "3rd attempt must be rate limited");
 }

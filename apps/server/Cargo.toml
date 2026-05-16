@@ -75,6 +75,9 @@ sha2 = "0.11.0"
 # CORS support
 actix-cors = "0.7.1"
 
+# Per-IP rate limiting for auth endpoints (brute-force protection)
+actix-governor = "0.10.0"
+
 # Base64 encoding for pagination cursors
 base64 = "0.22.1"
 
