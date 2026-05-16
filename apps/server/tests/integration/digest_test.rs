@@ -620,6 +620,51 @@ async fn test_digest_updates_project_counters() {
 }
 
 // =============================================================================
+// Temp File Cleanup Tests
+// =============================================================================
+
+#[actix_web::test]
+async fn test_process_event_cleans_up_temp_file_on_failure() {
+    let db = TestDb::new().await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let event_json = create_event_json(&event_id);
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+    store_event(ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+
+    let event_path = ingest_dir.join(format!("{}.json", event_id));
+    assert!(
+        event_path.exists(),
+        "file must exist before calling process_event"
+    );
+
+    // project_id 99999 does not exist → process_event returns Err immediately
+    let metadata = EventMetadata {
+        event_id: event_id.clone(),
+        project_id: 99999,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    let result = process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config).await;
+    assert!(
+        result.is_err(),
+        "process_event must fail for non-existent project"
+    );
+
+    assert!(
+        !event_path.exists(),
+        "temp file must be deleted even when process_event fails"
+    );
+}
+
+// =============================================================================
 // Edge Cases
 // =============================================================================
 

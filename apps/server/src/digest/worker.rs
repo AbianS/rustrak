@@ -12,8 +12,28 @@ use crate::services::{
     DenormalizedFields, EventService, ProjectService, RateLimitService,
 };
 
-/// Processes an event from temporary storage
+/// Processes an event from temporary storage.
+/// Guarantees the temp file is deleted on both success and failure.
 pub async fn process_event(
+    pool: &DbPool,
+    metadata: &EventMetadata,
+    ingest_dir: &Path,
+    rate_limit_config: &RateLimitConfig,
+) -> AppResult<()> {
+    let result = process_event_impl(pool, metadata, ingest_dir, rate_limit_config).await;
+    if result.is_err() {
+        if let Err(e) = delete_event(ingest_dir, &metadata.event_id).await {
+            log::warn!(
+                "Failed to clean up orphaned event file {}: {:?}",
+                metadata.event_id,
+                e
+            );
+        }
+    }
+    result
+}
+
+async fn process_event_impl(
     pool: &DbPool,
     metadata: &EventMetadata,
     ingest_dir: &Path,

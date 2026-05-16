@@ -1,3 +1,4 @@
+use std::io;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 use uuid::Uuid;
@@ -48,8 +49,11 @@ pub async fn read_event(base_dir: &Path, event_id: &str) -> AppResult<Vec<u8>> {
 pub async fn delete_event(base_dir: &Path, event_id: &str) -> AppResult<()> {
     let path = get_event_path(base_dir, event_id)?;
 
-    // Ignore error if the file doesn't exist (may have been processed twice)
-    let _ = fs::remove_file(&path).await;
+    match fs::remove_file(&path).await {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+        Err(e) => log::warn!("Failed to delete event file {:?}: {}", path, e),
+    }
 
     Ok(())
 }
