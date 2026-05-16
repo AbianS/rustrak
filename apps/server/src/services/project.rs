@@ -127,33 +127,7 @@ impl ProjectService {
         // Generate sentry_key in application (for cross-DB compatibility)
         let sentry_key = uuid::Uuid::new_v4();
 
-        let project = sqlx::query_as::<_, Project>(
-            r#"
-            INSERT INTO projects (name, slug, sentry_key)
-            VALUES ($1, $2, $3)
-            RETURNING id, name, slug, sentry_key, stored_event_count,
-                      digested_event_count, created_at, updated_at,
-                      quota_exceeded_until, quota_exceeded_reason, next_quota_check
-            "#,
-        )
-        .bind(name)
-        .bind(&slug)
-        .bind(sentry_key)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            if let sqlx::Error::Database(ref db_err) = e {
-                if db_err.is_unique_violation() {
-                    // On PostgreSQL we can distinguish name vs slug via constraint(),
-                    // but for cross-DB compatibility use a generic message
-                    return AppError::Conflict(format!(
-                        "Project with name '{}' or slug '{}' already exists",
-                        name, slug
-                    ));
-                }
-            }
-            AppError::Database(e)
-        })?;
+        let project = Self::try_insert_with_retry(pool, name, &slug, sentry_key).await?;
 
         Ok(project)
     }
@@ -265,6 +239,74 @@ impl ProjectService {
                     "Could not generate unique slug".to_string(),
                 ));
             }
+        }
+    }
+
+    /// Bypass slug generation and directly try INSERT with a pre-computed
+    /// (possibly stale) slug. Used in integration tests to simulate TOCTOU.
+    #[doc(hidden)]
+    pub async fn create_with_stale_slug(
+        pool: &DbPool,
+        name: &str,
+        stale_slug: &str,
+    ) -> AppResult<Project> {
+        let sentry_key = uuid::Uuid::new_v4();
+        Self::try_insert_with_retry(pool, name, stale_slug, sentry_key).await
+    }
+
+    async fn try_insert_with_retry(
+        pool: &DbPool,
+        name: &str,
+        slug: &str,
+        sentry_key: uuid::Uuid,
+    ) -> AppResult<Project> {
+        const INSERT_SQL: &str = r#"
+            INSERT INTO projects (name, slug, sentry_key)
+            VALUES ($1, $2, $3)
+            RETURNING id, name, slug, sentry_key, stored_event_count,
+                      digested_event_count, created_at, updated_at,
+                      quota_exceeded_until, quota_exceeded_reason, next_quota_check
+        "#;
+
+        let result = sqlx::query_as::<_, Project>(INSERT_SQL)
+            .bind(name)
+            .bind(slug)
+            .bind(sentry_key)
+            .fetch_one(pool)
+            .await;
+
+        match result {
+            Ok(p) => Ok(p),
+            Err(sqlx::Error::Database(ref db_err)) if db_err.is_unique_violation() => {
+                // The slug may have been taken by a concurrent request (TOCTOU).
+                // Re-query to get the next available slug and retry once.
+                let new_slug = Self::generate_unique_slug(pool, name, None).await?;
+                if new_slug == slug {
+                    // Slug is still available → the collision was on name, not slug.
+                    return Err(AppError::Conflict(format!(
+                        "Project with name '{}' already exists",
+                        name
+                    )));
+                }
+                sqlx::query_as::<_, Project>(INSERT_SQL)
+                    .bind(name)
+                    .bind(&new_slug)
+                    .bind(sentry_key)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| {
+                        if let sqlx::Error::Database(ref db_err) = e {
+                            if db_err.is_unique_violation() {
+                                return AppError::Conflict(format!(
+                                    "Project with name '{}' already exists",
+                                    name
+                                ));
+                            }
+                        }
+                        AppError::Database(e)
+                    })
+            }
+            Err(e) => Err(AppError::Database(e)),
         }
     }
 }

@@ -7,7 +7,9 @@ use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
+use rustrak::models::CreateProject;
 use rustrak::routes;
+use rustrak::services::ProjectService;
 use std::time::Duration;
 
 /// Creates a test config
@@ -150,4 +152,38 @@ async fn test_delete_project_not_found() {
 #[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_projects_with_data() {
     // This test requires proper session cookie handling
+}
+
+// =============================================================================
+// Slug Collision Tests
+// =============================================================================
+
+/// Simulates the TOCTOU race: "My Project" already owns "my-project".
+/// A second request for "My-Project" reads a stale view (no slug taken yet)
+/// and tries to INSERT with slug "my-project" — the same slug.
+/// The expected behavior is a transparent retry yielding "my-project-1",
+/// NOT a 409 Conflict visible to the caller.
+#[actix_web::test]
+async fn test_slug_toctou_retries_with_next_candidate() {
+    let db = TestDb::new().await;
+
+    // Establish "my-project" as taken
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "My Project".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("first create must succeed");
+
+    // Simulate what happens when generate_unique_slug returned "my-project"
+    // from a stale read (TOCTOU race): the INSERT should retry, not 409.
+    let project = ProjectService::create_with_stale_slug(&db.pool, "My-Project", "my-project")
+        .await
+        .expect("stale-slug create must succeed via retry, not 409");
+
+    assert_eq!(project.slug, "my-project-1");
+    assert_eq!(project.name, "My-Project");
 }
