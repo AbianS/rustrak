@@ -1,13 +1,9 @@
 'use client';
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import {
-  vs,
-  vscDarkPlus,
-} from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '@/lib/utils';
 
 interface StackFrame {
@@ -192,11 +188,8 @@ function FrameContext({
   frame: StackFrame;
   language: string;
 }) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === 'dark';
-
   return (
-    <div className="bg-zinc-100 dark:bg-zinc-900 font-mono text-xs leading-relaxed overflow-x-auto">
+    <div className="bg-zinc-900 font-mono text-xs leading-relaxed overflow-x-auto">
       {/* Pre-context */}
       {frame.pre_context?.map((line, i) => {
         const lineNo = (frame.lineno ?? 0) - frame.pre_context!.length + i;
@@ -207,7 +200,6 @@ function FrameContext({
             code={line}
             language={language}
             isHighlighted={false}
-            isDark={isDark}
           />
         );
       })}
@@ -219,7 +211,6 @@ function FrameContext({
           code={frame.context_line}
           language={language}
           isHighlighted={true}
-          isDark={isDark}
         />
       )}
 
@@ -233,7 +224,6 @@ function FrameContext({
             code={line}
             language={language}
             isHighlighted={false}
-            isDark={isDark}
           />
         );
       })}
@@ -246,13 +236,11 @@ function CodeLine({
   code,
   language,
   isHighlighted,
-  isDark,
 }: {
   lineNumber: number;
   code: string;
   language: string;
   isHighlighted: boolean;
-  isDark: boolean;
 }) {
   return (
     <div
@@ -280,7 +268,7 @@ function CodeLine({
       <div className="flex-1 py-0.5 pr-4 overflow-x-auto">
         <SyntaxHighlighter
           language={language}
-          style={isDark ? vscDarkPlus : vs}
+          style={vscDarkPlus}
           customStyle={{
             margin: 0,
             padding: 0,
