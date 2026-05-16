@@ -191,16 +191,13 @@ impl FromRequest for ApiAuth {
                 Err(AppError::Unauthorized(_)) => {} // auth rejected — fall through to session
                 Err(e) => return Err(e),             // Internal/Database — propagate
             }
-            session_future
-                .await
-                .map(|_| ApiAuth)
-                .map_err(|e| {
-                    if e.as_response_error().status_code().is_server_error() {
-                        AppError::Internal(format!("Session error: {e}"))
-                    } else {
-                        AppError::Unauthorized("Not authenticated".to_string())
-                    }
-                })
+            session_future.await.map(|_| ApiAuth).map_err(|e| {
+                if e.as_response_error().status_code().is_server_error() {
+                    AppError::Internal(format!("Session error: {e}"))
+                } else {
+                    AppError::Unauthorized("Not authenticated".to_string())
+                }
+            })
         })
     }
 }
