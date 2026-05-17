@@ -22,7 +22,7 @@ use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::ApiAuth;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::ChannelType;
@@ -86,7 +86,7 @@ fn channel_to_safe_json(channel: &crate::models::NotificationChannel) -> serde_j
 /// GET /api/alert-channels
 pub async fn list_channels(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
 ) -> AppResult<HttpResponse> {
     let channels = AlertService::list_channels(pool.get_ref()).await?;
     let safe: Vec<serde_json::Value> = channels.iter().map(channel_to_safe_json).collect();
@@ -107,7 +107,7 @@ pub async fn list_channels(
 /// POST /api/alert-channels
 pub async fn create_channel(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     body: web::Json<CreateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::create_channel(pool.get_ref(), body.into_inner()).await?;
@@ -129,7 +129,7 @@ pub async fn create_channel(
 /// GET /api/alert-channels/{id}
 pub async fn get_channel(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
@@ -152,7 +152,7 @@ pub async fn get_channel(
 /// PATCH /api/alert-channels/{id}
 pub async fn update_channel(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
     body: web::Json<UpdateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
@@ -176,7 +176,7 @@ pub async fn update_channel(
 /// DELETE /api/alert-channels/{id}
 pub async fn delete_channel(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     AlertService::delete_channel(pool.get_ref(), path.into_inner()).await?;
@@ -198,7 +198,7 @@ pub async fn delete_channel(
 /// POST /api/alert-channels/{id}/test
 pub async fn test_channel(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
@@ -262,7 +262,7 @@ pub async fn test_channel(
 /// GET /api/projects/{project_id}/alert-rules
 pub async fn list_rules(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
@@ -298,7 +298,7 @@ pub async fn list_rules(
 /// POST /api/projects/{project_id}/alert-rules
 pub async fn create_rule(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
     body: web::Json<CreateAlertRule>,
 ) -> AppResult<HttpResponse> {
@@ -337,7 +337,7 @@ pub struct RulePath {
 /// GET /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn get_rule(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<RulePath>,
 ) -> AppResult<HttpResponse> {
     let params = path.into_inner();
@@ -378,7 +378,7 @@ pub async fn get_rule(
 /// PATCH /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn update_rule(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<RulePath>,
     body: web::Json<UpdateAlertRule>,
 ) -> AppResult<HttpResponse> {
@@ -419,7 +419,7 @@ pub async fn update_rule(
 /// DELETE /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn delete_rule(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<RulePath>,
 ) -> AppResult<HttpResponse> {
     let params = path.into_inner();
@@ -472,7 +472,7 @@ fn default_limit() -> i64 {
 /// GET /api/projects/{project_id}/alert-history
 pub async fn list_history(
     pool: web::Data<DbPool>,
-    _user: AuthenticatedUser,
+    _auth: ApiAuth,
     path: web::Path<i32>,
     query: web::Query<HistoryQuery>,
 ) -> AppResult<HttpResponse> {
