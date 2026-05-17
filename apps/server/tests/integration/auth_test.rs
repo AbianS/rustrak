@@ -1002,3 +1002,244 @@ async fn test_logout_invalidates_session() {
     let me_resp2 = test::call_service(&app, me_req2).await;
     assert_eq!(me_resp2.status(), 401);
 }
+
+// =============================================================================
+// Password Length Validation Tests (H-2 / M-3)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_register_rejects_password_shorter_than_8_chars() {
+    let db = TestDb::new().await;
+    let session_key = Key::from(&[0u8; 64]);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(create_test_config()))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user@example.com", "password": "short" }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["error"]["type"], "ValidationError");
+}
+
+#[actix_web::test]
+async fn test_register_rejects_password_longer_than_1024_chars() {
+    let db = TestDb::new().await;
+    let session_key = Key::from(&[0u8; 64]);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(create_test_config()))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let long_password = "a".repeat(1025);
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user@example.com", "password": long_password }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["error"]["type"], "ValidationError");
+}
+
+#[actix_web::test]
+async fn test_register_accepts_password_at_exact_boundaries() {
+    let db = TestDb::new().await;
+    let session_key = Key::from(&[0u8; 64]);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(create_test_config()))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    // Exactly 8 chars — must be accepted
+    let req = test::TestRequest::post()
+        .uri("/auth/register")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user@example.com", "password": "exactly8" }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 201, "8-char password should be accepted");
+
+    // Exactly 1024 chars — must be accepted
+    let max_password = "b".repeat(1024);
+    let req2 = test::TestRequest::post()
+        .uri("/auth/register")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user2@example.com", "password": max_password }))
+        .to_request();
+    let resp2 = test::call_service(&app, req2).await;
+    assert_eq!(resp2.status(), 201, "1024-char password should be accepted");
+}
+
+#[actix_web::test]
+async fn test_login_rejects_password_longer_than_1024_chars() {
+    let db = TestDb::new().await;
+    let session_key = Key::from(&[0u8; 64]);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(create_test_config()))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key)
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    // Register a valid user first
+    let reg_req = test::TestRequest::post()
+        .uri("/auth/register")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user@example.com", "password": "validpassword123" }))
+        .to_request();
+    let reg_resp = test::call_service(&app, reg_req).await;
+    assert_eq!(reg_resp.status(), 201);
+
+    // Login with oversized password — must reject before running Argon2
+    let long_password = "a".repeat(1025);
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({ "email": "user@example.com", "password": long_password }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["error"]["type"], "ValidationError");
+}
+
+// =============================================================================
+// Session Fixation Prevention Tests (M-2)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_login_clears_pre_existing_session_data() {
+    use actix_session::Session;
+    use actix_web::HttpResponse;
+
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    create_test_user(&db.pool, "sessfix@example.com", "password123", false).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
+                    .cookie_name("rustrak_session".to_string())
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure)
+            .route(
+                "/test/plant-marker",
+                web::post().to(|session: Session| async move {
+                    session.insert("attack_marker", "planted").unwrap();
+                    HttpResponse::Ok().finish()
+                }),
+            )
+            .route(
+                "/test/read-marker",
+                web::get().to(|session: Session| async move {
+                    match session.get::<String>("attack_marker").unwrap_or(None) {
+                        Some(v) => HttpResponse::Ok().body(v),
+                        None => HttpResponse::NotFound().finish(),
+                    }
+                }),
+            ),
+    )
+    .await;
+
+    // Step 1: Plant attacker-controlled data in session (simulates session fixation setup)
+    let plant_req = test::TestRequest::post()
+        .uri("/test/plant-marker")
+        .to_request();
+    let plant_resp = test::call_service(&app, plant_req).await;
+    assert_eq!(plant_resp.status(), 200);
+
+    let session_cookie = plant_resp
+        .headers()
+        .get("set-cookie")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // Step 2: Login using the planted session cookie
+    let login_req = test::TestRequest::post()
+        .uri("/auth/login")
+        .insert_header(("Content-Type", "application/json"))
+        .insert_header(("Cookie", session_cookie.clone()))
+        .set_json(json!({
+            "email": "sessfix@example.com",
+            "password": "password123"
+        }))
+        .to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    assert_eq!(login_resp.status(), 200);
+
+    let new_session_cookie = login_resp
+        .headers()
+        .get("set-cookie")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // Step 3: The planted marker must not be readable in the post-login session
+    let read_req = test::TestRequest::get()
+        .uri("/test/read-marker")
+        .insert_header(("Cookie", new_session_cookie))
+        .to_request();
+    let read_resp = test::call_service(&app, read_req).await;
+
+    assert_eq!(
+        read_resp.status(),
+        404,
+        "Session fixation: pre-login session data must be cleared on successful login"
+    );
+}

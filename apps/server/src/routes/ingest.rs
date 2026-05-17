@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use chrono::Utc;
+use futures_util::StreamExt as _;
 
 use crate::auth::SentryAuth;
 use crate::config::Config;
@@ -12,6 +13,9 @@ use crate::ingest::{
     EventMetadata, MAX_COMPRESSED_SIZE,
 };
 use crate::services::RateLimitService;
+
+/// Maximum raw HTTP body the ingest endpoint accepts (100MB, matches decompress limit)
+pub const MAX_INGEST_PAYLOAD_BYTES: usize = 100 * 1024 * 1024;
 
 /// Response for successful ingestion
 #[derive(serde::Serialize)]
@@ -26,8 +30,24 @@ pub async fn ingest_envelope(
     config: web::Data<Config>,
     req: HttpRequest,
     auth: SentryAuth,
-    body: Bytes,
+    mut payload: web::Payload,
 ) -> AppResult<HttpResponse> {
+    // Collect body with explicit size limit so we control the error format (413 JSON)
+    let body: Bytes = {
+        let mut buf = BytesMut::new();
+        while let Some(chunk) = payload.next().await {
+            let chunk =
+                chunk.map_err(|e| AppError::Internal(format!("Payload read error: {e}")))?;
+            if buf.len() + chunk.len() > MAX_INGEST_PAYLOAD_BYTES {
+                return Err(AppError::PayloadTooLarge(
+                    "Payload exceeds maximum size".to_string(),
+                ));
+            }
+            buf.extend_from_slice(&chunk);
+        }
+        buf.freeze()
+    };
+
     // 0. Check rate limits (fail fast before processing)
     if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
         log::warn!(

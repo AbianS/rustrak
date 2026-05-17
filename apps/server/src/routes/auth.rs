@@ -99,15 +99,27 @@ pub async fn register(
         return Err(AppError::Validation("Invalid email format".to_string()));
     }
 
-    // Validate password is provided
+    // Validate password
     if req.password.is_empty() {
         return Err(AppError::Validation("Password is required".to_string()));
+    }
+    if req.password.len() < 8 {
+        return Err(AppError::Validation(
+            "Password must be at least 8 characters".to_string(),
+        ));
+    }
+    if req.password.len() > 1024 {
+        return Err(AppError::Validation(
+            "Password must not exceed 1024 characters".to_string(),
+        ));
     }
 
     // Create user (non-admin by default)
     let user = UsersService::create_user(pool.get_ref(), &req, false).await?;
 
-    // Set session
+    // Clear pre-existing data and renew session token on auth (M-2: session fixation prevention)
+    session.clear();
+    session.renew();
     auth::set_user_session(&session, user.id)?;
 
     Ok(HttpResponse::Created().json(AuthResponse { user: user.into() }))
@@ -131,10 +143,21 @@ pub async fn login(
     session: Session,
     req: web::Json<LoginRequest>,
 ) -> AppResult<impl Responder> {
-    // Get user by email
-    let user = UsersService::get_by_email(pool.get_ref(), &req.email)
-        .await?
-        .ok_or_else(|| AppError::Unauthorized("Invalid credentials".to_string()))?;
+    // Reject oversized passwords before any DB or Argon2 work
+    if req.password.len() > 1024 {
+        return Err(AppError::Validation(
+            "Password must not exceed 1024 characters".to_string(),
+        ));
+    }
+
+    // Get user by email; run dummy hash verify when not found to prevent timing oracle (H-1)
+    let user = match UsersService::get_by_email(pool.get_ref(), &req.email).await? {
+        Some(u) => u,
+        None => {
+            User::run_dummy_password_verify(&req.password);
+            return Err(AppError::Unauthorized("Invalid credentials".to_string()));
+        }
+    };
 
     // Check if user is active
     if !user.is_active {
@@ -149,7 +172,9 @@ pub async fn login(
     // Update last login
     UsersService::update_last_login(pool.get_ref(), user.id).await?;
 
-    // Set session
+    // Clear pre-existing data and renew session token on auth (M-2: session fixation prevention)
+    session.clear();
+    session.renew();
     auth::set_user_session(&session, user.id)?;
 
     Ok(HttpResponse::Ok().json(AuthResponse { user: user.into() }))
