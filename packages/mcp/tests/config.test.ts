@@ -7,23 +7,39 @@ describe('loadConfig', () => {
   const originalEnv = { ...process.env };
 
   afterEach(() => {
-    // Restore env
-    process.env = { ...originalEnv };
+    Object.keys(process.env).forEach((key) => {
+      if (!(key in originalEnv)) delete process.env[key];
+    });
+    Object.assign(process.env, originalEnv);
     vi.resetModules();
   });
 
-  it('throws when RUSTRAK_API_URL is missing', async () => {
+  it('exits with code 1 when RUSTRAK_API_URL is missing', async () => {
     delete process.env['RUSTRAK_API_URL'];
     delete process.env['RUSTRAK_API_TOKEN'];
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementationOnce((_code?: string | number | null) => {
+        throw new Error('process.exit');
+      });
     const { loadConfig } = await import('../src/config.js');
-    expect(() => loadConfig()).toThrow(/RUSTRAK_API_URL/);
+    expect(() => loadConfig()).toThrow('process.exit');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    exitSpy.mockRestore();
   });
 
-  it('throws when RUSTRAK_API_TOKEN is missing', async () => {
+  it('exits with code 1 when RUSTRAK_API_TOKEN is missing', async () => {
     process.env['RUSTRAK_API_URL'] = 'http://localhost:8080';
     delete process.env['RUSTRAK_API_TOKEN'];
+    const exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementationOnce((_code?: string | number | null) => {
+        throw new Error('process.exit');
+      });
     const { loadConfig } = await import('../src/config.js');
-    expect(() => loadConfig()).toThrow(/RUSTRAK_API_TOKEN/);
+    expect(() => loadConfig()).toThrow('process.exit');
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    exitSpy.mockRestore();
   });
 
   it('returns config when both env vars are present', async () => {

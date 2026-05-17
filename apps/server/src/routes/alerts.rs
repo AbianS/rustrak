@@ -84,10 +84,7 @@ fn channel_to_safe_json(channel: &crate::models::NotificationChannel) -> serde_j
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/alert-channels
-pub async fn list_channels(
-    pool: web::Data<DbPool>,
-    _auth: ApiAuth,
-) -> AppResult<HttpResponse> {
+pub async fn list_channels(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult<HttpResponse> {
     let channels = AlertService::list_channels(pool.get_ref()).await?;
     let safe: Vec<serde_json::Value> = channels.iter().map(channel_to_safe_json).collect();
     Ok(HttpResponse::Ok().json(safe))

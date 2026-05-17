@@ -61,7 +61,7 @@ Or use the project-level `.mcp.json` at the repo root (Claude Code picks this up
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `RUSTRAK_API_TOKEN` | ✅ | — | 40-char hex API token. Server exits if missing. |
-| `RUSTRAK_API_URL` | — | `http://localhost:8080` | Base URL of your Rustrak server. |
+| `RUSTRAK_API_URL` | ✅ | — | Base URL of your Rustrak server. Server exits if missing. |
 
 ## Available Tools
 

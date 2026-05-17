@@ -295,7 +295,7 @@ await mcpClient.connect(clientTransport);
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `RUSTRAK_API_TOKEN` | Yes | — | 40-char hex API token. Server exits if missing. |
-| `RUSTRAK_API_URL` | No | `http://localhost:8080` | Base URL of your Rustrak server. |
+| `RUSTRAK_API_URL` | Yes | — | Base URL of your Rustrak server. Server exits if missing. |
 
 ### Local Development (.mcp.json)
 
