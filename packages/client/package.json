@@ -1,6 +1,6 @@
 {
   "name": "@rustrak/client",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Type-safe TypeScript client for the Rustrak self-hosted error tracking API",
   "homepage": "https://abians.github.io/rustrak/sdks/client",
   "repository": {
