@@ -1,0 +1,174 @@
+# @rustrak/mcp
+
+`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for Rustrak. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 18 tools to manage your error tracking without leaving your AI tool.
+
+```bash
+npx @rustrak/mcp   # run directly with npx (no install needed)
+# or install globally
+npm install -g @rustrak/mcp
+```
+
+**Requirements**: Node.js ≥ 18
+
+## How It Works
+
+The server runs as a local stdio process — no open network port, no daemon. Your AI client starts it automatically when needed and communicates via JSON-RPC over stdin/stdout. The Rustrak API token is loaded from environment variables and never exposed as a tool argument.
+
+```
+AI Client (Claude / Cursor / Continue)
+        │  stdio (JSON-RPC)
+        ▼
+┌─────────────────────┐
+│   @rustrak/mcp      │
+│   ├── projects      │
+│   ├── issues        │
+│   ├── events        │
+│   ├── tokens        │
+│   └── alerts        │
+└──────────┬──────────┘
+           │  HTTP via @rustrak/client
+           ▼
+    Rustrak Server
+```
+
+## Setup
+
+### 1. Create an API token
+
+In the Rustrak web UI: **Settings → Tokens → Create token**. Save the full token value — it is shown only once.
+
+### 2. Configure your AI client
+
+**Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "rustrak": {
+      "command": "npx",
+      "args": ["-y", "@rustrak/mcp"],
+      "env": {
+        "RUSTRAK_API_URL": "https://your-rustrak-instance.example.com",
+        "RUSTRAK_API_TOKEN": "your-40-char-hex-token"
+      }
+    }
+  }
+}
+```
+
+**Cursor** — `.cursor/mcp.json` (project-level) or `~/.cursor/mcp.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "rustrak": {
+      "command": "npx",
+      "args": ["-y", "@rustrak/mcp"],
+      "env": {
+        "RUSTRAK_API_URL": "https://your-rustrak-instance.example.com",
+        "RUSTRAK_API_TOKEN": "your-40-char-hex-token"
+      }
+    }
+  }
+}
+```
+
+**Continue.dev** — `~/.continue/config.json`:
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@rustrak/mcp"],
+          "env": {
+            "RUSTRAK_API_URL": "https://your-rustrak-instance.example.com",
+            "RUSTRAK_API_TOKEN": "your-40-char-hex-token"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+## Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `RUSTRAK_API_URL` | ✅ | Base URL of your Rustrak server |
+| `RUSTRAK_API_TOKEN` | ✅ | 40-char hex API token |
+
+The server exits immediately with a clear error message if either variable is missing.
+
+## Available Tools (18)
+
+### Projects
+
+| Tool | Description |
+|---|---|
+| `list_projects` | List all projects |
+| `get_project` | Get project details including DSN |
+| `create_project` | Create a new project |
+
+### Issues
+
+| Tool | Description |
+|---|---|
+| `list_issues` | List issues with filters (open / resolved / muted / all) |
+| `get_issue` | Get a single issue with full details |
+| `resolve_issue` | Mark an issue as resolved |
+| `unresolve_issue` | Re-open a resolved issue |
+| `mute_issue` | Mute an issue (silences future alerts) |
+| `delete_issue` | ⚠️ Permanently delete an issue and all its events |
+
+### Events
+
+| Tool | Description |
+|---|---|
+| `list_events` | List raw events for an issue (cursor pagination) |
+| `get_event` | Get a single event with full Sentry envelope data |
+
+### Tokens
+
+| Tool | Description |
+|---|---|
+| `list_tokens` | List API tokens (masked) |
+| `create_token` | Create a new API token (full value shown once) |
+| `revoke_token` | ⚠️ Permanently revoke an API token |
+
+### Alerts
+
+| Tool | Description |
+|---|---|
+| `list_alert_channels` | List notification channels (Slack, email, webhook) |
+| `test_alert_channel` | Send a test notification to a channel |
+| `list_alert_rules` | List alert rules for a project |
+
+> Tools marked ⚠️ are annotated with `destructiveHint` — supported clients will prompt for confirmation before executing.
+
+## Example Prompts
+
+Once connected, you can ask things like:
+
+- *"List all unresolved issues in project 1"*
+- *"Show me the full stack trace for issue abc-123"*
+- *"Resolve all TypeError issues from the last deployment"*
+- *"Create a token called 'CI pipeline' and give me the value"*
+- *"How many events does issue xyz have?"*
+- *"Mute all database timeout issues"*
+
+## Security Notes
+
+- The API token is loaded exclusively from `RUSTRAK_API_TOKEN` — it is never accepted as a tool argument
+- All tool errors are returned as `isError: true` content rather than exceptions, so your AI can see and handle them
+- The server uses stdio transport — it never opens a network port
+
+## Related
+
+- [`@rustrak/client`](/sdks/client) — The TypeScript HTTP client that powers this MCP server
+- [API Tokens](/usage/tokens) — How to create and manage tokens in the web UI
+- [API Reference](/api-reference) — Full REST API documentation

@@ -21,6 +21,7 @@ export default {
   'getting-started': 'Getting Started',
   configuration: 'Configuration',
   usage: 'Usage',
+  sdks: 'SDKs & Integrations',
   troubleshooting: 'Troubleshooting',
   '---': {
     type: 'separator',

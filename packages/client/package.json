@@ -1,7 +1,16 @@
 {
   "name": "@rustrak/client",
   "version": "0.1.2",
-  "description": "TypeScript client for Rustrak API",
+  "description": "Type-safe TypeScript client for the Rustrak self-hosted error tracking API",
+  "homepage": "https://abians.github.io/rustrak/sdks/client",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AbianS/rustrak.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/AbianS/rustrak/issues"
+  },
   "publishConfig": {
     "access": "public"
   },
@@ -17,7 +26,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -32,10 +42,18 @@
     "rustrak",
     "error-tracking",
     "sentry",
-    "api-client"
+    "self-hosted",
+    "api-client",
+    "typescript",
+    "sdk",
+    "monitoring",
+    "observability"
   ],
-  "author": "",
+  "author": "AbianS",
   "license": "GPL-3.0",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "ky": "2.0.2",
     "zod": "4.4.3"

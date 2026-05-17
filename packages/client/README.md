@@ -1,20 +1,52 @@
-# @rustrak/client
+<div align="center">
+  <a href="https://abians.github.io/rustrak">
+    <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
+  </a>
+  <h1>@rustrak/client</h1>
+  <p>Official TypeScript client for the <a href="https://abians.github.io/rustrak">Rustrak</a> self-hosted error tracking API</p>
 
-TypeScript client for the Rustrak error tracking API. Provides a type-safe, fully-featured interface for interacting with Rustrak's REST API.
+  <p>
+    <a href="https://www.npmjs.com/package/@rustrak/client">
+      <img src="https://img.shields.io/npm/v/@rustrak/client?style=flat-square&color=cb3837" alt="npm version" />
+    </a>
+    <a href="https://www.npmjs.com/package/@rustrak/client">
+      <img src="https://img.shields.io/npm/dw/@rustrak/client?style=flat-square" alt="weekly downloads" />
+    </a>
+    <a href="https://bundlephobia.com/package/@rustrak/client">
+      <img src="https://img.shields.io/bundlephobia/minzip/@rustrak/client?style=flat-square&label=bundle" alt="bundle size" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+      <img src="https://img.shields.io/npm/l/@rustrak/client?style=flat-square" alt="license" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/AbianS/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
+    </a>
+  </p>
 
-## Features
+  <p>
+    <a href="https://abians.github.io/rustrak/sdks/client">Documentation</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak">GitHub</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak/issues">Report a Bug</a>
+  </p>
+</div>
 
-- **Type-Safe**: Full TypeScript support with runtime validation using Zod
-- **Lightweight**: ~28KB total bundle size (ky 3KB + zod 10KB + client 15KB)
-- **Automatic Retry**: Built-in retry logic for transient failures
-- **Error Handling**: Structured error classes for different failure scenarios
-- **Pagination**: First-class support for cursor-based pagination
+---
+
+`@rustrak/client` is the official TypeScript client for [Rustrak](https://abians.github.io/rustrak) — an ultra-lightweight, self-hosted error tracking system compatible with any Sentry SDK. This package wraps the Rustrak REST API with full type safety, runtime validation via Zod, built-in retry logic, and structured error handling. Total bundle size: ~28 KB.
 
 ## Installation
 
 ```bash
+npm install @rustrak/client
+# or
 pnpm add @rustrak/client
+# or
+yarn add @rustrak/client
 ```
+
+**Requirements**: Node.js ≥ 18, TypeScript ≥ 5
 
 ## Quick Start
 
@@ -22,179 +54,127 @@ pnpm add @rustrak/client
 import { RustrakClient } from '@rustrak/client';
 
 const client = new RustrakClient({
-  baseUrl: 'http://localhost:8080',
-  token: 'your-api-token',
+  baseUrl: 'https://your-rustrak-instance.example.com',
+  token: process.env.RUSTRAK_API_TOKEN!,
 });
 
 // List all projects
 const projects = await client.projects.list();
 
-// Get issues for a project
-const { items, next_cursor, has_more } = await client.issues.list(1);
+// Paginate through open issues
+const { items, next_cursor, has_more } = await client.issues.list(1, {
+  sort: 'last_seen',
+  order: 'desc',
+});
 
-// Get events for an issue
-const events = await client.events.list(1, 'issue-uuid');
+// Resolve an issue
+await client.issues.updateState(1, 'issue-id', { is_resolved: true });
 ```
 
-## Usage
+**[Full documentation →](https://abians.github.io/rustrak/sdks/client)**
+
+## Features
+
+- **Type-safe** — All API responses validated at runtime with Zod; types are inferred from schemas
+- **Lightweight** — ~28 KB total (ky 3 KB + zod 10 KB + client 15 KB)
+- **Automatic retry** — Exponential backoff on transient failures (408, 429, 5xx)
+- **Structured errors** — Typed error classes for every HTTP status and failure mode
+- **Cursor pagination** — First-class support for paginated responses across all list endpoints
+- **97% test coverage** — 133 tests (unit + integration with MSW)
+
+## API Reference
 
 ### Configuration
 
 ```typescript
-import { RustrakClient } from '@rustrak/client';
-
 const client = new RustrakClient({
-  baseUrl: 'https://rustrak.example.com',
-  token: 'your-bearer-token',
-  timeout: 30000, // Optional: request timeout in ms (default: 30000)
-  maxRetries: 2, // Optional: max retry attempts (default: 2)
-  headers: {
-    // Optional: custom headers
-    'X-Custom-Header': 'value',
-  },
+  baseUrl: 'https://rustrak.example.com', // required
+  token: 'your-bearer-token',             // required
+  timeout: 30000,                         // optional, ms (default: 30000)
+  maxRetries: 2,                          // optional (default: 2)
+  headers: {},                            // optional custom headers
 });
 ```
 
 ### Projects
 
 ```typescript
-// List all projects
 const projects = await client.projects.list();
-
-// Get a single project
-const project = await client.projects.get(1);
-
-// Create a project
-const newProject = await client.projects.create({
-  name: 'My App',
-  slug: 'my-app', // Optional
-});
-
-// Update a project
-const updated = await client.projects.update(1, {
-  name: 'Updated Name',
-});
-
-// Delete a project
+const project  = await client.projects.get(1);
+const created  = await client.projects.create({ name: 'My App', slug: 'my-app' });
+const updated  = await client.projects.update(1, { name: 'New Name' });
 await client.projects.delete(1);
 ```
 
 ### Issues
 
 ```typescript
-// List issues with pagination
-const response = await client.issues.list(projectId, {
-  sort: 'last_seen', // 'digest_order' | 'last_seen'
-  order: 'desc', // 'asc' | 'desc'
+// List with filters and cursor pagination
+const { items, next_cursor, has_more } = await client.issues.list(projectId, {
+  sort: 'last_seen',        // 'digest_order' | 'last_seen'
+  order: 'desc',            // 'asc' | 'desc'
   include_resolved: false,
-  cursor: 'eyJzb3J0...', // Optional: pagination cursor
+  cursor: 'eyJzb3J0...',    // from previous response
 });
 
-// Paginate through all issues
-let cursor: string | undefined;
-do {
-  const { items, next_cursor, has_more } = await client.issues.list(projectId, {
-    cursor,
-  });
-
-  // Process items...
-  cursor = next_cursor;
-} while (cursor);
-
-// Get a single issue
 const issue = await client.issues.get(projectId, issueId);
-
-// Update issue state
-const resolved = await client.issues.updateState(projectId, issueId, {
-  is_resolved: true,
-  is_muted: false,
-});
-
-// Delete an issue
+await client.issues.updateState(projectId, issueId, { is_resolved: true });
 await client.issues.delete(projectId, issueId);
 ```
 
 ### Events
 
 ```typescript
-// List events for an issue
-const { items, next_cursor } = await client.events.list(projectId, issueId, {
-  order: 'desc',
-  cursor: 'optional-cursor',
-});
-
-// Get event details
-const event = await client.events.get(projectId, issueId, eventId);
-
-// Access full Sentry event data
-console.log(event.data); // Full JSON payload
+const { items } = await client.events.list(projectId, issueId, { order: 'desc' });
+const event     = await client.events.get(projectId, issueId, eventId);
+console.log(event.data); // Full Sentry event payload
 ```
 
 ### Auth Tokens
 
 ```typescript
-// List tokens (masked)
-const tokens = await client.tokens.list();
-
-// Get a single token (masked)
-const token = await client.tokens.get(1);
-
-// Create a token (full token only shown once!)
-const created = await client.tokens.create({
-  description: 'CI/CD token',
-});
-console.log(created.token); // Save this! Won't be shown again
-
-// Delete a token
+const tokens  = await client.tokens.list();
+const created = await client.tokens.create({ description: 'CI token' });
+console.log(created.token); // Save this — shown only once
 await client.tokens.delete(1);
 ```
 
 ## Error Handling
 
-The client throws structured error classes for different scenarios:
-
 ```typescript
 import {
-  RustrakError,
-  NetworkError,
   AuthenticationError,
-  RateLimitError,
+  AuthorizationError,
   NotFoundError,
+  RateLimitError,
+  NetworkError,
+  ServerError,
   ValidationError,
 } from '@rustrak/client';
 
 try {
   await client.projects.list();
 } catch (error) {
-  if (error instanceof RateLimitError) {
-    console.log(`Rate limited. Retry after ${error.retryAfter}s`);
-  } else if (error instanceof AuthenticationError) {
-    console.log('Invalid token');
-  } else if (error instanceof NotFoundError) {
-    console.log('Resource not found');
-  } else if (error instanceof NetworkError) {
-    console.log('Network error - will retry automatically');
-  } else if (error instanceof ValidationError) {
-    console.log('API response validation failed');
-    console.log(error.getValidationDetails());
-  }
+  if (error instanceof RateLimitError)       console.log(`Retry after ${error.retryAfter}s`);
+  else if (error instanceof AuthenticationError) redirect('/login');
+  else if (error instanceof NotFoundError)   console.log('Not found');
+  else if (error instanceof NetworkError)    console.log('Will retry automatically');
+  else if (error instanceof ValidationError) console.log(error.getValidationDetails());
 }
 ```
 
-### Error Types
+| Error Class | HTTP | Retryable |
+|---|---|---|
+| `NetworkError` | — | ✅ |
+| `AuthenticationError` | 401 | ❌ |
+| `AuthorizationError` | 403 | ❌ |
+| `NotFoundError` | 404 | ❌ |
+| `BadRequestError` | 400 | ❌ |
+| `RateLimitError` | 429 | ✅ |
+| `ServerError` | 500+ | ✅ |
+| `ValidationError` | — | ❌ |
 
-| Error Class | HTTP Status | Retryable | Use Case |
-|-------------|-------------|-----------|----------|
-| `NetworkError` | - | ✅ | Connection issues, timeouts |
-| `AuthenticationError` | 401 | ❌ | Invalid credentials |
-| `AuthorizationError` | 403 | ❌ | Insufficient permissions |
-| `NotFoundError` | 404 | ❌ | Resource doesn't exist |
-| `BadRequestError` | 400 | ❌ | Invalid request payload |
-| `RateLimitError` | 429 | ✅ | Rate limit exceeded |
-| `ServerError` | 500+ | ✅ | Server-side errors |
-| `ValidationError` | - | ❌ | Response schema mismatch |
-
-## Usage with Next.js
+## Next.js Integration
 
 ### Server Component
 
@@ -206,48 +186,8 @@ export default async function ProjectsPage() {
     baseUrl: process.env.RUSTRAK_API_URL!,
     token: process.env.RUSTRAK_API_TOKEN!,
   });
-
   const projects = await client.projects.list();
-
-  return (
-    <div>
-      {projects.map((project) => (
-        <div key={project.id}>{project.name}</div>
-      ))}
-    </div>
-  );
-}
-```
-
-### Client Component with SWR
-
-```typescript
-'use client';
-
-import useSWR from 'swr';
-import { RustrakClient } from '@rustrak/client';
-
-const client = new RustrakClient({
-  baseUrl: process.env.NEXT_PUBLIC_RUSTRAK_API_URL!,
-  token: process.env.NEXT_PUBLIC_RUSTRAK_API_TOKEN!,
-});
-
-export function IssuesList({ projectId }: { projectId: number }) {
-  const { data, error, isLoading } = useSWR(
-    ['issues', projectId],
-    () => client.issues.list(projectId)
-  );
-
-  if (error) return <div>Error: {error.message}</div>;
-  if (isLoading) return <div>Loading...</div>;
-
-  return (
-    <div>
-      {data?.items.map((issue) => (
-        <div key={issue.id}>{issue.title}</div>
-      ))}
-    </div>
-  );
+  return <ProjectsList projects={projects} />;
 }
 ```
 
@@ -255,7 +195,6 @@ export function IssuesList({ projectId }: { projectId: number }) {
 
 ```typescript
 'use server';
-
 import { RustrakClient } from '@rustrak/client';
 
 export async function resolveIssue(projectId: number, issueId: string) {
@@ -263,16 +202,13 @@ export async function resolveIssue(projectId: number, issueId: string) {
     baseUrl: process.env.RUSTRAK_API_URL!,
     token: process.env.RUSTRAK_API_TOKEN!,
   });
-
-  return await client.issues.updateState(projectId, issueId, {
-    is_resolved: true,
-  });
+  return client.issues.updateState(projectId, issueId, { is_resolved: true });
 }
 ```
 
 ## TypeScript
 
-The client is written in TypeScript with strict mode enabled. All types are exported:
+All types are exported and inferred from Zod schemas — single source of truth:
 
 ```typescript
 import type {
@@ -280,37 +216,28 @@ import type {
   Issue,
   Event,
   EventDetail,
+  AuthToken,
   PaginatedResponse,
   CreateProject,
   UpdateIssueState,
 } from '@rustrak/client';
-
-const project: Project = await client.projects.get(1);
-const issues: PaginatedResponse<Issue> = await client.issues.list(1);
 ```
 
-## Development
+## Related Packages
 
-```bash
-# Install dependencies
-pnpm install
+| Package | Description |
+|---|---|
+| [`@rustrak/mcp`](https://www.npmjs.com/package/@rustrak/mcp) | MCP server — gives Claude Desktop, Cursor, and Continue direct access to your Rustrak instance via 18 tools |
 
-# Build
-pnpm build
+## What is Rustrak?
 
-# Type check
-pnpm check-types
+[Rustrak](https://abians.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. Drop-in replacement for Sentry — no code changes needed. Runs on ~50 MB of memory as a single binary or Docker image.
 
-# Run tests
-pnpm test
-
-# Run tests in watch mode
-pnpm test:watch
-
-# Generate coverage
-pnpm test:coverage
-```
+- [Getting Started](https://abians.github.io/rustrak/getting-started/overview)
+- [Self-Hosting Guide](https://abians.github.io/rustrak/configuration/production)
+- [API Reference](https://abians.github.io/rustrak/api-reference)
+- [GitHub](https://github.com/AbianS/rustrak)
 
 ## License
 
-GPL-3.0
+[GPL-3.0](https://github.com/AbianS/rustrak/blob/main/LICENSE)

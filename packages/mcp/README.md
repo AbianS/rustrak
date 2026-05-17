@@ -1,24 +1,49 @@
-# @rustrak/mcp
+<div align="center">
+  <a href="https://abians.github.io/rustrak">
+    <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
+  </a>
+  <h1>@rustrak/mcp</h1>
+  <p>MCP server that gives AI assistants full control of your <a href="https://abians.github.io/rustrak">Rustrak</a> error tracking</p>
 
-MCP (Model Context Protocol) server for Rustrak. Lets AI assistants (Claude Desktop, Cursor, etc.) manage your error tracking directly — list projects, inspect issues, view stack traces, resolve errors, and manage tokens without leaving your AI tool.
+  <p>
+    <a href="https://www.npmjs.com/package/@rustrak/mcp">
+      <img src="https://img.shields.io/npm/v/@rustrak/mcp?style=flat-square&color=cb3837" alt="npm version" />
+    </a>
+    <a href="https://www.npmjs.com/package/@rustrak/mcp">
+      <img src="https://img.shields.io/npm/dw/@rustrak/mcp?style=flat-square" alt="weekly downloads" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+      <img src="https://img.shields.io/npm/l/@rustrak/mcp?style=flat-square" alt="license" />
+    </a>
+    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/AbianS/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
+    </a>
+  </p>
 
-## Features
+  <p>
+    <a href="https://abians.github.io/rustrak/sdks/mcp">Documentation</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak">GitHub</a>
+    ·
+    <a href="https://github.com/AbianS/rustrak/issues">Report a Bug</a>
+  </p>
+</div>
 
-- **18 tools** covering projects, issues, events, tokens, and alert channels
-- **stdio transport** — runs as a local process, no network port needed
-- **Secure** — API token loaded from env vars, never passed as tool argument
-- **Safe destructive actions** — `delete_issue` and `revoke_token` annotated with `destructiveHint`
-- **Graceful errors** — all API errors returned as `isError: true` content, never thrown
+---
+
+`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for [Rustrak](https://abians.github.io/rustrak) — the self-hosted, Sentry-compatible error tracker. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 18 tools to list projects, inspect issues, view stack traces, resolve errors, and manage tokens without leaving your AI tool.
+
+**[Full documentation →](https://abians.github.io/rustrak/sdks/mcp)**
 
 ## Quick Start
 
 ### 1. Generate an API token
 
-In the Rustrak web UI: **Settings → Tokens → Create token**. Save the full token value — it is shown only once.
+In the Rustrak web UI: **Settings → Tokens → Create token**. Save the token value — it is shown only once.
 
-### 2. Configure in Claude Desktop
+### 2. Add to your AI client
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+**Claude Desktop** — `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -35,18 +60,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-### 3. Local monorepo (development)
-
-Build first, then configure with a `node` command pointing to the dist:
+**Cursor** — `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
 
 ```json
 {
   "mcpServers": {
     "rustrak": {
-      "command": "node",
-      "args": ["packages/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@rustrak/mcp"],
       "env": {
-        "RUSTRAK_API_URL": "http://localhost:8080",
+        "RUSTRAK_API_URL": "https://your-rustrak-instance.example.com",
         "RUSTRAK_API_TOKEN": "your-40-char-hex-token"
       }
     }
@@ -54,27 +77,61 @@ Build first, then configure with a `node` command pointing to the dist:
 }
 ```
 
-Or use the project-level `.mcp.json` at the repo root (Claude Code picks this up automatically).
+**Continue.dev** — `~/.continue/config.json`:
+
+```json
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@rustrak/mcp"],
+          "env": {
+            "RUSTRAK_API_URL": "https://your-rustrak-instance.example.com",
+            "RUSTRAK_API_TOKEN": "your-40-char-hex-token"
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+### 3. Ask your AI anything
+
+```
+"List all unresolved issues in project 1"
+"Show me the stack trace for issue abc-123"
+"Resolve all TypeError issues from the last deployment"
+"Create a CI pipeline token and give me the value"
+"How many events does issue xyz have?"
+```
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `RUSTRAK_API_TOKEN` | ✅ | — | 40-char hex API token. Server exits if missing. |
-| `RUSTRAK_API_URL` | ✅ | — | Base URL of your Rustrak server. Server exits if missing. |
+| Variable | Required | Description |
+|---|---|---|
+| `RUSTRAK_API_URL` | ✅ | Base URL of your Rustrak server (e.g. `https://errors.example.com`) |
+| `RUSTRAK_API_TOKEN` | ✅ | 40-char hex API token — create one in Settings → Tokens |
 
-## Available Tools
+The server exits immediately with a clear error message if either variable is missing.
+
+## Available Tools (18)
 
 ### Projects
+
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `list_projects` | List all projects |
 | `get_project` | Get project details including DSN |
 | `create_project` | Create a new project |
 
 ### Issues
+
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `list_issues` | List issues with filters (open / resolved / muted / all) |
 | `get_issue` | Get a single issue with full details |
 | `resolve_issue` | Mark an issue as resolved |
@@ -83,36 +140,67 @@ Or use the project-level `.mcp.json` at the repo root (Claude Code picks this up
 | `delete_issue` | ⚠️ Permanently delete an issue and all its events |
 
 ### Events
+
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `list_events` | List raw events for an issue (cursor pagination) |
 | `get_event` | Get a single event with full Sentry envelope data |
 
 ### Tokens
+
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `list_tokens` | List API tokens (masked) |
 | `create_token` | Create a new API token (full value shown once) |
 | `revoke_token` | ⚠️ Permanently revoke an API token |
 
 ### Alerts
+
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `list_alert_channels` | List notification channels (Slack, email, webhook) |
 | `test_alert_channel` | Send a test notification to a channel |
 | `list_alert_rules` | List alert rules for a project |
 
-> ⚠️ Tools marked as destructive will prompt for confirmation in supported clients.
+> ⚠️ Destructive tools (`delete_issue`, `revoke_token`) are annotated with `destructiveHint` — supported clients will prompt for confirmation before executing.
 
-## Example prompts
+## Architecture
 
-Once connected, you can ask your AI assistant things like:
+```
+AI Client (Claude Desktop / Cursor / Continue)
+        │  stdio (JSON-RPC)
+        ▼
+┌─────────────────────┐
+│   @rustrak/mcp      │  ← This package
+│   ├── projects      │
+│   ├── issues        │
+│   ├── events        │
+│   ├── tokens        │
+│   └── alerts        │
+└──────────┬──────────┘
+           │  HTTP (Bearer token via @rustrak/client)
+           ▼
+┌─────────────────────┐
+│   Rustrak Server    │
+│   (Rust/Actix-web)  │
+└─────────────────────┘
+```
 
-- _"List all unresolved issues in project 1"_
-- _"Show me the stack trace for issue abc-123"_
-- _"Resolve all TypeError issues from the last deployment"_
-- _"Create a token called 'CI pipeline' and give me the value"_
-- _"How many events does issue xyz have?"_
+The server runs as a local process over stdio — no open network port, no daemon. The API token is read from environment variables and never exposed as a tool argument.
+
+## Related Packages
+
+| Package | Description |
+|---|---|
+| [`@rustrak/client`](https://www.npmjs.com/package/@rustrak/client) | TypeScript HTTP client for the Rustrak API — used internally by this package |
+
+## What is Rustrak?
+
+[Rustrak](https://abians.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. No code changes needed if you're migrating from Sentry. Runs on ~50 MB of memory as a single binary or Docker image.
+
+- [Getting Started](https://abians.github.io/rustrak/getting-started/overview)
+- [Self-Hosting Guide](https://abians.github.io/rustrak/configuration/production)
+- [GitHub](https://github.com/AbianS/rustrak)
 
 ## Development
 
@@ -130,29 +218,6 @@ pnpm --filter @rustrak/mcp typecheck
 pnpm --filter @rustrak/mcp dev
 ```
 
-## Architecture
-
-```
-AI Client (Claude Desktop / Cursor)
-        │  stdio (JSON-RPC)
-        ▼
-┌─────────────────────┐
-│   @rustrak/mcp      │
-│   McpServer         │
-│   ├── projects      │
-│   ├── issues        │
-│   ├── events        │
-│   ├── tokens        │
-│   └── alerts        │
-└──────────┬──────────┘
-           │  HTTP (Bearer token)
-           ▼
-┌─────────────────────┐
-│   Rustrak Server    │
-│   (Rust/Actix-web)  │
-└─────────────────────┘
-```
-
 ## License
 
-GPL-3.0
+[GPL-3.0](https://github.com/AbianS/rustrak/blob/main/LICENSE)

@@ -1,0 +1,186 @@
+# @rustrak/client
+
+`@rustrak/client` is the official TypeScript client for the Rustrak REST API. It provides full type safety via Zod, automatic retry logic, structured error handling, and cursor-based pagination — all in ~28 KB.
+
+```bash
+npm install @rustrak/client
+# or
+pnpm add @rustrak/client
+# or
+yarn add @rustrak/client
+```
+
+**Requirements**: Node.js ≥ 18, TypeScript ≥ 5
+
+## Quick Start
+
+```typescript
+import { RustrakClient } from '@rustrak/client';
+
+const client = new RustrakClient({
+  baseUrl: 'https://your-rustrak-instance.example.com',
+  token: process.env.RUSTRAK_API_TOKEN!,
+});
+
+const projects = await client.projects.list();
+const { items } = await client.issues.list(1, { sort: 'last_seen', order: 'desc' });
+await client.issues.updateState(1, 'issue-id', { is_resolved: true });
+```
+
+## Configuration
+
+```typescript
+const client = new RustrakClient({
+  baseUrl: 'https://rustrak.example.com', // required
+  token: 'your-bearer-token',             // required — create one in Settings → Tokens
+  timeout: 30000,                         // optional, ms (default: 30000)
+  maxRetries: 2,                          // optional (default: 2)
+  headers: {},                            // optional custom headers
+});
+```
+
+## Projects
+
+```typescript
+const projects = await client.projects.list();
+const project  = await client.projects.get(1);
+const created  = await client.projects.create({ name: 'My App', slug: 'my-app' });
+const updated  = await client.projects.update(1, { name: 'New Name' });
+await client.projects.delete(1);
+```
+
+## Issues
+
+```typescript
+// List with filters
+const { items, next_cursor, has_more } = await client.issues.list(projectId, {
+  sort: 'last_seen',        // 'digest_order' | 'last_seen'
+  order: 'desc',            // 'asc' | 'desc'
+  include_resolved: false,
+  cursor: 'eyJzb3J0...',    // from previous response
+});
+
+// Paginate through all issues
+let cursor: string | undefined;
+do {
+  const { items, next_cursor } = await client.issues.list(projectId, { cursor });
+  // process items...
+  cursor = next_cursor;
+} while (cursor);
+
+const issue = await client.issues.get(projectId, issueId);
+await client.issues.updateState(projectId, issueId, { is_resolved: true });
+await client.issues.delete(projectId, issueId);
+```
+
+## Events
+
+```typescript
+const { items } = await client.events.list(projectId, issueId, { order: 'desc' });
+const event     = await client.events.get(projectId, issueId, eventId);
+console.log(event.data); // Full Sentry event payload
+```
+
+## Auth Tokens
+
+```typescript
+const tokens  = await client.tokens.list();
+const created = await client.tokens.create({ description: 'CI token' });
+console.log(created.token); // Save this — shown only once
+await client.tokens.delete(1);
+```
+
+## Error Handling
+
+The client throws typed error classes instead of generic errors, so you can handle each case precisely:
+
+```typescript
+import {
+  AuthenticationError,
+  NotFoundError,
+  RateLimitError,
+  NetworkError,
+  ValidationError,
+} from '@rustrak/client';
+
+try {
+  await client.projects.list();
+} catch (error) {
+  if (error instanceof RateLimitError)
+    console.log(`Retry after ${error.retryAfter}s`);
+  else if (error instanceof AuthenticationError)
+    redirect('/login');
+  else if (error instanceof NotFoundError)
+    console.log('Not found');
+  else if (error instanceof NetworkError)
+    console.log('Will retry automatically');
+  else if (error instanceof ValidationError)
+    console.log(error.getValidationDetails());
+}
+```
+
+| Error Class | HTTP | Retryable | Description |
+|---|---|---|---|
+| `NetworkError` | — | ✅ | Connection failures, timeouts |
+| `AuthenticationError` | 401 | ❌ | Invalid or expired token |
+| `AuthorizationError` | 403 | ❌ | Insufficient permissions |
+| `NotFoundError` | 404 | ❌ | Resource doesn't exist |
+| `BadRequestError` | 400 | ❌ | Invalid request payload |
+| `RateLimitError` | 429 | ✅ | Rate limit exceeded |
+| `ServerError` | 500+ | ✅ | Server-side errors |
+| `ValidationError` | — | ❌ | API response schema mismatch |
+
+## Next.js Integration
+
+### Server Component
+
+```typescript
+import { RustrakClient } from '@rustrak/client';
+
+export default async function ProjectsPage() {
+  const client = new RustrakClient({
+    baseUrl: process.env.RUSTRAK_API_URL!,
+    token: process.env.RUSTRAK_API_TOKEN!,
+  });
+  const projects = await client.projects.list();
+  return <ProjectsList projects={projects} />;
+}
+```
+
+### Server Action
+
+```typescript
+'use server';
+import { RustrakClient } from '@rustrak/client';
+
+export async function resolveIssue(projectId: number, issueId: string) {
+  const client = new RustrakClient({
+    baseUrl: process.env.RUSTRAK_API_URL!,
+    token: process.env.RUSTRAK_API_TOKEN!,
+  });
+  return client.issues.updateState(projectId, issueId, { is_resolved: true });
+}
+```
+
+## TypeScript Types
+
+All types are exported and inferred from Zod schemas:
+
+```typescript
+import type {
+  Project,
+  Issue,
+  Event,
+  EventDetail,
+  AuthToken,
+  PaginatedResponse,
+  CreateProject,
+  UpdateIssueState,
+} from '@rustrak/client';
+```
+
+## Related
+
+- [`@rustrak/mcp`](/sdks/mcp) — MCP server built on top of this client; gives Claude, Cursor, and Continue direct access to your Rustrak instance
+- [API Reference](/api-reference) — Full REST API documentation
+- [API Tokens](/usage/tokens) — How to create and manage tokens

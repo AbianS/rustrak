@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="apps/docs/public/logo.svg" alt="Rustrak" width="80" height="80" />
+  <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="80" height="80" />
   <h1>Rustrak</h1>
   <p><strong>Ultra-lightweight, self-hosted error tracking compatible with Sentry SDKs</strong></p>
 
@@ -185,6 +185,23 @@ sentry.Init(sentry.ClientOptions{Dsn: "http://<key>@localhost:8080/<project_id>"
 ```
 
 Works with **any** Sentry SDK - no code changes needed if you're migrating from Sentry.
+
+## SDKs & Integrations
+
+Official packages for programmatic access and AI assistant integration:
+
+| Package | Version | Description |
+|---|---|---|
+| [`@rustrak/client`](https://www.npmjs.com/package/@rustrak/client) | [![npm](https://img.shields.io/npm/v/@rustrak/client?style=flat-square)](https://www.npmjs.com/package/@rustrak/client) | Type-safe TypeScript client for the Rustrak REST API |
+| [`@rustrak/mcp`](https://www.npmjs.com/package/@rustrak/mcp) | [![npm](https://img.shields.io/npm/v/@rustrak/mcp?style=flat-square)](https://www.npmjs.com/package/@rustrak/mcp) | MCP server — lets Claude, Cursor, and Continue manage your Rustrak instance |
+
+```bash
+# Use the REST API from TypeScript/Node.js
+npm install @rustrak/client
+
+# Connect your AI assistant (Claude Desktop, Cursor, Continue.dev)
+npx @rustrak/mcp
+```
 
 ## Architecture
 
