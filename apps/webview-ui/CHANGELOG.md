@@ -1,5 +1,12 @@
 # webview-ui
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`40ba761`](https://github.com/AbianS/rustrak/commit/40ba76136d2c455fc22fcc1b99850eb3d29769bd)]:
+  - @rustrak/client@0.1.2
+
 ## 0.2.1
 
 ### Patch Changes
