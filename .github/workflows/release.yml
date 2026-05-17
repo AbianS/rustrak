@@ -122,5 +122,20 @@ jobs:
           else
             echo "Tag $CLIENT_TAG already exists, skipping"
           fi
+
+          # MCP
+          MCP_VERSION=$(node -p "require('./packages/mcp/package.json').version")
+          MCP_TAG="@rustrak/mcp@$MCP_VERSION"
+          if ! git tag -l | grep -q "^$MCP_TAG$"; then
+            echo "Creating release for $MCP_TAG"
+            git tag "$MCP_TAG"
+            git push origin "$MCP_TAG"
+            gh release create "$MCP_TAG" \
+              --title "🤖 @rustrak/mcp v$MCP_VERSION" \
+              --notes "Release of @rustrak/mcp version $MCP_VERSION" \
+              --latest=false
+          else
+            echo "Tag $MCP_TAG already exists, skipping"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
