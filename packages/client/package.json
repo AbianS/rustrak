@@ -1,8 +1,10 @@
 {
   "name": "@rustrak/client",
   "version": "0.1.1",
-  "private": true,
   "description": "TypeScript client for Rustrak API",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",

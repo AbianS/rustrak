@@ -1,18 +1,40 @@
 {
   "name": "@rustrak/mcp",
   "version": "0.1.0",
-  "private": true,
   "description": "MCP server for Rustrak error tracking — wraps @rustrak/client",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "bin": {
     "rustrak-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "keywords": [
+    "rustrak",
+    "mcp",
+    "model-context-protocol",
+    "error-tracking",
+    "claude"
+  ],
+  "license": "GPL-3.0",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
     "@rustrak/client": "workspace:*",
