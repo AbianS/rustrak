@@ -51,6 +51,7 @@ gh api graphql -f query='
             comments(first: 20) {
               nodes {
                 id
+                databaseId
                 body
                 path
                 line
@@ -68,7 +69,7 @@ gh api graphql -f query='
 ' -F owner="AbianS" -F repo="rustrak" -F pr={pr_number}
 ```
 
-Per thread store: `thread_id`, `is_resolved`, `is_outdated`, and per comment: `comment_id`, `author_login`, `body`, `path`, `line`, `diff_hunk`.
+Per thread store: `thread_id`, `is_resolved`, `is_outdated`, and per comment: `comment_id` (GraphQL node ID), `comment_db_id` (integer `databaseId`, used for REST `in_reply_to`), `author_login`, `body`, `path`, `line`, `diff_hunk`.
 
 ### 4. Fetch General Reviews (REST)
 
@@ -84,7 +85,7 @@ Store reviews with non-empty `body` and state CHANGES_REQUESTED or COMMENTED as 
 
 Mark `is_bot = true` if `author_login` ends in `[bot]` or is: `github-actions`, `coderabbitai`, `sonarqube`, `codeclimate`, `renovate`, `dependabot`.
 
-Store remaining as `active_threads`. Store filtered general reviews as `active_reviews`.
+Store remaining as `active_threads`. Set `total_active_threads = active_threads.length`. Store filtered general reviews as `active_reviews`.
 
 **If both empty:** display `✅ PR #{pr_number} has no active review comments.` → stop.
 

@@ -31,6 +31,8 @@ Proceed? [Y/N]
 
 Halt. N → stop.
 
+Initialize: `count_resolved = 0`, `resolve_errors = []`.
+
 ### 2. Resolve Fixed Threads
 
 For each thread in `approved_fixes` where `fix_applied = true`:
@@ -45,7 +47,7 @@ gh api graphql -f query='
 ' -F threadId="{thread_id}"
 ```
 
-On error: store in `resolve_errors`, continue.
+On success: `count_resolved += 1`. On error: store in `resolve_errors`, continue.
 
 ### 3. Reply + Resolve FP Threads
 
@@ -53,19 +55,18 @@ For each thread where `verdict = FALSE_POSITIVE`:
 
 **a. Post reply:**
 ```bash
+jq -n \
+  --arg body "> {first 60 chars of comment_claim}...\n\nReviewed: {fp_explanation}. No changes needed." \
+  --argjson id {comment_db_id} \
+  '{"body": $body, "in_reply_to": $id}' | \
 gh api repos/{repo_owner}/{repo_name}/pulls/{pr_number}/comments \
   --method POST \
-  --input - << 'BODY'
-{
-  "body": "> {first 60 chars of comment_claim}...\n\nReviewed: {fp_explanation}. No changes needed.",
-  "in_reply_to": {comment_id}
-}
-BODY
+  --input -
 ```
 
 **b. Resolve thread** (same GraphQL mutation as step 2).
 
-On error: store in `resolve_errors`, continue.
+On success: `count_resolved += 1`. On error: store in `resolve_errors`, continue.
 
 ### 4. Reply + Resolve Skipped Threads
 
@@ -73,7 +74,7 @@ For each thread in `skipped_fixes`:
 
 Reply: `Reviewed. The proposed fix requires broader changes ({skip_reason}). Will be addressed in a separate commit.`
 
-Then resolve via GraphQL.
+Then resolve via GraphQL. On success: `count_resolved += 1`. On error: store in `resolve_errors`, continue.
 
 ### 5. Reply to General Reviews
 
