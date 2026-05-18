@@ -75,7 +75,7 @@ Before issuing a verdict, verify:
 Store per thread:
 ```
 {
-  thread_id, index, author_login, is_bot,
+  thread_id, comment_id, index, author_login, is_bot,
   path, line, comment_claim, comment_type,
   verdict: "REAL" | "FALSE_POSITIVE",
   evidence,       // 1-2 sentences citing specific code with line reference

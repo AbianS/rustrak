@@ -22,7 +22,7 @@ Resolve every active thread on GitHub. Fixed → mark resolved. FP/skipped → r
 ```
 Resolution plan — {total_active_threads} threads:
 
-  🔴 Resolve (fixed):              {count_fixed}
+  🔴 Resolve (fixed):              {count_fix_applied}
   🟡 Reply + resolve (FP):         {count_fp}
   ⏭️  Reply + resolve (skipped):    {count_skipped}
 
@@ -53,12 +53,14 @@ For each thread where `verdict = FALSE_POSITIVE`:
 
 **a. Post reply:**
 ```bash
-gh api repos/AbianS/rustrak/pulls/{pr_number}/comments \
+gh api repos/{repo_owner}/{repo_name}/pulls/{pr_number}/comments \
   --method POST \
-  -f body="> {first 60 chars of comment_claim}...
-
-Reviewed: {fp_explanation}. No changes needed." \
-  -f in_reply_to={comment_id}
+  --input - << 'BODY'
+{
+  "body": "> {first 60 chars of comment_claim}...\n\nReviewed: {fp_explanation}. No changes needed.",
+  "in_reply_to": {comment_id}
+}
+BODY
 ```
 
 **b. Resolve thread** (same GraphQL mutation as step 2).
@@ -78,7 +80,7 @@ Then resolve via GraphQL.
 **If `active_reviews` is non-empty:** post a single consolidated response:
 
 ```bash
-gh api repos/AbianS/rustrak/pulls/{pr_number}/reviews \
+gh api repos/{repo_owner}/{repo_name}/pulls/{pr_number}/reviews \
   --method POST \
   -f body="All comments in this review have been analyzed and processed. See recent commits." \
   -f event="COMMENT"
