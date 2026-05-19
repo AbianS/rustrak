@@ -18,8 +18,8 @@ importers:
         specifier: 2.31.0
         version: 2.31.0(@types/node@25.8.0)
       bmad-method:
-        specifier: 6.6.0
-        version: 6.6.0
+        specifier: 6.7.1
+        version: 6.7.1
       turbo:
         specifier: 2.9.14
         version: 2.9.14
@@ -481,11 +481,13 @@ packages:
   '@chevrotain/utils@11.0.3':
     resolution: {integrity: sha512-YslZMgtJUyuMbZ+aKvfF3x1f5liK4mWNxghFRv7jqRR9C3R3fAOGTTKvxXDa2Y1s9zSbcpuO0cAxDYsc9SrXoQ==}
 
-  '@clack/core@1.1.0':
-    resolution: {integrity: sha512-SVcm4Dqm2ukn64/8Gub2wnlA5nS2iWJyCkdNHcvNHPIeBTGojpdJ+9cZKwLfmqy7irD4N5qLteSilJlE0WLAtA==}
+  '@clack/core@1.3.1':
+    resolution: {integrity: sha512-fT1qHVGAag4IEkrupZ6lRRbNCs1vS9P01KB/sG8zKgvUztbYtFBtQpjSITNwooDZ83tpsPzP0mRNs1/KVszCRA==}
+    engines: {node: '>= 20.12.0'}
 
-  '@clack/prompts@1.1.0':
-    resolution: {integrity: sha512-pkqbPGtohJAvm4Dphs2M8xE29ggupihHdy1x84HNojZuMtFsHiUlRvqD24tM2+XmI+61LlfNceM3Wr7U5QES5g==}
+  '@clack/prompts@1.4.0':
+    resolution: {integrity: sha512-S0My7XPGIgpRWMDG8uRqalbgT+a6FmCUdOW+HaIOVVpUPHOb7RrpvjTjiODadKp06fsrVDJZlIzc6yCTp4AnxA==}
+    engines: {node: '>= 20.12.0'}
 
   '@codemirror/autocomplete@6.20.1':
     resolution: {integrity: sha512-1cvg3Vz1dSSToCNlJfRA2WSI4ht3K+WplO0UMOgmUYPivCyy2oueZY6Lx7M9wThm7SDUBViRmuT+OG/i8+ON9A==}
@@ -3514,9 +3516,9 @@ packages:
     peerDependencies:
       react: '>=16.8'
 
-  bmad-method@6.6.0:
-    resolution: {integrity: sha512-OJtmMji+vdhjVLneTaIcWERnIZIVPbFRvV8BnN3N2a3uBxDC3QXcjRQXndo1Jr4QQTZq129YTdBsnbgVXjQBZQ==}
-    engines: {node: '>=20.0.0'}
+  bmad-method@6.7.1:
+    resolution: {integrity: sha512-5zHDkSXVxp3snVSwiPTL8RNHpB9JmXkYCBZsWrAhmVa2AxZ3+AgHaDpxOewtNaUtbq+daxoAqgvnSYgF9UmsAg==}
+    engines: {node: '>=20.12.0'}
     hasBin: true
 
   body-parser@2.2.2:
@@ -6727,13 +6729,16 @@ snapshots:
 
   '@chevrotain/utils@11.0.3': {}
 
-  '@clack/core@1.1.0':
+  '@clack/core@1.3.1':
     dependencies:
+      fast-wrap-ansi: 0.2.0
       sisteransi: 1.0.5
 
-  '@clack/prompts@1.1.0':
+  '@clack/prompts@1.4.0':
     dependencies:
-      '@clack/core': 1.1.0
+      '@clack/core': 1.3.1
+      fast-string-width: 3.0.2
+      fast-wrap-ansi: 0.2.0
       sisteransi: 1.0.5
 
   '@codemirror/autocomplete@6.20.1':
@@ -9840,10 +9845,10 @@ snapshots:
       mathjax-full: 3.2.2
       react: 19.2.6
 
-  bmad-method@6.6.0:
+  bmad-method@6.7.1:
     dependencies:
-      '@clack/core': 1.1.0
-      '@clack/prompts': 1.1.0
+      '@clack/core': 1.3.1
+      '@clack/prompts': 1.4.0
       '@kayvan/markdown-tree-parser': 1.6.1
       chalk: 4.1.2
       commander: 14.0.3
@@ -9854,7 +9859,7 @@ snapshots:
       picocolors: 1.1.1
       semver: 7.7.3
       xml2js: 0.6.2
-      yaml: 2.8.2
+      yaml: 2.9.0
     transitivePeerDependencies:
       - supports-color
 
