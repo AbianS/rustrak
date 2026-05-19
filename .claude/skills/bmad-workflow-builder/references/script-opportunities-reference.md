@@ -1,6 +1,6 @@
 # Script Opportunities Reference — Workflow Builder
 
-**Reference: `./script-standards.md` for script creation guidelines.**
+**Reference: `references/script-standards.md` for script creation guidelines.**
 
 ## Core Principle
 
@@ -44,7 +44,7 @@ When you see these in a workflow's requirements, think scripts first: "validate"
 
 ### Your Toolbox
 
-**Python is the default** for all script logic (cross-platform: macOS, Linux, Windows/WSL). See `./script-standards.md` for full rationale and safe bash commands.
+**Python is the default** for all script logic (cross-platform: macOS, Linux, Windows/WSL). See `references/script-standards.md` for full rationale and safe bash commands.
 
 - **Python:** Full standard library (`json`, `pathlib`, `re`, `argparse`, `collections`, `difflib`, `ast`, `csv`, `xml`, etc.) plus PEP 723 inline-declared dependencies (`tiktoken`, `jsonschema`, `pyyaml`, etc.)
 - **Safe shell commands:** `git`, `gh`, `uv run`, `npm`/`npx`/`pnpm`, `mkdir -p`

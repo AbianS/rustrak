@@ -179,6 +179,7 @@ h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
 <div id="broken-section"></div>
 <div id="opportunities-section"></div>
 <div id="strengths-section"></div>
+<div id="user-experience-section"></div>
 <div id="recommendations-section"></div>
 <div id="detailed-section"></div>
 
@@ -227,8 +228,10 @@ function normalize(d) {
     r.rank = r.rank || i + 1;
   });
   // Fix journeys: persona→archetype, friction→friction_points
-  if (d.detailed_analysis && d.detailed_analysis.experience) {
-    d.detailed_analysis.experience.journeys = (d.detailed_analysis.experience.journeys || []).map(j => ({
+  // Accept both `enhancement` (new) and `experience` (legacy) section keys
+  const expSection = d.detailed_analysis && (d.detailed_analysis.enhancement || d.detailed_analysis.experience);
+  if (expSection) {
+    expSection.journeys = (expSection.journeys || []).map(j => ({
       archetype: j.archetype || j.persona || j.name || 'Unknown',
       summary: j.summary || j.journey_summary || j.description || j.friction || '',
       friction_points: j.friction_points || (j.friction ? [j.friction] : []),
@@ -258,6 +261,7 @@ function init() {
   renderBroken();
   renderOpportunities();
   renderStrengths();
+  renderUserExperience();
   renderRecommendations();
   renderDetailed();
 }
@@ -348,16 +352,61 @@ function renderRecommendations() {
   document.getElementById('recommendations-section').innerHTML = html;
 }
 
+function renderUserExperience() {
+  const ux = DATA.detailed_analysis && DATA.detailed_analysis.enhancement;
+  if (!ux) return;
+  let html = `<div class="section"><div class="section-header open" onclick="toggleSection(this)">`;
+  html += `<span class="arrow">&#9654;</span><span class="label">User Experience</span>`;
+  html += `</div><div class="section-body open">`;
+  if (ux.assessment) html += `<p>${esc(ux.assessment)}</p>`;
+  if (ux.journeys && ux.journeys.length) {
+    html += `<div style="margin:1rem 0"><strong>User Journeys:</strong></div>`;
+    ux.journeys.forEach(j => {
+      html += `<div style="margin:0.75rem 0;padding:0.75rem;border-left:3px solid var(--accent);background:var(--surface2);">`;
+      html += `<div style="font-weight:600;margin-bottom:0.5rem">${esc(j.archetype)}</div>`;
+      html += `<p style="margin:0 0 0.5rem 0;font-size:0.95rem">${esc(j.summary || '')}</p>`;
+      if (j.friction_points && j.friction_points.length) {
+        html += `<div style="color:var(--high);font-size:0.85rem;margin:0.25rem 0"><strong>Friction Points:</strong></div>`;
+        html += `<ul style="margin:0.25rem 0 0.5rem 1.25rem;color:var(--high);font-size:0.85rem">`;
+        j.friction_points.forEach(fp => { html += `<li>${esc(fp)}</li>`; });
+        html += `</ul>`;
+      }
+      if (j.bright_spots && j.bright_spots.length) {
+        html += `<div style="color:var(--strength);font-size:0.85rem;margin:0.25rem 0"><strong>Bright Spots:</strong></div>`;
+        html += `<ul style="margin:0.25rem 0 0 1.25rem;color:var(--strength);font-size:0.85rem">`;
+        j.bright_spots.forEach(bs => { html += `<li>${esc(bs)}</li>`; });
+        html += `</ul>`;
+      }
+      html += `</div>`;
+    });
+  }
+  if (ux.autonomous) {
+    const a = ux.autonomous;
+    html += `<div style="margin:1rem 0;padding:0.75rem;background:var(--surface2);border-left:3px solid var(--suggestion);">`;
+    html += `<div style="font-weight:600;margin-bottom:0.5rem">Headless / Automation Potential</div>`;
+    html += `<div><strong>${esc(a.potential || '')}</strong>`;
+    if (a.notes) html += `: ${esc(a.notes)}`;
+    html += `</div></div>`;
+  }
+  (ux.findings || []).forEach(f => {
+    const loc = f.file ? `${f.file}${f.line ? ':'+f.line : ''}` : '';
+    html += `<div class="analysis-finding">`;
+    if (f.severity) html += `<span class="badge badge-${f.severity}">${esc(f.severity)}</span> `;
+    html += `${esc(f.title)}`;
+    if (loc) html += ` <span class="item-file">${esc(loc)}</span>`;
+    html += `</div>`;
+  });
+  html += `</div></div>`;
+  document.getElementById('user-experience-section').innerHTML = html;
+}
+
 function renderDetailed() {
   const da = DATA.detailed_analysis;
   if (!da) return;
   const dims = [
-    ['structure', 'Structure & Integrity'],
-    ['craft', 'Craft & Writing Quality'],
-    ['cohesion', 'Cohesion & Design'],
-    ['efficiency', 'Execution Efficiency'],
-    ['experience', 'User Experience'],
-    ['scripts', 'Script Opportunities']
+    ['architecture', 'Architecture (Structure, Craft, Cohesion)'],
+    ['determinism', 'Determinism & Distribution'],
+    ['customization', 'Customization Surface']
   ];
   let html = `<div class="section"><div class="section-header" onclick="toggleSection(this)">`;
   html += `<span class="arrow">&#9654;</span><span class="label">Detailed Analysis</span>`;

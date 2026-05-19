@@ -57,7 +57,7 @@ For scripts using only the standard library, use a plain Python shebang but stil
 - Always include `requires-python`
 - List all external dependencies with version constraints
 - Never use `requirements.txt`, `pip install`, or expect global package installs
-- The shebang is a Unix convenience — cross-platform invocation relies on `uv run scripts/foo.py`, not `./scripts/foo.py`
+- The shebang is a Unix convenience only — cross-platform invocation always uses `uv run scripts/foo.py`
 
 ## Invocation in SKILL.md
 

@@ -193,14 +193,14 @@ def scan_prompt_metrics(skill_path: Path) -> dict:
             data['is_skill_md'] = False
             files_data.append(data)
 
-    # Resources (just sizes, for progressive disclosure assessment)
-    resources_dir = skill_path / 'resources'
-    resource_sizes = {}
-    if resources_dir.exists():
-        for f in sorted(resources_dir.iterdir()):
+    # References (just sizes, for progressive disclosure assessment)
+    references_dir = skill_path / 'references'
+    reference_sizes = {}
+    if references_dir.exists():
+        for f in sorted(references_dir.iterdir()):
             if f.is_file() and f.suffix in ('.md', '.json', '.yaml', '.yml'):
                 content = f.read_text(encoding='utf-8')
-                resource_sizes[f.name] = {
+                reference_sizes[f.name] = {
                     'lines': len(content.split('\n')),
                     'tokens': len(content) // 4,
                 }
@@ -243,7 +243,7 @@ def scan_prompt_metrics(skill_path: Path) -> dict:
             'total_waste_patterns': total_waste,
             'total_back_references': total_backrefs,
         },
-        'resource_sizes': resource_sizes,
+        'reference_sizes': reference_sizes,
         'files': files_data,
     }
 

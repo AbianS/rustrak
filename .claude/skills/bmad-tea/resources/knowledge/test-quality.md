@@ -647,6 +647,7 @@ test('admin action', async ({ page }) => {
   - `data-factories.md` - Isolated, parallel-safe data patterns
   - `fixture-architecture.md` - Setup extraction and cleanup
   - `test-levels-framework.md` - Choosing appropriate test granularity for speed
+  - `confidence-gate.md` - Agent reliability gate that protects DoD compliance during LLM-assisted test generation
 
 ## Core Quality Checklist
 

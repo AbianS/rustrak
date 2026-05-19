@@ -1,123 +1,95 @@
-# BMad Module Workflows
+# Complex Workflow Patterns
 
-Advanced patterns for BMad module workflows — long-running, multi-stage processes with progressive disclosure, config integration, and compaction survival.
+Patterns for workflows whose SKILL.md got too big and had to carve out to `references/`. The default for any new skill is **inline** — a multi-stage coaching workflow lives in a single SKILL.md. Reach for these patterns only when SKILL.md genuinely won't fit.
 
----
+## Carve-Out Conventions
+
+When carving out to `references/`:
+
+- Descriptive filenames (`press-release.md`, `customer-faq.md`, `verdict.md`). Never numbered prefixes — the carve-out is a section, not a "step." SKILL.md decides the order by routing.
+- Each file works standalone (context compaction can drop SKILL.md). No "as described in the overview."
+- SKILL.md keeps Overview, Activation, the Conventions block (see `references/skill-quality-principles.md`), and the routing logic. Everything else moves out.
+- `assets/` is for templates and other static content the workflow loads, not for stages.
 
 ## Workflow Persona
 
 BMad workflows treat the human operator as the expert. The agent facilitates — asks clarifying questions, presents options with trade-offs, validates before irreversible actions. The operator knows their domain; the workflow knows the process.
 
----
-
 ## Config Reading and Integration
 
 Workflows read config from `{project-root}/_bmad/config.yaml` and `config.user.yaml`.
 
-### Config Loading Pattern
-
-**Module-based skills** — load with fallback and setup skill awareness:
+**Module-based skills** load with fallback and setup-skill awareness:
 
 ```
 Load config from {project-root}/_bmad/config.yaml ({module-code} section) and config.user.yaml.
 If missing: inform user that {module-setup-skill} is available, continue with sensible defaults.
 ```
 
-**Standalone skills** — load best-effort:
+**Standalone skills** load best-effort:
 
 ```
 Load config from {project-root}/_bmad/config.yaml and config.user.yaml if available.
-If missing: continue with defaults — no mention of setup skill.
+If missing: continue with defaults — no mention of a setup skill.
 ```
 
-### Required Core Variables
+Config variables resolved already contain `{project-root}` — never double-prefix.
 
-Load core config (user preferences, language, output locations) with sensible defaults. If the workflow creates documents, include document output language.
+## Decision-Log Workspace Pattern (canonical compaction survival)
 
-**Example config line for a document-producing workflow:**
+For workflows that produce revisable artifacts, the Decision-Log Workspace pattern is the default. See `references/skill-quality-principles.md` for the full treatment.
 
-```
-vars: user_name:BMad,communication_language:English,document_output_language:English,output_folder:{project-root}/_bmad-output,bmad_builder_output_folder:{project-root}/bmad-builder-creations/
-```
+**The pattern in one paragraph.** The workspace folder (artifact + `.decision-log.md` + optional `addendum.md` + optional `distillate.md`) exists from the moment intent is confirmed. Decision-log captures every meaningful decision and rationale; addendum captures rejected alternatives. Resume on activation, conflict-detect on update, audit at finalize. The decision log is the load-bearing artifact — the document is what the user takes; the log is what carries identity across sessions.
 
-Config variables used directly in prompts — they already contain `{project-root}` in resolved values.
+**For Complex Workflows that route to carved-out files**, each carved file must work standalone (compaction can drop SKILL.md mid-flow). Carved files reference the workspace by config-resolved path (`{workflow.output_dir}/{workflow.output_folder_name}/`) — never assume in-context state.
 
----
-
-## Long-Running Workflows: Compaction Survival
-
-Workflows that run long may trigger context compaction. Critical state MUST survive in output files.
-
-### The Document-Itself Pattern
-
-**The output document is the cache.** Write directly to the file you're creating, updating progressively. The document stores both content and context:
-
-- **YAML front matter** — paths to input files, current status
-- **Draft sections** — progressive content as it's built
-- **Status marker** — which stage is complete
-
-Each stage after the first reads the output document to recover context. If compacted, re-read input files listed in the YAML front matter.
+**YAML frontmatter on the primary artifact** (status + inputs survives compaction):
 
 ```markdown
 ---
 title: 'Analysis: Research Topic'
-status: 'analysis'
+status: 'discovery'
 inputs:
-  - '{project_root}/docs/brief.md'
+  - '{project-root}/docs/brief.md'
 created: '2025-03-02T10:00:00Z'
 updated: '2025-03-02T11:30:00Z'
 ---
 ```
 
-**When to use:** Guided flows with long documents, yolo flows with multiple turns. Single-pass yolo can wait to write final output.
+**When NOT to apply:** purely conversational workflows, one-shot single-turn outputs, multi-artifact workflows where each artifact gets its own folder.
 
-**When NOT to use:** Short single-turn outputs, purely conversational workflows, multiple independent artifacts (each gets its own file).
+## Routing from SKILL.md
 
----
+When SKILL.md routes to a carved-out file, the route is by descriptive name. Use a Stages table near the bottom of SKILL.md:
 
-## Sequential Progressive Disclosure
+```markdown
+## Stages
 
-Use numbered prompt files at the skill root when:
-
-- Multi-phase workflow with ordered stages
-- Input of one phase affects the next
-- Workflow is long-running and stages shouldn't be visible upfront
-
-### Structure
-
-```
-my-workflow/
-├── SKILL.md                    # Routing + entry logic (minimal)
-├── references/
-│   ├── 01-discovery.md         # Stage 1
-│   ├── 02-planning.md          # Stage 2
-│   ├── 03-execution.md         # Stage 3
-│   └── templates.md            # Supporting reference
-└── scripts/
-    └── validator.sh
+| # | Stage | Purpose | Location |
+|---|-------|---------|----------|
+| 1 | Ignition | Raw concept, enforce customer-first thinking | SKILL.md (above) |
+| 2 | Press Release | Iterative drafting with hard coaching | `references/press-release.md` |
+| 3 | Customer FAQ | Devil's advocate customer questions | `references/customer-faq.md` |
 ```
 
-Each stage prompt specifies prerequisites, progression conditions, and next destination. SKILL.md is minimal routing logic.
-
-**Keep inline in SKILL.md when:** Simple skill, well-known domain, single-purpose utility, all stages independent.
-
----
+The `#` is a reading aid for the table, not a filename prefix.
 
 ## Module Metadata Reference
 
-BMad module workflows require extended frontmatter metadata. See `./metadata-reference.md` for the metadata template and field explanations.
+BMad module workflows require extended frontmatter metadata. See `references/metadata-reference.md` for the metadata template and field explanations.
 
----
+## Architecture Checklist
 
-## Workflow Architecture Checklist
+Before finalizing a complex BMad workflow:
 
-Before finalizing a BMad module workflow, verify:
-
-- [ ] Facilitator persona — treats operator as expert?
+- [ ] Default reconsidered — would this fit inline as named sections in a single SKILL.md?
+- [ ] Facilitator persona — treats the operator as expert?
 - [ ] Config integration — language, output locations read and used?
-- [ ] Portable paths — artifacts use `{project_root}`?
-- [ ] Compaction survival — each stage writes to output document?
-- [ ] Document-as-cache — YAML front matter with status and inputs?
-- [ ] Progressive disclosure — stages in `references/` with progression conditions?
+- [ ] Conventions block stamped at top of SKILL.md (when multiple internal files are referenced)
+- [ ] Carve-outs in `references/` use descriptive names, no numbered prefixes
+- [ ] Each carved file works standalone (compaction survival)
+- [ ] Decision-Log Workspace pattern applied (or explicit reason for skipping — Simple Utility, one-shot, purely conversational)
+- [ ] Resume protocol — Activation checks for existing workspace and offers to resume
+- [ ] Update mode reads `.decision-log.md` first; surfaces conflicts before applying changes
 - [ ] Final polish — subagent polish step at the end?
-- [ ] Recovery — can resume by reading output doc front matter?
+- [ ] Finalize step includes decision-log audit (every entry → primary, addendum, or explicit process noise)
