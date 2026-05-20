@@ -1,11 +1,14 @@
 //! Uptime probe implementations for HTTP and TCP checks.
 
+#[cfg(not(test))]
 use std::net::IpAddr;
 use std::time::{Duration, Instant};
 
+#[cfg(not(test))]
 use url::Url;
 
 use crate::models::monitor::Monitor;
+#[cfg(not(test))]
 use crate::services::monitor::is_ip_reserved;
 
 /// Result of a single probe execution
