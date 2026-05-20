@@ -36,7 +36,7 @@ importers:
         specifier: 0.9.37
         version: 0.9.37(react@19.2.6)(tailwindcss@4.3.0)(typescript@6.0.3)(zod@4.4.3)
       '@tailwindcss/typography':
-        specifier: ^0.5.19
+        specifier: 0.5.19
         version: 0.5.19(tailwindcss@4.3.0)
       class-variance-authority:
         specifier: 0.7.1
@@ -45,7 +45,7 @@ importers:
         specifier: 2.1.1
         version: 2.1.1
       gray-matter:
-        specifier: ^4.0.3
+        specifier: 4.0.3
         version: 4.0.3
       lucide-react:
         specifier: 1.16.0
@@ -66,7 +66,7 @@ importers:
         specifier: 19.2.6
         version: 19.2.6(react@19.2.6)
       reading-time:
-        specifier: ^1.5.0
+        specifier: 1.5.0
         version: 1.5.0
       tailwind-merge:
         specifier: 3.6.0
