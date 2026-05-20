@@ -117,6 +117,13 @@ pub struct CreateMonitor {
     pub repeat_interval_secs: Option<i32>,
 }
 
+/// DTO for assigning notification channels to a monitor (replaces existing assignments)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct AssignChannels {
+    pub channel_ids: Vec<i32>,
+}
+
 /// DTO for updating a monitor
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

@@ -8,7 +8,7 @@ use crate::db::DbPool;
 use crate::error::AppResult;
 #[cfg(feature = "openapi")]
 use crate::models::monitor::Monitor;
-use crate::models::monitor::{CreateMonitor, UpdateMonitor};
+use crate::models::monitor::{AssignChannels, CreateMonitor, UpdateMonitor};
 use crate::services::monitor::MonitorService;
 use crate::services::uptime::probes::{run_http_probe, run_tcp_probe};
 
@@ -207,6 +207,32 @@ pub async fn trigger_check(
     })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    put,
+    path = "/api/monitors/{id}/channels",
+    tag = "Monitors",
+    params(("id" = Uuid, Path, description = "Monitor ID")),
+    request_body = AssignChannels,
+    responses(
+        (status = 204, description = "Channels assigned"),
+        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// PUT /api/monitors/:id/channels — replace all alert channel assignments for a monitor
+pub async fn put_monitor_channels(
+    pool: web::Data<DbPool>,
+    path: web::Path<Uuid>,
+    body: web::Json<AssignChannels>,
+    _auth: ApiAuth,
+) -> AppResult<HttpResponse> {
+    let id = path.into_inner();
+    MonitorService::assign_channels(pool.get_ref(), id, body.into_inner().channel_ids).await?;
+    Ok(HttpResponse::NoContent().finish())
+}
+
 // =============================================================================
 // Route configuration
 // =============================================================================
@@ -220,7 +246,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/{id}", web::get().to(get_monitor))
             .route("/{id}", web::patch().to(update_monitor))
             .route("/{id}", web::delete().to(delete_monitor))
-            .route("/{id}/check", web::post().to(trigger_check)),
+            .route("/{id}/check", web::post().to(trigger_check))
+            .route("/{id}/channels", web::put().to(put_monitor_channels)),
     );
 }
 
