@@ -21,6 +21,11 @@ function ensurePostsDir() {
   if (!fs.existsSync(POSTS_DIR)) fs.mkdirSync(POSTS_DIR, { recursive: true });
 }
 
+function safeDate(s: string): Date | null {
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function getPosts(): Post[] {
   ensurePostsDir();
   return fs
@@ -30,10 +35,13 @@ export function getPosts(): Post[] {
       const raw = fs.readFileSync(path.join(POSTS_DIR, filename), 'utf-8');
       const { data, content } = matter(raw);
       return {
-        slug: filename.replace('.mdx', ''),
+        slug: filename.replace(/\.mdx$/, ''),
         title: data.title ?? 'Untitled',
         description: data.description ?? '',
-        date: data.date ?? new Date().toISOString().split('T')[0],
+        date:
+          data.date instanceof Date
+            ? data.date.toISOString().split('T')[0]
+            : String(data.date ?? new Date().toISOString().split('T')[0]),
         author: data.author ?? 'Rustrak Team',
         tags: Array.isArray(data.tags) ? data.tags : [],
         image: data.image,
@@ -42,7 +50,10 @@ export function getPosts(): Post[] {
       };
     })
     .filter((p) => process.env.NODE_ENV === 'development' || !p.draft)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort(
+      (a, b) =>
+        (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0),
+    );
 }
 
 export function getPost(slug: string): { post: Post; content: string } | null {
@@ -55,7 +66,10 @@ export function getPost(slug: string): { post: Post; content: string } | null {
     slug,
     title: data.title ?? 'Untitled',
     description: data.description ?? '',
-    date: data.date ?? new Date().toISOString().split('T')[0],
+    date:
+      data.date instanceof Date
+        ? data.date.toISOString().split('T')[0]
+        : String(data.date ?? new Date().toISOString().split('T')[0]),
     author: data.author ?? 'Rustrak Team',
     tags: Array.isArray(data.tags) ? data.tags : [],
     image: data.image,
@@ -66,7 +80,9 @@ export function getPost(slug: string): { post: Post; content: string } | null {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
+  const d = safeDate(dateStr);
+  if (!d) return dateStr;
+  return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
