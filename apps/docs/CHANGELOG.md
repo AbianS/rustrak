@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.15
+
+### Patch Changes
+
+- [#79](https://github.com/AbianS/rustrak/pull/79) [`55fa648`](https://github.com/AbianS/rustrak/commit/55fa648963cb9d9cb4055520383fa35653c53052) Thanks [@AbianS](https://github.com/AbianS)! - Add blog section to documentation site
+
 ## 0.1.14
 
 ### Patch Changes
