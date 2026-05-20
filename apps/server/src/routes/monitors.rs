@@ -166,7 +166,7 @@ pub async fn trigger_check(
     // Record in monitor_checks (status 2 = manual check)
     let check_id = uuid::Uuid::new_v4();
     let now = chrono::Utc::now();
-    let status: i32 = if probe.ok { 1 } else { 0 };
+    let status: i32 = 2; // probe outcome returned in JSON; error_message captures failure detail
 
     #[cfg(feature = "postgres")]
     sqlx::query(

@@ -123,7 +123,7 @@ fn is_ipv6_reserved(ip: Ipv6Addr) -> bool {
     false
 }
 
-fn is_ip_reserved(ip: IpAddr) -> bool {
+pub(crate) fn is_ip_reserved(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => is_ipv4_reserved(v4),
         IpAddr::V6(v6) => is_ipv6_reserved(v6),
