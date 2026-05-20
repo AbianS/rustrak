@@ -31,6 +31,12 @@ export function LandingNavbar() {
             Documentation
           </Link>
           <Link
+            href="/blog"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Blog
+          </Link>
+          <Link
             href="https://github.com/AbianS/rustrak"
             target="_blank"
             rel="noopener noreferrer"
@@ -66,6 +72,13 @@ export function LandingNavbar() {
               onClick={() => setIsMenuOpen(false)}
             >
               Documentation
+            </Link>
+            <Link
+              href="/blog"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Blog
             </Link>
             <Link
               href="https://github.com/AbianS/rustrak"
