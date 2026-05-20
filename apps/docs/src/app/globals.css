@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "nextra-theme-docs/style.css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -169,4 +171,40 @@ html.dark {
 
 .dark .nextra-toc a[aria-current="true"] {
   color: oklch(0.91 0.18 127);
+}
+
+/* Blog layout: hide sidebar and TOC, use full-width content */
+body.blog-layout .nextra-sidebar-container,
+body.blog-layout .nextra-toc {
+  display: none !important;
+}
+
+body.blog-layout article.nextra-content,
+body.blog-layout .nextra-content {
+  max-width: none !important;
+  padding: 0 !important;
+}
+
+/* Blog prose customization */
+.blog-section .prose {
+  --tw-prose-links: oklch(0.65 0.18 127);
+  --tw-prose-invert-links: oklch(0.91 0.18 127);
+  --tw-prose-code: inherit;
+  --tw-prose-pre-bg: transparent;
+}
+
+.blog-section .prose pre {
+  padding: 0;
+  background: transparent;
+}
+
+.blog-section .prose :not(pre) > code {
+  background: oklch(0.96 0 0);
+  padding: 0.15em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.dark .blog-section .prose :not(pre) > code {
+  background: oklch(0.22 0 0);
 }

@@ -18,6 +18,16 @@ export default {
     type: 'page',
     href: '/getting-started/overview',
   },
+  blog: {
+    title: 'Blog',
+    type: 'page',
+    theme: {
+      sidebar: false,
+      toc: false,
+      breadcrumb: false,
+      pagination: false,
+    },
+  },
   'getting-started': 'Getting Started',
   configuration: 'Configuration',
   usage: 'Usage',

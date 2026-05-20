@@ -1,7 +1,13 @@
 import { generateStaticParamsFor, importPage } from 'nextra/pages';
 import { useMDXComponents } from '../../../mdx-components';
 
-export const generateStaticParams = generateStaticParamsFor('mdxPath');
+export async function generateStaticParams() {
+  const all = await generateStaticParamsFor('mdxPath')();
+  // Blog posts are handled by app/blog/[slug]/page.tsx
+  return all.filter(
+    (p) => !Array.isArray(p.mdxPath) || p.mdxPath[0] !== 'blog',
+  );
+}
 
 // Return 404 for paths not in generateStaticParams
 export const dynamicParams = false;

@@ -1,0 +1,103 @@
+---
+title: "Introducing Rustrak: Self-Hosted Error Tracking for the Paranoid"
+description: "Why we built another error tracker, how it works, and what makes Rustrak different from the cloud options you're already paying too much for."
+date: "2026-01-22"
+author: "Abian Suarez"
+tags: ["release", "rust", "architecture"]
+---
+
+Error tracking is one of those things that feels solved. Sentry exists. Rollbar exists. Datadog will happily charge you $400/month to tell you your server is on fire. So why build another one?
+
+Because most teams don't need a SaaS platform. They need a binary that runs in Docker, speaks the Sentry protocol, and doesn't phone home.
+
+## The Problem with the Alternatives
+
+Sentry is excellent. Their open-source self-hosted version is also excellent — and it requires PostgreSQL, Redis, Kafka, Zookeeper, Celery, and a minimum of 8GB RAM to run locally. That's fine for a company. It's overkill for a startup, a side project, or a team that just wants to know when their app crashes.
+
+The lightweight alternatives either abandoned the Sentry SDK ecosystem (forcing you to rewrite your instrumentation) or they're still cloud-only.
+
+## What Rustrak Does
+
+Rustrak is an API server written in Rust that accepts events from any Sentry SDK and stores them in PostgreSQL. That's it.
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌──────────────┐
+│   Your App      │────▶│  Rustrak Server │────▶│  PostgreSQL  │
+│ (Sentry SDK)    │     │  (Rust/Actix)   │     │              │
+└─────────────────┘     └─────────────────┘     └──────────────┘
+```
+
+You point your existing `SENTRY_DSN` at a Rustrak instance and it works. No SDK changes. No vendor lock-in. Your existing error tracking code stays exactly as-is.
+
+## Architecture: Two-Phase Ingestion
+
+One design decision we're particularly happy with is the two-phase ingestion model:
+
+**Phase 1 — Ingest (synchronous, &lt;50ms):** The SDK sends an event envelope. Rustrak parses it, validates the DSN and auth token, stores the raw event, and returns `200 OK`. This phase is intentionally minimal — we prioritize acknowledging the event over processing it.
+
+**Phase 2 — Digest (asynchronous):** A background worker picks up the raw event, calculates its fingerprint, finds or creates the corresponding issue, and updates all the counters. This happens out of band and doesn't affect the SDK's experience.
+
+This matters because ingestion latency directly affects your application. A slow error tracker can cascade into production issues. By keeping Phase 1 under 50ms and doing all the heavy work asynchronously, the SDK always gets a fast response.
+
+## Issue Grouping
+
+Events get grouped into Issues using a deterministic fingerprinting algorithm:
+
+1. If the event has a custom `fingerprint` field, use that.
+2. Otherwise, hash `exception_type + first_line_of_message + transaction`.
+3. For log events, hash `log_message + transaction`.
+4. Fallback to the event type.
+
+The same error happening 1,000 times shows up as one Issue with a count of 1,000. This is the core value of error tracking — noise reduction.
+
+## Memory Footprint
+
+One of our goals was a server that runs comfortably in constrained environments. At idle, Rustrak sits at around 30–50MB of RAM. Under load (hundreds of events/second), it stays well under 100MB. The async runtime (Tokio) and the lightweight HTTP framework (Actix-web) make this possible without any manual tuning.
+
+For comparison: the minimum recommended RAM for Sentry's self-hosted stack is 3GB.
+
+## Getting Started
+
+The fastest way is with Docker — no database setup required, SQLite is included by default.
+
+```yaml
+# docker-compose.yml
+services:
+  server:
+    image: abians7/rustrak-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - rustrak_data:/data
+    environment:
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+    restart: unless-stopped
+
+  ui:
+    image: abians7/rustrak-ui:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  rustrak_data:
+```
+
+```bash
+SESSION_SECRET_KEY=$(openssl rand -hex 32)
+CREATE_SUPERUSER=admin@example.com:changeme123
+docker compose up -d
+```
+
+Open `http://localhost:3000`, log in, create a project, and point your existing Sentry SDK at it:
+
+```javascript
+Sentry.init({ dsn: "http://<key>@localhost:8080/<project_id>" })
+```
+
+No SDK changes. It just works. The [Getting Started guide](/getting-started/overview) covers PostgreSQL, environment variables, and production setup in detail.
