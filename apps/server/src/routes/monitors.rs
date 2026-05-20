@@ -6,6 +6,8 @@ use uuid::Uuid;
 use crate::auth::ApiAuth;
 use crate::db::DbPool;
 use crate::error::AppResult;
+#[cfg(feature = "openapi")]
+use crate::models::monitor::Monitor;
 use crate::models::monitor::{CreateMonitor, UpdateMonitor};
 use crate::services::monitor::MonitorService;
 use crate::services::uptime::probes::{run_http_probe, run_tcp_probe};
@@ -232,7 +234,6 @@ mod tests {
     // These are integration tests that require a running app+db.
     // Unit-level validation is tested in services/monitor.rs.
 
-    use super::*;
     use crate::models::monitor::CheckType;
     use crate::services::monitor::validate_monitor_url;
 

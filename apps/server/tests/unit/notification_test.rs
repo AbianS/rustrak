@@ -12,18 +12,21 @@ use std::sync::Mutex;
 static SMTP_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// RAII guard that restores SMTP_HOST to its previous value on drop.
+/// Holds the mutex for its entire lifetime so parallel tests can't race.
 struct SmtpHostGuard {
     previous: Option<String>,
+    _lock: std::sync::MutexGuard<'static, ()>,
 }
 
 impl SmtpHostGuard {
     fn set(value: &str) -> Self {
-        let _lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
         let previous = std::env::var("SMTP_HOST").ok();
         std::env::set_var("SMTP_HOST", value);
-        // Note: We don't store the lock - tests are short enough that
-        // holding it for the guard's lifetime is acceptable
-        Self { previous }
+        Self {
+            previous,
+            _lock: lock,
+        }
     }
 }
 

@@ -9,6 +9,9 @@ ignore = [
     # rand 0.8.x unsound with custom logger — no fix without sqlx upgrade;
     # comes from sqlx-postgres (transitive dep), sqlx 0.8.x pins rand 0.8.
     "RUSTSEC-2026-0097",
+    # astral-tokio-tar PAX Header Desynchronization — comes via dev dep
+    # testcontainers → astral-tokio-tar 0.6.1; not used in production builds.
+    "RUSTSEC-2026-0145",
 ]
 
 [licenses]
