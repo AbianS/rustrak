@@ -31,6 +31,10 @@ fn create_test_config(rate_limit: RateLimitConfig) -> Config {
             session_secret_key: None,
         },
         ingest_dir: Some("/tmp/rustrak_test_ratelimit".to_string()),
+        uptime: rustrak::config::UptimeConfig {
+            retention_days: 90,
+            max_concurrent_checks: 50,
+        },
     }
 }
 

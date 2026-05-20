@@ -8,6 +8,7 @@ use rustrak::db;
 use rustrak::middleware::auth::RequireAuth;
 use rustrak::models;
 use rustrak::routes;
+use rustrak::services::uptime;
 use rustrak::services::AuthTokenService;
 
 #[cfg(feature = "openapi")]
@@ -66,9 +67,15 @@ async fn main() -> std::io::Result<()> {
 
     let key = Key::from(secret_key.as_bytes());
 
-    // Clone values for the closure
+    // Clone values for the closure and for background tasks
     let host = config.host.clone();
     let port = config.port;
+
+    // Clone pool and config for background tasks (before the move closure captures them)
+    let uptime_pool_pre = db_pool.clone();
+    let cleanup_pool_pre = db_pool.clone();
+    let uptime_config_pre = config.uptime.clone();
+    let retention_days_pre = config.uptime.retention_days;
 
     // Pre-compute OpenAPI spec once per process (not once per worker)
     #[cfg(feature = "openapi")]
@@ -139,6 +146,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::tokens::configure)
             // Alert channels (global, not nested under projects)
             .configure(routes::alerts::configure_channels)
+            // Uptime monitoring routes
+            .configure(routes::monitors::configure)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure);
 
@@ -162,6 +171,20 @@ async fn main() -> std::io::Result<()> {
     .bind((host.as_str(), port))?
     .shutdown_timeout(30)
     .run();
+
+    // Spawn uptime monitoring scheduler
+    let uptime_client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    tokio::spawn(async move {
+        uptime::run_scheduler(uptime_pool_pre, uptime_config_pre, uptime_client).await;
+    });
+
+    // Spawn uptime cleanup task
+    tokio::spawn(async move {
+        uptime::run_cleanup_task(cleanup_pool_pre, retention_days_pre).await;
+    });
 
     // Spawn graceful shutdown handler
     let server_handle = server.handle();

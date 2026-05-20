@@ -4,6 +4,7 @@ pub mod event;
 pub mod grouping;
 pub mod installation;
 pub mod issue;
+pub mod monitor;
 pub mod project;
 pub mod user;
 

@@ -35,6 +35,10 @@ fn create_test_config() -> Config {
             session_secret_key: None,
         },
         ingest_dir: Some("/tmp/rustrak_test_ingest".to_string()),
+        uptime: rustrak::config::UptimeConfig {
+            retention_days: 90,
+            max_concurrent_checks: 50,
+        },
     }
 }
 

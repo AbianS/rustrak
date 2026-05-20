@@ -1,6 +1,31 @@
 use std::env;
 use std::time::Duration;
 
+/// Uptime monitoring configuration
+#[derive(Debug, Clone)]
+pub struct UptimeConfig {
+    /// How many days of check history to retain
+    pub retention_days: u32,
+    /// Maximum number of concurrent probe tasks
+    pub max_concurrent_checks: usize,
+}
+
+impl UptimeConfig {
+    /// Load uptime configuration from environment variables
+    pub fn from_env() -> Self {
+        Self {
+            retention_days: std::env::var("UPTIME_RETENTION_DAYS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(90),
+            max_concurrent_checks: std::env::var("UPTIME_MAX_CONCURRENT_CHECKS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50),
+        }
+    }
+}
+
 /// Application configuration loaded from environment variables
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -10,6 +35,7 @@ pub struct Config {
     pub rate_limit: RateLimitConfig,
     pub security: SecurityConfig,
     pub ingest_dir: Option<String>,
+    pub uptime: UptimeConfig,
 }
 
 /// Database connection pool configuration
@@ -59,6 +85,7 @@ impl Config {
             rate_limit: RateLimitConfig::from_env(),
             security: SecurityConfig::from_env()?,
             ingest_dir: env::var("INGEST_DIR").ok(),
+            uptime: UptimeConfig::from_env(),
         })
     }
 }

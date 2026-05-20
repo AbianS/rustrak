@@ -3,9 +3,11 @@ pub mod auth_token;
 pub mod event;
 pub mod grouping;
 pub mod issue;
+pub mod monitor;
 pub mod notification;
 pub mod project;
 pub mod rate_limit;
+pub mod uptime;
 pub mod users;
 
 pub use alert::AlertService;

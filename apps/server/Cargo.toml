@@ -102,6 +102,9 @@ utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
 rstest = "0.26.1"
 serial_test = "3.4.0"
 
+# HTTP mocking for probe tests
+mockito = "1.6"
+
 # HTTP testing for actix-web
 actix-test = "0.1.5"
 # Note: reqwest available from main dependencies

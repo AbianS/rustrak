@@ -4,5 +4,6 @@ pub mod events;
 pub mod health;
 pub mod ingest;
 pub mod issues;
+pub mod monitors;
 pub mod projects;
 pub mod tokens;
