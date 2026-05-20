@@ -50,6 +50,15 @@ pub fn validate_monitor_bounds(
     Ok(())
 }
 
+pub fn validate_repeat_interval(repeat_interval_secs: i32) -> AppResult<()> {
+    if repeat_interval_secs < 1 {
+        return Err(AppError::Validation(format!(
+            "repeat_interval_secs must be at least 1, got {repeat_interval_secs}"
+        )));
+    }
+    Ok(())
+}
+
 // =============================================================================
 // SSRF prevention
 // =============================================================================
@@ -90,16 +99,26 @@ fn is_ipv4_reserved(ip: Ipv4Addr) -> bool {
     false
 }
 
-/// Returns true if the given IPv6 address is a loopback or link-local.
+/// Returns true if the given IPv6 address is a loopback, link-local, ULA, or IPv4-mapped reserved.
 fn is_ipv6_reserved(ip: Ipv6Addr) -> bool {
     // ::1 loopback
     if ip == Ipv6Addr::LOCALHOST {
         return true;
     }
-    // fe80::/10 link-local
     let segments = ip.segments();
+    // fe80::/10 link-local
     if (segments[0] & 0xffc0) == 0xfe80 {
         return true;
+    }
+    // fc00::/7 Unique Local Address (IPv6 equivalent of RFC-1918)
+    if (segments[0] & 0xfe00) == 0xfc00 {
+        return true;
+    }
+    // ::ffff:0:0/96 IPv4-mapped — check the embedded IPv4 address
+    if let Some(ipv4) = ip.to_ipv4_mapped() {
+        if is_ipv4_reserved(ipv4) {
+            return true;
+        }
     }
     false
 }
@@ -188,6 +207,7 @@ pub async fn validate_monitor_url(url: &str, check_type: &CheckType) -> AppResul
                 AppError::Validation("TCP monitor url must be in 'host:port' format".to_string())
             })?;
 
+            let host = &url[..colon_pos];
             let port_str = &url[colon_pos + 1..];
             let port: u32 = port_str.parse().map_err(|_| {
                 AppError::Validation(format!(
@@ -199,6 +219,44 @@ pub async fn validate_monitor_url(url: &str, check_type: &CheckType) -> AppResul
                 return Err(AppError::Validation(format!(
                     "TCP monitor port must be between 1 and 65535, got {port}"
                 )));
+            }
+
+            // SSRF prevention: same IP check as HTTP branch
+            if let Ok(ip) = host.parse::<IpAddr>() {
+                if is_ip_reserved(ip) {
+                    return Err(AppError::Validation(format!(
+                        "TCP monitor host resolves to a reserved/private IP address: {ip}"
+                    )));
+                }
+            } else {
+                let host = host.to_string();
+                let addr_str = format!("{host}:{port}");
+                let resolved = tokio::task::spawn_blocking(move || {
+                    use std::net::ToSocketAddrs;
+                    addr_str
+                        .to_socket_addrs()
+                        .map(|iter| iter.collect::<Vec<_>>())
+                })
+                .await
+                .map_err(|e| AppError::Internal(format!("spawn_blocking failed: {e}")))?;
+
+                match resolved {
+                    Err(_) => {
+                        log::warn!(
+                            "DNS resolution failed for {host}, allowing (will fail at probe time)"
+                        );
+                    }
+                    Ok(addrs) => {
+                        for addr in addrs {
+                            if is_ip_reserved(addr.ip()) {
+                                return Err(AppError::Validation(format!(
+                                    "TCP monitor host resolves to a reserved/private IP address: {}",
+                                    addr.ip()
+                                )));
+                            }
+                        }
+                    }
+                }
             }
 
             Ok(())
@@ -260,6 +318,7 @@ impl MonitorService {
             fail_threshold,
             recovery_threshold,
         )?;
+        validate_repeat_interval(repeat_interval_secs)?;
 
         // Parse check_type
         let check_type =
@@ -390,6 +449,10 @@ impl MonitorService {
             fail_threshold,
             recovery_threshold,
         )?;
+        let repeat_interval_secs = dto
+            .repeat_interval_secs
+            .unwrap_or(existing.repeat_interval_secs);
+        validate_repeat_interval(repeat_interval_secs)?;
 
         // If URL is being changed, validate the new URL
         let url = dto.url.as_deref().unwrap_or(&existing.url);
@@ -495,6 +558,29 @@ impl MonitorService {
         channel_ids: Vec<i32>,
     ) -> AppResult<()> {
         let mut tx = pool.begin().await?;
+
+        // Verify monitor exists before modifying its channels
+        #[cfg(feature = "postgres")]
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM monitors WHERE id = $1)")
+                .bind(monitor_id)
+                .fetch_one(&mut *tx)
+                .await?;
+
+        #[cfg(feature = "sqlite")]
+        let exists: bool = {
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM monitors WHERE id = $1")
+                .bind(monitor_id.to_string())
+                .fetch_one(&mut *tx)
+                .await?;
+            count > 0
+        };
+
+        if !exists {
+            return Err(AppError::NotFound(format!(
+                "Monitor {monitor_id} not found"
+            )));
+        }
 
         // Remove existing
         sqlx::query("DELETE FROM monitor_alert_channels WHERE monitor_id = $1")
@@ -707,5 +793,46 @@ mod tests {
         let result = validate_monitor_url("http://[::1]/health", &CheckType::Http).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("reserved"));
+    }
+
+    #[tokio::test]
+    async fn test_ipv6_ula_blocked() {
+        let result = validate_monitor_url("http://[fd12:3456::1]/health", &CheckType::Http).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("reserved"));
+    }
+
+    #[tokio::test]
+    async fn test_ipv4_mapped_ipv6_blocked() {
+        let result =
+            validate_monitor_url("http://[::ffff:127.0.0.1]/health", &CheckType::Http).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("reserved"));
+    }
+
+    #[tokio::test]
+    async fn test_tcp_private_ip_blocked() {
+        let result = validate_monitor_url("10.0.0.1:5432", &CheckType::Tcp).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("reserved"));
+    }
+
+    #[tokio::test]
+    async fn test_tcp_loopback_blocked() {
+        let result = validate_monitor_url("127.0.0.1:22", &CheckType::Tcp).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("reserved"));
+    }
+
+    #[test]
+    fn test_repeat_interval_zero_rejected() {
+        assert!(validate_repeat_interval(0).is_err());
+        assert!(validate_repeat_interval(-1).is_err());
+    }
+
+    #[test]
+    fn test_repeat_interval_valid() {
+        assert!(validate_repeat_interval(1).is_ok());
+        assert!(validate_repeat_interval(3600).is_ok());
     }
 }

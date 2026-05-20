@@ -17,10 +17,12 @@ impl UptimeConfig {
             retention_days: std::env::var("UPTIME_RETENTION_DAYS")
                 .ok()
                 .and_then(|v| v.parse().ok())
+                .filter(|v: &u32| *v > 0)
                 .unwrap_or(90),
             max_concurrent_checks: std::env::var("UPTIME_MAX_CONCURRENT_CHECKS")
                 .ok()
                 .and_then(|v| v.parse().ok())
+                .filter(|v: &usize| *v > 0)
                 .unwrap_or(50),
         }
     }

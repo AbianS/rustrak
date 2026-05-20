@@ -105,19 +105,16 @@ pub fn transition(
         }
 
         // -----------------------------------------------------------------------
-        // DOWN + success
+        // DOWN + success — enter PendingUp immediately (symmetric with PendingDown
+        // on fail path); recovery_threshold counts successes from PendingUp.
+        // threshold=1 short-circuits directly to Up to preserve the invariant
+        // that N successes → recovery for recovery_threshold=N.
         // -----------------------------------------------------------------------
         (MonitorStateEnum::Down, true) => {
-            let new_recovery = state.recovery_counter + 1;
-            if new_recovery >= config.recovery_threshold {
-                (
-                    MonitorStateEnum::PendingUp,
-                    0,
-                    new_recovery,
-                    AlertAction::None,
-                )
+            if 1 >= config.recovery_threshold {
+                (MonitorStateEnum::Up, 0, 1, AlertAction::FireRecovery)
             } else {
-                (MonitorStateEnum::Down, 0, new_recovery, AlertAction::None)
+                (MonitorStateEnum::PendingUp, 0, 1, AlertAction::None)
             }
         }
 
@@ -292,23 +289,32 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_down_success_increments_recovery_counter() {
+    fn test_down_success_goes_pending_up_immediately() {
         let state = make_state("down", 0, 0, None, None);
         let (new_state, _, recovery, action) =
             transition(&state, &config(2, 2, 3600), true, Utc::now());
-        assert_eq!(new_state, MonitorStateEnum::Down);
+        assert_eq!(new_state, MonitorStateEnum::PendingUp);
         assert_eq!(recovery, 1);
         assert_eq!(action, AlertAction::None);
     }
 
     #[test]
-    fn test_down_success_reaches_recovery_threshold_goes_pending_up() {
+    fn test_down_success_resets_recovery_counter_on_pending_up() {
+        // Even with an existing recovery_counter, Down+success always → PendingUp/1
         let state = make_state("down", 0, 1, None, None);
         let (new_state, _, recovery, action) =
             transition(&state, &config(2, 2, 3600), true, Utc::now());
         assert_eq!(new_state, MonitorStateEnum::PendingUp);
-        assert_eq!(recovery, 2);
+        assert_eq!(recovery, 1);
         assert_eq!(action, AlertAction::None);
+    }
+
+    #[test]
+    fn test_down_success_threshold_1_goes_directly_up() {
+        let state = make_state("down", 0, 0, None, None);
+        let (new_state, _, _, action) = transition(&state, &config(2, 1, 3600), true, Utc::now());
+        assert_eq!(new_state, MonitorStateEnum::Up);
+        assert_eq!(action, AlertAction::FireRecovery);
     }
 
     #[test]

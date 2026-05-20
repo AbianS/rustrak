@@ -242,7 +242,7 @@ mod tests {
         assert!(result.is_err());
         let err = result.unwrap_err();
         // AppError::Validation maps to HTTP 400
-        matches!(err, crate::error::AppError::Validation(_));
+        assert!(matches!(err, crate::error::AppError::Validation(_)));
         assert!(err.to_string().contains("reserved"));
     }
 
@@ -252,7 +252,7 @@ mod tests {
         let result = validate_monitor_bounds(10, 10, 2, 2);
         assert!(result.is_err());
         let err = result.unwrap_err();
-        matches!(err, crate::error::AppError::Validation(_));
+        assert!(matches!(err, crate::error::AppError::Validation(_)));
         assert!(err.to_string().contains("interval_secs"));
     }
 }
