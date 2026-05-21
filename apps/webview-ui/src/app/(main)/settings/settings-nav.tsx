@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },
-  { href: '/settings/alerts', label: 'Global Alerts', icon: Bell },
+  { href: '/settings/integrations', label: 'Integrations', icon: Bell },
   { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings/appearance', label: 'Appearance', icon: Palette },
   { href: '/settings/about', label: 'About', icon: Info },

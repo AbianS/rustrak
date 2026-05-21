@@ -121,12 +121,12 @@ export const mockAdminUser = {
   is_admin: true,
 };
 
-export const mockNotificationChannels = [
+export const mockAlertIntegrations = [
   {
     id: 1,
     name: 'Production Webhook',
-    channel_type: 'webhook',
-    config: {
+    provider_type: 'webhook',
+    credentials: {
       url: 'https://example.com/webhook',
       secret: 'webhook-secret',
     },
@@ -141,10 +141,10 @@ export const mockNotificationChannels = [
   {
     id: 2,
     name: 'Slack Alerts',
-    channel_type: 'slack',
-    config: {
+    provider_type: 'slack',
+    credentials: {
+      method: 'webhook',
       webhook_url: 'https://hooks.slack.com/services/XXX',
-      channel: '#alerts',
     },
     is_enabled: true,
     failure_count: 0,
@@ -156,6 +156,9 @@ export const mockNotificationChannels = [
   },
 ];
 
+/** @deprecated Use mockAlertIntegrations */
+export const mockNotificationChannels = mockAlertIntegrations;
+
 export const mockAlertRules = [
   {
     id: 1,
@@ -166,7 +169,7 @@ export const mockAlertRules = [
     conditions: {},
     cooldown_minutes: 0,
     last_triggered_at: '2026-01-20T11:00:00.000Z',
-    channel_ids: [1, 2],
+    integration_ids: [1, 2],
     created_at: '2026-01-20T10:00:00.000Z',
     updated_at: '2026-01-20T10:00:00.000Z',
   },
@@ -179,7 +182,7 @@ export const mockAlertRules = [
     conditions: {},
     cooldown_minutes: 60,
     last_triggered_at: null,
-    channel_ids: [1],
+    integration_ids: [1],
     created_at: '2026-01-19T10:00:00.000Z',
     updated_at: '2026-01-19T10:00:00.000Z',
   },
@@ -189,7 +192,7 @@ export const mockAlertHistory = [
   {
     id: 1,
     alert_rule_id: 1,
-    channel_id: 1,
+    integration_id: 1,
     issue_id: '323e4567-e89b-12d3-a456-426614174000',
     project_id: 1,
     alert_type: 'new_issue',
@@ -207,7 +210,7 @@ export const mockAlertHistory = [
   {
     id: 2,
     alert_rule_id: 1,
-    channel_id: 2,
+    integration_id: 2,
     issue_id: '323e4567-e89b-12d3-a456-426614174000',
     project_id: 1,
     alert_type: 'new_issue',
@@ -549,35 +552,38 @@ export const handlers = [
     return HttpResponse.json(mockUser);
   }),
 
-  // Alert Channels (Global)
-  http.get(`${BASE_URL}/api/alert-channels`, () => {
-    return HttpResponse.json(mockNotificationChannels);
+  // Alert Integrations (Global)
+  http.get(`${BASE_URL}/api/integrations`, () => {
+    return HttpResponse.json(mockAlertIntegrations);
   }),
 
-  http.get(`${BASE_URL}/api/alert-channels/:id`, ({ params }) => {
+  http.get(`${BASE_URL}/api/integrations/:id`, ({ params }) => {
     const { id } = params;
-    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+    const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
-    if (!channel) {
-      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    if (!integration) {
+      return HttpResponse.json(
+        { error: 'Integration not found' },
+        { status: 404 },
+      );
     }
 
-    return HttpResponse.json(channel);
+    return HttpResponse.json(integration);
   }),
 
-  http.post(`${BASE_URL}/api/alert-channels`, async ({ request }) => {
+  http.post(`${BASE_URL}/api/integrations`, async ({ request }) => {
     const body = (await request.json()) as {
       name: string;
-      channel_type: string;
-      config: Record<string, unknown>;
+      provider_type: string;
+      credentials: Record<string, unknown>;
       is_enabled?: boolean;
     };
 
-    const newChannel = {
+    const newIntegration = {
       id: 3,
       name: body.name,
-      channel_type: body.channel_type,
-      config: body.config,
+      provider_type: body.provider_type,
+      credentials: body.credentials,
       is_enabled: body.is_enabled ?? true,
       failure_count: 0,
       last_failure_at: null,
@@ -587,29 +593,31 @@ export const handlers = [
       updated_at: new Date().toISOString(),
     };
 
-    return HttpResponse.json(newChannel, { status: 201 });
+    return HttpResponse.json(newIntegration, { status: 201 });
   }),
 
   http.patch(
-    `${BASE_URL}/api/alert-channels/:id`,
+    `${BASE_URL}/api/integrations/:id`,
     async ({ params, request }) => {
       const { id } = params;
       const body = (await request.json()) as {
         name?: string;
-        config?: Record<string, unknown>;
+        credentials?: Record<string, unknown>;
         is_enabled?: boolean;
       };
-      const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+      const integration = mockAlertIntegrations.find(
+        (c) => c.id === Number(id),
+      );
 
-      if (!channel) {
+      if (!integration) {
         return HttpResponse.json(
-          { error: 'Channel not found' },
+          { error: 'Integration not found' },
           { status: 404 },
         );
       }
 
       const updated = {
-        ...channel,
+        ...integration,
         ...body,
         updated_at: new Date().toISOString(),
       };
@@ -618,23 +626,29 @@ export const handlers = [
     },
   ),
 
-  http.delete(`${BASE_URL}/api/alert-channels/:id`, ({ params }) => {
+  http.delete(`${BASE_URL}/api/integrations/:id`, ({ params }) => {
     const { id } = params;
-    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+    const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
-    if (!channel) {
-      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    if (!integration) {
+      return HttpResponse.json(
+        { error: 'Integration not found' },
+        { status: 404 },
+      );
     }
 
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.post(`${BASE_URL}/api/alert-channels/:id/test`, ({ params }) => {
+  http.post(`${BASE_URL}/api/integrations/:id/test`, ({ params }) => {
     const { id } = params;
-    const channel = mockNotificationChannels.find((c) => c.id === Number(id));
+    const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
-    if (!channel) {
-      return HttpResponse.json({ error: 'Channel not found' }, { status: 404 });
+    if (!integration) {
+      return HttpResponse.json(
+        { error: 'Integration not found' },
+        { status: 404 },
+      );
     }
 
     return HttpResponse.json({
@@ -679,8 +693,16 @@ export const handlers = [
         is_enabled?: boolean;
         conditions?: Record<string, unknown>;
         cooldown_minutes?: number;
-        channel_ids: number[];
+        channels?: Array<{
+          integration_id: number;
+          routing_override?: Record<string, unknown>;
+        }>;
+        channel_ids?: number[];
       };
+
+      const integrationIds = body.channels
+        ? body.channels.map((c) => c.integration_id)
+        : (body.channel_ids ?? []);
 
       const newRule = {
         id: 3,
@@ -691,7 +713,7 @@ export const handlers = [
         conditions: body.conditions ?? {},
         cooldown_minutes: body.cooldown_minutes ?? 0,
         last_triggered_at: null,
-        channel_ids: body.channel_ids,
+        integration_ids: integrationIds,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -709,6 +731,10 @@ export const handlers = [
         is_enabled?: boolean;
         conditions?: Record<string, unknown>;
         cooldown_minutes?: number;
+        channels?: Array<{
+          integration_id: number;
+          routing_override?: Record<string, unknown>;
+        }>;
         channel_ids?: number[];
       };
       const rule = mockAlertRules.find(
@@ -719,9 +745,14 @@ export const handlers = [
         return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
       }
 
+      const integrationIds = body.channels
+        ? body.channels.map((c) => c.integration_id)
+        : (body.channel_ids ?? rule.integration_ids);
+
       const updated = {
         ...rule,
         ...body,
+        integration_ids: integrationIds,
         updated_at: new Date().toISOString(),
       };
 

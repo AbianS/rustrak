@@ -2,9 +2,9 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type {
+  AlertIntegration,
   AlertRule,
   AlertType,
-  NotificationChannel,
   Project,
 } from '@rustrak/client';
 import { Bell, Hash, Loader2, Mail, Plus, Trash2, Webhook } from 'lucide-react';
@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 // Alert type definitions
@@ -82,19 +83,25 @@ const alertTypes: {
   },
 ];
 
+// Per-channel routing_override map keyed by integration ID
+type RoutingMap = Record<number, Record<string, string>>;
+
 // Form schema
 const alertRuleFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   alert_type: z.enum(['new_issue', 'regression', 'unmute']),
-  channel_ids: z.array(z.number()).min(1, 'Select at least one channel'),
+  selected_integration_ids: z.array(z.number()),
+  routing_map: z
+    .record(z.string(), z.record(z.string(), z.string()))
+    .optional(),
   is_enabled: z.boolean(),
   cooldown_minutes: z.number().int().min(0),
 });
 
 type AlertRuleFormData = z.infer<typeof alertRuleFormSchema>;
 
-// Channel icon helper
-function ChannelIcon({
+// Provider icon helper
+function ProviderIcon({
   type,
   className,
 }: {
@@ -113,10 +120,61 @@ function ChannelIcon({
   }
 }
 
+// Helper: get credentials method for a Slack integration
+function getSlackMethod(integration: AlertIntegration): string {
+  return (
+    ((integration.credentials as Record<string, unknown>).method as string) ??
+    'webhook'
+  );
+}
+
+// Helper: validate routing fields for a given integration before submit
+function validateRoutingForIntegration(
+  integration: AlertIntegration,
+  routing: Record<string, string>,
+): string | null {
+  if (integration.provider_type === 'slack') {
+    if (getSlackMethod(integration) === 'bot_token') {
+      if (!routing.channel || routing.channel.trim() === '') {
+        return `Slack channel is required for "${integration.name}"`;
+      }
+    }
+  }
+  if (integration.provider_type === 'email') {
+    if (!routing.recipients || routing.recipients.trim() === '') {
+      return `Recipients are required for "${integration.name}"`;
+    }
+    const addrs = routing.recipients
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
+    if (addrs.length === 0 || addrs.some((a) => !a.includes('@'))) {
+      return `Invalid email address in recipients for "${integration.name}"`;
+    }
+  }
+  if (integration.provider_type === 'webhook') {
+    const credUrl = (integration.credentials as Record<string, unknown>).url as
+      | string
+      | undefined;
+    const routeUrl = routing.url?.trim();
+    if (!credUrl && !routeUrl) {
+      return `A webhook URL is required for "${integration.name}" (set in credentials or as override URL)`;
+    }
+    if (
+      routeUrl &&
+      !routeUrl.startsWith('http://') &&
+      !routeUrl.startsWith('https://')
+    ) {
+      return `Override URL for "${integration.name}" must be http/https`;
+    }
+  }
+  return null;
+}
+
 interface ProjectAlertsDialogProps {
   project: Project;
   alertRules: AlertRule[];
-  channels: NotificationChannel[];
+  channels: AlertIntegration[];
 }
 
 export function ProjectAlertsDialog({
@@ -131,10 +189,8 @@ export function ProjectAlertsDialog({
   const [deletingRule, setDeletingRule] = useState<AlertRule | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // Get channels that are enabled
-  const enabledChannels = channels.filter((c) => c.is_enabled);
+  const enabledIntegrations = channels.filter((c) => c.is_enabled);
 
-  // Get alert type info
   const getAlertTypeInfo = (type: string) =>
     alertTypes.find((t) => t.type === type) ?? {
       type,
@@ -142,10 +198,8 @@ export function ProjectAlertsDialog({
       description: '',
     };
 
-  // Get channel by ID
-  const getChannelById = (id: number) => channels.find((c) => c.id === id);
+  const getIntegrationById = (id: number) => channels.find((c) => c.id === id);
 
-  // Handle toggle enabled
   const handleToggleEnabled = (rule: AlertRule) => {
     startTransition(async () => {
       try {
@@ -161,10 +215,8 @@ export function ProjectAlertsDialog({
     });
   };
 
-  // Handle delete
   const handleDelete = () => {
     if (!deletingRule) return;
-
     startTransition(async () => {
       try {
         await deleteAlertRule(project.id, deletingRule.id);
@@ -197,23 +249,25 @@ export function ProjectAlertsDialog({
             </DialogDescription>
           </DialogHeader>
 
-          {enabledChannels.length === 0 ? (
+          {enabledIntegrations.length === 0 ? (
             <div className="py-8 text-center">
               <Bell className="size-12 mx-auto text-muted-foreground/50 mb-4" />
               <p className="text-sm text-muted-foreground mb-2">
-                No notification channels configured
+                No integrations configured
               </p>
               <p className="text-xs text-muted-foreground">
                 Go to{' '}
-                <a href="/settings/alerts" className="text-primary underline">
-                  Settings → Global Alerts
+                <a
+                  href="/settings/integrations"
+                  className="text-primary underline"
+                >
+                  Settings → Integrations
                 </a>{' '}
-                to add channels first.
+                to add integrations first.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Existing Rules */}
               {alertRules.length > 0 && (
                 <div className="space-y-2">
                   {alertRules.map((rule) => {
@@ -236,20 +290,21 @@ export function ProjectAlertsDialog({
                             </Badge>
                           </div>
                           <div className="flex items-center gap-1 mt-1">
-                            {rule.channel_ids.map((channelId) => {
-                              const channel = getChannelById(channelId);
-                              if (!channel) return null;
+                            {rule.integration_ids.map((integrationId) => {
+                              const integration =
+                                getIntegrationById(integrationId);
+                              if (!integration) return null;
                               return (
                                 <Badge
-                                  key={channelId}
+                                  key={integrationId}
                                   variant="outline"
                                   className="text-[10px] gap-1"
                                 >
-                                  <ChannelIcon
-                                    type={channel.channel_type}
+                                  <ProviderIcon
+                                    type={integration.provider_type}
                                     className="size-3"
                                   />
-                                  {channel.name}
+                                  {integration.name}
                                 </Badge>
                               );
                             })}
@@ -299,7 +354,6 @@ export function ProjectAlertsDialog({
                 </div>
               )}
 
-              {/* Add Rule Button or Form */}
               {!showAddForm && !editingRule ? (
                 <Button
                   variant="outline"
@@ -311,11 +365,10 @@ export function ProjectAlertsDialog({
                 </Button>
               ) : null}
 
-              {/* Add/Edit Form */}
               {(showAddForm || editingRule) && (
                 <AlertRuleForm
                   projectId={project.id}
-                  channels={enabledChannels}
+                  integrations={enabledIntegrations}
                   existingRule={editingRule}
                   existingRuleTypes={alertRules.map((r) => r.alert_type)}
                   onCancel={() => {
@@ -334,7 +387,6 @@ export function ProjectAlertsDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog
         open={!!deletingRule}
         onOpenChange={(open) => !open && setDeletingRule(null)}
@@ -369,7 +421,7 @@ export function ProjectAlertsDialog({
 
 interface AlertRuleFormProps {
   projectId: number;
-  channels: NotificationChannel[];
+  integrations: AlertIntegration[];
   existingRule: AlertRule | null;
   existingRuleTypes: string[];
   onCancel: () => void;
@@ -378,15 +430,18 @@ interface AlertRuleFormProps {
 
 function AlertRuleForm({
   projectId,
-  channels,
+  integrations,
   existingRule,
   existingRuleTypes,
   onCancel,
   onSuccess,
 }: AlertRuleFormProps) {
   const [isPending, startTransition] = useTransition();
+  const [routingMap, setRoutingMap] = useState<RoutingMap>({});
+  const [routingErrors, setRoutingErrors] = useState<Record<number, string>>(
+    {},
+  );
 
-  // Available alert types (exclude already used ones, unless editing)
   const availableTypes = alertTypes.filter(
     (t) =>
       !existingRuleTypes.includes(t.type) ||
@@ -398,45 +453,140 @@ function AlertRuleForm({
     defaultValues: {
       name: '',
       alert_type: availableTypes[0]?.type ?? 'new_issue',
-      channel_ids: [],
+      selected_integration_ids: [],
       is_enabled: true,
       cooldown_minutes: 0,
     },
   });
 
-  // Reset form when existingRule changes
   useEffect(() => {
     if (existingRule) {
       form.reset({
         name: existingRule.name,
         alert_type: existingRule.alert_type,
-        channel_ids: existingRule.channel_ids,
+        selected_integration_ids: existingRule.integration_ids,
         is_enabled: existingRule.is_enabled,
         cooldown_minutes: existingRule.cooldown_minutes,
       });
+      // Initialize routing map from integration_ids (no routing_override on response yet)
+      const initialMap: RoutingMap = {};
+      for (const id of existingRule.integration_ids) {
+        initialMap[id] = {};
+      }
+      setRoutingMap(initialMap);
     } else {
-      // Compute default type inside effect to avoid dependency on availableTypes array
       const defaultType =
         alertTypes.find((t) => !existingRuleTypes.includes(t.type))?.type ??
         'new_issue';
       form.reset({
         name: '',
         alert_type: defaultType,
-        channel_ids: [],
+        selected_integration_ids: [],
         is_enabled: true,
         cooldown_minutes: 0,
       });
+      setRoutingMap({});
     }
+    setRoutingErrors({});
   }, [existingRule, existingRuleTypes, form]);
 
+  const selectedIds = form.watch('selected_integration_ids');
+
+  const toggleIntegration = (id: number, checked: boolean) => {
+    const current = form.getValues('selected_integration_ids');
+    if (checked) {
+      form.setValue('selected_integration_ids', [...current, id]);
+      setRoutingMap((prev) => ({ ...prev, [id]: {} }));
+    } else {
+      form.setValue(
+        'selected_integration_ids',
+        current.filter((i) => i !== id),
+      );
+      setRoutingMap((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setRoutingErrors((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
+
+  const updateRoutingField = (
+    integrationId: number,
+    field: string,
+    value: string,
+  ) => {
+    setRoutingMap((prev) => ({
+      ...prev,
+      [integrationId]: { ...(prev[integrationId] ?? {}), [field]: value },
+    }));
+    setRoutingErrors((prev) => {
+      const next = { ...prev };
+      delete next[integrationId];
+      return next;
+    });
+  };
+
   const onSubmit = (data: AlertRuleFormData) => {
+    // Validate routing fields per integration
+    const errors: Record<number, string> = {};
+    for (const id of data.selected_integration_ids) {
+      const integration = integrations.find((i) => i.id === id);
+      if (!integration) continue;
+      const routing = routingMap[id] ?? {};
+      const err = validateRoutingForIntegration(integration, routing);
+      if (err) errors[id] = err;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setRoutingErrors(errors);
+      return;
+    }
+
+    if (data.selected_integration_ids.length === 0) {
+      form.setError('selected_integration_ids', {
+        message: 'Select at least one integration',
+      });
+      return;
+    }
+
     startTransition(async () => {
       try {
+        // Build channels array
+        const channels = data.selected_integration_ids.map((id) => {
+          const routing = routingMap[id] ?? {};
+          const integration = integrations.find((i) => i.id === id)!;
+          const routingOverride: Record<string, unknown> = {};
+
+          if (
+            integration.provider_type === 'slack' &&
+            getSlackMethod(integration) === 'bot_token'
+          ) {
+            if (routing.channel)
+              routingOverride.channel = routing.channel.trim();
+          }
+          if (integration.provider_type === 'email' && routing.recipients) {
+            routingOverride.recipients = routing.recipients
+              .split(',')
+              .map((a) => a.trim())
+              .filter(Boolean);
+          }
+          if (integration.provider_type === 'webhook' && routing.url) {
+            routingOverride.url = routing.url.trim();
+          }
+
+          return { integration_id: id, routing_override: routingOverride };
+        });
+
         if (existingRule) {
           await updateAlertRule(projectId, existingRule.id, {
             name: data.name,
             is_enabled: data.is_enabled,
-            channel_ids: data.channel_ids,
+            channels,
             cooldown_minutes: data.cooldown_minutes,
           });
           toast.success('Alert rule updated');
@@ -444,7 +594,7 @@ function AlertRuleForm({
           await createAlertRule(projectId, {
             name: data.name,
             alert_type: data.alert_type,
-            channel_ids: data.channel_ids,
+            channels,
             is_enabled: data.is_enabled,
             cooldown_minutes: data.cooldown_minutes,
           });
@@ -523,57 +673,151 @@ function AlertRuleForm({
             )}
           />
 
-          <FormField
-            control={form.control}
-            name="channel_ids"
-            render={() => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Send To
-                </FormLabel>
-                <div className="space-y-2">
-                  {channels.map((channel) => (
-                    <FormField
-                      key={channel.id}
-                      control={form.control}
-                      name="channel_ids"
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-3 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={field.value?.includes(channel.id)}
-                              onCheckedChange={(checked) => {
-                                const current = field.value || [];
-                                if (checked) {
-                                  field.onChange([...current, channel.id]);
-                                } else {
-                                  field.onChange(
-                                    current.filter((id) => id !== channel.id),
-                                  );
+          {/* Integration picker + per-integration routing fields */}
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+              Send To
+            </p>
+            <div className="space-y-3">
+              {integrations.map((integration) => {
+                const isSelected = selectedIds.includes(integration.id);
+                const routing = routingMap[integration.id] ?? {};
+                const routingErr = routingErrors[integration.id];
+                const isSlackBot =
+                  integration.provider_type === 'slack' &&
+                  getSlackMethod(integration) === 'bot_token';
+                const needsChannel = isSlackBot;
+                const needsRecipients = integration.provider_type === 'email';
+                const credUrl = (
+                  integration.credentials as Record<string, unknown>
+                ).url as string | undefined;
+                const needsUrl =
+                  integration.provider_type === 'webhook' && !credUrl;
+
+                return (
+                  <div key={integration.id} className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) =>
+                          toggleIntegration(integration.id, checked === true)
+                        }
+                        disabled={isPending}
+                      />
+                      <div className="flex items-center gap-2">
+                        <ProviderIcon
+                          type={integration.provider_type}
+                          className="size-4 text-muted-foreground"
+                        />
+                        <span className="text-sm">{integration.name}</span>
+                        <Badge variant="outline" className="text-[10px]">
+                          {integration.provider_type}
+                          {isSlackBot ? '/bot' : ''}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Routing override fields — only shown when integration is selected */}
+                    {isSelected &&
+                      (needsChannel || needsRecipients || needsUrl) && (
+                        <div className="ml-7 space-y-2">
+                          {needsChannel && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">
+                                Slack Channel{' '}
+                                <span className="text-destructive">*</span>
+                              </label>
+                              <Input
+                                placeholder="#alerts"
+                                value={routing.channel ?? ''}
+                                onChange={(e) =>
+                                  updateRoutingField(
+                                    integration.id,
+                                    'channel',
+                                    e.target.value,
+                                  )
                                 }
-                              }}
-                              disabled={isPending}
-                            />
-                          </FormControl>
-                          <div className="flex items-center gap-2">
-                            <ChannelIcon
-                              type={channel.channel_type}
-                              className="size-4 text-muted-foreground"
-                            />
-                            <span className="text-sm">{channel.name}</span>
-                            <Badge variant="outline" className="text-[10px]">
-                              {channel.channel_type}
-                            </Badge>
-                          </div>
-                        </FormItem>
+                                disabled={isPending}
+                                className="h-8 text-sm mt-1"
+                              />
+                            </div>
+                          )}
+                          {needsRecipients && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">
+                                Recipients{' '}
+                                <span className="text-destructive">*</span>
+                              </label>
+                              <Textarea
+                                placeholder="alerts@example.com, team@example.com"
+                                value={routing.recipients ?? ''}
+                                onChange={(e) =>
+                                  updateRoutingField(
+                                    integration.id,
+                                    'recipients',
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isPending}
+                                className="text-sm mt-1 min-h-[60px]"
+                              />
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Comma-separated email addresses
+                              </p>
+                            </div>
+                          )}
+                          {integration.provider_type === 'webhook' && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">
+                                Override URL
+                                {needsUrl ? (
+                                  <span className="text-destructive"> *</span>
+                                ) : (
+                                  ' (optional)'
+                                )}
+                              </label>
+                              <Input
+                                placeholder="https://svc.io/hook"
+                                value={routing.url ?? ''}
+                                onChange={(e) =>
+                                  updateRoutingField(
+                                    integration.id,
+                                    'url',
+                                    e.target.value,
+                                  )
+                                }
+                                disabled={isPending}
+                                className="h-8 text-sm mt-1"
+                              />
+                            </div>
+                          )}
+                          {routingErr && (
+                            <p className="text-xs text-destructive">
+                              {routingErr}
+                            </p>
+                          )}
+                        </div>
                       )}
-                    />
-                  ))}
-                </div>
-                <FormMessage />
-              </FormItem>
+
+                    {isSelected &&
+                      routingErr &&
+                      !needsChannel &&
+                      !needsRecipients &&
+                      !needsUrl && (
+                        <p className="ml-7 text-xs text-destructive">
+                          {routingErr}
+                        </p>
+                      )}
+                  </div>
+                );
+              })}
+            </div>
+            {form.formState.errors.selected_integration_ids && (
+              <p className="text-xs text-destructive mt-1">
+                {form.formState.errors.selected_integration_ids.message}
+              </p>
             )}
-          />
+          </div>
 
           <FormField
             control={form.control}

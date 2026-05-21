@@ -16,7 +16,7 @@ use uuid::Uuid;
 /// Type of notification provider (replaces ChannelType)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[sqlx(type_name = "text", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderType {
     Webhook,

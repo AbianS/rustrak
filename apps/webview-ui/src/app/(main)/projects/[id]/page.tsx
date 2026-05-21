@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { listAlertRules, listNotificationChannels } from '@/actions/alerts';
+import { listAlertRules, listIntegrations } from '@/actions/alerts';
 import { listIssues } from '@/actions/issues';
 import { getProject } from '@/actions/projects';
 import { IssuesList } from './issues-list';
@@ -52,7 +52,7 @@ export default async function ProjectPage({
       order: 'desc',
     }),
     listAlertRules(projectId).catch(() => []),
-    listNotificationChannels().catch(() => []),
+    listIntegrations().catch(() => []),
   ]);
 
   return (

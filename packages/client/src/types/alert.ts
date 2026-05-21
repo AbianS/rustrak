@@ -1,22 +1,27 @@
 import type { z } from 'zod';
 import type {
   alertHistorySchema,
+  alertIntegrationSchema,
+  alertRuleChannelInputSchema,
   alertRuleSchema,
   alertStatusSchema,
   alertTypeSchema,
-  channelTypeSchema,
+  createAlertIntegrationSchema,
   createAlertRuleSchema,
-  createNotificationChannelSchema,
-  notificationChannelSchema,
+  providerTypeSchema,
   testChannelResponseSchema,
+  testIntegrationBodySchema,
+  updateAlertIntegrationSchema,
   updateAlertRuleSchema,
-  updateNotificationChannelSchema,
 } from '../schemas/alert.js';
 
 /**
- * Channel type enum
+ * Provider type enum
  */
-export type ChannelType = z.infer<typeof channelTypeSchema>;
+export type ProviderType = z.infer<typeof providerTypeSchema>;
+
+/** @deprecated Use ProviderType */
+export type ChannelType = ProviderType;
 
 /**
  * Alert type enum
@@ -29,23 +34,42 @@ export type AlertType = z.infer<typeof alertTypeSchema>;
 export type AlertStatus = z.infer<typeof alertStatusSchema>;
 
 /**
- * Notification channel (global alert destination)
+ * Alert integration (global credentials record)
  */
-export type NotificationChannel = z.infer<typeof notificationChannelSchema>;
+export type AlertIntegration = z.infer<typeof alertIntegrationSchema>;
+
+/** @deprecated Use AlertIntegration */
+export type NotificationChannel = AlertIntegration;
 
 /**
- * Create notification channel request
+ * Create alert integration request
  */
-export type CreateNotificationChannel = z.infer<
-  typeof createNotificationChannelSchema
+export type CreateAlertIntegration = z.infer<
+  typeof createAlertIntegrationSchema
 >;
 
+/** @deprecated Use CreateAlertIntegration */
+export type CreateNotificationChannel = CreateAlertIntegration;
+
 /**
- * Update notification channel request
+ * Update alert integration request
  */
-export type UpdateNotificationChannel = z.infer<
-  typeof updateNotificationChannelSchema
+export type UpdateAlertIntegration = z.infer<
+  typeof updateAlertIntegrationSchema
 >;
+
+/** @deprecated Use UpdateAlertIntegration */
+export type UpdateNotificationChannel = UpdateAlertIntegration;
+
+/**
+ * Per-rule channel routing entry
+ */
+export type AlertRuleChannelInput = z.infer<typeof alertRuleChannelInputSchema>;
+
+/**
+ * Routing override — arbitrary key/value map passed to a dispatcher
+ */
+export type RoutingOverride = Record<string, unknown>;
 
 /**
  * Alert rule (per-project trigger configuration)
@@ -71,6 +95,11 @@ export type AlertHistory = z.infer<typeof alertHistorySchema>;
  * Test channel response
  */
 export type TestChannelResponse = z.infer<typeof testChannelResponseSchema>;
+
+/**
+ * Test integration request body
+ */
+export type TestIntegrationBody = z.infer<typeof testIntegrationBodySchema>;
 
 /**
  * List alert history options
