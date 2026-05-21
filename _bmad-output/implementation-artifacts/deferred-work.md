@@ -25,6 +25,25 @@ Unit tests cover each function in isolation. No integration/e2e test verifies th
 
 ---
 
+## 2026-05-21 — from spec-alert-two-tier-integrations split
+
+### D-11: Alert two-tier — Client package update (medium)
+After the backend spec (`spec-alert-two-tier-integrations.md`) is merged, update `packages/client`:
+- Add `alertIntegrationSchema`, `routingOverrideSchema`, `alertRuleChannelInputSchema` to `schemas/alert.ts`
+- Update inferred types in `types/alert.ts`
+- Rename `alert-channels.ts` → `alert-integrations.ts` (`AlertIntegrationsResource`)
+- Update `alert-rules.ts` to use `channels: AlertRuleChannelInput[]` instead of `channel_ids`
+- Update `resources/index.ts` export
+
+### D-12: Alert two-tier — Frontend (medium)
+After D-11 is done, update the Next.js UI:
+- Rename `apps/webview-ui/src/actions/alerts.ts` integration actions
+- Rename `settings/alerts/` → `settings/integrations/` — credentials-only form, no routing fields
+- Update `settings-nav.tsx`: href `/settings/integrations`, label "Integrations"
+- Update `projects/[id]/project-alerts-dialog.tsx`: integration picker + per-provider routing override fields (Slack bot_token → channel input required; Slack webhook → none; Email → recipients textarea; Webhook → optional URL + extra_headers)
+
+---
+
 ## 2026-05-21 — from spec-remove-issue-soft-delete review
 
 **Source:** 3-reviewer adversarial review

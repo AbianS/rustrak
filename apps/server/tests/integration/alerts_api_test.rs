@@ -1,6 +1,6 @@
 //! Integration tests for the Alerts API
 //!
-//! Tests the notification channels, alert rules, and alert triggering
+//! Tests the alert integrations, alert rules, and alert triggering
 //! with a real PostgreSQL database.
 
 use crate::common::TestDb;
@@ -8,8 +8,8 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::models::{
-    AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel, UpdateAlertRule,
-    UpdateNotificationChannel,
+    AlertRuleChannelInput, AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel,
+    UpdateAlertRule, UpdateNotificationChannel,
 };
 use rustrak::routes;
 use rustrak::services::{AlertService, ProjectService};
@@ -73,11 +73,11 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
 async fn test_channel_crud_service_level() {
     let db = TestDb::new().await;
 
-    // Create channel
+    // Create integration (using compat alias CreateNotificationChannel)
     let create_input = CreateNotificationChannel {
         name: "Test Webhook".to_string(),
-        channel_type: ChannelType::Webhook,
-        config: json!({
+        provider_type: ChannelType::Webhook,
+        credentials: json!({
             "url": "https://example.com/webhook"
         }),
         is_enabled: true,
@@ -88,7 +88,7 @@ async fn test_channel_crud_service_level() {
         .expect("Failed to create channel");
 
     assert_eq!(channel.name, "Test Webhook");
-    assert_eq!(channel.channel_type, ChannelType::Webhook);
+    assert_eq!(channel.provider_type, ChannelType::Webhook);
     assert!(channel.is_enabled);
 
     // List channels
@@ -104,10 +104,10 @@ async fn test_channel_crud_service_level() {
         .expect("Failed to get channel");
     assert_eq!(fetched.name, "Test Webhook");
 
-    // Update channel
+    // Update channel (using compat alias UpdateNotificationChannel)
     let update_input = UpdateNotificationChannel {
         name: Some("Updated Webhook".to_string()),
-        config: None,
+        credentials: None,
         is_enabled: Some(false),
     };
 
@@ -133,8 +133,8 @@ async fn test_channel_duplicate_name_fails() {
 
     let create_input1 = CreateNotificationChannel {
         name: "Unique Name".to_string(),
-        channel_type: ChannelType::Webhook,
-        config: json!({ "url": "https://example.com/webhook1" }),
+        provider_type: ChannelType::Webhook,
+        credentials: json!({ "url": "https://example.com/webhook1" }),
         is_enabled: true,
     };
 
@@ -145,8 +145,8 @@ async fn test_channel_duplicate_name_fails() {
     // Try to create another with the same name
     let create_input2 = CreateNotificationChannel {
         name: "Unique Name".to_string(),
-        channel_type: ChannelType::Webhook,
-        config: json!({ "url": "https://example.com/webhook2" }),
+        provider_type: ChannelType::Webhook,
+        credentials: json!({ "url": "https://example.com/webhook2" }),
         is_enabled: true,
     };
 
@@ -160,11 +160,11 @@ async fn test_channel_duplicate_name_fails() {
 async fn test_channel_invalid_config_fails() {
     let db = TestDb::new().await;
 
-    // Webhook without URL should fail
+    // Webhook with empty url (non-null but empty string) should fail URL validation
     let create_input = CreateNotificationChannel {
         name: "Invalid Webhook".to_string(),
-        channel_type: ChannelType::Webhook,
-        config: json!({}), // Missing URL
+        provider_type: ChannelType::Webhook,
+        credentials: json!({"url": ""}), // empty url
         is_enabled: true,
     };
 
@@ -179,8 +179,8 @@ async fn test_slack_channel_config_validation() {
     // Invalid Slack webhook URL (wrong host, but method field present)
     let create_input = CreateNotificationChannel {
         name: "Invalid Slack".to_string(),
-        channel_type: ChannelType::Slack,
-        config: json!({
+        provider_type: ChannelType::Slack,
+        credentials: json!({
             "method": "webhook",
             "webhook_url": "https://example.com/not-slack"
         }),
@@ -193,8 +193,8 @@ async fn test_slack_channel_config_validation() {
     // Valid Slack webhook URL
     let valid_input = CreateNotificationChannel {
         name: "Valid Slack".to_string(),
-        channel_type: ChannelType::Slack,
-        config: json!({
+        provider_type: ChannelType::Slack,
+        credentials: json!({
             "method": "webhook",
             "webhook_url": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXX"
         }),
@@ -211,26 +211,29 @@ async fn test_slack_channel_config_validation() {
 async fn test_rule_crud_service_level() {
     let db = TestDb::new().await;
 
-    // First create a project and a channel
+    // First create a project and an integration
     let project_id = create_test_project(&db.pool).await;
 
-    let channel = AlertService::create_channel(
+    let integration = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
             name: "Alert Channel".to_string(),
-            channel_type: ChannelType::Webhook,
-            config: json!({ "url": "https://example.com/webhook" }),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook" }),
             is_enabled: true,
         },
     )
     .await
-    .expect("Failed to create channel");
+    .expect("Failed to create integration");
 
-    // Create rule
+    // Create rule with new `channels` field (Vec<AlertRuleChannelInput>)
     let create_input = CreateAlertRule {
         name: "New Issue Alert".to_string(),
         alert_type: AlertType::NewIssue,
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: integration.id,
+            routing_override: json!({"url": "https://example.com/webhook"}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 5,
     };
@@ -244,11 +247,12 @@ async fn test_rule_crud_service_level() {
     assert_eq!(rule.cooldown_minutes, 5);
     assert!(rule.is_enabled);
 
-    // Verify channel linkage
+    // Verify channel linkage — now returns Vec<AlertRuleChannel>
     let linked_channels = AlertService::get_rule_channels(&db.pool, rule.id)
         .await
         .expect("Failed to get rule channels");
-    assert_eq!(linked_channels, vec![channel.id]);
+    assert_eq!(linked_channels.len(), 1);
+    assert_eq!(linked_channels[0].integration_id, integration.id);
 
     // List rules
     let rules = AlertService::list_rules(&db.pool, project_id)
@@ -268,7 +272,7 @@ async fn test_rule_crud_service_level() {
         is_enabled: Some(false),
         conditions: None,
         cooldown_minutes: Some(10),
-        channel_ids: None,
+        channels: None,
     };
 
     let updated = AlertService::update_rule(&db.pool, rule.id, update_input)
@@ -294,23 +298,26 @@ async fn test_rule_duplicate_alert_type_fails() {
 
     let project_id = create_test_project(&db.pool).await;
 
-    let channel = AlertService::create_channel(
+    let integration = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
             name: "Channel for Rules".to_string(),
-            channel_type: ChannelType::Webhook,
-            config: json!({ "url": "https://example.com/webhook" }),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook" }),
             is_enabled: true,
         },
     )
     .await
-    .expect("Failed to create channel");
+    .expect("Failed to create integration");
 
     // Create first rule
     let create_input = CreateAlertRule {
         name: "First Rule".to_string(),
         alert_type: AlertType::NewIssue,
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: integration.id,
+            routing_override: json!({"url": "https://example.com/webhook"}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -323,7 +330,10 @@ async fn test_rule_duplicate_alert_type_fails() {
     let duplicate_input = CreateAlertRule {
         name: "Duplicate Rule".to_string(),
         alert_type: AlertType::NewIssue, // Same type
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: integration.id,
+            routing_override: json!({"url": "https://example.com/webhook"}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -335,16 +345,19 @@ async fn test_rule_duplicate_alert_type_fails() {
 }
 
 #[tokio::test]
-async fn test_rule_with_invalid_channel_fails() {
+async fn test_rule_with_invalid_integration_fails() {
     let db = TestDb::new().await;
 
     let project_id = create_test_project(&db.pool).await;
 
-    // Create rule with non-existent channel ID
+    // Create rule with non-existent integration ID
     let create_input = CreateAlertRule {
-        name: "Invalid Channel Rule".to_string(),
+        name: "Invalid Integration Rule".to_string(),
         alert_type: AlertType::NewIssue,
-        channel_ids: vec![99999], // Non-existent
+        channels: vec![AlertRuleChannelInput {
+            integration_id: 99999, // Non-existent
+            routing_override: json!({}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -359,39 +372,42 @@ async fn test_update_rule_channels() {
 
     let project_id = create_test_project(&db.pool).await;
 
-    // Create two channels
-    let channel1 = AlertService::create_channel(
+    // Create two integrations
+    let integration1 = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
             name: "Channel 1".to_string(),
-            channel_type: ChannelType::Webhook,
-            config: json!({ "url": "https://example.com/webhook1" }),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook1" }),
             is_enabled: true,
         },
     )
     .await
     .unwrap();
 
-    let channel2 = AlertService::create_channel(
+    let integration2 = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
             name: "Channel 2".to_string(),
-            channel_type: ChannelType::Webhook,
-            config: json!({ "url": "https://example.com/webhook2" }),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook2" }),
             is_enabled: true,
         },
     )
     .await
     .unwrap();
 
-    // Create rule with channel1
+    // Create rule with integration1
     let rule = AlertService::create_rule(
         &db.pool,
         project_id,
         CreateAlertRule {
             name: "Multi Channel Rule".to_string(),
             alert_type: AlertType::NewIssue,
-            channel_ids: vec![channel1.id],
+            channels: vec![AlertRuleChannelInput {
+                integration_id: integration1.id,
+                routing_override: json!({"url": "https://example.com/webhook1"}),
+            }],
             conditions: json!({}),
             cooldown_minutes: 0,
         },
@@ -403,9 +419,10 @@ async fn test_update_rule_channels() {
     let channels = AlertService::get_rule_channels(&db.pool, rule.id)
         .await
         .unwrap();
-    assert_eq!(channels, vec![channel1.id]);
+    assert_eq!(channels.len(), 1);
+    assert_eq!(channels[0].integration_id, integration1.id);
 
-    // Update to use both channels
+    // Update to use both integrations
     AlertService::update_rule(
         &db.pool,
         rule.id,
@@ -414,7 +431,16 @@ async fn test_update_rule_channels() {
             is_enabled: None,
             conditions: None,
             cooldown_minutes: None,
-            channel_ids: Some(vec![channel1.id, channel2.id]),
+            channels: Some(vec![
+                AlertRuleChannelInput {
+                    integration_id: integration1.id,
+                    routing_override: json!({"url": "https://example.com/webhook1"}),
+                },
+                AlertRuleChannelInput {
+                    integration_id: integration2.id,
+                    routing_override: json!({"url": "https://example.com/webhook2"}),
+                },
+            ]),
         },
     )
     .await
@@ -425,10 +451,11 @@ async fn test_update_rule_channels() {
         .await
         .unwrap();
     assert_eq!(channels.len(), 2);
-    assert!(channels.contains(&channel1.id));
-    assert!(channels.contains(&channel2.id));
+    let integration_ids: Vec<i32> = channels.iter().map(|c| c.integration_id).collect();
+    assert!(integration_ids.contains(&integration1.id));
+    assert!(integration_ids.contains(&integration2.id));
 
-    // Update to remove channel1
+    // Update to remove integration1
     AlertService::update_rule(
         &db.pool,
         rule.id,
@@ -437,17 +464,21 @@ async fn test_update_rule_channels() {
             is_enabled: None,
             conditions: None,
             cooldown_minutes: None,
-            channel_ids: Some(vec![channel2.id]),
+            channels: Some(vec![AlertRuleChannelInput {
+                integration_id: integration2.id,
+                routing_override: json!({"url": "https://example.com/webhook2"}),
+            }]),
         },
     )
     .await
     .unwrap();
 
-    // Verify only channel2 remains
+    // Verify only integration2 remains
     let channels = AlertService::get_rule_channels(&db.pool, rule.id)
         .await
         .unwrap();
-    assert_eq!(channels, vec![channel2.id]);
+    assert_eq!(channels.len(), 1);
+    assert_eq!(channels[0].integration_id, integration2.id);
 }
 
 #[tokio::test]
@@ -456,26 +487,29 @@ async fn test_deleting_channel_removes_from_rules() {
 
     let project_id = create_test_project(&db.pool).await;
 
-    let channel = AlertService::create_channel(
+    let integration = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
             name: "Deletable Channel".to_string(),
-            channel_type: ChannelType::Webhook,
-            config: json!({ "url": "https://example.com/webhook" }),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook" }),
             is_enabled: true,
         },
     )
     .await
     .unwrap();
 
-    // Create rule with this channel
+    // Create rule with this integration
     let rule = AlertService::create_rule(
         &db.pool,
         project_id,
         CreateAlertRule {
             name: "Rule with deletable channel".to_string(),
             alert_type: AlertType::NewIssue,
-            channel_ids: vec![channel.id],
+            channels: vec![AlertRuleChannelInput {
+                integration_id: integration.id,
+                routing_override: json!({"url": "https://example.com/webhook"}),
+            }],
             conditions: json!({}),
             cooldown_minutes: 0,
         },
@@ -483,12 +517,12 @@ async fn test_deleting_channel_removes_from_rules() {
     .await
     .unwrap();
 
-    // Delete channel
-    AlertService::delete_channel(&db.pool, channel.id)
+    // Delete integration
+    AlertService::delete_channel(&db.pool, integration.id)
         .await
         .unwrap();
 
-    // Rule should still exist but have no channels
+    // Rule should still exist but have no channels (ON DELETE CASCADE)
     let channels = AlertService::get_rule_channels(&db.pool, rule.id)
         .await
         .unwrap();
@@ -534,9 +568,9 @@ async fn test_list_channels_unauthorized() {
     )
     .await;
 
-    // No session cookie
+    // No session cookie — the route is now /api/integrations
     let req = test::TestRequest::get()
-        .uri("/api/alert-channels")
+        .uri("/api/integrations")
         .to_request();
 
     let resp = test::call_service(&app, req).await;

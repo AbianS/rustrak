@@ -75,7 +75,7 @@ impl Modify for SecurityAddon {
         crate::models::NotificationChannel,
         crate::models::CreateNotificationChannel,
         crate::models::UpdateNotificationChannel,
-        crate::models::ChannelType,
+        crate::models::ProviderType,
         crate::models::AlertRuleResponse,
         crate::models::CreateAlertRule,
         crate::models::UpdateAlertRule,

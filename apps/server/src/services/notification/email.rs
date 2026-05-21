@@ -2,6 +2,12 @@
 //!
 //! Sends alerts via SMTP using the lettre crate.
 //! Supports both plain text and HTML email formats.
+//!
+//! ## Two-Tier Routing
+//!
+//! Recipients are no longer stored in integration credentials — they live in
+//! `routing_override.recipients`. The dispatcher reads them from the `routing`
+//! JSON passed to `send()`.
 
 use async_trait::async_trait;
 use lettre::message::header::ContentType;
@@ -10,11 +16,11 @@ use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
 use super::{NotificationDispatcher, NotificationResult};
 use crate::error::{AppError, AppResult};
-use crate::models::{AlertPayload, EmailConfig, NotificationChannel};
+use crate::models::{AlertIntegration, AlertPayload, EmailConfig, EmailRoutingOverride};
 
 /// Email notification dispatcher
 pub struct EmailNotifier {
-    // Global SMTP configuration (fallback if channel doesn't specify)
+    // Global SMTP configuration (fallback if integration doesn't specify)
     global_smtp_host: Option<String>,
     global_smtp_port: u16,
     global_smtp_username: Option<String>,
@@ -182,20 +188,45 @@ fn html_escape(s: &str) -> String {
 
 #[async_trait]
 impl NotificationDispatcher for EmailNotifier {
+    /// Send email using integration credentials + per-rule routing.
+    ///
+    /// Recipients are read from `routing["recipients"]` (required).
+    /// SMTP settings come from integration credentials (with global env var fallback).
     async fn send(
         &self,
-        channel: &NotificationChannel,
+        integration: &AlertIntegration,
+        routing: &serde_json::Value,
         payload: &AlertPayload,
     ) -> NotificationResult {
-        // Parse config
-        let config: EmailConfig = match serde_json::from_value(channel.config.clone()) {
+        // Parse integration credentials
+        let config: EmailConfig = match serde_json::from_value(integration.credentials.clone()) {
             Ok(c) => c,
             Err(e) => {
-                return NotificationResult::failure(format!("Invalid email config: {}", e), None)
+                return NotificationResult::failure(
+                    format!("Invalid email credentials: {}", e),
+                    None,
+                )
             }
         };
 
-        // Determine SMTP settings (channel config overrides global)
+        // Extract recipients from routing override
+        let routing_override: EmailRoutingOverride =
+            match serde_json::from_value(routing.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    return NotificationResult::failure(
+                        format!("Invalid email routing override: {}", e),
+                        None,
+                    )
+                }
+            };
+
+        let recipients = &routing_override.recipients;
+        if recipients.is_empty() {
+            return NotificationResult::failure("No email recipients in routing override".to_string(), None);
+        }
+
+        // Determine SMTP settings (integration config overrides global)
         let smtp_host = config.smtp_host.as_ref().or(self.global_smtp_host.as_ref());
         let smtp_host = match smtp_host {
             Some(h) => h,
@@ -236,7 +267,7 @@ impl NotificationDispatcher for EmailNotifier {
 
         // Send to each recipient
         let mut sent_any = false;
-        for recipient in &config.recipients {
+        for recipient in recipients {
             // Build email message
             let email = match Message::builder()
                 .from(
@@ -357,26 +388,10 @@ impl NotificationDispatcher for EmailNotifier {
         let email_config: EmailConfig = serde_json::from_value(config.clone())
             .map_err(|e| AppError::Validation(format!("Invalid email config: {}", e)))?;
 
-        if email_config.recipients.is_empty() {
-            return Err(AppError::Validation(
-                "At least one email recipient is required".to_string(),
-            ));
-        }
-
-        // Validate email addresses
-        for recipient in &email_config.recipients {
-            if !recipient.contains('@') || recipient.len() < 5 {
-                return Err(AppError::Validation(format!(
-                    "Invalid email address: {}",
-                    recipient
-                )));
-            }
-        }
-
         // If no global SMTP and no channel SMTP, warn
         if email_config.smtp_host.is_none() && self.global_smtp_host.is_none() {
             return Err(AppError::Validation(
-                "SMTP host must be configured either globally or per-channel".to_string(),
+                "SMTP host must be configured either globally or per-integration".to_string(),
             ));
         }
 
@@ -388,6 +403,7 @@ impl NotificationDispatcher for EmailNotifier {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use crate::models::ProviderType;
 
     fn create_test_payload() -> AlertPayload {
         AlertPayload {
@@ -410,6 +426,26 @@ mod tests {
             },
             issue_url: "https://example.com/issues/abc-123".to_string(),
             actor: "Rustrak".to_string(),
+        }
+    }
+
+    fn make_email_integration(smtp_host: Option<&str>) -> AlertIntegration {
+        AlertIntegration {
+            id: 1,
+            name: "Email Integration".to_string(),
+            provider_type: ProviderType::Email,
+            credentials: serde_json::json!({
+                "smtp_host": smtp_host,
+                "smtp_port": 587,
+                "from_address": "alerts@example.com"
+            }),
+            is_enabled: true,
+            failure_count: 0,
+            last_failure_at: None,
+            last_failure_message: None,
+            last_success_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
     }
 
@@ -440,5 +476,78 @@ mod tests {
         assert_eq!(html_escape("<script>"), "&lt;script&gt;");
         assert_eq!(html_escape("a & b"), "a &amp; b");
         assert_eq!(html_escape("\"quote\""), "&quot;quote&quot;");
+    }
+
+    // -------------------------------------------------------------------------
+    // Task 3 tests: routing_override drives recipients
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_routing_recipients_are_read_from_routing_value() {
+        // Verifies that EmailRoutingOverride deserialization works correctly
+        let routing = serde_json::json!({"recipients": ["a@b.com", "c@d.com"]});
+        let override_val: EmailRoutingOverride =
+            serde_json::from_value(routing).expect("must deserialize");
+        assert_eq!(override_val.recipients, vec!["a@b.com", "c@d.com"]);
+    }
+
+    #[test]
+    fn test_empty_recipients_in_routing_fails_deserialization_cleanly() {
+        // An empty recipients array deserialises but send() should detect and fail
+        let routing = serde_json::json!({"recipients": []});
+        let override_val: EmailRoutingOverride =
+            serde_json::from_value(routing).expect("empty list must still deserialize");
+        assert!(
+            override_val.recipients.is_empty(),
+            "empty recipients must be detectable"
+        );
+    }
+
+    #[test]
+    fn test_validate_config_requires_smtp_host_or_global() {
+        // When no global SMTP is set and credentials lack smtp_host, validation fails
+        let notifier = EmailNotifier {
+            global_smtp_host: None,
+            global_smtp_port: 587,
+            global_smtp_username: None,
+            global_smtp_password: None,
+            global_from_address: "test@test.com".to_string(),
+        };
+
+        let config = serde_json::json!({
+            "from_address": "alerts@example.com"
+            // no smtp_host
+        });
+        let result = notifier.validate_config(&config);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("SMTP host"), "error must mention SMTP host: {msg}");
+    }
+
+    #[test]
+    fn test_validate_config_passes_with_smtp_host_in_credentials() {
+        let notifier = EmailNotifier {
+            global_smtp_host: None,
+            global_smtp_port: 587,
+            global_smtp_username: None,
+            global_smtp_password: None,
+            global_from_address: "test@test.com".to_string(),
+        };
+
+        let config = serde_json::json!({
+            "smtp_host": "smtp.example.com",
+            "from_address": "alerts@example.com"
+        });
+        assert!(notifier.validate_config(&config).is_ok());
+    }
+
+    #[test]
+    fn test_make_email_integration_helper() {
+        let integration = make_email_integration(Some("smtp.example.com"));
+        assert_eq!(integration.provider_type, ProviderType::Email);
+        assert_eq!(
+            integration.credentials["smtp_host"].as_str(),
+            Some("smtp.example.com")
+        );
     }
 }
