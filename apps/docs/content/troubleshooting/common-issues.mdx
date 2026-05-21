@@ -2,6 +2,18 @@
 
 Quick solutions to the most frequent problems.
 
+## DSN shows `0.0.0.0` instead of your domain
+
+If your DSN looks like `http://key@0.0.0.0:8080/1`, the server is using its TCP bind address instead of your public URL.
+
+**Fix:** Set `PUBLIC_URL` in your server environment:
+
+```bash
+PUBLIC_URL=https://api.yourcompany.com
+```
+
+The DSN will immediately reflect the correct URL on the next API call. See [Environment Variables](/configuration/environment#public_url) for details.
+
 ## Events not appearing
 
 ### Check your DSN
@@ -12,7 +24,7 @@ http://<sentry_key>@<host>:<port>/<project_id>
 ```
 
 Make sure:
-- The host is reachable from your app
+- The host is reachable from your app (set `PUBLIC_URL` if it shows `0.0.0.0`)
 - The port is correct (default: 8080)
 - The project ID exists
 

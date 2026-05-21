@@ -73,6 +73,23 @@ openssl rand -hex 32
 | `HOST` | `0.0.0.0` | Server bind address |
 | `PORT` | `8080` | Server port |
 | `RUST_LOG` | `info` | Log level (trace, debug, info, warn, error) |
+| `PUBLIC_URL` | *(none)* | Public-facing URL used in DSN strings shown to users |
+
+### PUBLIC_URL
+
+The URL that Rustrak embeds in DSN strings. Must include the scheme (`http://` or `https://`). Trailing slashes are stripped automatically.
+
+```bash
+# Production (behind reverse proxy)
+PUBLIC_URL=https://api.yourcompany.com
+
+# Self-hosted with custom port
+PUBLIC_URL=http://192.168.1.10:9090
+```
+
+**Why this matters:** `HOST=0.0.0.0` is the TCP *bind* address — it means "listen on all interfaces." It is not a routable address. Without `PUBLIC_URL`, the DSN shown in the dashboard will contain `http://0.0.0.0:8080/...`, which your SDK cannot reach.
+
+When unset, Rustrak falls back to `http://{HOST}:{PORT}` — fine for local development where `HOST` is `localhost` or `127.0.0.1`.
 
 ## Database Pool
 
@@ -167,6 +184,7 @@ SESSION_SECRET_KEY=a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67
 HOST=0.0.0.0
 PORT=8080
 RUST_LOG=info
+PUBLIC_URL=https://api.yourcompany.com
 
 # Database Pool
 DATABASE_MAX_CONNECTIONS=20
