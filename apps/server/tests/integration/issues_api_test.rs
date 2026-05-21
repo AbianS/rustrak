@@ -11,6 +11,7 @@ use rustrak::routes;
 use rustrak::services::grouping::DenormalizedFields;
 use rustrak::services::{AuthTokenService, IssueService, ProjectService};
 use serde_json::{json, Value};
+use sqlx;
 use std::time::Duration as StdDuration;
 use uuid::Uuid;
 
@@ -632,9 +633,21 @@ async fn test_delete_issue_success() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 204);
 
-    // Verify issue is marked as deleted
-    let result = IssueService::get_by_id(&db.pool, issue.id).await;
-    assert!(result.is_err());
+    // Verify issue row is hard-deleted from the database
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM issues WHERE id = $1")
+        .bind(issue.id)
+        .fetch_optional(&db.pool)
+        .await
+        .expect("DB query failed");
+    assert!(row.is_none(), "issue row should be gone after hard delete");
+
+    // Verify GET on the deleted issue returns 404
+    let get_req = test::TestRequest::get()
+        .uri(&format!("/api/projects/{}/issues/{}", project.id, issue.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+    let get_resp = test::call_service(&app, get_req).await;
+    assert_eq!(get_resp.status(), 404);
 }
 
 #[actix_web::test]
@@ -698,6 +711,14 @@ async fn test_delete_issue_wrong_project() {
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 404);
+
+    // Verify the issue row was NOT deleted (cross-project isolation)
+    let row: Option<(Uuid,)> = sqlx::query_as("SELECT id FROM issues WHERE id = $1")
+        .bind(issue.id)
+        .fetch_optional(&db.pool)
+        .await
+        .expect("DB query failed");
+    assert!(row.is_some(), "issue row should still exist after wrong-project delete attempt");
 }
 
 // =============================================================================

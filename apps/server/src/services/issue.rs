@@ -33,7 +33,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                         ORDER BY digest_order DESC
                         LIMIT $2
                         "#,
@@ -46,7 +46,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                         ORDER BY digest_order DESC
                         LIMIT $2
                         "#,
@@ -65,7 +65,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                           AND digest_order < $3
                         ORDER BY digest_order DESC
                         LIMIT $2
@@ -80,7 +80,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                           AND digest_order < $3
                         ORDER BY digest_order DESC
                         LIMIT $2
@@ -100,7 +100,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                         ORDER BY digest_order ASC
                         LIMIT $2
                         "#,
@@ -113,7 +113,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                         ORDER BY digest_order ASC
                         LIMIT $2
                         "#,
@@ -132,7 +132,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                           AND digest_order > $3
                         ORDER BY digest_order ASC
                         LIMIT $2
@@ -147,7 +147,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                           AND digest_order > $3
                         ORDER BY digest_order ASC
                         LIMIT $2
@@ -167,7 +167,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
                         "#,
@@ -180,7 +180,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
                         "#,
@@ -200,7 +200,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                           AND (last_seen < $3 OR (last_seen = $3 AND id < $4))
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
@@ -216,7 +216,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                           AND (last_seen < $3 OR (last_seen = $3 AND id < $4))
                         ORDER BY last_seen DESC, id DESC
                         LIMIT $2
@@ -237,7 +237,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
                         "#,
@@ -250,7 +250,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
                         "#,
@@ -270,7 +270,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted
+                        WHERE project_id = $1
                           AND (last_seen > $3 OR (last_seen = $3 AND id > $4))
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
@@ -286,7 +286,7 @@ impl IssueService {
                     sqlx::query_as::<_, Issue>(
                         r#"
                         SELECT * FROM issues
-                        WHERE project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted
+                        WHERE project_id = $1 AND NOT is_resolved AND NOT is_muted
                           AND (last_seen > $3 OR (last_seen = $3 AND id > $4))
                         ORDER BY last_seen ASC, id ASC
                         LIMIT $2
@@ -324,14 +324,10 @@ impl IssueService {
 
         // Build WHERE clause based on filter
         let where_clause = match filter {
-            IssueFilter::Open => {
-                "project_id = $1 AND NOT is_deleted AND NOT is_resolved AND NOT is_muted"
-            }
-            IssueFilter::Resolved => "project_id = $1 AND NOT is_deleted AND is_resolved",
-            IssueFilter::Muted => {
-                "project_id = $1 AND NOT is_deleted AND is_muted AND NOT is_resolved"
-            }
-            IssueFilter::All => "project_id = $1 AND NOT is_deleted",
+            IssueFilter::Open => "project_id = $1 AND NOT is_resolved AND NOT is_muted",
+            IssueFilter::Resolved => "project_id = $1 AND is_resolved",
+            IssueFilter::Muted => "project_id = $1 AND is_muted AND NOT is_resolved",
+            IssueFilter::All => "project_id = $1",
         };
 
         // Build ORDER BY clause
@@ -366,12 +362,11 @@ impl IssueService {
 
     /// Gets an issue by ID
     pub async fn get_by_id(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
-        let issue =
-            sqlx::query_as::<_, Issue>("SELECT * FROM issues WHERE id = $1 AND NOT is_deleted")
-                .bind(id)
-                .fetch_optional(pool)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("Issue {} not found", id)))?;
+        let issue = sqlx::query_as::<_, Issue>("SELECT * FROM issues WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Issue {} not found", id)))?;
 
         Ok(issue)
     }
@@ -458,7 +453,7 @@ impl IssueService {
             r#"
             UPDATE issues
             SET is_resolved = TRUE, is_muted = FALSE
-            WHERE id = $1 AND NOT is_deleted
+            WHERE id = $1
             RETURNING *
             "#,
         )
@@ -476,7 +471,7 @@ impl IssueService {
             r#"
             UPDATE issues
             SET is_resolved = FALSE
-            WHERE id = $1 AND NOT is_deleted
+            WHERE id = $1
             RETURNING *
             "#,
         )
@@ -494,7 +489,7 @@ impl IssueService {
             r#"
             UPDATE issues
             SET is_muted = TRUE
-            WHERE id = $1 AND NOT is_deleted AND NOT is_resolved
+            WHERE id = $1 AND NOT is_resolved
             RETURNING *
             "#,
         )
@@ -512,7 +507,7 @@ impl IssueService {
             r#"
             UPDATE issues
             SET is_muted = FALSE
-            WHERE id = $1 AND NOT is_deleted
+            WHERE id = $1
             RETURNING *
             "#,
         )
@@ -524,9 +519,9 @@ impl IssueService {
         Ok(issue)
     }
 
-    /// Deletes an issue (soft delete)
+    /// Hard-deletes an issue and all associated events and groupings (via CASCADE)
     pub async fn delete(pool: &DbPool, id: Uuid) -> AppResult<()> {
-        let result = sqlx::query("UPDATE issues SET is_deleted = TRUE WHERE id = $1")
+        let result = sqlx::query("DELETE FROM issues WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
