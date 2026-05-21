@@ -10,6 +10,10 @@ pub struct Config {
     pub rate_limit: RateLimitConfig,
     pub security: SecurityConfig,
     pub ingest_dir: Option<String>,
+    /// Optional public-facing URL used to build DSN strings shown to users.
+    /// Must include scheme (http:// or https://). Trailing slash is stripped at load time.
+    /// Falls back to `http://{HOST}:{PORT}` when unset.
+    pub public_url: Option<String>,
 }
 
 /// Database connection pool configuration
@@ -59,6 +63,18 @@ impl Config {
             rate_limit: RateLimitConfig::from_env(),
             security: SecurityConfig::from_env()?,
             ingest_dir: env::var("INGEST_DIR").ok(),
+            public_url: env::var("PUBLIC_URL")
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+                .map(|s| {
+                    let trimmed = s.trim().trim_end_matches('/');
+                    // Normalize scheme to lowercase (RFC 3986: scheme is case-insensitive)
+                    if let Some(pos) = trimmed.find("://") {
+                        format!("{}{}", trimmed[..pos].to_lowercase(), &trimmed[pos..])
+                    } else {
+                        trimmed.to_string()
+                    }
+                }),
         })
     }
 }

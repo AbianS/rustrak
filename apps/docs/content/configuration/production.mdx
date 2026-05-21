@@ -134,6 +134,7 @@ sqlite3 /var/lib/rustrak/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db
 - [ ] Secure secrets generated (`SESSION_SECRET_KEY`)
 - [ ] HTTPS configured (reverse proxy)
 - [ ] `SSL_PROXY=true` set
+- [ ] `PUBLIC_URL` set to your public domain (e.g. `https://api.yourcompany.com`)
 - [ ] Database SSL enabled
 - [ ] Rate limits set
 - [ ] Health checks monitored
@@ -141,3 +142,4 @@ sqlite3 /var/lib/rustrak/rustrak.db ".backup /backups/rustrak-$(date +%Y%m%d).db
 - [ ] Restart policies configured
 - [ ] Admin user created
 - [ ] Test event sent and received
+- [ ] DSN shown in dashboard contains correct domain (not `0.0.0.0`)

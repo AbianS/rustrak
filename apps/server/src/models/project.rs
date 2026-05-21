@@ -85,3 +85,56 @@ impl Project {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    fn make_project(id: i32, key: Uuid) -> Project {
+        Project {
+            id,
+            name: "Test Project".to_string(),
+            slug: "test-project".to_string(),
+            sentry_key: key,
+            stored_event_count: 0,
+            digested_event_count: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            quota_exceeded_until: None,
+            quota_exceeded_reason: None,
+            next_quota_check: 0,
+        }
+    }
+
+    #[test]
+    fn test_dsn_with_https_base_url() {
+        let key = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap();
+        let project = make_project(1, key);
+        let dsn = project.dsn("https://api.example.com");
+        let key_str = key.simple().to_string();
+        assert_eq!(dsn, format!("https://{}@api.example.com/1", key_str));
+    }
+
+    #[test]
+    fn test_dsn_with_http_base_url() {
+        let key = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let project = make_project(1, key);
+        let dsn = project.dsn("http://192.168.1.10:9090");
+        let key_str = key.simple().to_string();
+        assert_eq!(dsn, format!("http://{}@192.168.1.10:9090/1", key_str));
+    }
+
+    #[test]
+    fn test_dsn_fallback_no_scheme() {
+        let key = Uuid::new_v4();
+        let project = make_project(1, key);
+        let dsn = project.dsn("0.0.0.0:8080");
+        assert!(dsn.starts_with("http://"), "DSN should start with http://");
+        assert!(
+            dsn.contains("0.0.0.0:8080"),
+            "DSN should contain 0.0.0.0:8080"
+        );
+    }
+}
