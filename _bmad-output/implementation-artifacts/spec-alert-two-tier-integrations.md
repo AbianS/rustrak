@@ -2,9 +2,9 @@
 title: 'Alert Two-Tier Integrations — Backend (DB + Rust)'
 type: 'feature'
 created: '2026-05-21'
-status: 'implemented'
+status: 'in-review'
 baseline_commit: '384671d1a0bb725b4bc633d407d6e3cf41836c76'
-specLoopIteration: 2
+specLoopIteration: 3
 context:
   - '_bmad-output/implementation-artifacts/investigations/alert-two-tier-config-investigation.md'
 ---
@@ -102,6 +102,24 @@ context:
 - K5: Webhook `effective_url = routing.url ?? credentials.url` merge in dispatcher — correct
 - K6: Route rename to `/api/integrations`, AlertIntegration rename, ProviderType enum — correct
 - K7: Test endpoint accepts optional routing_override body — correct
+
+### SCL-2 — 2026-05-21 (loop 2→3)
+
+**Triggering findings:** ECH-1/ECH-2 (validate_routing_override entirely absent — test endpoint always sends `{}` as routing, create/update rule accept any routing JSON without validation); ECH-4 (duplicate integration_id → 500 on INSERT); BH-3 (AlertRuleResponse.channel_ids field name mismatch vs integration_ids)
+
+**Amended sections:** Tasks (add validate_routing_override implementation and wiring), Design Notes (no change — shapes already correct)
+
+**Known-bad state avoided:**
+1. `validate_routing_override` function was missing entirely — email rules could be created with no recipients, Slack bot_token rules with no channel, webhook rules with no URL anywhere. Fix: implement function + call in create_rule, update_rule, and test_channel handlers.
+2. `test_channel` ignored request body — always sent `{}` as routing_override regardless of body. Fix: accept `Option<web::Json<TestIntegrationBody>>`, extract routing_override, call validate before dispatch.
+3. Duplicate integration_id in channels list → PRIMARY KEY violation → 500. Fix: dedup by integration_id (keep first) before INSERT loop in both create_rule and update_rule service methods.
+4. `AlertRuleResponse.channel_ids` serialized as `channel_ids` in JSON — clients expecting `integration_ids`. Fix: rename field to `integration_ids`.
+
+**KEEP instructions (must survive re-derivation):**
+- K1–K7: all still correct from SCL-1
+- K8: validate_routing_override is a pure function `(provider_type, credentials, routing) -> AppResult<()>` — no DB access, match on provider_type, flat struct deserialization — correct
+- K9: TestIntegrationBody has `routing_override: Option<serde_json::Value>` — correct
+- K10: Dedup uses HashSet on integration_id, keep first occurrence — correct
 
 ## Design Notes
 

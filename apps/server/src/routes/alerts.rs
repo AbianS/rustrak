@@ -24,11 +24,12 @@ use serde::Deserialize;
 
 use crate::auth::ApiAuth;
 use crate::db::DbPool;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::ChannelType;
 use crate::models::{
-    AlertPayload, CreateAlertRule, CreateNotificationChannel, IssueInfo, ProjectInfo,
-    UpdateAlertRule, UpdateNotificationChannel,
+    AlertPayload, CreateAlertRule, CreateNotificationChannel, EmailRoutingOverride, IssueInfo,
+    ProjectInfo, ProviderType, SlackRoutingOverride, UpdateAlertRule, UpdateNotificationChannel,
+    WebhookRoutingOverride,
 };
 #[cfg(feature = "openapi")]
 use crate::models::{AlertRuleResponse, NotificationChannel};
@@ -59,6 +60,86 @@ pub fn redact_slack_bot_token(channel_type: ChannelType, config: &mut serde_json
             }
         }
     }
+}
+
+// =============================================================================
+// Routing Override Validation
+// =============================================================================
+
+/// Validates routing_override for a given provider type and credentials.
+///
+/// Dispatches to provider-specific rules using the known `provider_type` —
+/// NO serde-tagged enum, flat structs only (SCL-1/SCL-2).
+pub fn validate_routing_override(
+    provider_type: ProviderType,
+    credentials: &serde_json::Value,
+    routing: &serde_json::Value,
+) -> AppResult<()> {
+    match provider_type {
+        ProviderType::Slack => {
+            let method = credentials
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if method == "bot_token" {
+                let r: SlackRoutingOverride =
+                    serde_json::from_value(routing.clone()).map_err(|e| {
+                        AppError::Validation(format!("Invalid Slack routing_override: {e}"))
+                    })?;
+                if r.channel.as_deref().unwrap_or("").trim().is_empty() {
+                    return Err(AppError::Validation(
+                        "Slack bot_token routing_override must include a non-empty 'channel'"
+                            .to_string(),
+                    ));
+                }
+            }
+            // webhook method: no routing constraints
+        }
+        ProviderType::Email => {
+            let r: EmailRoutingOverride = serde_json::from_value(routing.clone()).map_err(|e| {
+                AppError::Validation(format!("Invalid Email routing_override: {e}"))
+            })?;
+            if r.recipients.is_empty() {
+                return Err(AppError::Validation(
+                    "Email routing_override must include at least one recipient".to_string(),
+                ));
+            }
+            for addr in &r.recipients {
+                if !addr.contains('@') {
+                    return Err(AppError::Validation(format!(
+                        "Invalid email address '{addr}': must contain '@'"
+                    )));
+                }
+            }
+        }
+        ProviderType::Webhook => {
+            let cred_url = credentials.get("url").and_then(|v| v.as_str());
+            let r: WebhookRoutingOverride =
+                serde_json::from_value(routing.clone()).map_err(|e| {
+                    AppError::Validation(format!("Invalid Webhook routing_override: {e}"))
+                })?;
+            if cred_url.is_none() && r.url.is_none() {
+                return Err(AppError::Validation(
+                    "Webhook requires a URL in credentials or routing_override".to_string(),
+                ));
+            }
+            if let Some(url) = &r.url {
+                if !url.starts_with("http://") && !url.starts_with("https://") {
+                    return Err(AppError::Validation(format!(
+                        "routing_override.url must be http or https, got: {url}"
+                    )));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Request body for the test-integration endpoint.
+#[derive(Deserialize, Default)]
+pub struct TestIntegrationBody {
+    #[serde(default)]
+    pub routing_override: Option<serde_json::Value>,
 }
 
 // =============================================================================
@@ -192,13 +273,20 @@ pub async fn delete_channel(
     ),
     security(("bearer_auth" = [])),
 ))]
-/// POST /api/alert-channels/{id}/test
+/// POST /api/integrations/{id}/test
 pub async fn test_channel(
     pool: web::Data<DbPool>,
     _auth: ApiAuth,
     path: web::Path<i32>,
+    body: Option<web::Json<TestIntegrationBody>>,
 ) -> AppResult<HttpResponse> {
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
+
+    let routing = body
+        .and_then(|b| b.into_inner().routing_override)
+        .unwrap_or_else(|| serde_json::json!({}));
+
+    validate_routing_override(channel.provider_type, &channel.credentials, &routing)?;
 
     // Create a test payload
     let test_payload = AlertPayload {
@@ -225,9 +313,7 @@ pub async fn test_channel(
 
     // Send test notification
     let dispatcher = create_dispatcher(channel.provider_type);
-    let result = dispatcher
-        .send(&channel, &serde_json::json!({}), &test_payload)
-        .await;
+    let result = dispatcher.send(&channel, &routing, &test_payload).await;
 
     if result.success {
         Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -271,11 +357,11 @@ pub async fn list_rules(
 
     let rules = AlertService::list_rules(pool.get_ref(), project_id).await?;
 
-    // Enrich with channel IDs
+    // Enrich with integration IDs
     let mut responses = Vec::new();
     for rule in rules {
-        let channel_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
-        responses.push(rule.to_response(channel_ids));
+        let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+        responses.push(rule.to_response(integration_ids));
     }
 
     Ok(HttpResponse::Ok().json(responses))
@@ -306,10 +392,22 @@ pub async fn create_rule(
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
 
-    let rule = AlertService::create_rule(pool.get_ref(), project_id, body.into_inner()).await?;
-    let channel_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let body = body.into_inner();
 
-    Ok(HttpResponse::Created().json(rule.to_response(channel_ids)))
+    // Validate routing_override for each channel before linking
+    for ch in &body.channels {
+        let integration = AlertService::get_channel(pool.get_ref(), ch.integration_id).await?;
+        validate_routing_override(
+            integration.provider_type,
+            &integration.credentials,
+            &ch.routing_override,
+        )?;
+    }
+
+    let rule = AlertService::create_rule(pool.get_ref(), project_id, body).await?;
+    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+
+    Ok(HttpResponse::Created().json(rule.to_response(integration_ids)))
 }
 
 #[derive(Deserialize)]
@@ -353,9 +451,9 @@ pub async fn get_rule(
         ));
     }
 
-    let channel_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
 
-    Ok(HttpResponse::Ok().json(rule.to_response(channel_ids)))
+    Ok(HttpResponse::Ok().json(rule.to_response(integration_ids)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -394,10 +492,24 @@ pub async fn update_rule(
         ));
     }
 
-    let rule = AlertService::update_rule(pool.get_ref(), params.rule_id, body.into_inner()).await?;
-    let channel_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let body = body.into_inner();
 
-    Ok(HttpResponse::Ok().json(rule.to_response(channel_ids)))
+    // Validate routing_override for updated channels
+    if let Some(channels) = &body.channels {
+        for ch in channels {
+            let integration = AlertService::get_channel(pool.get_ref(), ch.integration_id).await?;
+            validate_routing_override(
+                integration.provider_type,
+                &integration.credentials,
+                &ch.routing_override,
+            )?;
+        }
+    }
+
+    let rule = AlertService::update_rule(pool.get_ref(), params.rule_id, body).await?;
+    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+
+    Ok(HttpResponse::Ok().json(rule.to_response(integration_ids)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -617,5 +729,94 @@ mod tests {
         // Using ChannelType::Webhook — should not redact
         redact_slack_bot_token(ChannelType::Webhook, &mut config);
         assert_eq!(config["token"], "xoxb-real-secret");
+    }
+
+    // -------------------------------------------------------------------------
+    // validate_routing_override tests (SCL-2)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_validate_routing_slack_bot_token_with_channel_ok() {
+        let creds = serde_json::json!({"method": "bot_token", "token": "xoxb-123"});
+        let routing = serde_json::json!({"channel": "#fe"});
+        assert!(validate_routing_override(ProviderType::Slack, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_slack_bot_token_missing_channel_fails() {
+        let creds = serde_json::json!({"method": "bot_token", "token": "xoxb-123"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::Slack, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_slack_bot_token_blank_channel_fails() {
+        let creds = serde_json::json!({"method": "bot_token", "token": "xoxb-123"});
+        let routing = serde_json::json!({"channel": "   "});
+        assert!(validate_routing_override(ProviderType::Slack, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_slack_webhook_empty_routing_ok() {
+        // webhook method has no routing constraints
+        let creds = serde_json::json!({"method": "webhook", "webhook_url": "https://hooks.slack.com/services/T/B/X"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::Slack, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_email_with_recipients_ok() {
+        let creds = serde_json::json!({"smtp_host": "smtp.example.com"});
+        let routing = serde_json::json!({"recipients": ["a@b.com"]});
+        assert!(validate_routing_override(ProviderType::Email, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_email_empty_recipients_fails() {
+        let creds = serde_json::json!({"smtp_host": "smtp.example.com"});
+        let routing = serde_json::json!({"recipients": []});
+        assert!(validate_routing_override(ProviderType::Email, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_email_missing_at_fails() {
+        let creds = serde_json::json!({"smtp_host": "smtp.example.com"});
+        let routing = serde_json::json!({"recipients": ["not-an-email"]});
+        assert!(validate_routing_override(ProviderType::Email, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_webhook_cred_url_only_ok() {
+        let creds = serde_json::json!({"url": "https://example.com/hook"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_webhook_routing_url_only_ok() {
+        let creds = serde_json::json!({});
+        let routing = serde_json::json!({"url": "https://svc.io/hook"});
+        assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_webhook_no_url_anywhere_fails() {
+        let creds = serde_json::json!({"secret": "abc"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_webhook_invalid_scheme_fails() {
+        let creds = serde_json::json!({});
+        let routing = serde_json::json!({"url": "ftp://bad.example.com"});
+        assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_webhook_http_scheme_ok() {
+        let creds = serde_json::json!({});
+        let routing = serde_json::json!({"url": "http://internal.example.com/hook"});
+        assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_ok());
     }
 }

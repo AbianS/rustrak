@@ -271,18 +271,28 @@ impl AlertService {
             AppError::Database(e)
         })?;
 
-        // Use new channels field; fall back to legacy channel_ids for compat
-        let channels_to_link: Vec<AlertRuleChannelInput> = if !input.channels.is_empty() {
-            input.channels.clone()
-        } else {
-            input
-                .channel_ids
-                .iter()
-                .map(|&id| AlertRuleChannelInput {
-                    integration_id: id,
-                    routing_override: serde_json::json!({}),
-                })
-                .collect()
+        // Use new channels field; fall back to legacy channel_ids for compat.
+        // Dedup by integration_id to prevent PK constraint violation (ECH-4).
+        let channels_to_link: Vec<AlertRuleChannelInput> = {
+            let mut seen = std::collections::HashSet::new();
+            if !input.channels.is_empty() {
+                input
+                    .channels
+                    .clone()
+                    .into_iter()
+                    .filter(|ch| seen.insert(ch.integration_id))
+                    .collect()
+            } else {
+                input
+                    .channel_ids
+                    .iter()
+                    .filter(|&&id| seen.insert(id))
+                    .map(|&id| AlertRuleChannelInput {
+                        integration_id: id,
+                        routing_override: serde_json::json!({}),
+                    })
+                    .collect()
+            }
         };
 
         for ch in &channels_to_link {
@@ -363,6 +373,13 @@ impl AlertService {
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
+
+            // Dedup by integration_id before inserting (ECH-4)
+            let mut seen = std::collections::HashSet::new();
+            let channels: Vec<_> = channels
+                .iter()
+                .filter(|ch| seen.insert(ch.integration_id))
+                .collect();
 
             // Add new links with routing_override
             for ch in channels {

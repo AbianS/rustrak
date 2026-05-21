@@ -326,7 +326,7 @@ pub struct UpdateAlertRule {
     pub channel_ids: Option<Vec<i32>>,
 }
 
-/// Response for alert rule including linked channel info
+/// Response for alert rule including linked integration info
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertRuleResponse {
@@ -339,14 +339,14 @@ pub struct AlertRuleResponse {
     pub conditions: serde_json::Value,
     pub cooldown_minutes: i32,
     pub last_triggered_at: Option<DateTime<Utc>>,
-    pub channel_ids: Vec<i32>,
+    pub integration_ids: Vec<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl AlertRule {
-    /// Converts to response with channel IDs
-    pub fn to_response(&self, channel_ids: Vec<i32>) -> AlertRuleResponse {
+    /// Converts to response with integration IDs
+    pub fn to_response(&self, integration_ids: Vec<i32>) -> AlertRuleResponse {
         AlertRuleResponse {
             id: self.id,
             project_id: self.project_id,
@@ -356,7 +356,7 @@ impl AlertRule {
             conditions: self.conditions.clone(),
             cooldown_minutes: self.cooldown_minutes,
             last_triggered_at: self.last_triggered_at,
-            channel_ids,
+            integration_ids,
             created_at: self.created_at,
             updated_at: self.updated_at,
         }
