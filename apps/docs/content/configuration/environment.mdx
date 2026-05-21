@@ -70,10 +70,22 @@ openssl rand -hex 32
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HOST` | `0.0.0.0` | Server bind address |
+| `HOST` | `0.0.0.0` | TCP bind address |
 | `PORT` | `8080` | Server port |
 | `RUST_LOG` | `info` | Log level (trace, debug, info, warn, error) |
 | `PUBLIC_URL` | *(none)* | Public-facing URL used in DSN strings shown to users |
+
+### HOST
+
+The network interface the server listens on. The default (`0.0.0.0`) means "all interfaces" and is correct for Docker — you don't need to set it explicitly.
+
+Only change this if you want to restrict access to a specific interface:
+
+```bash
+HOST=127.0.0.1  # loopback only — useful for local dev behind a local proxy
+```
+
+> **Docker note:** `HOST=0.0.0.0` is already the default. You don't need to include it in your `docker-compose.yml` or `.env`. If you set `HOST=127.0.0.1` inside a container, the port mapping won't work and the server will be unreachable.
 
 ### PUBLIC_URL
 
@@ -160,7 +172,6 @@ Only creates user if database is empty.
 DATABASE_URL=sqlite:///data/rustrak.db
 
 # Server
-HOST=0.0.0.0
 PORT=8080
 RUST_LOG=info
 
@@ -181,7 +192,6 @@ SSL_PROXY=true
 SESSION_SECRET_KEY=a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890
 
 # Server
-HOST=0.0.0.0
 PORT=8080
 RUST_LOG=info
 PUBLIC_URL=https://api.yourcompany.com

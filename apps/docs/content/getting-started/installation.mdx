@@ -59,7 +59,6 @@ services:
     ports:
       - "${SERVER_PORT}:8080"
     environment:
-      - HOST=0.0.0.0
       - PORT=8080
       - RUST_LOG=${RUST_LOG}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
