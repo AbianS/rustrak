@@ -104,18 +104,35 @@ pub async fn run_cleanup_task(pool: DbPool, retention_days: u32) {
 // =============================================================================
 
 /// Fetches monitors that are enabled and due for their next check.
+///
+/// Atomically bumps `next_check_at` to `now + interval` before returning so
+/// that a slow probe (>1 s) cannot be re-fetched on the next tick and counted
+/// as a second independent failure — which would bypass `fail_threshold`.
 async fn fetch_due_monitors(pool: &DbPool, now: chrono::DateTime<Utc>) -> AppResult<Vec<Monitor>> {
     #[cfg(feature = "postgres")]
     let monitors = sqlx::query_as::<_, Monitor>(
         r#"
+        WITH to_claim AS (
+            SELECT ms.monitor_id, m.interval_secs
+            FROM monitor_states ms
+            JOIN monitors m ON m.id = ms.monitor_id
+            WHERE m.enabled = TRUE AND ms.next_check_at <= $1
+            ORDER BY ms.next_check_at
+            LIMIT 100
+            FOR UPDATE OF ms SKIP LOCKED
+        ),
+        claimed AS (
+            UPDATE monitor_states ms
+            SET next_check_at = $1 + make_interval(secs => to_claim.interval_secs)
+            FROM to_claim
+            WHERE ms.monitor_id = to_claim.monitor_id
+            RETURNING ms.monitor_id
+        )
         SELECT m.id, m.name, m.check_type, m.url, m.interval_secs, m.timeout_secs,
                m.expected_status, m.fail_threshold, m.recovery_threshold,
                m.repeat_interval_secs, m.enabled, m.created_at, m.updated_at
         FROM monitors m
-        JOIN monitor_states ms ON ms.monitor_id = m.id
-        WHERE m.enabled = TRUE
-          AND ms.next_check_at <= $1
-        LIMIT 100
+        JOIN claimed ON m.id = claimed.monitor_id
         "#,
     )
     .bind(now)
@@ -123,21 +140,35 @@ async fn fetch_due_monitors(pool: &DbPool, now: chrono::DateTime<Utc>) -> AppRes
     .await?;
 
     #[cfg(feature = "sqlite")]
-    let monitors = sqlx::query_as::<_, Monitor>(
-        r#"
-        SELECT m.id, m.name, m.check_type, m.url, m.interval_secs, m.timeout_secs,
-               m.expected_status, m.fail_threshold, m.recovery_threshold,
-               m.repeat_interval_secs, m.enabled, m.created_at, m.updated_at
-        FROM monitors m
-        JOIN monitor_states ms ON ms.monitor_id = m.id
-        WHERE m.enabled = 1
-          AND ms.next_check_at <= $1
-        LIMIT 100
-        "#,
-    )
-    .bind(now.naive_utc().to_string())
-    .fetch_all(pool)
-    .await?;
+    let monitors = {
+        let mut tx = pool.begin().await?;
+        let rows = sqlx::query_as::<_, Monitor>(
+            r#"
+            SELECT m.id, m.name, m.check_type, m.url, m.interval_secs, m.timeout_secs,
+                   m.expected_status, m.fail_threshold, m.recovery_threshold,
+                   m.repeat_interval_secs, m.enabled, m.created_at, m.updated_at
+            FROM monitors m
+            JOIN monitor_states ms ON ms.monitor_id = m.id
+            WHERE m.enabled = 1
+              AND ms.next_check_at <= $1
+            LIMIT 100
+            "#,
+        )
+        .bind(now.naive_utc().to_string())
+        .fetch_all(&mut *tx)
+        .await?;
+
+        for monitor in &rows {
+            let next = now + chrono::Duration::seconds(monitor.interval_secs as i64);
+            sqlx::query("UPDATE monitor_states SET next_check_at = $1 WHERE monitor_id = $2")
+                .bind(next.naive_utc().to_string())
+                .bind(monitor.id.to_string())
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        rows
+    };
 
     Ok(monitors)
 }
