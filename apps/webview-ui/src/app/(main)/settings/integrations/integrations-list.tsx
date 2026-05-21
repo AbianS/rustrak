@@ -2,7 +2,17 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AlertIntegration, ProviderType } from '@rustrak/client';
-import { Hash, Loader2, Mail, Play, Trash2, Webhook } from 'lucide-react';
+import {
+  Bell,
+  ChevronDown,
+  Hash,
+  Loader2,
+  Mail,
+  Play,
+  Plus,
+  Trash2,
+  Webhook,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
@@ -27,6 +37,11 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -45,6 +60,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 // Active alert notification providers
@@ -177,13 +193,14 @@ export function IntegrationsList({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [configureType, setConfigureType] = useState<ProviderType | null>(null);
+  const [manageType, setManageType] = useState<ProviderType | null>(null);
   const [editIntegration, setEditIntegration] =
     useState<AlertIntegration | null>(null);
   const [deleteIntegrationItem, setDeleteIntegrationItem] =
     useState<AlertIntegration | null>(null);
 
-  const getIntegrationByType = (type: ProviderType) =>
-    initialIntegrations.find((c) => c.provider_type === type);
+  const getIntegrationsByType = (type: ProviderType) =>
+    initialIntegrations.filter((c) => c.provider_type === type);
 
   const handleTest = (integration: AlertIntegration, channel?: string) => {
     startTransition(async () => {
@@ -218,6 +235,12 @@ export function IntegrationsList({
       try {
         await deleteIntegration(deleteIntegrationItem.id);
         toast.success('Integration deleted');
+        const remaining = initialIntegrations.filter(
+          (i) =>
+            i.provider_type === deleteIntegrationItem.provider_type &&
+            i.id !== deleteIntegrationItem.id,
+        );
+        if (remaining.length === 0) setManageType(null);
         setDeleteIntegrationItem(null);
         setConfigureType(null);
         setEditIntegration(null);
@@ -229,9 +252,25 @@ export function IntegrationsList({
     });
   };
 
-  const openConfigure = (type: ProviderType) => {
-    const existing = getIntegrationByType(type);
-    if (existing) setEditIntegration(existing);
+  const handleCardClick = (type: ProviderType) => {
+    const instances = getIntegrationsByType(type);
+    if (instances.length >= 1) {
+      setManageType(type);
+    } else {
+      setEditIntegration(null);
+      setConfigureType(type);
+    }
+  };
+
+  const handleEditFromManage = (integration: AlertIntegration) => {
+    setManageType(null);
+    setEditIntegration(integration);
+    setConfigureType(integration.provider_type);
+  };
+
+  const handleAddFromManage = (type: ProviderType) => {
+    setManageType(null);
+    setEditIntegration(null);
     setConfigureType(type);
   };
 
@@ -240,77 +279,132 @@ export function IntegrationsList({
     setEditIntegration(null);
   };
 
+  const alertConfiguredCount = alertProviders.filter(
+    (p) => getIntegrationsByType(p.type).length > 0,
+  ).length;
+
   return (
-    <div className="space-y-10">
-      {/* Alert Notifications */}
-      <section>
-        <div className="mb-4">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Alert Notifications
-          </h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            Get notified when issues occur in your projects.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {alertProviders.map((providerDef) => {
-            const existing = getIntegrationByType(providerDef.type);
-            const Icon = providerDef.icon;
-            const isConnected = !!existing && existing.is_enabled;
-            const isDisabled = !!existing && !existing.is_enabled;
-
-            return (
-              <button
-                key={providerDef.type}
-                type="button"
-                className={cn(
-                  'group bg-card border rounded-xl p-5 flex flex-col gap-4 text-left transition-all',
-                  'hover:border-primary/40 hover:shadow-sm',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                )}
-                onClick={() => openConfigure(providerDef.type)}
-              >
-                <div className="flex items-start justify-between">
-                  <div
-                    className={cn(
-                      'size-10 rounded-lg flex items-center justify-center text-white shrink-0',
-                      providerDef.color,
-                    )}
-                  >
-                    <Icon className="size-5" />
-                  </div>
-                  <Badge
-                    variant={isConnected ? 'default' : 'secondary'}
-                    className={cn(
-                      'text-[10px] font-bold uppercase tracking-wider',
-                      isConnected &&
-                        'bg-green-500/10 text-green-600 border-green-500/20',
-                      isDisabled && 'opacity-60',
-                    )}
-                  >
-                    {isConnected
-                      ? 'Connected'
-                      : isDisabled
-                        ? 'Disabled'
-                        : 'Not configured'}
-                  </Badge>
-                </div>
-
-                <div className="flex-1 min-h-0">
-                  <p className="font-semibold text-sm">{providerDef.name}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                    {existing ? existing.name : providerDef.description}
-                  </p>
-                </div>
-
-                <p className="text-xs font-semibold text-primary group-hover:underline">
-                  {existing ? 'Edit configuration →' : 'Configure →'}
+    <div className="space-y-3">
+      <Collapsible defaultOpen className="group/section">
+        <CollapsibleTrigger className="w-full">
+          <div className="flex items-center justify-between rounded-lg border bg-card px-4 py-3.5 transition-colors hover:bg-accent/50 group-data-open/section:rounded-b-none group-data-open/section:border-b-0">
+            <div className="flex items-center gap-3">
+              <div className="flex size-8 items-center justify-center rounded-md bg-orange-500/10 text-orange-500">
+                <Bell className="size-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold leading-none">
+                  Alert Notifications
                 </p>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Send alerts to external services when new issues are detected.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5">
+              {alertConfiguredCount > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] font-bold uppercase tracking-wider"
+                >
+                  {alertConfiguredCount} configured
+                </Badge>
+              )}
+              <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-open/section:rotate-180" />
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="rounded-b-lg border border-t-0 bg-card/50 p-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {alertProviders.map((providerDef) => {
+              const instances = getIntegrationsByType(providerDef.type);
+              const Icon = providerDef.icon;
+              const count = instances.length;
+              const single = count === 1 ? instances[0] : null;
+              const isConnected = !!single && single.is_enabled;
+              const isDisabled = !!single && !single.is_enabled;
+
+              return (
+                <div
+                  key={providerDef.type}
+                  className={cn(
+                    'group relative bg-card border rounded-lg p-5 flex flex-col justify-between h-48',
+                    'hover:border-primary/50 transition-all cursor-pointer',
+                    count === 0 && 'opacity-70 hover:opacity-100',
+                  )}
+                  onClick={() => handleCardClick(providerDef.type)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div
+                      className={cn(
+                        'size-10 rounded flex items-center justify-center text-white',
+                        providerDef.color,
+                      )}
+                    >
+                      <Icon className="size-5" />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Badge
+                        variant={isConnected ? 'default' : 'secondary'}
+                        className={cn(
+                          'text-[10px] font-bold uppercase tracking-wider',
+                          isConnected &&
+                            'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
+                          isDisabled && 'opacity-60',
+                        )}
+                      >
+                        {count === 0
+                          ? 'Not configured'
+                          : count > 1
+                            ? `${count} configured`
+                            : isConnected
+                              ? 'Connected'
+                              : 'Disabled'}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base">{providerDef.name}</h3>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                      {single ? single.name : providerDef.description}
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full text-xs font-bold uppercase tracking-wide"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCardClick(providerDef.type);
+                    }}
+                  >
+                    {count === 0 ? 'Configure' : 'Manage'}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Manage dialog — shown when 1+ instances exist */}
+      {alertProviders.map((providerDef) => {
+        const instances = getIntegrationsByType(providerDef.type);
+        return (
+          <ManageDialog
+            key={providerDef.type}
+            open={manageType === providerDef.type}
+            onOpenChange={(open) => !open && setManageType(null)}
+            providerDef={providerDef}
+            instances={instances}
+            onEdit={handleEditFromManage}
+            onAdd={() => handleAddFromManage(providerDef.type)}
+            onDelete={(i) => setDeleteIntegrationItem(i)}
+          />
+        );
+      })}
 
       <WebhookConfigDialog
         open={configureType === 'webhook'}
@@ -365,6 +459,109 @@ export function IntegrationsList({
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// ============================================================================
+// ManageDialog — shown when a provider has 2+ configured instances
+// ============================================================================
+
+interface ManageDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  providerDef: (typeof alertProviders)[number];
+  instances: AlertIntegration[];
+  onEdit: (integration: AlertIntegration) => void;
+  onAdd: () => void;
+  onDelete: (integration: AlertIntegration) => void;
+}
+
+function ManageDialog({
+  open,
+  onOpenChange,
+  providerDef,
+  instances,
+  onEdit,
+  onAdd,
+  onDelete,
+}: ManageDialogProps) {
+  const Icon = providerDef.icon;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div
+              className={cn(
+                'size-9 rounded flex items-center justify-center text-white shrink-0',
+                providerDef.color,
+              )}
+            >
+              <Icon className="size-4.5" />
+            </div>
+            <div>
+              <DialogTitle>{providerDef.name}</DialogTitle>
+              <DialogDescription>
+                {instances.length} integration
+                {instances.length !== 1 ? 's' : ''} configured
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="space-y-2 py-1">
+          {instances.map((integration) => (
+            <div
+              key={integration.id}
+              className="flex items-center justify-between rounded-lg border px-3 py-2.5"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={cn(
+                    'size-2 rounded-full shrink-0',
+                    integration.is_enabled
+                      ? 'bg-green-500'
+                      : 'bg-muted-foreground/40',
+                  )}
+                />
+                <span className="text-sm font-medium truncate">
+                  {integration.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 ml-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => onEdit(integration)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => onDelete(integration)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+          <Button onClick={onAdd}>
+            <Plus className="size-4 mr-1.5" />
+            Add {providerDef.name}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -714,10 +911,12 @@ function SlackConfigDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {existingIntegration ? 'Edit Slack Integration' : 'Configure Slack'}
+            {existingIntegration
+              ? 'Edit Slack Integration'
+              : 'Add Slack Integration'}
           </DialogTitle>
           <DialogDescription>
-            Store Slack credentials here. Choose the target channel when
+            Store your Slack credentials here. Choose the target channel when
             creating an alert rule.
           </DialogDescription>
         </DialogHeader>
@@ -734,7 +933,7 @@ function SlackConfigDialog({
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g., Slack Alerts"
+                      placeholder="e.g., Engineering Alerts"
                       disabled={isLoading}
                       {...field}
                     />
@@ -750,101 +949,83 @@ function SlackConfigDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Delivery Method
+                    Connection method
                   </FormLabel>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => field.onChange('webhook')}
-                      className={cn(
-                        'rounded-md border px-3 py-2 text-sm text-left transition-colors',
-                        field.value === 'webhook'
-                          ? 'border-primary bg-primary/10 text-primary font-semibold'
-                          : 'border-muted-foreground/30 hover:border-primary/50',
-                      )}
-                    >
-                      <div className="font-medium">Incoming Webhook</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Paste a webhook URL
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isLoading}
-                      onClick={() => field.onChange('bot_token')}
-                      className={cn(
-                        'rounded-md border px-3 py-2 text-sm text-left transition-colors',
-                        field.value === 'bot_token'
-                          ? 'border-primary bg-primary/10 text-primary font-semibold'
-                          : 'border-muted-foreground/30 hover:border-primary/50',
-                      )}
-                    >
-                      <div className="font-medium">Bot Token</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Use an xoxb- bot token
-                      </div>
-                    </button>
-                  </div>
+                  <Tabs
+                    value={field.value}
+                    onValueChange={(v) => field.onChange(v as SlackMethod)}
+                  >
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="webhook" disabled={isLoading}>
+                        Incoming Webhook
+                      </TabsTrigger>
+                      <TabsTrigger value="bot_token" disabled={isLoading}>
+                        Bot Token
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="webhook" className="mt-3">
+                      <FormField
+                        control={form.control}
+                        name="webhook_url"
+                        render={({ field: urlField }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                              Webhook URL
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="url"
+                                placeholder="https://hooks.slack.com/services/..."
+                                disabled={isLoading}
+                                {...urlField}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Create an incoming webhook in your Slack app
+                              settings.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="bot_token" className="mt-3">
+                      <FormField
+                        control={form.control}
+                        name="token"
+                        render={({ field: tokenField }) => (
+                          <FormItem>
+                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                              Bot Token
+                              {existingIntegration
+                                ? ' (leave blank to keep existing)'
+                                : ''}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="password"
+                                placeholder="xoxb-..."
+                                autoComplete="new-password"
+                                disabled={isLoading}
+                                {...tokenField}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              OAuth bot token starting with xoxb- from your
+                              Slack app.
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </TabsContent>
+                  </Tabs>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            {method === 'webhook' && (
-              <FormField
-                control={form.control}
-                name="webhook_url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Webhook URL
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="url"
-                        placeholder="https://hooks.slack.com/services/..."
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Create an incoming webhook in your Slack app settings
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            {method === 'bot_token' && (
-              <FormField
-                control={form.control}
-                name="token"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Bot Token
-                      {existingIntegration
-                        ? ' (leave blank to keep existing)'
-                        : ''}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="xoxb-..."
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      OAuth bot token starting with xoxb- from your Slack app
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
 
             <FormField
               control={form.control}
@@ -870,17 +1051,19 @@ function SlackConfigDialog({
               )}
             />
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              {existingIntegration && (
-                <div className="flex gap-2 mr-auto">
-                  {isBotToken ? (
-                    // Inline channel input for bot_token test
-                    <div className="flex gap-1 items-center">
+            {existingIntegration && (
+              <div className="rounded-lg border p-3 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Send a test
+                </p>
+                {isBotToken ? (
+                  <>
+                    <div className="flex gap-2">
                       <Input
                         placeholder="#alerts"
                         value={testChannel}
                         onChange={(e) => setTestChannel(e.target.value)}
-                        className="h-8 w-28 text-xs"
+                        className="h-8 text-xs"
                         disabled={isLoading}
                       />
                       <Button
@@ -893,11 +1076,20 @@ function SlackConfigDialog({
                         }}
                         disabled={isLoading || !testChannel.trim()}
                       >
-                        <Play className="size-4 mr-1" />
+                        <Play className="size-3.5 mr-1" />
                         Test
                       </Button>
                     </div>
-                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Enter the Slack channel where the test message will be
+                      sent.
+                    </p>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] text-muted-foreground">
+                      Sends a test message to the configured webhook.
+                    </p>
                     <Button
                       type="button"
                       variant="outline"
@@ -905,22 +1097,27 @@ function SlackConfigDialog({
                       onClick={() => onTest(existingIntegration)}
                       disabled={isLoading}
                     >
-                      <Play className="size-4 mr-1" />
+                      <Play className="size-3.5 mr-1" />
                       Test
                     </Button>
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(existingIntegration)}
-                    disabled={isLoading}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="size-4 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              {existingIntegration && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDelete(existingIntegration)}
+                  disabled={isLoading}
+                  className="mr-auto text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-4 mr-1" />
+                  Delete
+                </Button>
               )}
               <Button
                 type="button"
@@ -932,9 +1129,7 @@ function SlackConfigDialog({
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingIntegration
-                  ? 'Save Changes'
-                  : 'Create Slack Integration'}
+                {existingIntegration ? 'Save Changes' : 'Add Integration'}
               </Button>
             </DialogFooter>
           </form>
@@ -1139,6 +1334,7 @@ function EmailConfigDialog({
                     <FormControl>
                       <Input
                         placeholder="username"
+                        autoComplete="off"
                         disabled={isLoading}
                         {...field}
                       />
@@ -1160,6 +1356,7 @@ function EmailConfigDialog({
                       <Input
                         type="password"
                         placeholder="••••••••"
+                        autoComplete="new-password"
                         disabled={isLoading}
                         {...field}
                       />
