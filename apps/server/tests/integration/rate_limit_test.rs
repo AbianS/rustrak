@@ -31,6 +31,7 @@ fn create_test_config(rate_limit: RateLimitConfig) -> Config {
             session_secret_key: None,
         },
         ingest_dir: Some("/tmp/rustrak_test_ratelimit".to_string()),
+        public_url: None,
     }
 }
 

@@ -44,6 +44,7 @@ fn create_test_config(ingest_dir: &str) -> Config {
             session_secret_key: None,
         },
         ingest_dir: Some(ingest_dir.to_string()),
+        public_url: None,
     }
 }
 

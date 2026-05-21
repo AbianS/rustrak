@@ -164,7 +164,58 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 /// Build base URL from config
 fn build_base_url(config: &Config) -> String {
-    format!("{}:{}", config.host, config.port)
+    config
+        .public_url
+        .clone()
+        .unwrap_or_else(|| format!("http://{}:{}", config.host, config.port))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{DatabaseConfig, RateLimitConfig, SecurityConfig};
+    use std::time::Duration;
+
+    fn make_config(public_url: Option<String>, host: &str, port: u16) -> Config {
+        Config {
+            host: host.to_string(),
+            port,
+            public_url,
+            database: DatabaseConfig {
+                url: "postgres://test:test@localhost/test".to_string(),
+                max_connections: 10,
+                min_connections: 1,
+                acquire_timeout: Duration::from_secs(5),
+                idle_timeout: Duration::from_secs(600),
+                max_lifetime: Duration::from_secs(1800),
+            },
+            rate_limit: RateLimitConfig {
+                max_events_per_minute: 1000,
+                max_events_per_hour: 10000,
+                max_events_per_project_per_minute: 500,
+                max_events_per_project_per_hour: 5000,
+            },
+            security: SecurityConfig {
+                ssl_proxy: false,
+                session_secret_key: None,
+            },
+            ingest_dir: None,
+        }
+    }
+
+    #[test]
+    fn test_build_base_url_uses_public_url_when_set() {
+        let config = make_config(Some("https://api.example.com".to_string()), "0.0.0.0", 8080);
+        let result = build_base_url(&config);
+        assert_eq!(result, "https://api.example.com");
+    }
+
+    #[test]
+    fn test_build_base_url_fallback_when_no_public_url() {
+        let config = make_config(None, "127.0.0.1", 9090);
+        let result = build_base_url(&config);
+        assert_eq!(result, "http://127.0.0.1:9090");
+    }
 }
 
 #[cfg(feature = "openapi")]

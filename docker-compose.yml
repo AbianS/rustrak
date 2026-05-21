@@ -25,6 +25,7 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+      - PUBLIC_URL=${PUBLIC_URL:-}
     depends_on:
       postgres:
         condition: service_healthy

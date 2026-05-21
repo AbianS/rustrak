@@ -36,6 +36,7 @@ fn create_test_config() -> Config {
             session_secret_key: None,
         },
         ingest_dir: None,
+        public_url: None,
     }
 }
 

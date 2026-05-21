@@ -666,6 +666,9 @@ MAX_EVENTS_PER_PROJECT_PER_HOUR=5000
 
 # Storage
 INGEST_DIR=/tmp/rustrak/ingest    # Temporary event storage
+
+# Public URL (optional)
+PUBLIC_URL=https://api.yourdomain.com  # Optional. Public-facing URL used in DSN generation (e.g. https://api.yourdomain.com). Falls back to http://HOST:PORT if unset.
 ```
 
 ### Security Configuration

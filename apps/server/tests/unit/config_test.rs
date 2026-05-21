@@ -4,7 +4,7 @@
 //!
 //! Note: These tests modify global environment variables and must run serially.
 
-use rustrak::config::RateLimitConfig;
+use rustrak::config::{Config, RateLimitConfig};
 use serial_test::serial;
 
 // =============================================================================
@@ -98,4 +98,73 @@ fn test_rate_limit_config_negative_values() {
 
     // Clean up
     std::env::remove_var("MAX_EVENTS_PER_MINUTE");
+}
+
+// =============================================================================
+// PUBLIC_URL Config Tests
+// =============================================================================
+
+#[test]
+#[serial]
+fn test_config_public_url_none_when_not_set() {
+    let saved_db = std::env::var("DATABASE_URL").ok();
+    std::env::remove_var("PUBLIC_URL");
+    std::env::set_var("DATABASE_URL", "postgres://test:test@localhost/test");
+
+    let config = Config::from_env().expect("Config::from_env() should succeed");
+    assert!(config.public_url.is_none());
+
+    std::env::remove_var("DATABASE_URL");
+    if let Some(v) = saved_db { std::env::set_var("DATABASE_URL", v); }
+}
+
+#[test]
+#[serial]
+fn test_config_public_url_loaded_from_env() {
+    let saved_db = std::env::var("DATABASE_URL").ok();
+    std::env::set_var("PUBLIC_URL", "https://api.example.com");
+    std::env::set_var("DATABASE_URL", "postgres://test:test@localhost/test");
+
+    let config = Config::from_env().expect("Config::from_env() should succeed");
+    assert_eq!(
+        config.public_url,
+        Some("https://api.example.com".to_string())
+    );
+
+    std::env::remove_var("PUBLIC_URL");
+    std::env::remove_var("DATABASE_URL");
+    if let Some(v) = saved_db { std::env::set_var("DATABASE_URL", v); }
+}
+
+#[test]
+#[serial]
+fn test_config_public_url_strips_trailing_slash() {
+    let saved_db = std::env::var("DATABASE_URL").ok();
+    std::env::set_var("PUBLIC_URL", "https://api.example.com/");
+    std::env::set_var("DATABASE_URL", "postgres://test:test@localhost/test");
+
+    let config = Config::from_env().expect("Config::from_env() should succeed");
+    assert_eq!(
+        config.public_url,
+        Some("https://api.example.com".to_string())
+    );
+
+    std::env::remove_var("PUBLIC_URL");
+    std::env::remove_var("DATABASE_URL");
+    if let Some(v) = saved_db { std::env::set_var("DATABASE_URL", v); }
+}
+
+#[test]
+#[serial]
+fn test_config_public_url_empty_string_treated_as_none() {
+    let saved_db = std::env::var("DATABASE_URL").ok();
+    std::env::set_var("PUBLIC_URL", "");
+    std::env::set_var("DATABASE_URL", "postgres://test:test@localhost/test");
+
+    let config = Config::from_env().expect("Config::from_env() should succeed");
+    assert!(config.public_url.is_none());
+
+    std::env::remove_var("PUBLIC_URL");
+    std::env::remove_var("DATABASE_URL");
+    if let Some(v) = saved_db { std::env::set_var("DATABASE_URL", v); }
 }

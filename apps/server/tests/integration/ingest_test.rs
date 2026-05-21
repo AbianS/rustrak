@@ -35,6 +35,7 @@ fn create_test_config() -> Config {
             session_secret_key: None,
         },
         ingest_dir: Some("/tmp/rustrak_test_ingest".to_string()),
+        public_url: None,
     }
 }
 
