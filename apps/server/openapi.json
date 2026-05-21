@@ -1380,7 +1380,7 @@
         "tags": [
           "Issues"
         ],
-        "summary": "DELETE /api/projects/{project_id}/issues/{issue_id}\nSoft-deletes an issue",
+        "summary": "DELETE /api/projects/{project_id}/issues/{issue_id}\nHard-deletes an issue and all associated events",
         "operationId": "delete_issue",
         "parameters": [
           {

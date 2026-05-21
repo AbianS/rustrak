@@ -206,7 +206,7 @@ Issues support state management via PATCH endpoint:
 - **Unresolve**: Sets `is_resolved = false`, issue visible again
 - **Mute**: Sets `is_muted = true`, issue hidden from default list
 - **Unmute**: Sets `is_muted = false`, issue visible again
-- **Delete**: Soft delete via DELETE endpoint (`is_deleted = true`)
+- **Delete**: Hard delete via DELETE endpoint — row + child events + groupings removed via CASCADE
 
 **Priority**: `is_resolved` takes precedence over `is_muted` when both are provided.
 
@@ -586,13 +586,11 @@ CREATE TABLE issues (
     platform VARCHAR(50),
     is_resolved BOOLEAN NOT NULL DEFAULT FALSE,
     is_muted BOOLEAN NOT NULL DEFAULT FALSE,
-    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
 
     UNIQUE(project_id, digest_order)
 );
 
-CREATE INDEX idx_issues_project_last_seen ON issues(project_id, last_seen DESC)
-    WHERE NOT is_deleted;
+CREATE INDEX idx_issues_project_last_seen ON issues(project_id, last_seen DESC);
 ```
 
 ### events
@@ -601,8 +599,8 @@ CREATE TABLE events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id UUID NOT NULL,
     project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    issue_id UUID REFERENCES issues(id) ON DELETE SET NULL,
-    grouping_id INTEGER REFERENCES groupings(id) ON DELETE SET NULL,
+    issue_id UUID NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+    grouping_id INTEGER NOT NULL REFERENCES groupings(id) ON DELETE CASCADE,
     data JSONB NOT NULL,
     timestamp TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -706,7 +704,8 @@ apps/server/
 │   ├── 20260119000004_create_groupings.up.sql
 │   ├── 20260119000005_create_events.up.sql
 │   ├── 20260119000006_add_rate_limiting.up.sql
-│   └── 20260119000007_remove_soft_delete.up.sql
+│   ├── 20260119000007_remove_soft_delete.up.sql
+│   └── 20260521000000_remove_issue_soft_delete.up.sql
 └── src/
     ├── main.rs         # Entry point, bootstrap token
     ├── config.rs       # Environment config (inc. RateLimitConfig)

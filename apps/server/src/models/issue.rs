@@ -23,7 +23,6 @@ pub struct Issue {
     pub platform: Option<String>,
     pub is_resolved: bool,
     pub is_muted: bool,
-    pub is_deleted: bool,
 }
 
 /// Response for API

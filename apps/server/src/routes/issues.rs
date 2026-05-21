@@ -168,7 +168,7 @@ pub async fn update_issue(
     security(("bearer_auth" = [])),
 ))]
 /// DELETE /api/projects/{project_id}/issues/{issue_id}
-/// Soft-deletes an issue
+/// Hard-deletes an issue and all associated events
 pub async fn delete_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
