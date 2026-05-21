@@ -11,7 +11,6 @@ use rustrak::routes;
 use rustrak::services::grouping::DenormalizedFields;
 use rustrak::services::{AuthTokenService, IssueService, ProjectService};
 use serde_json::{json, Value};
-use sqlx;
 use std::time::Duration as StdDuration;
 use uuid::Uuid;
 
@@ -718,7 +717,10 @@ async fn test_delete_issue_wrong_project() {
         .fetch_optional(&db.pool)
         .await
         .expect("DB query failed");
-    assert!(row.is_some(), "issue row should still exist after wrong-project delete attempt");
+    assert!(
+        row.is_some(),
+        "issue row should still exist after wrong-project delete attempt"
+    );
 }
 
 // =============================================================================
