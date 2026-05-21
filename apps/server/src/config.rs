@@ -66,7 +66,15 @@ impl Config {
             public_url: env::var("PUBLIC_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
-                .map(|s| s.trim().trim_end_matches('/').to_string()),
+                .map(|s| {
+                    let trimmed = s.trim().trim_end_matches('/');
+                    // Normalize scheme to lowercase (RFC 3986: scheme is case-insensitive)
+                    if let Some(pos) = trimmed.find("://") {
+                        format!("{}{}", trimmed[..pos].to_lowercase(), &trimmed[pos..])
+                    } else {
+                        trimmed.to_string()
+                    }
+                }),
         })
     }
 }
