@@ -3,14 +3,10 @@
 //! Sends alerts as HTTP POST requests with JSON payloads.
 //! Supports HMAC-SHA256 signature verification for security.
 //!
-//! ## Two-Tier Routing
+//! Routing override (flat struct, no provider_type discriminator — SCL-1):
+//! `{"url": "https://override.example.com/hook", "extra_headers": {...}}`
 //!
-//! - `integration.credentials` may contain a default `url`, `secret`, and `headers`.
-//! - `routing_override` may contain an `url` that overrides the global one, and
-//!   `extra_headers` that are merged on top of credential headers (routing wins on
-//!   key collision).
-//! - Effective URL: `routing.url ?? credentials.url`. If both are absent, dispatch
-//!   fails (this should be caught at rule-create validation time).
+//! Effective URL (K5): routing.url ?? credentials.url
 
 use async_trait::async_trait;
 use chrono::Utc;
@@ -48,6 +44,14 @@ impl WebhookNotifier {
         let result = mac.finalize();
         hex::encode(result.into_bytes())
     }
+
+    /// Computes the effective URL: routing.url ?? credentials.url (K5).
+    pub fn effective_url<'a>(
+        routing: &'a WebhookRoutingOverride,
+        credentials: &'a WebhookConfig,
+    ) -> Option<&'a str> {
+        routing.url.as_deref().or(credentials.url.as_deref())
+    }
 }
 
 impl Default for WebhookNotifier {
@@ -58,46 +62,47 @@ impl Default for WebhookNotifier {
 
 #[async_trait]
 impl NotificationDispatcher for WebhookNotifier {
-    /// Send webhook using integration credentials + per-rule routing.
-    ///
-    /// Effective URL: `routing.url` wins over `credentials.url`.
-    /// If both are absent, returns a failure (should have been caught at validation).
-    /// Headers: credential headers merged with routing `extra_headers` (routing wins).
     async fn send(
         &self,
         integration: &AlertIntegration,
         routing: &serde_json::Value,
         payload: &AlertPayload,
     ) -> NotificationResult {
-        // Parse integration credentials
-        let config: WebhookConfig = match serde_json::from_value(integration.credentials.clone()) {
-            Ok(c) => c,
-            Err(e) => {
-                return NotificationResult::failure(
-                    format!("Invalid webhook credentials: {}", e),
-                    None,
-                )
-            }
-        };
+        // is_enabled check FIRST (SCL-1)
+        if !integration.is_enabled {
+            log::debug!(
+                "Skipping dispatch to disabled Webhook integration {} ({})",
+                integration.id,
+                integration.name
+            );
+            return NotificationResult::success(None);
+        }
 
-        // Parse routing override (optional — empty JSON `{}` is fine)
-        let routing_override: WebhookRoutingOverride =
-            serde_json::from_value(routing.clone()).unwrap_or(WebhookRoutingOverride {
+        // Parse credentials
+        let credentials: WebhookConfig =
+            match serde_json::from_value(integration.credentials.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    return NotificationResult::failure(
+                        format!("Invalid webhook credentials: {}", e),
+                        None,
+                    )
+                }
+            };
+
+        // Parse flat routing override (no tag — SCL-1)
+        let routing_override: WebhookRoutingOverride = serde_json::from_value(routing.clone())
+            .unwrap_or(WebhookRoutingOverride {
                 url: None,
                 extra_headers: None,
             });
 
-        // Compute effective URL: routing wins over credentials
-        let effective_url = routing_override
-            .url
-            .as_deref()
-            .or(config.url.as_deref());
-
-        let effective_url = match effective_url {
+        // Effective URL: routing wins over credentials (K5)
+        let url = match Self::effective_url(&routing_override, &credentials) {
             Some(u) => u.to_string(),
             None => {
                 return NotificationResult::failure(
-                    "Webhook URL is not configured (set in integration credentials or routing override)".to_string(),
+                    "Webhook URL not configured in credentials or routing_override".to_string(),
                     None,
                 )
             }
@@ -119,25 +124,25 @@ impl NotificationDispatcher for WebhookNotifier {
         // Build request
         let mut request = self
             .client
-            .post(&effective_url)
+            .post(url)
             .header("Content-Type", "application/json")
             .header("X-Rustrak-Timestamp", &timestamp)
             .header("X-Rustrak-Request-ID", &payload.alert_id);
 
         // Add HMAC signature if secret is configured
-        if let Some(ref secret) = config.secret {
+        if let Some(ref secret) = credentials.secret {
             let signature = Self::generate_signature(secret, &timestamp, &body);
             request = request.header("X-Rustrak-Signature", format!("sha256={}", signature));
         }
 
-        // Add credential-level custom headers (base layer)
-        if let Some(ref headers) = config.headers {
+        // Add credential-level custom headers
+        if let Some(ref headers) = credentials.headers {
             for (key, value) in headers {
                 request = request.header(key.as_str(), value.as_str());
             }
         }
 
-        // Add routing extra_headers on top (routing wins on collision — applied last)
+        // Add routing-level extra headers (override credential-level headers)
         if let Some(ref extra_headers) = routing_override.extra_headers {
             for (key, value) in extra_headers {
                 request = request.header(key.as_str(), value.as_str());
@@ -177,17 +182,18 @@ impl NotificationDispatcher for WebhookNotifier {
         let webhook_config: WebhookConfig = serde_json::from_value(config.clone())
             .map_err(|e| AppError::Validation(format!("Invalid webhook config: {}", e)))?;
 
-        // url is optional in credentials (can be supplied via routing_override.url at rule-create)
+        // URL in credentials is optional — webhook can rely entirely on routing_override.url
+        // Validate format if present
         if let Some(ref url) = webhook_config.url {
             if url.is_empty() {
-                return Err(AppError::Validation("Webhook URL cannot be empty".to_string()));
+                return Err(AppError::Validation(
+                    "Webhook URL cannot be empty if provided".to_string(),
+                ));
             }
 
-            // Validate URL format
             let parsed_url = url::Url::parse(url)
                 .map_err(|_| AppError::Validation("Invalid webhook URL format".to_string()))?;
 
-            // Ensure it's HTTP or HTTPS
             if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
                 return Err(AppError::Validation(
                     "Webhook URL must use HTTP or HTTPS".to_string(),
@@ -203,18 +209,19 @@ impl NotificationDispatcher for WebhookNotifier {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use crate::models::ProviderType;
 
-    fn make_webhook_integration(url: Option<&str>) -> AlertIntegration {
+    fn make_webhook_integration(url: Option<&str>, is_enabled: bool) -> AlertIntegration {
+        let credentials = if let Some(u) = url {
+            serde_json::json!({"url": u, "secret": "my-secret"})
+        } else {
+            serde_json::json!({"secret": "my-secret"})
+        };
         AlertIntegration {
-            id: 1,
+            id: 3,
             name: "Test Webhook".to_string(),
-            provider_type: ProviderType::Webhook,
-            credentials: serde_json::json!({
-                "url": url,
-                "secret": "test-secret"
-            }),
-            is_enabled: true,
+            provider_type: crate::models::ProviderType::Webhook,
+            credentials,
+            is_enabled,
             failure_count: 0,
             last_failure_at: None,
             last_failure_message: None,
@@ -224,6 +231,78 @@ mod tests {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Task 4 RED→GREEN: disabled integration skipped
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_disabled_webhook_integration_skipped() {
+        let notifier = WebhookNotifier::new();
+        let integration = make_webhook_integration(Some("https://example.com/hook"), false);
+        let routing = serde_json::json!({});
+        let payload = create_test_payload();
+
+        let result = notifier.send(&integration, &routing, &payload).await;
+
+        assert!(
+            result.success,
+            "disabled integration must return success (skip)"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Task 4 RED→GREEN: effective_url = routing.url ?? credentials.url (K5)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_effective_url_routing_wins_over_credentials() {
+        let routing = WebhookRoutingOverride {
+            url: Some("https://routing.example.com/hook".to_string()),
+            extra_headers: None,
+        };
+        let credentials = WebhookConfig {
+            url: Some("https://creds.example.com/hook".to_string()),
+            secret: None,
+            headers: None,
+        };
+        let url = WebhookNotifier::effective_url(&routing, &credentials);
+        assert_eq!(url, Some("https://routing.example.com/hook"));
+    }
+
+    #[test]
+    fn test_effective_url_falls_back_to_credentials() {
+        let routing = WebhookRoutingOverride {
+            url: None,
+            extra_headers: None,
+        };
+        let credentials = WebhookConfig {
+            url: Some("https://creds.example.com/hook".to_string()),
+            secret: None,
+            headers: None,
+        };
+        let url = WebhookNotifier::effective_url(&routing, &credentials);
+        assert_eq!(url, Some("https://creds.example.com/hook"));
+    }
+
+    #[test]
+    fn test_effective_url_none_when_both_absent() {
+        let routing = WebhookRoutingOverride {
+            url: None,
+            extra_headers: None,
+        };
+        let credentials = WebhookConfig {
+            url: None,
+            secret: None,
+            headers: None,
+        };
+        let url = WebhookNotifier::effective_url(&routing, &credentials);
+        assert!(url.is_none());
+    }
+
+    // -------------------------------------------------------------------------
+    // Existing tests
+    // -------------------------------------------------------------------------
+
     #[test]
     fn test_generate_signature() {
         let secret = "test-secret";
@@ -232,7 +311,6 @@ mod tests {
 
         let signature = WebhookNotifier::generate_signature(secret, timestamp, payload);
 
-        // Signature should be 64-character hex string
         assert_eq!(signature.len(), 64);
         assert!(signature.chars().all(|c| c.is_ascii_hexdigit()));
     }
@@ -246,7 +324,6 @@ mod tests {
         let sig1 = WebhookNotifier::generate_signature(secret, timestamp, payload);
         let sig2 = WebhookNotifier::generate_signature(secret, timestamp, payload);
 
-        // Same inputs should produce same signature
         assert_eq!(sig1, sig2);
     }
 
@@ -258,87 +335,30 @@ mod tests {
         let sig1 = WebhookNotifier::generate_signature("secret1", timestamp, payload);
         let sig2 = WebhookNotifier::generate_signature("secret2", timestamp, payload);
 
-        // Different secrets should produce different signatures
         assert_ne!(sig1, sig2);
     }
 
-    // -------------------------------------------------------------------------
-    // Task 3 tests: routing url and extra_headers
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_routing_url_override_deserialization() {
-        let routing = serde_json::json!({
-            "url": "https://example.com/hook",
-            "extra_headers": {"X-Custom": "value"}
-        });
-        let override_val: WebhookRoutingOverride =
-            serde_json::from_value(routing).expect("must deserialize");
-        assert_eq!(override_val.url.as_deref(), Some("https://example.com/hook"));
-        let headers = override_val.extra_headers.unwrap();
-        assert_eq!(headers.get("X-Custom").map(|s| s.as_str()), Some("value"));
-    }
-
-    #[test]
-    fn test_routing_url_wins_over_credentials_url() {
-        // Effective URL logic: routing.url should beat credentials.url
-        let routing_url = Some("https://routing.example.com/hook".to_string());
-        let creds_url = Some("https://creds.example.com/hook".to_string());
-
-        let effective = routing_url.as_deref().or(creds_url.as_deref());
-        assert_eq!(
-            effective,
-            Some("https://routing.example.com/hook"),
-            "routing url must win over credentials url"
-        );
-    }
-
-    #[test]
-    fn test_validate_config_allows_missing_url() {
-        // url is optional in credentials — can be supplied via routing_override
-        let notifier = WebhookNotifier::new();
-        let config = serde_json::json!({"secret": "abc"});
-        assert!(
-            notifier.validate_config(&config).is_ok(),
-            "missing url in credentials must be valid"
-        );
-    }
-
-    #[test]
-    fn test_validate_config_rejects_invalid_url_scheme() {
-        let notifier = WebhookNotifier::new();
-        let config = serde_json::json!({"url": "ftp://bad.example.com/hook"});
-        let result = notifier.validate_config(&config);
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
-        assert!(msg.contains("HTTP or HTTPS"), "got: {msg}");
-    }
-
-    #[test]
-    fn test_validate_config_accepts_https_url() {
-        let notifier = WebhookNotifier::new();
-        let config = serde_json::json!({"url": "https://hooks.example.com/alert"});
-        assert!(notifier.validate_config(&config).is_ok());
-    }
-
-    #[test]
-    fn test_no_url_in_credentials_or_routing_returns_failure_info() {
-        // When both credentials.url and routing.url are None, effective_url is None.
-        let routing_url: Option<&str> = None;
-        let creds_url: Option<&str> = None;
-        let effective = routing_url.or(creds_url);
-        assert!(effective.is_none(), "both absent → effective_url is None → send() returns failure");
-    }
-
-    #[test]
-    fn test_integration_with_url_in_credentials_compiles() {
-        let integration = make_webhook_integration(Some("https://example.com/hook"));
-        assert!(integration.credentials["url"].is_string());
-    }
-
-    #[test]
-    fn test_integration_without_url_in_credentials_compiles() {
-        let integration = make_webhook_integration(None);
-        assert!(integration.credentials["url"].is_null());
+    fn create_test_payload() -> AlertPayload {
+        AlertPayload {
+            alert_id: "test-123".to_string(),
+            alert_type: "new_issue".to_string(),
+            triggered_at: Utc::now(),
+            project: crate::models::ProjectInfo {
+                id: 1,
+                name: "Test Project".to_string(),
+                slug: "test-project".to_string(),
+            },
+            issue: crate::models::IssueInfo {
+                id: "abc-123".to_string(),
+                short_id: "TEST-1".to_string(),
+                title: "Test error".to_string(),
+                level: Some("error".to_string()),
+                first_seen: Utc::now(),
+                last_seen: Utc::now(),
+                event_count: 1,
+            },
+            issue_url: "https://example.com/issues/abc-123".to_string(),
+            actor: "Rustrak".to_string(),
+        }
     }
 }

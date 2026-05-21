@@ -1,9 +1,9 @@
-//! Alert service for managing alert integrations, rules, and dispatching alerts.
+//! Alert service for managing integrations, rules, and dispatching alerts.
 //!
 //! This service handles:
 //! - CRUD operations for alert integrations (global credentials)
 //! - CRUD operations for alert rules (per-project)
-//! - Alert triggering and dispatching with per-rule routing overrides
+//! - Alert triggering and dispatching
 
 use chrono::{Duration, Utc};
 use uuid::Uuid;
@@ -11,9 +11,9 @@ use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AlertHistory, AlertIntegration, AlertPayload, AlertRule, AlertRuleChannel, AlertType,
-    CreateAlertIntegration, CreateAlertRule, Issue, IssueInfo, Project, ProjectInfo, UpdateAlertRule,
-    UpdateAlertIntegration,
+    AlertHistory, AlertIntegration, AlertPayload, AlertRule, AlertRuleChannel,
+    AlertRuleChannelInput, AlertType, CreateAlertIntegration, CreateAlertRule, Issue, IssueInfo,
+    Project, ProjectInfo, UpdateAlertIntegration, UpdateAlertRule,
 };
 use crate::services::notification::create_dispatcher;
 
@@ -21,7 +21,7 @@ pub struct AlertService;
 
 impl AlertService {
     // =========================================================================
-    // Alert Integration CRUD  (renamed from Notification Channel)
+    // Alert Integration CRUD (replaces Notification Channel CRUD)
     // =========================================================================
 
     /// Lists all alert integrations
@@ -194,34 +194,46 @@ impl AlertService {
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))
     }
 
-    /// Gets AlertRuleChannel rows linked to a rule (integration_id + routing_override)
-    pub async fn get_rule_channels(
-        pool: &DbPool,
-        rule_id: i32,
-    ) -> AppResult<Vec<AlertRuleChannel>> {
-        let channels: Vec<AlertRuleChannel> = sqlx::query_as(
-            "SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels WHERE alert_rule_id = $1",
-        )
-        .bind(rule_id)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(channels)
-    }
-
-    /// Returns just the integration IDs for a rule (for response serialization)
-    pub async fn get_rule_integration_ids(
-        pool: &DbPool,
-        rule_id: i32,
-    ) -> AppResult<Vec<i32>> {
+    /// Gets alert rule channels (only enabled integrations) for response display.
+    ///
+    /// Returns Vec<i32> of integration_ids for backward compat response shape.
+    pub async fn get_rule_channels(pool: &DbPool, rule_id: i32) -> AppResult<Vec<i32>> {
+        // Only return enabled integrations (SCL-1 is_enabled filter)
         let rows: Vec<(i32,)> = sqlx::query_as(
-            "SELECT integration_id FROM alert_rule_channels WHERE alert_rule_id = $1",
+            r#"
+            SELECT arc.integration_id
+            FROM alert_rule_channels arc
+            INNER JOIN alert_integrations i ON arc.integration_id = i.id
+            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
+            "#,
         )
         .bind(rule_id)
         .fetch_all(pool)
         .await?;
 
         Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// Gets full AlertRuleChannel records for dispatch (includes routing_override).
+    ///
+    /// Filters disabled integrations (SCL-1).
+    pub async fn get_rule_channel_records(
+        pool: &DbPool,
+        rule_id: i32,
+    ) -> AppResult<Vec<AlertRuleChannel>> {
+        let channels: Vec<AlertRuleChannel> = sqlx::query_as(
+            r#"
+            SELECT arc.alert_rule_id, arc.integration_id, arc.routing_override
+            FROM alert_rule_channels arc
+            INNER JOIN alert_integrations i ON arc.integration_id = i.id
+            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
+            "#,
+        )
+        .bind(rule_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
     }
 
     /// Creates an alert rule
@@ -259,15 +271,30 @@ impl AlertService {
             AppError::Database(e)
         })?;
 
-        // Link integrations with per-rule routing
-        for channel_input in &input.channels {
+        // Use new channels field; fall back to legacy channel_ids for compat
+        let channels_to_link: Vec<AlertRuleChannelInput> = if !input.channels.is_empty() {
+            input.channels.clone()
+        } else {
+            input
+                .channel_ids
+                .iter()
+                .map(|&id| AlertRuleChannelInput {
+                    integration_id: id,
+                    routing_override: serde_json::json!({}),
+                })
+                .collect()
+        };
+
+        for ch in &channels_to_link {
             sqlx::query(
-                r#"INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
-                   VALUES ($1, $2, $3)"#,
+                r#"
+                INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
+                VALUES ($1, $2, $3)
+                "#,
             )
             .bind(rule.id)
-            .bind(channel_input.integration_id)
-            .bind(&channel_input.routing_override)
+            .bind(ch.integration_id)
+            .bind(&ch.routing_override)
             .execute(&mut *tx)
             .await
             .map_err(|e| {
@@ -275,7 +302,7 @@ impl AlertService {
                     if db_err.is_foreign_key_violation() {
                         return AppError::NotFound(format!(
                             "Integration {} not found",
-                            channel_input.integration_id
+                            ch.integration_id
                         ));
                     }
                 }
@@ -318,23 +345,36 @@ impl AlertService {
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))?;
 
-        // Update channel links if provided
-        if let Some(ref channels) = input.channels {
+        // Determine what channel updates to apply
+        let channels_update: Option<Vec<AlertRuleChannelInput>> = input.channels.or_else(|| {
+            input.channel_ids.map(|ids| {
+                ids.iter()
+                    .map(|&integration_id| AlertRuleChannelInput {
+                        integration_id,
+                        routing_override: serde_json::json!({}),
+                    })
+                    .collect()
+            })
+        });
+
+        if let Some(ref channels) = channels_update {
             // Remove existing links
             sqlx::query("DELETE FROM alert_rule_channels WHERE alert_rule_id = $1")
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
 
-            // Add new links with routing overrides
-            for channel_input in channels {
+            // Add new links with routing_override
+            for ch in channels {
                 sqlx::query(
-                    r#"INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
-                       VALUES ($1, $2, $3)"#,
+                    r#"
+                    INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
+                    VALUES ($1, $2, $3)
+                    "#,
                 )
                 .bind(id)
-                .bind(channel_input.integration_id)
-                .bind(&channel_input.routing_override)
+                .bind(ch.integration_id)
+                .bind(&ch.routing_override)
                 .execute(&mut *tx)
                 .await
                 .map_err(|e| {
@@ -342,7 +382,7 @@ impl AlertService {
                         if db_err.is_foreign_key_violation() {
                             return AppError::NotFound(format!(
                                 "Integration {} not found",
-                                channel_input.integration_id
+                                ch.integration_id
                             ));
                         }
                     }
@@ -407,7 +447,6 @@ impl AlertService {
     }
 
     /// Builds the dashboard URL for viewing an issue.
-    /// Uses project_id (numeric) — the frontend routes by ID, not slug.
     pub(crate) fn build_issue_url(
         dashboard_url: &str,
         project_id: i32,
@@ -454,7 +493,6 @@ impl AlertService {
         };
 
         // 2. Atomically check cooldown and update last_triggered_at
-        // Uses a conditional UPDATE to prevent TOCTOU race conditions
         let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
 
         #[cfg(feature = "postgres")]
@@ -490,11 +528,21 @@ impl AlertService {
             return Ok(());
         }
 
-        // 3. Get associated channels with routing overrides
-        let rule_channels = Self::get_rule_channels(pool, rule.id).await?;
+        // 3. Get associated rule channels (only enabled integrations — SCL-1)
+        let rule_channels: Vec<AlertRuleChannel> = sqlx::query_as(
+            r#"
+            SELECT arc.alert_rule_id, arc.integration_id, arc.routing_override
+            FROM alert_rule_channels arc
+            INNER JOIN alert_integrations i ON arc.integration_id = i.id
+            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
+            "#,
+        )
+        .bind(rule.id)
+        .fetch_all(pool)
+        .await?;
 
         if rule_channels.is_empty() {
-            log::debug!("No channels for alert rule {}", rule.id);
+            log::debug!("No enabled integrations for alert rule {}", rule.id);
             return Ok(());
         }
 
@@ -533,7 +581,7 @@ impl AlertService {
             project.name
         );
 
-        // 5. Dispatch to all channels (spawn tasks for parallel execution)
+        // 5. Dispatch to all rule channels (spawn tasks for parallel execution)
         for rule_channel in rule_channels {
             let pool = pool.clone();
             let payload = payload.clone();
@@ -544,8 +592,9 @@ impl AlertService {
                     Self::dispatch_to_channel(&pool, &rule_channel, &payload, rule_id).await
                 {
                     log::error!(
-                        "Failed to dispatch alert to integration {} : {}",
+                        "Failed to dispatch alert to integration {} (rule {}): {}",
                         rule_channel.integration_id,
+                        rule_id,
                         e
                     );
                 }
@@ -555,22 +604,23 @@ impl AlertService {
         Ok(())
     }
 
-    /// Dispatches an alert to a single channel using its integration + routing override
+    /// Dispatches an alert to a single rule channel (integration + routing)
     async fn dispatch_to_channel(
         pool: &DbPool,
         rule_channel: &AlertRuleChannel,
         payload: &AlertPayload,
         rule_id: i32,
     ) -> AppResult<()> {
-        let idempotency_key = format!("{}-{}", payload.alert_id, rule_channel.integration_id);
+        let integration_id = rule_channel.integration_id;
+        let idempotency_key = format!("{}-{}", payload.alert_id, integration_id);
 
-        // Fetch the integration
-        let integration = Self::get_channel(pool, rule_channel.integration_id).await?;
+        // Fetch integration record
+        let integration = Self::get_channel(pool, integration_id).await?;
 
         // Parse issue_id as UUID
         let issue_uuid = Uuid::parse_str(&payload.issue.id).ok();
 
-        // Create history record with idempotent insert (ON CONFLICT DO NOTHING)
+        // Create history record with idempotent insert
         let history_id: Option<(i64,)> = sqlx::query_as(
             r#"
             INSERT INTO alert_history (
@@ -584,7 +634,7 @@ impl AlertService {
             "#,
         )
         .bind(rule_id)
-        .bind(rule_channel.integration_id)
+        .bind(integration_id)
         .bind(issue_uuid)
         .bind(payload.project.id)
         .bind(&payload.alert_type)
@@ -602,7 +652,7 @@ impl AlertService {
             }
         };
 
-        // Dispatch using appropriate notifier (two-tier: credentials + routing)
+        // Dispatch using appropriate notifier with routing_override
         let dispatcher = create_dispatcher(integration.provider_type);
         let result = dispatcher
             .send(&integration, &rule_channel.routing_override, payload)
@@ -629,25 +679,24 @@ impl AlertService {
                 WHERE id = $1
                 "#,
             )
-            .bind(rule_channel.integration_id)
+            .bind(integration_id)
             .execute(pool)
             .await?;
 
             log::info!(
                 "Alert sent successfully to integration {} ({})",
-                rule_channel.integration_id,
+                integration_id,
                 integration.name
             );
         } else {
             // Calculate next retry with exponential backoff + jitter
             let attempt_count = 1;
-            let base_delay = 60; // 1 minute
-            let max_delay = 3600; // 1 hour
+            let base_delay = 60i64;
+            let max_delay = 3600i64;
             let delay_secs = std::cmp::min(
                 base_delay * (2_i64.pow(attempt_count as u32 - 1)),
                 max_delay,
             );
-            // Add 10% jitter
             let jitter = (delay_secs as f64 * 0.1 * rand::random::<f64>()) as i64;
             let next_retry = Utc::now() + Duration::seconds(delay_secs + jitter);
 
@@ -677,14 +726,14 @@ impl AlertService {
                 WHERE id = $1
                 "#,
             )
-            .bind(rule_channel.integration_id)
+            .bind(integration_id)
             .bind(&result.error_message)
             .execute(pool)
             .await?;
 
             log::warn!(
                 "Alert to integration {} ({}) failed: {:?}",
-                rule_channel.integration_id,
+                integration_id,
                 integration.name,
                 result.error_message
             );
@@ -765,7 +814,7 @@ impl AlertService {
         let mut processed = 0u32;
 
         for history in pending {
-            // Mark as failed if max retries exceeded or integration deleted
+            // Mark as failed if integration deleted
             if history.integration_id.is_none() {
                 sqlx::query(
                     "UPDATE alert_history SET status = 'failed', error_message = 'Integration deleted' WHERE id = $1",
@@ -777,7 +826,7 @@ impl AlertService {
                 continue;
             }
 
-            // For now, just mark as failed - full retry would require storing payload
+            // For now, just mark as failed — full retry would require storing payload
             sqlx::query(
                 "UPDATE alert_history SET status = 'failed', error_message = 'Retry not implemented' WHERE id = $1",
             )
@@ -803,34 +852,6 @@ mod tests {
             url.contains("/projects/42/"),
             "URL must use numeric project id, got: {}",
             url
-        );
-    }
-
-    // -------------------------------------------------------------------------
-    // Task 4 tests: get_rule_channels / dispatch_to_channel contract
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_alert_rule_channel_carries_integration_id_and_routing() {
-        // Unit test for the struct — DB interaction tests require testcontainers
-        let channel = AlertRuleChannel {
-            alert_rule_id: 1,
-            integration_id: 5,
-            routing_override: serde_json::json!({"channel": "#fe"}),
-        };
-        assert_eq!(channel.integration_id, 5);
-        assert_eq!(channel.routing_override["channel"], "#fe");
-    }
-
-    #[test]
-    fn test_idempotency_key_uses_integration_id() {
-        // The idempotency key format must encode integration_id, not channel_id
-        let alert_id = "proj1-issueuuid-1234567890";
-        let integration_id = 42;
-        let key = format!("{}-{}", alert_id, integration_id);
-        assert!(
-            key.ends_with("-42"),
-            "idempotency key must end with integration_id, got: {key}"
         );
     }
 }

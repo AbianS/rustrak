@@ -8,42 +8,36 @@ pub mod project;
 pub mod user;
 
 pub use alert::{
-    // Integration (new name)
-    AlertIntegration,
-    CreateAlertIntegration,
-    UpdateAlertIntegration,
-    // Backward-compat aliases
-    NotificationChannel,
-    CreateNotificationChannel,
-    UpdateNotificationChannel,
-    // Provider type (replaces ChannelType)
-    ProviderType,
-    // Backward-compat alias
-    ChannelType,
-    // Routing override types
-    RoutingOverride,
-    SlackRoutingOverride,
-    EmailRoutingOverride,
-    WebhookRoutingOverride,
-    // Rule channel junction
-    AlertRuleChannel,
-    AlertRuleChannelInput,
-    // Payload & rule types
     AlertHistory,
+    AlertIntegration,
     AlertPayload,
     AlertRule,
+    AlertRuleChannel,
+    AlertRuleChannelInput,
     AlertRuleResponse,
     AlertStatus,
     AlertType,
+    // Legacy aliases
+    ChannelType,
+    // New types
+    CreateAlertIntegration,
     CreateAlertRule,
+    CreateNotificationChannel,
     EmailConfig,
+    EmailRoutingOverride,
     IssueInfo,
+    NotificationChannel,
     ProjectInfo,
+    ProviderType,
     SlackBotTokenConfig,
     SlackConfig,
+    SlackRoutingOverride,
     SlackWebhookConfig,
+    UpdateAlertIntegration,
     UpdateAlertRule,
+    UpdateNotificationChannel,
     WebhookConfig,
+    WebhookRoutingOverride,
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};

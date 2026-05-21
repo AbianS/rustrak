@@ -9,6 +9,13 @@
 -- existing data non-destructively: IDs are preserved so existing FK references
 -- in alert_history remain valid without touching those rows.
 --
+-- SCL-1 fixes applied:
+--   K1: Credentials extraction per provider type (Slack strips routing fields, Email strips recipients)
+--   K2: routing_override backfill BEFORE dropping notification_channels
+--   Fix: RENAME COLUMN channel_id → integration_id (NOT add+drop which fails on PK columns)
+--   Fix: DROP PK constraint before renaming column in junction table
+--   Fix: IF EXISTS on FK DROP constraints for idempotency
+--
 -- Transformation rules per provider type:
 --   Slack webhook    → credentials = config (as-is), routing_override = '{}'
 --   Slack bot_token  → credentials = config minus routing fields (channel, username, icon_emoji)
@@ -17,8 +24,7 @@
 --                       routing_override = {recipients: config->'recipients'}
 --   Webhook (generic)→ credentials = config (as-is), routing_override = '{}'
 --
--- Order of operations matters: join to notification_channels for routing backfill
--- BEFORE dropping that table.
+-- Order of operations matters: backfill routing_override BEFORE dropping notification_channels.
 
 -- =============================================================================
 -- Step 1: Create alert_integrations table
@@ -45,15 +51,9 @@ CREATE INDEX idx_alert_integrations_enabled ON alert_integrations (is_enabled) W
 -- =============================================================================
 -- Step 2: Migrate data from notification_channels → alert_integrations
 --
--- Extract credentials by stripping out routing fields per provider type:
---
---   Slack webhook    → config unchanged (webhook_url is a credential, not routing)
---   Slack bot_token  → config - 'channel' - 'username' - 'icon_emoji'
---   Email            → config - 'recipients'
---   Webhook          → config unchanged (url/secret/headers are credentials)
---
--- IDs are preserved (INSERT uses the original id) so all FK references in
--- alert_rule_channels and alert_history remain valid after the migration.
+-- Extract credentials by stripping out routing fields per provider type (K1).
+-- IDs are preserved so all FK references in alert_rule_channels and alert_history
+-- remain valid after the migration.
 -- =============================================================================
 
 INSERT INTO alert_integrations (
@@ -65,7 +65,7 @@ SELECT
     nc.id,
     nc.name,
     nc.channel_type AS provider_type,
-    -- Strip routing fields from config to produce credentials-only JSONB.
+    -- Strip routing fields from config to produce credentials-only JSONB (K1).
     -- Slack webhook:   all config fields are credentials (webhook_url is the secret)
     -- Slack bot_token: remove channel/username/icon_emoji — those become routing_override
     -- Email:           remove recipients — those become routing_override
@@ -103,40 +103,20 @@ SELECT setval(
 -- =============================================================================
 -- Step 3: Alter alert_rule_channels
 --
--- 3a. Add integration_id (nullable first for backfill)
--- 3b. Backfill integration_id from the migrated alert_integrations (same IDs)
--- 3c. Set NOT NULL + add FK
--- 3d. Add routing_override column
--- 3e. Backfill routing_override by joining to notification_channels BEFORE drop
--- 3f. Drop old FK on channel_id, then drop channel_id column
+-- ORDER MATTERS (SCL-1):
+-- 3a. ADD routing_override column
+-- 3b. Backfill routing_override by joining to notification_channels BEFORE drop (K2)
+-- 3c. DROP FK constraint on channel_id IF EXISTS
+-- 3d. RENAME COLUMN channel_id → integration_id (NOT add+drop — avoids PK column drop error)
+-- 3e. DROP PK constraint, then ADD new PK on (alert_rule_id, integration_id)
+-- 3f. ADD new FK constraint integration_id → alert_integrations(id)
 -- =============================================================================
 
--- 3a: Add integration_id column (nullable for now)
-ALTER TABLE alert_rule_channels
-    ADD COLUMN integration_id INTEGER;
-
--- 3b: Backfill integration_id — IDs are identical after migration so a direct
---     assignment from channel_id is sufficient. The JOIN confirms the row exists
---     in alert_integrations to be safe.
-UPDATE alert_rule_channels arc
-SET integration_id = ai.id
-FROM alert_integrations ai
-WHERE arc.channel_id = ai.id;
-
--- 3c: Enforce NOT NULL and add FK constraint
-ALTER TABLE alert_rule_channels
-    ALTER COLUMN integration_id SET NOT NULL;
-
-ALTER TABLE alert_rule_channels
-    ADD CONSTRAINT fk_arc_integration
-        FOREIGN KEY (integration_id)
-        REFERENCES alert_integrations (id) ON DELETE CASCADE;
-
--- 3d: Add routing_override column
+-- 3a: Add routing_override column
 ALTER TABLE alert_rule_channels
     ADD COLUMN routing_override JSONB NOT NULL DEFAULT '{}'::jsonb;
 
--- 3e: Backfill routing_override by extracting routing fields from notification_channels.
+-- 3b: Backfill routing_override by extracting routing fields from notification_channels (K2).
 --     This JOIN must happen BEFORE we drop notification_channels.
 --
 --     Slack webhook:   routing_override = '{}'  (channel is encoded in the webhook URL)
@@ -166,50 +146,54 @@ SET routing_override = CASE
 FROM notification_channels nc
 WHERE arc.channel_id = nc.id;
 
--- 3f: Drop old FK on channel_id, then drop the column
+-- 3c: Drop old FK constraint on channel_id IF EXISTS (idempotent)
 ALTER TABLE alert_rule_channels
-    DROP CONSTRAINT alert_rule_channels_channel_id_fkey;
+    DROP CONSTRAINT IF EXISTS alert_rule_channels_channel_id_fkey;
+
+-- 3d: RENAME COLUMN channel_id → integration_id
+--     Using RENAME avoids "cannot drop column that is part of the primary key" error (SCL-1).
+ALTER TABLE alert_rule_channels
+    RENAME COLUMN channel_id TO integration_id;
+
+-- 3e: Drop old PK, add new PK on (alert_rule_id, integration_id)
+ALTER TABLE alert_rule_channels
+    DROP CONSTRAINT alert_rule_channels_pkey;
 
 ALTER TABLE alert_rule_channels
-    DROP COLUMN channel_id;
+    ADD PRIMARY KEY (alert_rule_id, integration_id);
+
+-- 3f: Add new FK constraint
+ALTER TABLE alert_rule_channels
+    ADD CONSTRAINT alert_rule_channels_integration_id_fkey
+        FOREIGN KEY (integration_id)
+        REFERENCES alert_integrations (id) ON DELETE CASCADE;
 
 -- =============================================================================
 -- Step 4: Alter alert_history
 --
--- Rename channel_id → integration_id keeping the same semantics.
--- IDs are identical (step 2 preserved them) so no data loss and FK validity
--- is maintained for all existing history rows.
+-- Same RENAME COLUMN approach: drop FK IF EXISTS, then RENAME, then add new FK.
+-- IDs are identical (step 2 preserved them) so FK validity is maintained.
 -- =============================================================================
 
--- 4a: Add integration_id (nullable — same as channel_id was)
+-- 4a: Drop old FK constraint IF EXISTS
 ALTER TABLE alert_history
-    ADD COLUMN integration_id INTEGER;
+    DROP CONSTRAINT IF EXISTS alert_history_channel_id_fkey;
 
--- 4b: Backfill from the migrated alert_integrations (same IDs)
-UPDATE alert_history ah
-SET integration_id = ai.id
-FROM alert_integrations ai
-WHERE ah.channel_id = ai.id;
-
--- 4c: Add FK (ON DELETE SET NULL matches original channel_id FK behaviour)
+-- 4b: RENAME COLUMN channel_id → integration_id
 ALTER TABLE alert_history
-    ADD CONSTRAINT fk_ah_integration
+    RENAME COLUMN channel_id TO integration_id;
+
+-- 4c: Add new FK (ON DELETE SET NULL matches original behaviour)
+ALTER TABLE alert_history
+    ADD CONSTRAINT alert_history_integration_id_fkey
         FOREIGN KEY (integration_id)
         REFERENCES alert_integrations (id) ON DELETE SET NULL;
-
--- 4d: Drop old FK on channel_id, then drop the column
-ALTER TABLE alert_history
-    DROP CONSTRAINT alert_history_channel_id_fkey;
-
-ALTER TABLE alert_history
-    DROP COLUMN channel_id;
 
 -- =============================================================================
 -- Step 5: Drop notification_channels
 --
 -- Safe to drop now: all FKs pointing to it have been migrated/removed.
--- The index created in the original migration is dropped automatically with
--- the table.
+-- The indexes created in the original migration are dropped automatically.
 -- =============================================================================
 
 DROP TABLE notification_channels;

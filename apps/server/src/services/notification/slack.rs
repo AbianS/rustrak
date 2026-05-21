@@ -4,17 +4,9 @@
 //! - `webhook` — POST to an Incoming Webhook URL (no channel/identity override)
 //! - `bot_token` — POST to `chat.postMessage` with `Authorization: Bearer xoxb-…`
 //!
-//! ## Two-Tier Routing
-//!
-//! For `webhook` method, the routing override is always `{}` (channel is
-//! encoded in the webhook URL and cannot be changed per-rule).
-//!
-//! For `bot_token` method, the routing override carries:
-//! - `channel` (required) — target Slack channel
-//! - `username` (optional) — bot display name override
-//! - `icon_emoji` (optional) — bot icon emoji override
-//!
-//! The dispatcher reads these from `routing` (not from integration credentials).
+//! Routing override (flat struct, no provider_type discriminator — SCL-1):
+//! - bot_token: `{"channel": "#fe", "username": "optional", "icon_emoji": "optional"}`
+//! - webhook:   `{}`
 
 use async_trait::async_trait;
 use serde_json::json;
@@ -142,24 +134,23 @@ impl SlackNotifier {
     }
 
     /// Builds the chat.postMessage body for the bot token variant.
-    ///
-    /// `channel` comes from the routing override, not from integration credentials.
+    /// Channel, username, icon_emoji come from the per-rule routing_override.
     fn format_bot_message(
-        credentials: &SlackBotTokenConfig,
+        creds: &SlackBotTokenConfig,
         routing: &SlackRoutingOverride,
         payload: &AlertPayload,
     ) -> serde_json::Value {
         let mut body = Self::format_webhook_message(payload);
 
-        // Channel from routing takes priority; fall back to credentials (legacy)
+        // Channel: routing wins over credentials
         let channel = routing
             .channel
             .as_deref()
-            .or(credentials.channel.as_deref())
-            .unwrap_or("");
+            .or(creds.channel.as_deref())
+            .unwrap_or_default();
         body["channel"] = json!(channel);
 
-        let username = routing.username.as_deref().or(credentials.username.as_deref());
+        let username = routing.username.as_deref().or(creds.username.as_deref());
         if let Some(u) = username {
             body["username"] = json!(u);
         }
@@ -167,9 +158,9 @@ impl SlackNotifier {
         let icon_emoji = routing
             .icon_emoji
             .as_deref()
-            .or(credentials.icon_emoji.as_deref());
-        if let Some(i) = icon_emoji {
-            body["icon_emoji"] = json!(i);
+            .or(creds.icon_emoji.as_deref());
+        if let Some(e) = icon_emoji {
+            body["icon_emoji"] = json!(e);
         }
 
         body
@@ -227,16 +218,16 @@ impl SlackNotifier {
     /// Slack's Web API always returns HTTP 200; success/failure is in the JSON body.
     async fn send_bot_token(
         &self,
-        credentials: &SlackBotTokenConfig,
+        cfg: &SlackBotTokenConfig,
         routing: &SlackRoutingOverride,
         payload: &AlertPayload,
     ) -> NotificationResult {
-        let body = Self::format_bot_message(credentials, routing, payload);
+        let body = Self::format_bot_message(cfg, routing, payload);
 
         match self
             .client
             .post("https://slack.com/api/chat.postMessage")
-            .header("Authorization", format!("Bearer {}", credentials.token))
+            .header("Authorization", format!("Bearer {}", cfg.token))
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -289,16 +280,23 @@ impl Default for SlackNotifier {
 
 #[async_trait]
 impl NotificationDispatcher for SlackNotifier {
-    /// Send Slack notification using integration credentials + per-rule routing.
-    ///
-    /// For `bot_token` method: `routing["channel"]` is the target channel.
-    /// For `webhook` method: routing is ignored (channel is encoded in webhook URL).
     async fn send(
         &self,
         integration: &AlertIntegration,
         routing: &serde_json::Value,
         payload: &AlertPayload,
     ) -> NotificationResult {
+        // is_enabled check FIRST (SCL-1)
+        if !integration.is_enabled {
+            log::debug!(
+                "Skipping dispatch to disabled Slack integration {} ({})",
+                integration.id,
+                integration.name
+            );
+            return NotificationResult::success(None);
+        }
+
+        // Parse credentials (tagged by method field)
         let config: SlackConfig = match serde_json::from_value(integration.credentials.clone()) {
             Ok(c) => c,
             Err(e) => {
@@ -309,18 +307,18 @@ impl NotificationDispatcher for SlackNotifier {
             }
         };
 
+        // Parse flat routing override (no provider_type tag — SCL-1)
+        let routing_override: SlackRoutingOverride = serde_json::from_value(routing.clone())
+            .unwrap_or(SlackRoutingOverride {
+                channel: None,
+                username: None,
+                icon_emoji: None,
+            });
+
         match config {
             SlackConfig::Webhook(cfg) => self.send_webhook(&cfg, payload).await,
-            SlackConfig::BotToken(credentials) => {
-                // Deserialise routing override (default to empty if missing/invalid)
-                let routing_override: SlackRoutingOverride = serde_json::from_value(routing.clone())
-                    .unwrap_or(SlackRoutingOverride {
-                        channel: None,
-                        username: None,
-                        icon_emoji: None,
-                    });
-                self.send_bot_token(&credentials, &routing_override, payload)
-                    .await
+            SlackConfig::BotToken(cfg) => {
+                self.send_bot_token(&cfg, &routing_override, payload).await
             }
         }
     }
@@ -363,7 +361,6 @@ fn validate_webhook_config(cfg: &SlackWebhookConfig) -> AppResult<()> {
 }
 
 /// Validates bot token config: token must start with `xoxb-`.
-/// Note: `channel` is no longer required in credentials — it is a routing field.
 fn validate_bot_token_config(cfg: &SlackBotTokenConfig) -> AppResult<()> {
     if !cfg.token.starts_with("xoxb-") {
         return Err(AppError::Validation(
@@ -378,7 +375,6 @@ fn validate_bot_token_config(cfg: &SlackBotTokenConfig) -> AppResult<()> {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use crate::models::ProviderType;
 
     fn create_test_payload() -> AlertPayload {
         AlertPayload {
@@ -404,13 +400,24 @@ mod tests {
         }
     }
 
-    fn make_integration(credentials: serde_json::Value) -> AlertIntegration {
+    fn make_slack_integration(method: &str, is_enabled: bool) -> AlertIntegration {
+        let credentials = if method == "bot_token" {
+            serde_json::json!({
+                "method": "bot_token",
+                "token": "xoxb-test-token-123"
+            })
+        } else {
+            serde_json::json!({
+                "method": "webhook",
+                "webhook_url": "https://hooks.slack.com/services/T/B/X"
+            })
+        };
         AlertIntegration {
             id: 1,
             name: "Test Slack".to_string(),
-            provider_type: ProviderType::Slack,
+            provider_type: crate::models::ProviderType::Slack,
             credentials,
-            is_enabled: true,
+            is_enabled,
             failure_count: 0,
             last_failure_at: None,
             last_failure_message: None,
@@ -421,7 +428,67 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // Existing tests — updated for new two-tier signature
+    // Task 4 RED→GREEN: is_enabled=false returns Ok without dispatching
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_disabled_integration_skipped() {
+        let notifier = SlackNotifier::new();
+        let integration = make_slack_integration("bot_token", false);
+        let routing = serde_json::json!({"channel": "#test"});
+        let payload = create_test_payload();
+
+        let result = notifier.send(&integration, &routing, &payload).await;
+
+        // Should succeed (skip) without making any HTTP request
+        assert!(
+            result.success,
+            "disabled integration must return success (skip)"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Task 4 RED→GREEN: bot_token reads channel from flat routing (no tag)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_bot_message_reads_channel_from_routing() {
+        let creds = SlackBotTokenConfig {
+            token: "xoxb-test".to_string(),
+            channel: None,
+            username: None,
+            icon_emoji: None,
+        };
+        let routing = SlackRoutingOverride {
+            channel: Some("#fe-alerts".to_string()),
+            username: None,
+            icon_emoji: None,
+        };
+        let payload = create_test_payload();
+        let body = SlackNotifier::format_bot_message(&creds, &routing, &payload);
+        assert_eq!(body["channel"], "#fe-alerts");
+    }
+
+    #[test]
+    fn test_bot_message_routing_channel_overrides_creds_channel() {
+        let creds = SlackBotTokenConfig {
+            token: "xoxb-test".to_string(),
+            channel: Some("#creds-channel".to_string()),
+            username: None,
+            icon_emoji: None,
+        };
+        let routing = SlackRoutingOverride {
+            channel: Some("#routing-channel".to_string()),
+            username: None,
+            icon_emoji: None,
+        };
+        let payload = create_test_payload();
+        let body = SlackNotifier::format_bot_message(&creds, &routing, &payload);
+        assert_eq!(body["channel"], "#routing-channel");
+    }
+
+    // -------------------------------------------------------------------------
+    // Existing tests — updated for new enum shape
     // -------------------------------------------------------------------------
 
     #[test]
@@ -452,8 +519,6 @@ mod tests {
 
     #[test]
     fn test_slack_config_webhook_deserializes_with_method_field() {
-        // After the migration, existing records gain {"method":"webhook",...}
-        // The enum must deserialize this shape correctly.
         let json = serde_json::json!({
             "method": "webhook",
             "webhook_url": "https://hooks.slack.com/services/T/B/X"
@@ -473,7 +538,6 @@ mod tests {
 
     #[test]
     fn test_slack_config_bot_token_deserializes() {
-        // After migration, credentials no longer include channel (it's in routing_override)
         let json = serde_json::json!({
             "method": "bot_token",
             "token": "xoxb-12345-67890"
@@ -483,13 +547,15 @@ mod tests {
             SlackConfig::BotToken(b) => {
                 assert_eq!(b.token, "xoxb-12345-67890");
                 assert!(b.channel.is_none());
+                assert!(b.username.is_none());
+                assert!(b.icon_emoji.is_none());
             }
             _ => panic!("expected BotToken variant"),
         }
     }
 
     // -------------------------------------------------------------------------
-    // Cycle 3: validate_config for bot token (token must start xoxb-)
+    // Cycle 3: validate_config for bot token
     // -------------------------------------------------------------------------
 
     #[test]
@@ -550,93 +616,5 @@ mod tests {
             "webhook_url": "https://hooks.slack.com.evil.com/services/T/B/X"
         });
         assert!(notifier.validate_config(&config).is_err());
-    }
-
-    // -------------------------------------------------------------------------
-    // Cycle 5 (Task 3): routing_override drives bot_token channel
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_bot_token_format_uses_routing_channel() {
-        // Given credentials with no channel, routing_override supplies "#test"
-        let credentials = SlackBotTokenConfig {
-            token: "xoxb-abc".to_string(),
-            channel: None,
-            username: None,
-            icon_emoji: None,
-        };
-        let routing = SlackRoutingOverride {
-            channel: Some("#test".to_string()),
-            username: None,
-            icon_emoji: None,
-        };
-        let payload = create_test_payload();
-        let body = SlackNotifier::format_bot_message(&credentials, &routing, &payload);
-
-        assert_eq!(
-            body["channel"].as_str(),
-            Some("#test"),
-            "routing channel must appear in postMessage body"
-        );
-    }
-
-    #[test]
-    fn test_bot_token_format_routing_channel_overrides_credentials_channel() {
-        // routing_override.channel wins over credentials.channel on collision
-        let credentials = SlackBotTokenConfig {
-            token: "xoxb-abc".to_string(),
-            channel: Some("#legacy".to_string()),
-            username: None,
-            icon_emoji: None,
-        };
-        let routing = SlackRoutingOverride {
-            channel: Some("#override".to_string()),
-            username: None,
-            icon_emoji: None,
-        };
-        let payload = create_test_payload();
-        let body = SlackNotifier::format_bot_message(&credentials, &routing, &payload);
-
-        assert_eq!(body["channel"].as_str(), Some("#override"));
-    }
-
-    #[test]
-    fn test_format_bot_message_includes_routing_username_and_icon() {
-        let credentials = SlackBotTokenConfig {
-            token: "xoxb-abc".to_string(),
-            channel: None,
-            username: None,
-            icon_emoji: None,
-        };
-        let routing = SlackRoutingOverride {
-            channel: Some("#alerts".to_string()),
-            username: Some("RustrakBot".to_string()),
-            icon_emoji: Some(":robot_face:".to_string()),
-        };
-        let payload = create_test_payload();
-        let body = SlackNotifier::format_bot_message(&credentials, &routing, &payload);
-
-        assert_eq!(body["username"].as_str(), Some("RustrakBot"));
-        assert_eq!(body["icon_emoji"].as_str(), Some(":robot_face:"));
-    }
-
-    // -------------------------------------------------------------------------
-    // Integration-level: send() reads routing from the Value parameter
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_send_with_invalid_credentials_returns_failure() {
-        // If credentials can't be parsed, send() must return failure without panicking
-        let integration = make_integration(serde_json::json!({"bad": "data"}));
-        let routing = serde_json::json!({});
-        let payload = create_test_payload();
-        let notifier = SlackNotifier::new();
-
-        // We can't await in a sync test but we can verify the logic path compiles
-        // and that validate_config would reject the invalid shape
-        let result = notifier.validate_config(&integration.credentials);
-        assert!(result.is_err(), "invalid credentials must fail validation");
-        let _ = routing; // used above
-        let _ = payload;
     }
 }

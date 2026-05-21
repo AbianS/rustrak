@@ -31,9 +31,6 @@ pub enum AppError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
-    #[error("Unprocessable entity: {0}")]
-    UnprocessableEntity(String),
-
     #[error("Payload too large: {0}")]
     PayloadTooLarge(String),
 
@@ -51,7 +48,6 @@ impl ResponseError for AppError {
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
-            AppError::UnprocessableEntity(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::PayloadTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -64,7 +60,6 @@ impl ResponseError for AppError {
             AppError::Validation(_) => "ValidationError",
             AppError::Conflict(_) => "Conflict",
             AppError::Unauthorized(_) => "Unauthorized",
-            AppError::UnprocessableEntity(_) => "UnprocessableEntity",
             AppError::PayloadTooLarge(_) => "PayloadTooLarge",
             AppError::Database(_) => "DatabaseError",
             AppError::Internal(_) => "InternalError",

@@ -44,6 +44,17 @@ After D-11 is done, update the Next.js UI:
 
 ---
 
+## 2026-05-21 — from spec-alert-two-tier-integrations review (loop 1)
+
+### D-13: AlertRuleResponse missing routing_override (low)
+GET alert rule response exposes only `integration_ids: Vec<i32>`, losing per-rule routing_override data. Clients can't populate an edit form without a separate query. Address in D-12 (frontend) — the response shape should include `channels: [{integration_id, routing_override}]`.
+Source: `apps/server/src/models/alert.rs` — `AlertRuleResponse.integration_ids`
+
+### D-14: validate_channels_routing TOCTOU on is_enabled (low)
+`validate_channels_routing` checks `is_enabled` before DB insert, but the check and insert are not in the same transaction. An integration disabled between the two calls creates a rule linked to a disabled integration. Pre-existing pattern in codebase; very low probability race. Fix when adding transactions to rule creation.
+
+---
+
 ## 2026-05-21 — from spec-remove-issue-soft-delete review
 
 **Source:** 3-reviewer adversarial review

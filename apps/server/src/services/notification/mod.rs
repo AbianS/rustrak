@@ -1,17 +1,7 @@
 //! Notification dispatcher system using the Strategy pattern.
 //!
 //! This module provides a pluggable notification system that supports
-//! multiple delivery channels (Webhook, Email, Slack) through a common trait.
-//!
-//! ## Two-Tier Design
-//!
-//! The `send()` method now accepts:
-//! - `integration` — global credentials (`AlertIntegration`)
-//! - `routing`     — per-rule routing overrides (`&serde_json::Value`)
-//! - `payload`     — alert content (`AlertPayload`)
-//!
-//! Each dispatcher deserialises `routing` into its own override struct and merges
-//! it with `integration.credentials` at dispatch time.
+//! multiple delivery integrations (Webhook, Email, Slack) through a common trait.
 
 pub mod email;
 pub mod slack;
@@ -71,12 +61,14 @@ impl NotificationResult {
 /// to provide provider-specific delivery logic.
 #[async_trait]
 pub trait NotificationDispatcher: Send + Sync {
-    /// Send a notification using integration credentials + per-rule routing.
+    /// Send a notification to the integration.
     ///
-    /// - `integration` contains the global provider credentials.
-    /// - `routing` is the raw `routing_override` JSON from `alert_rule_channels`.
-    ///   Each dispatcher deserialises it into its own typed override struct.
-    /// - `payload` carries the alert content.
+    /// `routing` is the flat JSON routing_override from alert_rule_channels.
+    /// Each dispatcher deserializes it into its own routing struct (no tag needed —
+    /// the provider type is already known from the integration).
+    ///
+    /// Dispatchers MUST check `integration.is_enabled` first and return
+    /// `Ok(NotificationResult::success(None))` immediately if disabled.
     async fn send(
         &self,
         integration: &AlertIntegration,
@@ -86,8 +78,8 @@ pub trait NotificationDispatcher: Send + Sync {
 
     /// Validate integration credentials.
     ///
-    /// Called before creating or updating an integration to ensure the
-    /// credentials JSON is valid for this provider type.
+    /// Called before creating or updating an integration to ensure
+    /// the credentials are valid for this provider type.
     fn validate_config(&self, config: &serde_json::Value) -> AppResult<()>;
 }
 

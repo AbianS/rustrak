@@ -2,8 +2,9 @@
 title: 'Alert Two-Tier Integrations — Backend (DB + Rust)'
 type: 'feature'
 created: '2026-05-21'
-status: 'in-progress'
+status: 'implemented'
 baseline_commit: '384671d1a0bb725b4bc633d407d6e3cf41836c76'
+specLoopIteration: 2
 context:
   - '_bmad-output/implementation-artifacts/investigations/alert-two-tier-config-investigation.md'
 ---
@@ -51,7 +52,8 @@ context:
 
 ## Code Map
 
-- `apps/server/migrations/postgres/20260521131726_alert_integrations.up.sql` -- new migration
+- `apps/server/migrations/postgres/20260521131726_alert_integrations.up.sql` -- new migration (up)
+- `apps/server/migrations/postgres/20260521131726_alert_integrations.down.sql` -- new migration (down)
 - `apps/server/src/models/alert.rs` -- all alert model types
 - `apps/server/src/services/notification/mod.rs` -- `NotificationDispatcher` trait + factory
 - `apps/server/src/services/notification/slack.rs` -- Slack dispatcher
@@ -63,32 +65,78 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [x] `apps/server/migrations/postgres/20260521131726_alert_integrations.up.sql` -- CREATE `alert_integrations` (id, name, provider_type CHECK('slack','email','webhook'), credentials JSONB, is_enabled, failure_count, last_failure_at, last_failure_message, last_success_at, created_at, updated_at); INSERT from `notification_channels` — extract credentials JSONB per provider type (strip routing fields: Slack bot_token strips `channel/username/icon_emoji`, Email strips `recipients`, others copy as-is); ALTER `alert_rule_channels` rename `channel_id` → `integration_id`, add FK to `alert_integrations`, add `routing_override JSONB NOT NULL DEFAULT '{}'::jsonb`, backfill `routing_override` per provider; ALTER `alert_history` rename `channel_id` → `integration_id`, update FK; DROP `notification_channels` -- preserves all IDs so existing FK references remain valid
-- [x] `apps/server/src/models/alert.rs` -- rename `NotificationChannel` → `AlertIntegration`, field `channel_type` → `provider_type`; add `RoutingOverride` as serde-tagged enum: `Slack { channel?, username?, icon_emoji? }` | `Email { recipients: Vec<String> }` | `Webhook { url?: String, extra_headers?: HashMap<String,String> }`; add `AlertRuleChannel { alert_rule_id, integration_id, routing_override: serde_json::Value }` struct; update `AlertHistory` field `channel_id` → `integration_id`
-- [x] `apps/server/src/services/notification/mod.rs` + `slack.rs` + `email.rs` + `webhook.rs` -- update `NotificationDispatcher::send()` signature to `(&AlertIntegration, routing: &serde_json::Value, &AlertPayload)`; each dispatcher deserializes routing into its own override type; Slack bot_token reads `routing.channel`; Email reads `routing.recipients`; Webhook computes `effective_url = routing.url ?? credentials.url`, merges `routing.extra_headers` into credentials headers; update `create_dispatcher` factory to accept `ProviderType`
-- [x] `apps/server/src/services/alert.rs` -- update `get_rule_channels` query to `SELECT integration_id, routing_override FROM alert_rule_channels WHERE alert_rule_id=$1`; update `dispatch_to_channel` to accept `&AlertRuleChannel`, fetch `AlertIntegration` by `integration_id`, pass `(integration, &rule_channel.routing_override, payload)` to dispatcher; update `AlertHistory` insert field name to `integration_id`
-- [x] `apps/server/src/routes/alerts.rs` -- rename all route paths from `/api/alert-channels` to `/api/integrations`; rename DTOs `CreateNotificationChannel` → `CreateAlertIntegration`, `UpdateNotificationChannel` → `UpdateAlertIntegration`; replace `channel_ids: Vec<i32>` in alert rule DTOs with `channels: Vec<AlertRuleChannelInput { integration_id: i32, routing_override: serde_json::Value }>`; validate routing_override shape per `provider_type` in create/update rule handlers before DB insert; update test handler to accept optional `routing_override` body
+- [x] `apps/server/migrations/postgres/20260521131726_alert_integrations.up.sql` -- CREATE `alert_integrations` table; INSERT from `notification_channels` (extract credentials by provider — KEEP: SQL extraction logic from SCL-1); for `alert_rule_channels`: **use `ALTER TABLE ... RENAME COLUMN channel_id TO integration_id`** (NOT add+drop — SCL-1), then DROP old FK constraint on channel_id `IF EXISTS`, ADD new FK constraint `integration_id REFERENCES alert_integrations(id) ON DELETE CASCADE`, **DROP CONSTRAINT alert_rule_channels_pkey** then **ADD PRIMARY KEY (alert_rule_id, integration_id)**; backfill `routing_override` per provider BEFORE dropping `notification_channels` (KEEP: backfill SQL from SCL-1); same RENAME COLUMN approach for `alert_history.channel_id → integration_id` + FK update; DROP `notification_channels`
+- [x] `apps/server/migrations/postgres/20260521131726_alert_integrations.down.sql` -- reverse migration: recreate `notification_channels`, restore junction columns, drop `alert_integrations`
+- [x] `apps/server/src/models/alert.rs` -- rename `NotificationChannel` → `AlertIntegration`, field `channel_type` → `provider_type`; add flat structs `SlackRoutingOverride { channel: Option<String>, username: Option<String>, icon_emoji: Option<String> }`, `EmailRoutingOverride { recipients: Vec<String> }`, `WebhookRoutingOverride { url: Option<String>, extra_headers: Option<HashMap<String,String>> }` — **NO `#[serde(tag)]` on any routing struct** (SCL-1 — routing JSON never carries a `provider_type` discriminator); add `AlertRuleChannel { alert_rule_id, integration_id, routing_override: serde_json::Value }` struct; update `AlertHistory` field `channel_id` → `integration_id`
+- [x] `apps/server/src/services/notification/mod.rs` + `slack.rs` + `email.rs` + `webhook.rs` -- update `NotificationDispatcher::send()` to `(&AlertIntegration, routing: &serde_json::Value, &AlertPayload)`; each dispatcher calls `serde_json::from_value::<OwnRoutingOverride>(routing.clone())` directly (flat struct, no tag) — KEEP: webhook `effective_url = routing.url ?? credentials.url` merge (SCL-1); update factory to accept `ProviderType`; dispatch MUST skip (return Ok) if `integration.is_enabled == false` — add this check BEFORE calling send (SCL-1)
+- [x] `apps/server/src/services/alert.rs` -- update `get_rule_channels` query: `SELECT arc.integration_id, arc.routing_override FROM alert_rule_channels arc INNER JOIN alert_integrations i ON arc.integration_id = i.id WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE` — KEEP the is_enabled filter (SCL-1, was lost in first attempt); update `dispatch_to_channel` to accept `&AlertRuleChannel`; update `AlertHistory` insert to use `integration_id`
+- [x] `apps/server/src/routes/alerts.rs` -- rename routes to `/api/integrations`; update DTOs; replace `channel_ids` with `channels: Vec<AlertRuleChannelInput>`; implement `validate_routing_override(provider_type, credentials, routing)` — **match on `provider_type` and deserialize into the specific flat struct** (`SlackRoutingOverride`, `EmailRoutingOverride`, `WebhookRoutingOverride`) — NOT into a tagged enum (SCL-1); for Slack bot_token: reject if channel is None or empty; for Email: reject if recipients is empty, reject if any address doesn't contain '@'; for Webhook: reject if both `credentials.url` and `routing.url` are absent, reject `routing.url` if not a valid http/https URL; call `validate_routing_override` in both create/update rule handlers AND in the test endpoint before dispatch
 
 **Acceptance Criteria:**
 - Given an existing DB with `notification_channels` data, when the server starts on the new version, then `sqlx migrate run` completes without errors and `alert_integrations` contains the same count of rows as the old `notification_channels`.
-- Given a Slack bot_token integration, when two projects create alert rules linking to it with `routing_override.channel = "#fe"` and `"#be"` respectively, then each alert fires to its own channel.
-- Given a webhook integration with no `url` in credentials, when a rule is created without `routing_override.url`, then `POST /api/projects/{id}/alert-rules` returns 422.
+- Given a Slack bot_token integration, when two projects create alert rules linking to it with `routing_override:{channel:"#fe"}` and `routing_override:{channel:"#be"}` respectively, then each alert fires to its own channel.
+- Given a webhook integration with no `url` in credentials, when a rule is created with no `routing_override.url`, then `POST /api/projects/{id}/alert-rules` returns 422.
 - Given `GET /api/integrations/{id}` for a Slack bot_token integration, then the response contains `"token": "xoxb-****"`.
-- Given `cargo test`, all existing tests pass (no regressions from rename).
+- Given `cargo test`, all tests pass with no regressions.
+- Given a disabled integration (`is_enabled: false`), when an alert fires, then no message is dispatched to that integration.
+- Given `POST /api/projects/1/alert-rules` with `routing_override:{channel:"#fe"}` for a Slack bot_token integration (no `provider_type` tag in JSON), then the route returns 201 (not 422).
+
+## Spec Change Log
+
+### SCL-1 — 2026-05-21 (loop 1→2)
+
+**Triggering findings:** AA-1 (migration PRIMARY KEY drop fails), BH-2/AA-2 (RoutingOverride serde tag mismatch causes email 422 + slack/webhook validation bypass), AA-5 (is_enabled filter lost at dispatch)
+
+**Amended sections:** Code Map (added .down.sql), Tasks (migration RENAME COLUMN approach, flat struct deserialization, is_enabled filter, URL format validation, test endpoint validation)
+
+**Known-bad state avoided:**
+1. `ALTER TABLE alert_rule_channels DROP COLUMN channel_id` fails with "column is a primary key column" — PostgreSQL requires dropping the PK constraint before dropping a PK column. Fix: use `RENAME COLUMN` instead.
+2. `serde_json::from_value::<RoutingOverride>({channel:"#fe"})` fails because RoutingOverride needs `provider_type` tag — email routing always 422, slack/webhook validation silent. Fix: deserialize into flat structs (`SlackRoutingOverride`, etc.) using the known `provider_type` parameter.
+3. `get_rule_channels` returned ALL rule channels including disabled integrations. Fix: add `AND i.is_enabled = TRUE` to join.
+
+**KEEP instructions (must survive re-derivation):**
+- K1: Migration credentials extraction SQL (Slack strips channel/username/icon_emoji, Email strips recipients, Webhook copies as-is) — correct
+- K2: Migration routing_override backfill SQL (jsonb_strip_nulls for Slack, jsonb_build_object for Email, `{}` for webhook/slack-webhook) — correct
+- K3: Flat struct field shapes for SlackRoutingOverride, EmailRoutingOverride, WebhookRoutingOverride — correct
+- K4: Token redaction in route responses — correct
+- K5: Webhook `effective_url = routing.url ?? credentials.url` merge in dispatcher — correct
+- K6: Route rename to `/api/integrations`, AlertIntegration rename, ProviderType enum — correct
+- K7: Test endpoint accepts optional routing_override body — correct
 
 ## Design Notes
 
-**routing_override shape per provider (authoritative for all layers):**
+**routing_override shapes (authoritative — NO `provider_type` discriminator field in JSON):**
 
 ```
 slack/webhook   credentials: { method, webhook_url }          routing: {}
 slack/bot_token credentials: { method, token }                routing: { channel (req), username?, icon_emoji? }
-email           credentials: { smtp_host, smtp_port, smtp_username, smtp_password, from_address }
-                                                              routing: { recipients: string[] (req) }
-webhook         credentials: { url?, secret?, headers? }      routing: { url?, extra_headers? }
+email           credentials: { smtp_host, smtp_port,          routing: { recipients: string[] (req, each must contain '@') }
+                               smtp_username, smtp_password,
+                               from_address }
+webhook         credentials: { url?, secret?, headers? }      routing: { url? (http/https only), extra_headers? }
 ```
 
-**Migration extraction SQL pattern:**
+**Critical: routing_override JSON carries NO `provider_type` field.** The provider type is already known from the integration record. `validate_routing_override` must use `match provider_type` and deserialize into the appropriate flat struct — NOT a serde-tagged enum.
+
+**Migration column rename (RENAME COLUMN, not ADD+DROP):**
+```sql
+-- alert_rule_channels
+ALTER TABLE alert_rule_channels DROP CONSTRAINT alert_rule_channels_channel_id_fkey;  -- IF EXISTS
+-- backfill routing_override HERE (join to notification_channels before it's dropped)
+ALTER TABLE alert_rule_channels RENAME COLUMN channel_id TO integration_id;
+ALTER TABLE alert_rule_channels DROP CONSTRAINT alert_rule_channels_pkey;
+ALTER TABLE alert_rule_channels ADD PRIMARY KEY (alert_rule_id, integration_id);
+ALTER TABLE alert_rule_channels ADD CONSTRAINT alert_rule_channels_integration_id_fkey
+  FOREIGN KEY (integration_id) REFERENCES alert_integrations(id) ON DELETE CASCADE;
+
+-- alert_history (same pattern)
+ALTER TABLE alert_history DROP CONSTRAINT alert_history_channel_id_fkey;  -- IF EXISTS
+ALTER TABLE alert_history RENAME COLUMN channel_id TO integration_id;
+ALTER TABLE alert_history ADD CONSTRAINT alert_history_integration_id_fkey
+  FOREIGN KEY (integration_id) REFERENCES alert_integrations(id) ON DELETE SET NULL;
+```
+
+**Migration credentials extraction SQL (KEEP — correct from SCL-1):**
 
 ```sql
 -- Slack bot_token
@@ -101,7 +149,7 @@ credentials = config - 'recipients'
 routing_override = jsonb_build_object('recipients', config->'recipients')
 
 -- Slack webhook + generic webhook
-credentials = config  -- all stays in credentials
+credentials = config
 routing_override = '{}'::jsonb
 ```
 
