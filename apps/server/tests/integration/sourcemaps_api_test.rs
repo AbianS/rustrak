@@ -1198,7 +1198,7 @@ async fn test_assemble_bundle_finds_manifest_json() {
         store.as_ref(),
         project.id,
         &bundle_checksum,
-        &[bundle_checksum.clone()],
+        std::slice::from_ref(&bundle_checksum),
     )
     .await;
 
