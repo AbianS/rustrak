@@ -124,6 +124,19 @@ When unset, Rustrak falls back to `http://{HOST}:{PORT}` — fine for local deve
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `INGEST_DIR` | `/tmp/rustrak/ingest` | Temporary event storage |
+| `SOURCEMAPS_DIR` | `/tmp/rustrak/sourcemaps` | Directory for source map chunk storage |
+
+### SOURCEMAPS_DIR
+
+Where Rustrak stores source map chunks uploaded by Sentry SDKs. Chunks are stored in a content-addressable layout: a SHA-1 hash like `abc123...` is written to `{SOURCEMAPS_DIR}/ab/c123....map`.
+
+```bash
+SOURCEMAPS_DIR=/var/lib/rustrak/sourcemaps
+```
+
+**Storage sizing:** Each source map chunk is typically around 2MB. Multiply by the number of distinct source files across all your deployments. A typical JavaScript app with 50 source files uses around 100MB.
+
+**Production / multi-server deployments:** All server instances must read and write from the same `SOURCEMAPS_DIR`. Mount a shared volume (NFS, EFS, a network filesystem) and point every instance at it. Without this, chunks uploaded to one instance won't be visible to others during bundle assembly.
 
 ## Email Alerts (SMTP)
 

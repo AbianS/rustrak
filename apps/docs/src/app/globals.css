@@ -189,13 +189,6 @@ body.blog-layout .nextra-content {
 .blog-section .prose {
   --tw-prose-links: oklch(0.65 0.18 127);
   --tw-prose-invert-links: oklch(0.91 0.18 127);
-  --tw-prose-code: inherit;
-  --tw-prose-pre-bg: transparent;
-}
-
-.blog-section .prose pre {
-  padding: 0;
-  background: transparent;
 }
 
 .blog-section .prose :not(pre) > code {

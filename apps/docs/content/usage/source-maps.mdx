@@ -1,0 +1,164 @@
+# Source Maps
+
+Source maps let Rustrak translate minified JavaScript stack traces into their original source locations. When source maps are uploaded, errors show the real file name, line number, and source code — not the minified bundle.
+
+## Before and after
+
+Without source maps:
+
+```bash
+Error: {"type":"Unknown","message":"Unknown Error"}
+
+04  ?
+    app:///_next/server/chunks/ssr/_0bwf~zv._.js:2:239718
+
+03  ?
+    app:///_next/server/chunks/ssr/apps_myapp_src_lib_actions_invoices_ts_09hq4k7._.js:2:5956
+
+02  process.processTicksAndRejections
+    node:internal/process/task_queues:103:5
+
+01  Module.k [as generateMetadata]
+    app:///_next/server/chunks/ssr/[root-of-the-server]__0fitma~._.js:2:5672
+```
+
+With source maps:
+
+```bash
+Error: Invoice not found
+
+04  getPostedInvoice
+    src/lib/actions/invoices.ts:84
+
+03  fetchInvoiceData
+    src/app/invoices/[id]/page.tsx:31
+
+02  process.processTicksAndRejections
+    node:internal/process/task_queues:103:5
+
+01  generateMetadata
+    src/app/invoices/[id]/page.tsx:12
+```
+
+Same error. One es debuggeable, el otro no.
+
+## How to enable source maps
+
+Source maps are uploaded automatically by the Sentry JavaScript SDK when you use the `sourceMapsPlugin` (or the Vite/webpack equivalent). No changes to your error tracking code are needed.
+
+### Vite
+
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+
+export default defineConfig({
+  build: {
+    sourcemap: true, // required
+  },
+  plugins: [
+    sentryVitePlugin({
+      org: 'your-org',           // any value — Rustrak ignores it
+      project: 'your-project',   // any value — Rustrak ignores it
+      authToken: 'your-api-token',
+      url: 'http://localhost:8080', // your Rustrak server URL
+    }),
+  ],
+});
+```
+
+### webpack
+
+```javascript
+// webpack.config.js
+const { sentryWebpackPlugin } = require('@sentry/webpack-plugin');
+
+module.exports = {
+  devtool: 'source-map', // required
+  plugins: [
+    sentryWebpackPlugin({
+      org: 'your-org',
+      project: 'your-project',
+      authToken: 'your-api-token',
+      url: 'http://localhost:8080',
+    }),
+  ],
+};
+```
+
+The `authToken` is a Rustrak API token created under **Settings → API Tokens**. The `org` and `project` values are not used by Rustrak but are required fields by the SDK plugin.
+
+## How the upload works
+
+The SDK uploads source maps in three steps during your build:
+
+1. **Capability check** — The SDK asks the server what chunk sizes it accepts.
+2. **Chunk upload** — Source map files are split into chunks and uploaded. Each chunk is keyed by its SHA-1 hash (content-addressable storage).
+3. **Assembly** — The SDK tells the server which chunks form a complete artifact bundle. The server assembles the ZIP and confirms.
+
+From your perspective: run `vite build` (or `webpack`) and it happens automatically.
+
+## Storage
+
+Source map chunks are stored on disk in `SOURCEMAPS_DIR` (default: `/tmp/rustrak/sourcemaps`).
+
+**Sizing estimate:** Each source map chunk is ~2MB. A typical app with 50 source files uses ~100MB. Scale as needed.
+
+Set a persistent path for production:
+
+```bash
+SOURCEMAPS_DIR=/var/lib/rustrak/sourcemaps
+```
+
+Make sure the directory is writable by the Rustrak process.
+
+## Production: shared volume required
+
+If you run multiple Rustrak instances behind a load balancer, **all instances must share the same `SOURCEMAPS_DIR`**. Chunks uploaded to one instance need to be readable by any other instance.
+
+Mount a shared network volume (NFS, AWS EFS, etc.) and set the same `SOURCEMAPS_DIR` on every instance:
+
+```yaml
+# docker-compose.yml (multi-server example)
+services:
+  rustrak:
+    image: abians7/rustrak-server:latest
+    volumes:
+      - sourcemaps_nfs:/var/lib/rustrak/sourcemaps
+    environment:
+      - SOURCEMAPS_DIR=/var/lib/rustrak/sourcemaps
+```
+
+Single-server deployments don't need to worry about this.
+
+## Troubleshooting: stack trace is still minified
+
+Work through this checklist:
+
+**1. Is `sourcemap: true` (or `devtool: 'source-map'`) enabled in your build config?**
+
+The SDK plugin can only upload source maps that your bundler actually generates. Check your build output for `.map` files.
+
+**2. Did the upload succeed during the build?**
+
+The plugin logs upload progress. Look for output like:
+
+```
+[sentry] Uploading source maps...
+[sentry] Artifact bundle assembled successfully
+```
+
+If you see errors, check that the `authToken` is valid and the `url` points to your Rustrak instance.
+
+**3. Is `SOURCEMAPS_DIR` writable and persistent?**
+
+The default path (`/tmp/rustrak/sourcemaps`) is cleared on restart on some systems. Set a persistent path in production.
+
+**4. Are `debug_meta` entries present in the event?**
+
+The Sentry SDK attaches `debug_meta.images` to each event, linking stack frames to the correct source map via a `debug_id`. If your SDK version doesn't emit `debug_meta`, source map lookup won't work. Use `@sentry/browser` 7.x or later.
+
+**5. Multi-server deployment: are all instances using a shared volume?**
+
+If chunks were uploaded to instance A but the event was processed by instance B, the source map won't be found. See the shared volume section above.

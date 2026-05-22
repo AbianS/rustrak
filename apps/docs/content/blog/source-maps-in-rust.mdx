@@ -1,0 +1,108 @@
+---
+title: "Source maps in Rustrak"
+description: "How we implemented Sentry's source map protocol in Rust, what isn't documented anywhere, and the coordinate bug that almost slipped through."
+date: "2026-05-22"
+author: "Abian Suarez"
+tags: ["rust", "sourcemaps", "sentry", "architecture"]
+---
+
+Source map support had been sitting on the roadmap for a while. Not urgent — the server was working, errors were coming in, alerts were firing. Good enough for now.
+
+Until we started looking at real stack traces in production:
+
+```bash
+Error: {"type":"Unknown","message":"Unknown Error"}
+
+04  ?
+    app:///_next/server/chunks/ssr/_0bwf~zv._.js:2:239718
+
+03  ?
+    app:///_next/server/chunks/ssr/apps_myapp_src_lib_actions_invoices_ts_09hq4k7._.js:2:5956
+
+02  process.processTicksAndRejections
+    node:internal/process/task_queues:103:5
+
+01  Module.k [as generateMetadata]
+    app:///_next/server/chunks/ssr/[root-of-the-server]__0fitma~._.js:2:5672
+```
+
+Four frames, all useless. Function names are `?`, files are Turbopack chunk hashes, column number is 239718, everything on line 2 because the bundler flattens the code. No real clue where the problem is. Source maps moved to this week's list.
+
+## The protocol you have to read from source code
+
+My first assumption was that source maps would arrive through the same ingestion endpoint as events. They don't.
+
+Sentry uses a separate three-step chunked upload protocol implemented in [sentry-cli](https://github.com/getsentry/sentry-cli). The official docs describe it conceptually but skip exactly the details you need to reimplement it. I ended up reading the source code directly to understand what the client was actually doing.
+
+**Step 1: the client asks what the server accepts.** Before uploading anything, sentry-cli calls [`get_chunk_upload_options`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/mod.rs#L654), which sends a `GET /organizations/{org}/chunk-upload/`. The server responds with a [`ChunkServerOptions`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/data_types/chunking/upload/options.rs#L10) object that includes the actual upload URL (not a fixed path), max chunk size, max chunks per request, and whether gzip is supported.
+
+**Step 2: upload the chunks.** The client calls [`upload_chunks`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/mod.rs#L372), which POSTs a multipart form to the URL from step one. Each part has field name `"file"` (or `"file_gzip"` for compressed) and the filename is the chunk's SHA-1 hash in hex. Pure CAS: uploading the same chunk twice is a no-op.
+
+**Step 3: assemble.** The client calls [`assemble_artifact_bundle`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/mod.rs#L679) with the body defined in [`ChunkedArtifactRequest`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/data_types/chunking/artifact.rs#L7): the bundle checksum, the list of chunk hashes, and the list of projects. The server responds with [`AssembleArtifactsResponse`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/data_types/chunking/artifact.rs#L18).
+
+What took me a while to understand is that the assembly response has five possible states, not two. The states are defined in [`ChunkedFileState`](https://github.com/getsentry/sentry-cli/blob/1d5191995ab4e8c8c058055f912f38e7dfa1039c/src/api/data_types/chunking/file_state.rs#L3): `not_found` (chunks are missing), `created` and `assembling` (in progress), `ok` (done), and `error`. If the state is `not_found`, the response includes `missingChunks` with the hashes to re-upload. If it's `assembling` or `created`, the client polls until it changes to `ok` or `error`.
+
+The assembled bundle is a ZIP. Inside are the source map files plus a `manifest.json` mapping each file to its debug ID.
+
+## Storage
+
+The storage part was the most straightforward. CAS over a filesystem is exactly what you'd expect:
+
+```
+{SOURCEMAPS_DIR}/{key[0..2]}/{key[2..]}.map
+```
+
+The SHA-1 hash `abc123def456...` gets stored at `ab/c123def456....map`. The two-character prefix keeps the number of files per directory bounded, same scheme git uses for its objects.
+
+Writes go to a tempfile first, then rename. Rename on POSIX is atomic, so a reader never sees a half-written file. If the file already exists, the write is skipped — the hash guarantees identical content, so two concurrent uploads of the same chunk can't overwrite each other.
+
+One thing worth not forgetting: the key comes from the client, so it needs to be validated before being used as a path component. If you don't reject keys containing `/`, `\`, or `..`, you're opening a path traversal. Easy to miss, hard to catch later.
+
+## Rewriting frames
+
+When an event arrives with a minified stack trace, the SDK attaches a `debug_meta` block with a list of images:
+
+```json
+{
+  "debug_meta": {
+    "images": [
+      {
+        "type": "sourcemap",
+        "code_file": "https://example.com/static/main.js",
+        "debug_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+      }
+    ]
+  }
+}
+```
+
+The debug ID links a specific build of a file to its source map. Frame rewriting builds a `code_file -> debug_id` map from those entries, and for each stack frame looks up the source map, does the position lookup, and replaces the filename and line number with the originals. If the source map has `sourcesContent`, you also get the original source context lines.
+
+All of this happens in the digest phase, not ingestion. Ingestion stays synchronous and fast.
+
+## The coordinate bug
+
+This one kept me busy for a bit.
+
+Sentry uses 1-indexed line numbers. Source maps use 0-indexed. That part isn't surprising. The issue is what `lineno: 0` means in Sentry's event format: it doesn't mean "line 1", it means "unknown position". I couldn't find this documented anywhere — got it from reading the JavaScript SDK source.
+
+If you do the subtraction without accounting for that case:
+
+- `lineno: 1` becomes `0`, correct
+- `lineno: 0` becomes `-1`, or underflow on u32, wrong
+- `lineno: null` and you have nothing to work with
+
+The function that handles it is small:
+
+```rust
+fn normalize_sentry_position(lineno: Option<u32>, colno: Option<u32>) -> Option<(u32, u32)> {
+    match (lineno, colno) {
+        (Some(line), Some(col)) if line > 0 => Some((line - 1, col)),
+        _ => None,
+    }
+}
+```
+
+Returns `None` when the position is unknown and skips the lookup. The frame stays as-is instead of being silently mapped to the wrong line.
+
+The concerning thing about this bug is that generic tests won't catch it. Most events have a valid `lineno`. You have to write a test that specifically sends an event with `lineno: 0` and verify the frame isn't rewritten. Without that, the bug ships and you get wrong mappings in production that are nearly impossible to diagnose.
