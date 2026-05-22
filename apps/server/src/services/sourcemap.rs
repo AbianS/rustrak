@@ -279,65 +279,77 @@ pub async fn assemble_bundle(
         )));
     }
 
-    // --- Step 3: write to temp file and open as ZipArchive ---
+    // --- Step 3: write to temp file (non-blocking) ---
     let temp_dir = tempfile::tempdir().map_err(|e| AppError::Internal(e.to_string()))?;
     let zip_path = temp_dir.path().join("bundle.zip");
-    std::fs::write(&zip_path, &joined).map_err(|e| AppError::Internal(e.to_string()))?;
+    tokio::fs::write(&zip_path, &joined)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     drop(joined); // free memory
 
-    let zip_file = std::fs::File::open(&zip_path).map_err(|e| AppError::Internal(e.to_string()))?;
-    let mut archive = zip::ZipArchive::new(zip_file)
-        .map_err(|e| AppError::Validation(format!("invalid ZIP archive: {}", e)))?;
-
-    // --- Steps 4+5: validate + extract ---
+    // --- Steps 4+5: open ZIP + validate + extract (blocking I/O via spawn_blocking) ---
     let extract_dir = temp_dir.path().join("extracted");
-    std::fs::create_dir_all(&extract_dir).map_err(|e| AppError::Internal(e.to_string()))?;
+    let zip_path_owned = zip_path.clone();
+    let extract_dir_owned = extract_dir.clone();
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        let zip_file =
+            std::fs::File::open(&zip_path_owned).map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut archive = zip::ZipArchive::new(zip_file)
+            .map_err(|e| AppError::Validation(format!("invalid ZIP archive: {}", e)))?;
 
-    for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
+        std::fs::create_dir_all(&extract_dir_owned)
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // CVE-2025-29787: reject symlinks
-        if file.is_symlink() {
-            continue;
-        }
+        for i in 0..archive.len() {
+            let mut file = archive
+                .by_index(i)
+                .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let name = file.name().to_string();
-        // Path traversal guard — do NOT use canonicalize() (file doesn't exist yet).
-        // Iterate the archive entry name only (not raw_dest) so extract_dir is
-        // not duplicated in the resolved path.
-        let mut resolved = PathBuf::from(&extract_dir);
-        for component in Path::new(&name).components() {
-            match component {
-                Component::ParentDir => {
-                    resolved.pop();
+            // CVE-2025-29787: reject symlinks
+            if file.is_symlink() {
+                continue;
+            }
+
+            let name = file.name().to_string();
+            // Path traversal guard — do NOT use canonicalize() (file doesn't exist yet).
+            // Iterate the archive entry name only (not raw_dest) so extract_dir is
+            // not duplicated in the resolved path.
+            let mut resolved = PathBuf::from(&extract_dir_owned);
+            for component in Path::new(&name).components() {
+                match component {
+                    Component::ParentDir => {
+                        resolved.pop();
+                    }
+                    Component::Normal(c) => resolved.push(c),
+                    _ => {}
                 }
-                Component::Normal(c) => resolved.push(c),
-                _ => {}
+            }
+            if !resolved.starts_with(&extract_dir_owned) {
+                return Err(AppError::Validation(
+                    "path traversal in archive".to_string(),
+                ));
+            }
+
+            // Create parent dirs if needed
+            if let Some(parent) = resolved.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+
+            if !name.ends_with('/') {
+                let mut out = std::fs::File::create(&resolved)
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                std::io::copy(&mut file, &mut out)
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
             }
         }
-        if !resolved.starts_with(&extract_dir) {
-            return Err(AppError::Validation(
-                "path traversal in archive".to_string(),
-            ));
-        }
-
-        // Create parent dirs if needed
-        if let Some(parent) = resolved.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| AppError::Internal(e.to_string()))?;
-        }
-
-        if !name.ends_with('/') {
-            let mut out =
-                std::fs::File::create(&resolved).map_err(|e| AppError::Internal(e.to_string()))?;
-            std::io::copy(&mut file, &mut out).map_err(|e| AppError::Internal(e.to_string()))?;
-        }
-    }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("zip extraction panicked: {}", e)))??;
 
     // --- Step 6: parse manifest.json ---
     let manifest_path = extract_dir.join("manifest.json");
-    let manifest_bytes = std::fs::read(&manifest_path).map_err(|_| {
+    let manifest_bytes = tokio::fs::read(&manifest_path).await.map_err(|_| {
         AppError::Validation("manifest.json not found in artifact bundle".to_string())
     })?;
     let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
@@ -387,7 +399,7 @@ pub async fn assemble_bundle(
         // file_path in manifest may start with "~/" — strip that prefix
         let relative = file_path.trim_start_matches("~/").trim_start_matches('/');
         let file_on_disk = extract_dir.join(relative);
-        let file_bytes = match std::fs::read(&file_on_disk) {
+        let file_bytes = match tokio::fs::read(&file_on_disk).await {
             Ok(b) => b,
             Err(e) => {
                 log::warn!("cannot read extracted file {}: {}", file_path, e);
@@ -400,11 +412,13 @@ pub async fn assemble_bundle(
         fhasher.update(&file_bytes);
         let sha1_hex = hex::encode(fhasher.finalize());
 
-        // Store file in CAS (outside transaction — idempotent)
-        if let Err(e) = store.put(&sha1_hex, Bytes::from(file_bytes.clone())).await {
-            log::warn!("failed to store source file {}: {}", sha1_hex, e);
-            continue;
-        }
+        // Store file in CAS (outside transaction — idempotent).
+        // Propagate errors: a store failure must abort the job so chunks are NOT
+        // deleted and the assembly can be retried.
+        store
+            .put(&sha1_hex, Bytes::from(file_bytes.clone()))
+            .await
+            .map_err(|e| AppError::Internal(format!("failed to store source file: {}", e)))?;
 
         let file_size = file_bytes.len() as i32;
         let storage_key = sha1_hex.clone();
@@ -583,6 +597,10 @@ pub async fn rewrite_frames(
                 Some(f) => f.to_string(),
                 None => continue,
             };
+            let abs_path = frame
+                .get("abs_path")
+                .and_then(|f| f.as_str())
+                .map(|s| s.to_string());
             let frame_lineno: Option<u32> = frame
                 .get("lineno")
                 .and_then(|l| l.as_u64())
@@ -592,8 +610,13 @@ pub async fn rewrite_frames(
                 .and_then(|c| c.as_u64())
                 .map(|c| c as u32);
 
-            // 3b. Resolve debug_id from code_file map
-            let debug_id = match images_map.get(&filename) {
+            // 3b. Resolve debug_id from code_file map.
+            // Try abs_path first (full URL matching code_file), then filename.
+            let lookup_key = abs_path.as_deref().unwrap_or(&filename);
+            let debug_id = match images_map
+                .get(lookup_key)
+                .or_else(|| images_map.get(filename.as_str()))
+            {
                 Some(id) => id.clone(),
                 None => continue,
             };
@@ -663,6 +686,7 @@ pub async fn rewrite_frames(
 
             frame["filename"] = original_file.into();
             frame["lineno"] = (token.get_src_line() + 1).into(); // back to 1-indexed
+            frame["colno"] = token.get_src_col().into();
             frame["function"] = token
                 .get_name()
                 .map(|n| n.to_string())

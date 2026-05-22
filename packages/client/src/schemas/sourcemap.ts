@@ -7,6 +7,7 @@ export const chunkUploadCapabilitySchema = z.object({
   maxRequestSize: z.number().int(),
   hashAlgorithm: z.string(),
   accept: z.array(z.string()),
+  concurrency: z.number().int().optional(),
 });
 
 export const assembleResponseSchema = z.object({

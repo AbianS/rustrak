@@ -216,30 +216,6 @@ pub async fn artifact_bundle_assemble(
         }));
     }
 
-    // Verify bundle checksum upfront
-    if !body.chunks.is_empty() {
-        let mut joined: Vec<u8> = Vec::new();
-        for checksum in &body.chunks {
-            let data: Option<Vec<u8>> =
-                sqlx::query_scalar("SELECT data FROM chunk WHERE checksum = $1")
-                    .bind(checksum)
-                    .fetch_optional(pool.get_ref())
-                    .await?;
-            if let Some(d) = data {
-                joined.extend_from_slice(&d);
-            }
-        }
-        let mut hasher = sha1::Sha1::new();
-        hasher.update(&joined);
-        let computed = hex::encode(hasher.finalize());
-        if computed != body.checksum {
-            return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-                "state": "error",
-                "detail": format!("checksum mismatch: expected {}, got {}", body.checksum, computed)
-            })));
-        }
-    }
-
     // INSERT ... ON CONFLICT DO NOTHING RETURNING *
     #[cfg(feature = "postgres")]
     let job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(

@@ -735,7 +735,11 @@ async fn test_assemble_zip_symlink_sets_error_state() {
 }
 
 #[actix_web::test]
-async fn test_assemble_checksum_mismatch_returns_400() {
+async fn test_assemble_checksum_mismatch_enqueues_job() {
+    // Checksum verification is async (done by the worker, not the handler).
+    // The handler accepts the job and returns 200 with state "created".
+    // The mismatch is surfaced when the caller polls the endpoint again after
+    // the worker processes the job.
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
 
@@ -775,7 +779,6 @@ async fn test_assemble_checksum_mismatch_returns_400() {
     )
     .await;
 
-    // Provide a deliberately wrong bundle checksum
     let wrong_checksum = "0000000000000000000000000000000000000000";
 
     let req = test::TestRequest::post()
@@ -790,18 +793,10 @@ async fn test_assemble_checksum_mismatch_returns_400() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400, "checksum mismatch must return 400");
-
+    // Handler accepts; checksum is verified asynchronously by the worker
+    assert_eq!(resp.status(), 200, "handler must accept the job");
     let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["state"], "error");
-    assert!(
-        body["detail"]
-            .as_str()
-            .unwrap_or("")
-            .contains("checksum mismatch"),
-        "detail must mention checksum mismatch; got: {}",
-        body["detail"]
-    );
+    assert_eq!(body["state"], "created", "job must be in created state");
 }
 
 #[actix_web::test]
