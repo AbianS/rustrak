@@ -25,6 +25,9 @@ services:
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
       - PUBLIC_URL=${PUBLIC_URL:-}
+      - SOURCEMAP_STORAGE_PATH=/data/sourcemaps
+    volumes:
+      - sourcemap_data:/data/sourcemaps
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,3 +45,4 @@ services:
 
 volumes:
   postgres_data:
+  sourcemap_data:

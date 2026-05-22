@@ -5,6 +5,7 @@ pub mod grouping;
 pub mod installation;
 pub mod issue;
 pub mod project;
+pub mod source_file;
 pub mod user;
 
 pub use alert::{

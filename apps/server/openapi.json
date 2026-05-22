@@ -13,6 +13,265 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/0/organizations/{org_slug}/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/organizations/{org_slug}/\nAlways returns 200 with synthetic org data — sentry-cli validates this before uploading.",
+        "operationId": "org_details",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synthetic org metadata accepted by sentry-cli"
+          }
+        }
+      }
+    },
+    "/api/0/organizations/{org_slug}/artifactbundle/assemble/": {
+      "post": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "POST /api/0/organizations/{org_slug}/artifactbundle/assemble/",
+        "operationId": "artifact_bundle_assemble",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Assembly job state (ok / created / processing)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Missing chunks — upload required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or checksum mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/organizations/{org_slug}/chunk-upload/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/organizations/{org_slug}/chunk-upload/",
+        "operationId": "chunk_upload_capability",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk upload capabilities and URL"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "POST /api/0/organizations/{org_slug}/chunk-upload/",
+        "operationId": "chunk_upload",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunks stored successfully"
+          },
+          "400": {
+            "description": "Invalid multipart or chunk too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/projects/{org_slug}/{project_slug}/files/source-maps/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/projects/{org_slug}/{project_slug}/files/source-maps/",
+        "operationId": "list_source_maps",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of uploaded source map files"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/alert-channels": {
       "get": {
         "tags": [
@@ -2268,6 +2527,55 @@
           "regression",
           "unmute"
         ]
+      },
+      "AssembleBody": {
+        "type": "object",
+        "required": [
+          "checksum",
+          "chunks",
+          "projects"
+        ],
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AssembleResponse": {
+        "type": "object",
+        "required": [
+          "state",
+          "missingChunks"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "missingChunks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string"
+          }
+        }
       },
       "AuthResponse": {
         "type": "object",

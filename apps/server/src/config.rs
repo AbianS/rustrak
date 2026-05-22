@@ -14,6 +14,12 @@ pub struct Config {
     /// Must include scheme (http:// or https://). Trailing slash is stripped at load time.
     /// Falls back to `http://{HOST}:{PORT}` when unset.
     pub public_url: Option<String>,
+    /// Directory where assembled source map files are stored on disk (CAS layout).
+    /// Default: /data/sourcemaps. Override with SOURCEMAP_STORAGE_PATH env var.
+    pub sourcemap_storage_path: String,
+    /// Maximum allowed size of a single uploaded chunk in bytes.
+    /// Default: 10 MB. Override with MAX_CHUNK_SIZE_BYTES env var.
+    pub max_chunk_size_bytes: usize,
 }
 
 /// Database connection pool configuration
@@ -63,6 +69,12 @@ impl Config {
             rate_limit: RateLimitConfig::from_env(),
             security: SecurityConfig::from_env()?,
             ingest_dir: env::var("INGEST_DIR").ok(),
+            sourcemap_storage_path: env::var("SOURCEMAP_STORAGE_PATH")
+                .unwrap_or_else(|_| "/data/sourcemaps".to_string()),
+            max_chunk_size_bytes: env::var("MAX_CHUNK_SIZE_BYTES")
+                .unwrap_or_else(|_| (10 * 1024 * 1024).to_string())
+                .parse()
+                .unwrap_or(10 * 1024 * 1024),
             public_url: env::var("PUBLIC_URL")
                 .ok()
                 .filter(|s| !s.trim().is_empty())
