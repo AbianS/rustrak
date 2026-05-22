@@ -87,7 +87,8 @@ pub async fn chunk_upload_capability(
         "chunksPerRequest": 64,
         "maxRequestSize": 33_554_432u64,
         "hashAlgorithm": "sha1",
-        "accept": ["release_files", "sources", "artifact_bundles", "artifact_bundles_v2"]
+        "accept": ["release_files", "sources", "artifact_bundles", "artifact_bundles_v2"],
+        "concurrency": 8
     })))
 }
 

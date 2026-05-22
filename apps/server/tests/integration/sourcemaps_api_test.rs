@@ -1128,6 +1128,177 @@ async fn test_list_source_maps_scoped_to_project() {
 }
 
 // =============================================================================
+// Group 5b: assemble_bundle regression — manifest.json extraction
+// =============================================================================
+
+/// Build a minimal but valid artifact bundle ZIP in memory.
+///
+/// The ZIP contains:
+///   - `~/app.min.js.map`  — a trivial source map JSON
+///   - `manifest.json`     — Sentry manifest with `files` + empty `debugIdMap`
+///
+/// The `manifest.json` has no `debug-id` headers, so the server's file-processing
+/// loop will skip all entries and return Ok(()) without storing anything — but it
+/// MUST be able to FIND and PARSE the manifest.  If the extraction puts files in
+/// the wrong directory the server returns `manifest.json not found`.
+fn build_test_artifact_bundle() -> Vec<u8> {
+    use std::io::Write as _;
+    use zip::write::SimpleFileOptions;
+
+    let source_map = br#"{"version":3,"sources":["src/app.ts"],"sourcesContent":[""],"mappings":"AAAA","names":[]}"#;
+    let manifest = br#"{"files":{"~/app.min.js.map":{"url":"~/app.min.js.map","type":"source_map","headers":{}}},"debugIdMap":{}}"#;
+
+    let mut buf = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buf);
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("~/app.min.js.map", opts).unwrap();
+        zip.write_all(source_map).unwrap();
+        zip.start_file("manifest.json", opts).unwrap();
+        zip.write_all(manifest).unwrap();
+        zip.finish().unwrap();
+    }
+    buf.into_inner()
+}
+
+#[actix_web::test]
+async fn test_assemble_bundle_finds_manifest_json() {
+    // Regression: the path traversal guard in assemble_bundle iterated
+    // raw_dest.components() instead of Path::new(&name).components().
+    // This doubled the extract_dir prefix so manifest.json was written to
+    // {extract_dir}/{extract_dir}/manifest.json, and the subsequent
+    // std::fs::read({extract_dir}/manifest.json) always failed.
+    let db = TestDb::new().await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "manifest-extraction".to_string(),
+            slug: Some("manifest-extraction".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let bundle = build_test_artifact_bundle();
+    let bundle_checksum = sha1_hex(&bundle);
+
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(bundle_checksum.clone(), bundle)],
+        20 * 1024 * 1024,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let config = create_test_config();
+    let store: std::sync::Arc<dyn rustrak::services::SourceMapStore> = std::sync::Arc::new(
+        rustrak::services::LocalSourceMapStore::new(&config.sourcemap_storage_path),
+    );
+
+    // Before fix: returns Err(Validation("manifest.json not found in artifact bundle"))
+    // After fix:  returns Ok(())
+    let result = rustrak::services::sourcemap::assemble_bundle(
+        &db.pool,
+        store.as_ref(),
+        project.id,
+        &bundle_checksum,
+        &[bundle_checksum.clone()],
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "assemble_bundle must succeed; got: {:?}",
+        result.err()
+    );
+}
+
+// =============================================================================
+// Group 5d: Postgres enum regression — only meaningful with --features postgres
+// =============================================================================
+
+// Guard: assembly_state ENUM in Postgres must be decodable as String.
+//
+// Regression: the first implementation of artifact_bundle_assemble used
+// `RETURNING *` / `SELECT *` on assembly_jobs. In Postgres, the `state`
+// column is typed as `assembly_state` (a custom ENUM), which SQLx cannot
+// decode into a Rust `String` — it returns a DatabaseError at runtime and
+// the endpoint returns HTTP 500.
+//
+// This test pins that behaviour: once the state column is TEXT the test
+// passes; if someone re-introduces an ENUM it will fail immediately.
+#[cfg(feature = "postgres")]
+#[actix_web::test]
+async fn test_assemble_state_column_decodable_in_postgres() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "pg-state-decode".to_string(),
+            slug: Some("pg-state-decode".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    // One chunk — size of the bundle equals size of this single chunk
+    let chunk: &[u8] = b"postgres assembly_state enum regression test data";
+    let chunk_hash = sha1_hex(chunk);
+    let bundle_checksum = chunk_hash.clone();
+
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(chunk_hash.clone(), chunk.to_vec())],
+        10 * 1024 * 1024,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(serde_json::json!({
+            "checksum": bundle_checksum,
+            "chunks": [chunk_hash],
+            "projects": [project.slug]
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    // Before fix: HTTP 500 — "mismatched types … assembly_state"
+    // After fix:  HTTP 200 with state in {"created","assembling","ok"}
+    assert_eq!(
+        resp.status(),
+        200,
+        "assemble must not 500 on Postgres — state column decode regression"
+    );
+
+    let body: Value = test::read_body_json(resp).await;
+    let state = body["state"].as_str().unwrap_or("");
+    assert!(
+        ["created", "assembling", "ok"].contains(&state),
+        "state must be a valid assembly state string; got: '{}'",
+        state
+    );
+}
+
+// =============================================================================
 // Group 6: Worker recovery — keep #[ignore = "requires worker"]
 // =============================================================================
 

@@ -1,5 +1,3 @@
-CREATE TYPE assembly_state AS ENUM ('not_found', 'created', 'assembling', 'ok', 'error');
-
 CREATE TABLE chunk (
     checksum   CHAR(40) PRIMARY KEY,
     size       INT NOT NULL,
@@ -32,7 +30,7 @@ CREATE TABLE assembly_jobs (
     bundle_checksum CHAR(40) NOT NULL,
     project_id      INT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     chunks          TEXT[] NOT NULL,
-    state           assembly_state NOT NULL DEFAULT 'created',
+    state           TEXT NOT NULL DEFAULT 'created' CHECK(state IN ('not_found','created','assembling','ok','error')),
     detail          TEXT,
     locked_until    TIMESTAMPTZ,
     worker_id       TEXT,

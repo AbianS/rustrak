@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -305,9 +305,10 @@ pub async fn assemble_bundle(
 
         let name = file.name().to_string();
         // Path traversal guard — do NOT use canonicalize() (file doesn't exist yet).
-        let raw_dest = extract_dir.join(&name);
+        // Iterate the archive entry name only (not raw_dest) so extract_dir is
+        // not duplicated in the resolved path.
         let mut resolved = PathBuf::from(&extract_dir);
-        for component in raw_dest.components() {
+        for component in Path::new(&name).components() {
             match component {
                 Component::ParentDir => {
                     resolved.pop();
