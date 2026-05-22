@@ -10,6 +10,11 @@ interface Breadcrumb {
   data?: Record<string, unknown>;
 }
 
+interface GroupedBreadcrumb {
+  crumb: Breadcrumb;
+  count: number;
+}
+
 interface BreadcrumbsProps {
   breadcrumbs?: Breadcrumb[] | { values?: Breadcrumb[] };
 }
@@ -31,8 +36,27 @@ function normalizeBreadcrumbs(
   return [];
 }
 
+function groupConsecutiveBreadcrumbs(items: Breadcrumb[]): GroupedBreadcrumb[] {
+  const grouped: GroupedBreadcrumb[] = [];
+  for (const crumb of items) {
+    const last = grouped[grouped.length - 1];
+    if (
+      last &&
+      last.crumb.category === crumb.category &&
+      last.crumb.message === crumb.message &&
+      last.crumb.level === crumb.level
+    ) {
+      last.count++;
+    } else {
+      grouped.push({ crumb, count: 1 });
+    }
+  }
+  return grouped;
+}
+
 export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
   const items = normalizeBreadcrumbs(breadcrumbs);
+  const grouped = groupConsecutiveBreadcrumbs(items);
 
   if (items.length === 0) {
     return (
@@ -44,7 +68,12 @@ export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
 
   return (
     <div className="space-y-2">
-      {items.map((crumb, i) => (
+      <p className="text-xs text-muted-foreground mb-3">
+        {items.length} breadcrumb{items.length !== 1 ? 's' : ''}
+        {grouped.length < items.length &&
+          ` (${items.length - grouped.length} collapsed)`}
+      </p>
+      {grouped.map(({ crumb, count }, i) => (
         <div
           key={i}
           className="flex items-start gap-4 p-3 bg-card border rounded-lg"
@@ -58,7 +87,7 @@ export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
           </div>
 
           <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {crumb.category && (
                 <Badge variant="outline" className="text-[10px]">
                   {crumb.category}
@@ -72,6 +101,11 @@ export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
                   className="text-[10px]"
                 >
                   {crumb.level}
+                </Badge>
+              )}
+              {count > 1 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  ×{count}
                 </Badge>
               )}
             </div>

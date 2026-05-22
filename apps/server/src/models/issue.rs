@@ -57,8 +57,15 @@ impl Issue {
         if self.calculated_value.is_empty() {
             self.calculated_type.clone()
         } else {
-            let first_line = self.calculated_value.lines().next().unwrap_or("");
-            format!("{}: {}", self.calculated_type, first_line)
+            match self
+                .calculated_value
+                .lines()
+                .map(|l| l.trim())
+                .find(|l| !l.is_empty())
+            {
+                Some(first_line) => format!("{}: {}", self.calculated_type, first_line),
+                None => self.calculated_type.clone(),
+            }
         }
     }
 
@@ -74,7 +81,7 @@ impl Issue {
             project_id: self.project_id,
             short_id: self.short_id(project_slug),
             title: self.title(),
-            value: self.calculated_value.clone(),
+            value: self.calculated_value.trim().to_string(),
             first_seen: self.first_seen,
             last_seen: self.last_seen,
             event_count: self.digested_event_count,
