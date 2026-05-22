@@ -44,7 +44,10 @@ function groupConsecutiveBreadcrumbs(items: Breadcrumb[]): GroupedBreadcrumb[] {
       last &&
       last.crumb.category === crumb.category &&
       last.crumb.message === crumb.message &&
-      last.crumb.level === crumb.level
+      last.crumb.level === crumb.level &&
+      last.crumb.type === crumb.type &&
+      !crumb.data &&
+      !last.crumb.data
     ) {
       last.count++;
     } else {
