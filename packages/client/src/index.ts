@@ -25,26 +25,24 @@ export {
 } from './errors/index.js';
 // Types
 export type {
-  // Alerts
   AlertHistory,
   AlertRule,
   AlertStatus,
   AlertType,
   ApiError,
-  // Auth
+  AssembleInput,
+  AssembleResponse,
   AuthResponse,
-  // Tokens
   AuthToken,
   AuthTokenCreated,
   ChannelType,
+  ChunkUploadCapability,
   CreateAlertRule,
   CreateAuthToken,
   CreateNotificationChannel,
   CreateProject,
-  // Events
   Event,
   EventDetail,
-  // Issues
   Issue,
   IssueFilter,
   IssueSort,
@@ -52,16 +50,16 @@ export type {
   ListEventsOptions,
   ListIssuesOptions,
   ListProjectsOptions,
+  ListSourceMapsResponse,
   LoginRequest,
   LoginResult,
   NotificationChannel,
-  // Common
   OffsetPaginatedResponse,
   PaginatedResponse,
-  // Projects
   Project,
   RegisterRequest,
   SortOrder,
+  SourceMapFile,
   TestChannelResponse,
   UpdateAlertRule,
   UpdateIssueState,

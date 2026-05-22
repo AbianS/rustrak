@@ -7,6 +7,7 @@ import {
   EventsResource,
   IssuesResource,
   ProjectsResource,
+  SourceMapsResource,
   TokensResource,
 } from './resources/index.js';
 import { createKyInstance } from './utils/index.js';
@@ -70,6 +71,11 @@ export class RustrakClient {
   public readonly alertRules: AlertRulesResource;
 
   /**
+   * Source Maps API resource (sentry-cli artifact bundle upload protocol)
+   */
+  public readonly sourceMaps: SourceMapsResource;
+
+  /**
    * Create a new Rustrak API client
    *
    * @param config - Client configuration
@@ -85,5 +91,6 @@ export class RustrakClient {
     this.tokens = new TokensResource(this.http);
     this.alertChannels = new AlertChannelsResource(this.http);
     this.alertRules = new AlertRulesResource(this.http);
+    this.sourceMaps = new SourceMapsResource(this.http);
   }
 }
