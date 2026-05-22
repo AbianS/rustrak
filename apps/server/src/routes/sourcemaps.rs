@@ -1,5 +1,5 @@
 use actix_multipart::Multipart;
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpResponse};
 use futures_util::StreamExt as _;
 use serde::{Deserialize, Serialize};
 use sha1::Digest as _;
@@ -72,14 +72,15 @@ pub async fn org_details(path: web::Path<String>) -> AppResult<HttpResponse> {
 /// GET /api/0/organizations/{org_slug}/chunk-upload/
 pub async fn chunk_upload_capability(
     path: web::Path<String>,
-    req: HttpRequest,
     _auth: BearerAuth,
+    config: web::Data<Config>,
 ) -> AppResult<HttpResponse> {
     let org_slug = path.into_inner();
 
-    // Build base URL from request
-    let conn = req.connection_info();
-    let base_url = format!("{}://{}", conn.scheme(), conn.host());
+    let base_url = config
+        .public_url
+        .clone()
+        .unwrap_or_else(|| format!("http://{}:{}", config.host, config.port));
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": format!("{}/api/0/organizations/{}/chunk-upload/", base_url, org_slug),

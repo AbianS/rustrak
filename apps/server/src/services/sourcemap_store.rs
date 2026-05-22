@@ -61,40 +61,46 @@ impl SourceMapStore for LocalSourceMapStore {
     async fn put(&self, key: &str, data: Bytes) -> Result<(), StoreError> {
         Self::validate_key(key)?;
         let dest_path = self.dest_path(key);
-        // Idempotent: if the file already exists (same SHA1 → same content), skip.
-        if dest_path.exists() {
-            return Ok(());
-        }
         let shard_dir = self.shard_dir(key);
-        std::fs::create_dir_all(&shard_dir)?;
-        // Atomic write: write to temp file in the same directory, then rename.
-        let tmp = tempfile::Builder::new().tempfile_in(&shard_dir)?;
-        let (mut file, tmp_path) = tmp.into_parts();
-        use std::io::Write;
-        file.write_all(&data)?;
-        file.flush()?;
-        drop(file);
-        // Atomic rename; if dest appeared between our exists() check and now, that's fine — content
-        // is identical by the CAS invariant.
-        match tmp_path.persist(&dest_path) {
-            Ok(_) => {}
-            Err(e) => {
-                // If the file now exists (race), it's idempotent — ignore.
-                if !dest_path.exists() {
-                    return Err(StoreError::Io(e.error));
+        tokio::task::spawn_blocking(move || -> Result<(), std::io::Error> {
+            // Idempotent: if the file already exists (same SHA1 → same content), skip.
+            if dest_path.exists() {
+                return Ok(());
+            }
+            std::fs::create_dir_all(&shard_dir)?;
+            // Atomic write: write to temp file in the same directory, then rename.
+            let tmp = tempfile::Builder::new().tempfile_in(&shard_dir)?;
+            let (mut file, tmp_path) = tmp.into_parts();
+            use std::io::Write;
+            file.write_all(&data)?;
+            file.flush()?;
+            drop(file);
+            // Atomic rename; if dest appeared between our exists() check and now, that's fine —
+            // content is identical by the CAS invariant.
+            match tmp_path.persist(&dest_path) {
+                Ok(_) => {}
+                Err(e) => {
+                    // If the file now exists (race), it's idempotent — ignore.
+                    if !dest_path.exists() {
+                        return Err(e.error);
+                    }
                 }
             }
-        }
+            Ok(())
+        })
+        .await
+        .map_err(|e| StoreError::Io(std::io::Error::other(e)))??;
         Ok(())
     }
 
     async fn get(&self, key: &str) -> Result<Bytes, StoreError> {
         Self::validate_key(key)?;
         let path = self.dest_path(key);
-        match std::fs::read(&path) {
+        let key_owned = key.to_string();
+        match tokio::fs::read(&path).await {
             Ok(data) => Ok(Bytes::from(data)),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                Err(StoreError::NotFound(key.to_string()))
+                Err(StoreError::NotFound(key_owned))
             }
             Err(e) => Err(StoreError::Io(e)),
         }
@@ -102,13 +108,15 @@ impl SourceMapStore for LocalSourceMapStore {
 
     async fn exists(&self, key: &str) -> Result<bool, StoreError> {
         Self::validate_key(key)?;
-        Ok(self.dest_path(key).exists())
+        tokio::fs::try_exists(self.dest_path(key))
+            .await
+            .map_err(StoreError::Io)
     }
 
     async fn delete(&self, key: &str) -> Result<(), StoreError> {
         Self::validate_key(key)?;
         let path = self.dest_path(key);
-        match std::fs::remove_file(&path) {
+        match tokio::fs::remove_file(&path).await {
             Ok(_) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(StoreError::Io(e)),
