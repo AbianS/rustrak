@@ -43,9 +43,12 @@ describe('SourceMapsResource Integration', () => {
 
   describe('uploadChunks()', () => {
     it('should upload chunks without error', async () => {
-      const chunk = new Blob(['source map data'], {
-        type: 'application/octet-stream',
-      });
+      const chunk = {
+        hash: 'aabbcc1122334455aabbcc1122334455aabbcc11',
+        data: new Blob(['source map data'], {
+          type: 'application/octet-stream',
+        }),
+      };
       await expect(
         client.sourceMaps.uploadChunks('my-org', [chunk]),
       ).resolves.toBeUndefined();
@@ -53,9 +56,18 @@ describe('SourceMapsResource Integration', () => {
 
     it('should upload multiple chunks', async () => {
       const chunks = [
-        new Blob(['chunk1']),
-        new Blob(['chunk2']),
-        new Blob(['chunk3']),
+        {
+          hash: 'aaaa0000000000000000000000000000aaaa0001',
+          data: new Blob(['chunk1']),
+        },
+        {
+          hash: 'aaaa0000000000000000000000000000aaaa0002',
+          data: new Blob(['chunk2']),
+        },
+        {
+          hash: 'aaaa0000000000000000000000000000aaaa0003',
+          data: new Blob(['chunk3']),
+        },
       ];
       await expect(
         client.sourceMaps.uploadChunks('my-org', chunks),
@@ -75,7 +87,20 @@ describe('SourceMapsResource Integration', () => {
       );
 
       // 3 chunks with chunksPerRequest=2 → must send 2 requests (batch of 2 + batch of 1)
-      const chunks = [new Blob(['a']), new Blob(['b']), new Blob(['c'])];
+      const chunks = [
+        {
+          hash: 'bbbb0000000000000000000000000000bbbb0001',
+          data: new Blob(['a']),
+        },
+        {
+          hash: 'bbbb0000000000000000000000000000bbbb0002',
+          data: new Blob(['b']),
+        },
+        {
+          hash: 'bbbb0000000000000000000000000000bbbb0003',
+          data: new Blob(['c']),
+        },
+      ];
       await client.sourceMaps.uploadChunks('batch-org', chunks, 2);
 
       expect(requestCount).toBe(2);

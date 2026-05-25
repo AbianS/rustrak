@@ -2002,7 +2002,7 @@ async fn test_assemble_re_enqueue_error_job_updates_chunks() {
         project.id,
         "error",
         Some("previous failure"),
-        &[old_chunk_sha1.clone()],
+        std::slice::from_ref(&old_chunk_sha1),
     )
     .await;
 
