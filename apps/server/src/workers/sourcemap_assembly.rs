@@ -12,14 +12,16 @@ pub struct AssemblyWorker {
     pool: DbPool,
     store: Arc<dyn SourceMapStore>,
     worker_id: String,
+    max_bundle_size_bytes: usize,
 }
 
 impl AssemblyWorker {
-    pub fn new(pool: DbPool, store: Arc<dyn SourceMapStore>) -> Self {
+    pub fn new(pool: DbPool, store: Arc<dyn SourceMapStore>, max_bundle_size_bytes: usize) -> Self {
         Self {
             pool,
             store,
             worker_id: Uuid::new_v4().to_string(),
+            max_bundle_size_bytes,
         }
     }
 
@@ -160,6 +162,7 @@ impl AssemblyWorker {
             job.project_id,
             &job.bundle_checksum,
             job.chunk_list(),
+            self.max_bundle_size_bytes,
         )
         .await;
 

@@ -380,6 +380,91 @@ async fn test_rewrite_no_debug_meta() {
     assert_eq!(frame["filename"], orig["filename"]);
 }
 
+// ---------------------------------------------------------------------------
+// Cycle 2: abs_path cleared after rewrite
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_rewrite_clears_abs_path() {
+    // After a successful rewrite, abs_path must become null.
+    // Sentry clears it so the UI shows the original source file, not the minified URL.
+    let provider = FakeSourceMapProvider::with_data(make_simple_sourcemap());
+    let mut event = json!({
+        "debug_meta": {
+            "images": [{"code_file": "https://cdn.example.com/bundle.min.js", "debug_id": "abc123"}]
+        },
+        "exception": {
+            "values": [{
+                "stacktrace": {
+                    "frames": [{
+                        "filename": "https://cdn.example.com/bundle.min.js",
+                        "abs_path": "https://cdn.example.com/bundle.min.js",
+                        "lineno": 5,
+                        "colno": 0
+                    }]
+                }
+            }]
+        }
+    });
+
+    rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+    let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+    assert_eq!(
+        frame["filename"].as_str().unwrap(),
+        "src/app/page.tsx",
+        "filename must be rewritten to original source"
+    );
+    assert!(
+        frame["abs_path"].is_null(),
+        "abs_path must be null after rewrite; got: {}",
+        frame["abs_path"]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Cycle 3: frame.data.sourcemap set after rewrite
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_rewrite_sets_data_sourcemap() {
+    // After rewrite, frame["data"]["sourcemap"] must be set to the debug_id.
+    // Sentry uses this for UI observability (which source map was applied).
+    let debug_id = "550e8400-e29b-41d4-a716-446655440000";
+    let provider = FakeSourceMapProvider::with_data(make_simple_sourcemap());
+    let mut event = make_event("_next/static/chunks/app.js", debug_id, 5, 0);
+
+    rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+    let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+    assert_eq!(
+        frame["data"]["sourcemap"].as_str(),
+        Some(debug_id),
+        "frame.data.sourcemap must be set to the debug_id after rewrite"
+    );
+}
+
+#[tokio::test]
+async fn test_rewrite_data_sourcemap_not_set_on_miss() {
+    // When no source map found, frame.data.sourcemap must NOT be set.
+    let provider = FakeSourceMapProvider::empty();
+    let mut event = make_event("bundle.js", "abc123", 5, 0);
+
+    rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+    let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+    // data.sourcemap should not be present when no rewrite happened
+    let sourcemap_field = frame.get("data").and_then(|d| d.get("sourcemap"));
+    assert!(
+        sourcemap_field.is_none() || sourcemap_field.unwrap().is_null(),
+        "frame.data.sourcemap must not be set when no source map found"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// test_rewrite_image_missing_code_file (existing)
+// ---------------------------------------------------------------------------
+
 #[tokio::test]
 async fn test_rewrite_image_missing_code_file() {
     let provider = FakeSourceMapProvider::with_data(make_simple_sourcemap());

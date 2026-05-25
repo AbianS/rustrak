@@ -11,6 +11,34 @@ ignore = [
     "RUSTSEC-2026-0097",
 ]
 
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "OpenSSL",
+    "Zlib",
+    "0BSD",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0-only",
+]
+private = { ignore = true }
+
+# zstd-sys uses "MIT/Apache-2.0" (slash = non-SPDX) instead of SPDX "MIT OR Apache-2.0".
+# cargo-deny can't parse the slash form, so we clarify it manually using the actual license files.
+[[licenses.clarify]]
+name = "zstd-sys"
+expression = "MIT OR Apache-2.0"
+license-files = [
+    { path = "LICENSE.Mit", hash = 0x94c25aa8 },
+    { path = "LICENSE.Apache-2.0", hash = 0x1ea3b7b0 },
+]
+
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"

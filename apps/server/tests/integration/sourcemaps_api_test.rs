@@ -341,7 +341,7 @@ async fn test_chunk_upload_chunk_too_large_returns_400() {
 }
 
 #[actix_web::test]
-async fn test_chunk_upload_no_file_parts_returns_400() {
+async fn test_chunk_upload_empty_multipart_returns_400() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
     let config = create_test_config();
@@ -356,9 +356,47 @@ async fn test_chunk_upload_no_file_parts_returns_400() {
     )
     .await;
 
-    // Build multipart with a field named "other" (not "file")
-    let boundary = "noboundary9876";
-    let body = build_multipart(boundary, &[("other", b"some data".as_ref())]);
+    // Empty multipart body — no parts at all
+    let boundary = "emptyboundary9876";
+    let body = format!("--{}--\r\n", boundary).into_bytes();
+
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
+        .set_payload(body)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400, "empty multipart body must return 400");
+}
+
+#[actix_web::test]
+async fn test_chunk_upload_sha1_field_name_accepted() {
+    // sentry-cli sends chunks with SHA1 hash as the multipart field name, not "file".
+    // Rustrak must accept any non-empty field name.
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let chunk_data = b"source map chunk from real sentry-cli";
+    let sha1 = sha1_hex(chunk_data);
+
+    let boundary = "sha1fieldboundary";
+    let body = build_multipart(boundary, &[(sha1.as_str(), chunk_data.as_ref())]);
 
     let req = test::TestRequest::post()
         .uri("/api/0/organizations/my-org/chunk-upload/")
@@ -373,8 +411,17 @@ async fn test_chunk_upload_no_file_parts_returns_400() {
     let resp = test::call_service(&app, req).await;
     assert_eq!(
         resp.status(),
-        400,
-        "multipart with no 'file' parts must return 400"
+        200,
+        "chunk with SHA1 field name must be accepted (real sentry-cli protocol)"
+    );
+
+    let missing = rustrak::services::sourcemap::get_missing_chunks(&db.pool, &[sha1.clone()])
+        .await
+        .expect("get_missing_chunks must succeed");
+    assert!(
+        missing.is_empty(),
+        "chunk uploaded with SHA1 field name must be stored in DB; still missing: {:?}",
+        missing
     );
 }
 
@@ -1199,6 +1246,7 @@ async fn test_assemble_bundle_finds_manifest_json() {
         project.id,
         &bundle_checksum,
         std::slice::from_ref(&bundle_checksum),
+        100 * 1024 * 1024, // 100 MB limit — well above test bundle
     )
     .await;
 
@@ -1206,6 +1254,74 @@ async fn test_assemble_bundle_finds_manifest_json() {
         result.is_ok(),
         "assemble_bundle must succeed; got: {:?}",
         result.err()
+    );
+}
+
+// =============================================================================
+// Group 5c: Bundle size limit — Cycle 4
+// =============================================================================
+
+#[actix_web::test]
+async fn test_assemble_bundle_rejects_oversized_bundle() {
+    // When total assembled chunk bytes exceed max_bundle_size_bytes, assemble_bundle
+    // must return an error instead of loading everything into RAM.
+    let db = TestDb::new().await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "bundle-size-limit".to_string(),
+            slug: Some("bundle-size-limit".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    // Two chunks: 60 bytes each = 120 bytes total
+    let chunk1: Vec<u8> = vec![0xAA; 60];
+    let chunk2: Vec<u8> = vec![0xBB; 60];
+    let sha1_1 = sha1_hex(&chunk1);
+    let sha1_2 = sha1_hex(&chunk2);
+
+    let config = create_test_config();
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(sha1_1.clone(), chunk1), (sha1_2.clone(), chunk2)],
+        config.max_chunk_size_bytes,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let store: std::sync::Arc<dyn rustrak::services::SourceMapStore> = std::sync::Arc::new(
+        rustrak::services::LocalSourceMapStore::new(&config.sourcemap_storage_path),
+    );
+
+    let joined_checksum = {
+        let mut data = vec![0xAAu8; 60];
+        data.extend(vec![0xBBu8; 60]);
+        sha1_hex(&data)
+    };
+
+    // Limit of 100 bytes — total bundle is 120 bytes → must fail
+    let result = rustrak::services::sourcemap::assemble_bundle(
+        &db.pool,
+        store.as_ref(),
+        project.id,
+        &joined_checksum,
+        &[sha1_1, sha1_2],
+        100, // 100 bytes max — intentionally below 120-byte bundle
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "assemble_bundle must fail when bundle exceeds max_bundle_size_bytes"
+    );
+    let err = format!("{:?}", result.unwrap_err());
+    assert!(
+        err.contains("too large") || err.contains("limit"),
+        "error must mention size limit; got: {}",
+        err
     );
 }
 

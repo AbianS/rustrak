@@ -242,7 +242,7 @@ pub async fn store_chunks(
 /// metadata in the database.
 ///
 /// Steps:
-/// 1. Fetch chunk rows in order; join bytes.
+/// 1. Fetch chunk rows in order; join bytes (enforcing `max_bundle_size_bytes`).
 /// 2. Verify SHA1 matches `bundle_checksum`.
 /// 3. Write to temp file; open as ZipArchive.
 /// 4. Validate each entry for symlinks and path traversal.
@@ -256,6 +256,7 @@ pub async fn assemble_bundle(
     project_id: i32,
     bundle_checksum: &str,
     chunk_checksums: &[String],
+    max_bundle_size_bytes: usize,
 ) -> AppResult<()> {
     // --- Step 1: fetch + join chunk bytes ---
     let mut joined: Vec<u8> = Vec::new();
@@ -265,6 +266,12 @@ pub async fn assemble_bundle(
             .fetch_one(pool)
             .await
             .map_err(|_| AppError::Validation(format!("chunk not found: {}", checksum)))?;
+        if joined.len() + data.len() > max_bundle_size_bytes {
+            return Err(AppError::Validation(format!(
+                "bundle too large: exceeds {} bytes limit",
+                max_bundle_size_bytes
+            )));
+        }
         joined.extend_from_slice(&data);
     }
 
@@ -685,6 +692,13 @@ pub async fn rewrite_frames(
                 .to_string();
 
             frame["filename"] = original_file.into();
+            // Clear abs_path — it pointed to the minified JS URL, now irrelevant
+            frame["abs_path"] = serde_json::Value::Null;
+            // Record which source map was applied (Sentry UI observability)
+            if !frame["data"].is_object() {
+                frame["data"] = serde_json::json!({});
+            }
+            frame["data"]["sourcemap"] = debug_id.clone().into();
             frame["lineno"] = (token.get_src_line() + 1).into(); // back to 1-indexed
             frame["colno"] = token.get_src_col().into();
             frame["function"] = token

@@ -92,7 +92,7 @@ async-trait = "0.1.89"
 
 # Source map processing
 sourcemap = "9"
-zip = "8.6"           # CVE-2025-29787 fixed in 2.3+; DO NOT lower below 2.3
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }  # CVE-2025-29787 fixed in 2.3+; DO NOT lower below 2.3; no zstd (non-SPDX license)
 actix-multipart = "0.7"
 sha1 = "0.11"
 tempfile = "3.27.0"

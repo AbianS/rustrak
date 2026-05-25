@@ -125,8 +125,8 @@ pub async fn chunk_upload(
             .and_then(|cd| cd.get_name().map(|s| s.to_string()))
             .unwrap_or_default();
 
-        // Only process "file" fields
-        if field_name != "file" {
+        // Skip unnamed fields; accept any named field (real sentry-cli uses SHA1 hash as name)
+        if field_name.is_empty() {
             continue;
         }
 

@@ -58,7 +58,11 @@ async fn main() -> std::io::Result<()> {
 
     // Spawn assembly worker
     {
-        let worker = AssemblyWorker::new(db_pool.clone(), Arc::clone(&sourcemap_store));
+        let worker = AssemblyWorker::new(
+            db_pool.clone(),
+            Arc::clone(&sourcemap_store),
+            config.max_chunk_size_bytes * 64,
+        );
         tokio::spawn(worker.run());
     }
 
