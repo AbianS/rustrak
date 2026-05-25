@@ -415,7 +415,7 @@ async fn test_chunk_upload_sha1_field_name_accepted() {
         "chunk with SHA1 field name must be accepted (real sentry-cli protocol)"
     );
 
-    let missing = rustrak::services::sourcemap::get_missing_chunks(&db.pool, &[sha1.clone()])
+    let missing = rustrak::services::sourcemap::get_missing_chunks(&db.pool, std::slice::from_ref(&sha1))
         .await
         .expect("get_missing_chunks must succeed");
     assert!(
