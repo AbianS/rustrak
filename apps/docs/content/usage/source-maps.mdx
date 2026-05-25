@@ -101,23 +101,23 @@ From your perspective: run `vite build` (or `webpack`) and it happens automatica
 
 ## Storage
 
-Source map chunks are stored on disk in `SOURCEMAPS_DIR` (default: `/tmp/rustrak/sourcemaps`).
+Source map chunks are stored on disk in `SOURCEMAP_STORAGE_PATH` (default: `/data/sourcemaps`).
 
 **Sizing estimate:** Each source map chunk is ~2MB. A typical app with 50 source files uses ~100MB. Scale as needed.
 
 Set a persistent path for production:
 
 ```bash
-SOURCEMAPS_DIR=/var/lib/rustrak/sourcemaps
+SOURCEMAP_STORAGE_PATH=/var/lib/rustrak/sourcemaps
 ```
 
 Make sure the directory is writable by the Rustrak process.
 
 ## Production: shared volume required
 
-If you run multiple Rustrak instances behind a load balancer, **all instances must share the same `SOURCEMAPS_DIR`**. Chunks uploaded to one instance need to be readable by any other instance.
+If you run multiple Rustrak instances behind a load balancer, **all instances must share the same `SOURCEMAP_STORAGE_PATH`**. Chunks uploaded to one instance need to be readable by any other instance.
 
-Mount a shared network volume (NFS, AWS EFS, etc.) and set the same `SOURCEMAPS_DIR` on every instance:
+Mount a shared network volume (NFS, AWS EFS, etc.) and set the same `SOURCEMAP_STORAGE_PATH` on every instance:
 
 ```yaml
 # docker-compose.yml (multi-server example)
@@ -127,7 +127,7 @@ services:
     volumes:
       - sourcemaps_nfs:/var/lib/rustrak/sourcemaps
     environment:
-      - SOURCEMAPS_DIR=/var/lib/rustrak/sourcemaps
+      - SOURCEMAP_STORAGE_PATH=/var/lib/rustrak/sourcemaps
 ```
 
 Single-server deployments don't need to worry about this.
@@ -151,9 +151,9 @@ The plugin logs upload progress. Look for output like:
 
 If you see errors, check that the `authToken` is valid and the `url` points to your Rustrak instance.
 
-**3. Is `SOURCEMAPS_DIR` writable and persistent?**
+**3. Is `SOURCEMAP_STORAGE_PATH` writable and persistent?**
 
-The default path (`/tmp/rustrak/sourcemaps`) is cleared on restart on some systems. Set a persistent path in production.
+The default path (`/data/sourcemaps`) is cleared on restart on some systems. Set a persistent path in production.
 
 **4. Are `debug_meta` entries present in the event?**
 

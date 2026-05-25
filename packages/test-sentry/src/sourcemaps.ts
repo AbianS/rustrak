@@ -303,9 +303,13 @@ export async function testSourceMaps(
     chunks.map((c) => c.hash),
   );
   console.log(`[testSourceMaps]   state=${result.state}`);
-  if (result.missingChunks.length > 0) {
-    console.log(
-      `[testSourceMaps]   missingChunks=${result.missingChunks.join(', ')}`,
+  if (result.state !== 'ok') {
+    const missing =
+      result.missingChunks.length > 0
+        ? ` Missing chunks: ${result.missingChunks.join(', ')}`
+        : '';
+    throw new Error(
+      `Artifact bundle assembly did not complete successfully (state=${result.state}).${missing}`,
     );
   }
 

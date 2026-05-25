@@ -113,6 +113,118 @@ fn build_multipart(boundary: &str, parts: &[(&str, &[u8])]) -> Vec<u8> {
     body
 }
 
+// ---------------------------------------------------------------------------
+// DB helpers — backend-agnostic (SQLite `?` vs Postgres `$N`)
+// ---------------------------------------------------------------------------
+
+async fn count_where_eq(pool: &rustrak::db::DbPool, table: &str, col: &str, val: &str) -> i64 {
+    #[cfg(feature = "postgres")]
+    let sql = format!("SELECT COUNT(*) FROM {} WHERE {} = $1", table, col);
+    #[cfg(not(feature = "postgres"))]
+    let sql = format!("SELECT COUNT(*) FROM {} WHERE {} = ?", table, col);
+    sqlx::query_scalar::<_, i64>(&sql)
+        .bind(val)
+        .fetch_one(pool)
+        .await
+        .expect("count query must succeed")
+}
+
+async fn count_sfm_for_project(pool: &rustrak::db::DbPool, project_id: i32) -> i64 {
+    #[cfg(feature = "postgres")]
+    let sql = "SELECT COUNT(*) FROM source_file_metadata WHERE project_id = $1";
+    #[cfg(not(feature = "postgres"))]
+    let sql = "SELECT COUNT(*) FROM source_file_metadata WHERE project_id = ?";
+    sqlx::query_scalar::<_, i64>(sql)
+        .bind(project_id)
+        .fetch_one(pool)
+        .await
+        .expect("count source_file_metadata must succeed")
+}
+
+async fn insert_assembly_job_with_state(
+    pool: &rustrak::db::DbPool,
+    checksum: &str,
+    project_id: i32,
+    state: &str,
+    detail: Option<&str>,
+) {
+    #[cfg(feature = "postgres")]
+    sqlx::query(
+        "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(checksum)
+    .bind(project_id)
+    .bind(&Vec::<String>::new() as &Vec<String>)
+    .bind(state)
+    .bind(detail)
+    .execute(pool)
+    .await
+    .expect("insert assembly_jobs must succeed");
+
+    #[cfg(not(feature = "postgres"))]
+    sqlx::query(
+        "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
+         VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(checksum)
+    .bind(project_id)
+    .bind("[]")
+    .bind(state)
+    .bind(detail)
+    .execute(pool)
+    .await
+    .expect("insert assembly_jobs must succeed");
+}
+
+async fn insert_source_file(
+    pool: &rustrak::db::DbPool,
+    id: &str,
+    checksum: &str,
+    size: i32,
+    storage_path: &str,
+) {
+    let mut qb = sqlx::QueryBuilder::new(
+        "INSERT INTO source_file(id, checksum, size, storage_path) VALUES (",
+    );
+    qb.push_bind(id);
+    qb.push(", ");
+    qb.push_bind(checksum);
+    qb.push(", ");
+    qb.push_bind(size);
+    qb.push(", ");
+    qb.push_bind(storage_path);
+    qb.push(")");
+    qb.build().execute(pool).await.expect("insert source_file");
+}
+
+async fn insert_source_file_metadata(
+    pool: &rustrak::db::DbPool,
+    id: &str,
+    project_id: i32,
+    debug_id: &str,
+    file_type: &str,
+    file_id: &str,
+) {
+    let mut qb = sqlx::QueryBuilder::new(
+        "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) VALUES (",
+    );
+    qb.push_bind(id);
+    qb.push(", ");
+    qb.push_bind(project_id);
+    qb.push(", ");
+    qb.push_bind(debug_id);
+    qb.push(", ");
+    qb.push_bind(file_type);
+    qb.push(", ");
+    qb.push_bind(file_id);
+    qb.push(")");
+    qb.build()
+        .execute(pool)
+        .await
+        .expect("insert source_file_metadata");
+}
+
 // =============================================================================
 // Group 1: Org probe — no DB, no auth needed
 // =============================================================================
@@ -462,11 +574,7 @@ async fn test_chunk_upload_dedup_same_sha1() {
     }
 
     // Verify exactly one row exists in DB for this SHA1
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chunk WHERE checksum = ?")
-        .bind(&sha1_val)
-        .fetch_one(&db.pool)
-        .await
-        .expect("count query must succeed");
+    let count = count_where_eq(&db.pool, "chunk", "checksum", &sha1_val).await;
     assert_eq!(
         count, 1,
         "dedup: only 1 row should exist for duplicate upload"
@@ -641,18 +749,7 @@ async fn test_assemble_idempotent_same_bundle_twice() {
     let bundle_checksum = sha1_hex(&joined);
 
     // Insert an assembly_jobs row with state='ok' directly
-    sqlx::query(
-        "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
-         VALUES (?, ?, ?, ?, ?)",
-    )
-    .bind(&bundle_checksum)
-    .bind(project.id)
-    .bind("[]")
-    .bind("ok")
-    .bind(Option::<String>::None)
-    .execute(&db.pool)
-    .await
-    .expect("direct insert of assembly_jobs must succeed");
+    insert_assembly_job_with_state(&db.pool, &bundle_checksum, project.id, "ok", None).await;
 
     let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
     let app = test::init_service(
@@ -683,12 +780,13 @@ async fn test_assemble_idempotent_same_bundle_twice() {
     assert_eq!(body["state"], "ok");
 
     // Verify exactly one assembly_jobs row
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM assembly_jobs WHERE bundle_checksum = ?")
-            .bind(&bundle_checksum)
-            .fetch_one(&db.pool)
-            .await
-            .expect("count query must succeed");
+    let count = count_where_eq(
+        &db.pool,
+        "assembly_jobs",
+        "bundle_checksum",
+        &bundle_checksum,
+    )
+    .await;
     assert_eq!(count, 1, "idempotent: only 1 assembly_jobs row expected");
 }
 
@@ -866,18 +964,14 @@ async fn test_assemble_failed_job_returns_400_on_retry() {
     let fake_checksum = "cafebabecafebabecafebabecafebabecafebabe";
 
     // Insert an assembly_jobs row with state='error' directly
-    sqlx::query(
-        "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
-         VALUES (?, ?, ?, ?, ?)",
+    insert_assembly_job_with_state(
+        &db.pool,
+        fake_checksum,
+        project.id,
+        "error",
+        Some("assembly failed: some test error"),
     )
-    .bind(fake_checksum)
-    .bind(project.id)
-    .bind("[]")
-    .bind("error")
-    .bind("assembly failed: some test error")
-    .execute(&db.pool)
-    .await
-    .expect("direct insert of failed assembly_jobs must succeed");
+    .await;
 
     let config = create_test_config();
     let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
@@ -943,49 +1037,41 @@ async fn test_list_source_maps_returns_paginated_list() {
     let file_id_b = uuid::Uuid::new_v4().to_string();
     let debug_id_b = uuid::Uuid::new_v4().to_string();
 
-    sqlx::query("INSERT INTO source_file(id, checksum, size, storage_path) VALUES (?, ?, ?, ?)")
-        .bind(&file_id_a)
-        .bind("checksum_a_001")
-        .bind(1234i32)
-        .bind("/tmp/test_a.map")
-        .execute(&db.pool)
-        .await
-        .expect("insert source_file A");
-
-    sqlx::query(
-        "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) \
-         VALUES (?, ?, ?, ?, ?)",
+    insert_source_file(
+        &db.pool,
+        &file_id_a,
+        "checksum_a_001",
+        1234,
+        "/tmp/test_a.map",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
-    .bind(project.id)
-    .bind(&debug_id_a)
-    .bind("source_map")
-    .bind(&file_id_a)
-    .execute(&db.pool)
-    .await
-    .expect("insert source_file_metadata A");
-
-    sqlx::query("INSERT INTO source_file(id, checksum, size, storage_path) VALUES (?, ?, ?, ?)")
-        .bind(&file_id_b)
-        .bind("checksum_b_002")
-        .bind(5678i32)
-        .bind("/tmp/test_b.map")
-        .execute(&db.pool)
-        .await
-        .expect("insert source_file B");
-
-    sqlx::query(
-        "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) \
-         VALUES (?, ?, ?, ?, ?)",
+    .await;
+    insert_source_file_metadata(
+        &db.pool,
+        &uuid::Uuid::new_v4().to_string(),
+        project.id,
+        &debug_id_a,
+        "source_map",
+        &file_id_a,
     )
-    .bind(uuid::Uuid::new_v4().to_string())
-    .bind(project.id)
-    .bind(&debug_id_b)
-    .bind("source_map")
-    .bind(&file_id_b)
-    .execute(&db.pool)
-    .await
-    .expect("insert source_file_metadata B");
+    .await;
+
+    insert_source_file(
+        &db.pool,
+        &file_id_b,
+        "checksum_b_002",
+        5678,
+        "/tmp/test_b.map",
+    )
+    .await;
+    insert_source_file_metadata(
+        &db.pool,
+        &uuid::Uuid::new_v4().to_string(),
+        project.id,
+        &debug_id_b,
+        "source_map",
+        &file_id_b,
+    )
+    .await;
 
     let config = create_test_config();
     let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
@@ -1083,51 +1169,43 @@ async fn test_list_source_maps_scoped_to_project() {
 
     // Insert source map for project A
     let file_id_a = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO source_file(id, checksum, size, storage_path) VALUES (?, ?, ?, ?)")
-        .bind(&file_id_a)
-        .bind("scope_checksum_a")
-        .bind(100i32)
-        .bind("/tmp/scope_a.map")
-        .execute(&db.pool)
-        .await
-        .unwrap();
-
-    sqlx::query(
-        "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) \
-         VALUES (?, ?, ?, ?, ?)",
+    insert_source_file(
+        &db.pool,
+        &file_id_a,
+        "scope_checksum_a",
+        100,
+        "/tmp/scope_a.map",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
-    .bind(proj_a.id)
-    .bind(&debug_id_a)
-    .bind("source_map")
-    .bind(&file_id_a)
-    .execute(&db.pool)
-    .await
-    .unwrap();
+    .await;
+    insert_source_file_metadata(
+        &db.pool,
+        &uuid::Uuid::new_v4().to_string(),
+        proj_a.id,
+        &debug_id_a,
+        "source_map",
+        &file_id_a,
+    )
+    .await;
 
     // Insert source map for project B
     let file_id_b = uuid::Uuid::new_v4().to_string();
-    sqlx::query("INSERT INTO source_file(id, checksum, size, storage_path) VALUES (?, ?, ?, ?)")
-        .bind(&file_id_b)
-        .bind("scope_checksum_b")
-        .bind(200i32)
-        .bind("/tmp/scope_b.map")
-        .execute(&db.pool)
-        .await
-        .unwrap();
-
-    sqlx::query(
-        "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) \
-         VALUES (?, ?, ?, ?, ?)",
+    insert_source_file(
+        &db.pool,
+        &file_id_b,
+        "scope_checksum_b",
+        200,
+        "/tmp/scope_b.map",
     )
-    .bind(uuid::Uuid::new_v4().to_string())
-    .bind(proj_b.id)
-    .bind(&debug_id_b)
-    .bind("source_map")
-    .bind(&file_id_b)
-    .execute(&db.pool)
-    .await
-    .unwrap();
+    .await;
+    insert_source_file_metadata(
+        &db.pool,
+        &uuid::Uuid::new_v4().to_string(),
+        proj_b.id,
+        &debug_id_b,
+        "source_map",
+        &file_id_b,
+    )
+    .await;
 
     let config = create_test_config();
     let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
@@ -1407,6 +1485,336 @@ async fn test_assemble_state_column_decodable_in_postgres() {
         ["created", "assembling", "ok"].contains(&state),
         "state must be a valid assembly state string; got: '{}'",
         state
+    );
+}
+
+// =============================================================================
+// Group 5e: chunkSize capability reflects config — Fix #2/#6
+// =============================================================================
+
+#[actix_web::test]
+async fn test_chunk_capability_chunk_size_reflects_config() {
+    // Before fix: chunkSize is hardcoded to 2_097_152 regardless of config.
+    // After fix:  chunkSize equals config.max_chunk_size_bytes.
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let mut config = create_test_config();
+    config.max_chunk_size_bytes = 5 * 1024 * 1024; // 5 MB
+
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    let chunk_size = body["chunkSize"]
+        .as_u64()
+        .expect("chunkSize must be a number");
+    assert_eq!(
+        chunk_size,
+        5 * 1024 * 1024,
+        "chunkSize must equal config.max_chunk_size_bytes; got {}",
+        chunk_size
+    );
+
+    let max_request_size = body["maxRequestSize"]
+        .as_u64()
+        .expect("maxRequestSize must be a number");
+    assert_eq!(
+        max_request_size,
+        5 * 1024 * 1024 * 64,
+        "maxRequestSize must be chunkSize * 64; got {}",
+        max_request_size
+    );
+}
+
+// =============================================================================
+// Group 5f: multipart total-size guard — Fix #7
+// =============================================================================
+
+#[actix_web::test]
+async fn test_chunk_upload_too_many_parts_returns_400() {
+    // Before fix: no part-count guard — 65 parts are accepted.
+    // After fix:  any request with more than 64 parts returns 400.
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let boundary = "toomanypartsboundary1";
+    // 65 distinct parts (unique names so each is accepted as a separate part)
+    let part_data: Vec<u8> = (0u8..65).collect();
+    let parts: Vec<(String, Vec<u8>)> = part_data
+        .iter()
+        .enumerate()
+        .map(|(i, &b)| (format!("part{:02}", i), vec![b]))
+        .collect();
+    let parts_ref: Vec<(&str, &[u8])> = parts
+        .iter()
+        .map(|(n, d)| (n.as_str(), d.as_slice()))
+        .collect();
+    let body = build_multipart(boundary, &parts_ref);
+
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
+        .set_payload(body)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        400,
+        "65 parts must be rejected; got {}",
+        resp.status()
+    );
+}
+
+#[actix_web::test]
+async fn test_chunk_upload_total_bytes_exceeded_returns_400() {
+    // Use a tiny max_chunk_size so the total-bytes limit (chunkSize * 64) is reachable.
+    // 65 parts × 10 bytes each = 650 bytes > 10 * 64 = 640 bytes limit.
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let mut config = create_test_config();
+    config.max_chunk_size_bytes = 10; // 10 bytes per chunk
+
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let boundary = "totalbytesexceed2";
+    // 65 distinct 10-byte parts — total 650 bytes > limit 640 (64 × 10)
+    let parts: Vec<(String, Vec<u8>)> = (0u8..65)
+        .map(|i| (format!("part{:02}", i), vec![i; 10]))
+        .collect();
+    let parts_ref: Vec<(&str, &[u8])> = parts
+        .iter()
+        .map(|(n, d)| (n.as_str(), d.as_slice()))
+        .collect();
+    let body = build_multipart(boundary, &parts_ref);
+
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
+        .set_payload(body)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        400,
+        "total bytes exceeding chunkSize*64 must be rejected; got {}",
+        resp.status()
+    );
+}
+
+// =============================================================================
+// Group 5g: path traversal in manifest.json — Fix #11
+// =============================================================================
+
+fn build_traversal_bundle() -> Vec<u8> {
+    use std::io::Write as _;
+    use zip::write::SimpleFileOptions;
+
+    let debug_id = "12345678-1234-1234-1234-123456789abc";
+    // manifest.json has a traversal path + debug-id so the file-read branch IS reached
+    let manifest = format!(
+        r#"{{"files":{{"../../etc/evil.map":{{"url":"../../etc/evil.map","type":"source_map","headers":{{"debug-id":"{debug_id}"}}}}}},"debugIdMap":{{}}}}"#
+    );
+    let source_map =
+        br#"{"version":3,"sources":["src/app.ts"],"sourcesContent":[""],"mappings":"AAAA"}"#;
+
+    let mut buf = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buf);
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        // real file in ZIP (safe path — no traversal in the archive itself)
+        zip.start_file("app.min.js.map", opts).unwrap();
+        zip.write_all(source_map).unwrap();
+        zip.start_file("manifest.json", opts).unwrap();
+        zip.write_all(manifest.as_bytes()).unwrap();
+        zip.finish().unwrap();
+    }
+    buf.into_inner()
+}
+
+#[actix_web::test]
+async fn test_assemble_bundle_manifest_path_traversal_rejected() {
+    // The manifest.json inside the bundle contains "../../etc/evil.map" as a file path
+    // with a debug-id header, so the server's file-read branch is reached.
+    //
+    // Before fix: tokio::fs::read fails (file not found outside extract_dir), warns, and
+    //             continues — assembly returns Ok(()) while silently storing nothing.
+    // After fix:  path components are validated; traversal path returns Err immediately.
+    let db = TestDb::new().await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "traversal-test".to_string(),
+            slug: Some("traversal-test".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let bundle = build_traversal_bundle();
+    let bundle_checksum = sha1_hex(&bundle);
+
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(bundle_checksum.clone(), bundle)],
+        20 * 1024 * 1024,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let config = create_test_config();
+    let store: std::sync::Arc<dyn rustrak::services::SourceMapStore> = std::sync::Arc::new(
+        rustrak::services::LocalSourceMapStore::new(&config.sourcemap_storage_path),
+    );
+
+    let result = rustrak::services::sourcemap::assemble_bundle(
+        &db.pool,
+        store.as_ref(),
+        project.id,
+        &bundle_checksum,
+        std::slice::from_ref(&bundle_checksum),
+        100 * 1024 * 1024,
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "manifest path traversal must be rejected with an error; got Ok(())"
+    );
+}
+
+// =============================================================================
+// Group 5h: ~/prefix path normalisation — Fix #1
+// =============================================================================
+
+fn build_tilde_bundle_with_debug_id() -> Vec<u8> {
+    use std::io::Write as _;
+    use zip::write::SimpleFileOptions;
+
+    let debug_id = "aaaabbbb-cccc-dddd-eeee-ffffaaaabbbb";
+    let source_map = br#"{"version":3,"sources":["src/app.ts"],"sourcesContent":["export {}"],"mappings":"AAAA","names":[]}"#;
+    // manifest references ~/app.min.js.map with a debug-id so the file-read branch IS reached
+    let manifest = format!(
+        r#"{{"files":{{"~/app.min.js.map":{{"url":"~/app.min.js.map","type":"source_map","headers":{{"debug-id":"{debug_id}"}}}}}},"debugIdMap":{{}}}}"#
+    );
+
+    let mut buf = std::io::Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut buf);
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("~/app.min.js.map", opts).unwrap(); // ZIP entry uses ~/ prefix
+        zip.write_all(source_map).unwrap();
+        zip.start_file("manifest.json", opts).unwrap();
+        zip.write_all(manifest.as_bytes()).unwrap();
+        zip.finish().unwrap();
+    }
+    buf.into_inner()
+}
+
+#[actix_web::test]
+async fn test_assemble_bundle_tilde_prefix_with_debug_id_stores_source_file() {
+    // ZIP entry "~/app.min.js.map" + manifest references "~/app.min.js.map" with debug-id.
+    //
+    // Before fix: extraction puts the file at {dir}/~/{file}, but manifest lookup strips
+    //             "~/" and looks for {dir}/{file} — mismatch → tokio::fs::read fails →
+    //             warns and continues → source_file_metadata row is NEVER created.
+    // After fix:  extraction normalises the "~/" prefix so paths match → row IS created.
+    let db = TestDb::new().await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "tilde-prefix-test".to_string(),
+            slug: Some("tilde-prefix-test".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let bundle = build_tilde_bundle_with_debug_id();
+    let bundle_checksum = sha1_hex(&bundle);
+
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(bundle_checksum.clone(), bundle)],
+        20 * 1024 * 1024,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let config = create_test_config();
+    let store: std::sync::Arc<dyn rustrak::services::SourceMapStore> = std::sync::Arc::new(
+        rustrak::services::LocalSourceMapStore::new(&config.sourcemap_storage_path),
+    );
+
+    let result = rustrak::services::sourcemap::assemble_bundle(
+        &db.pool,
+        store.as_ref(),
+        project.id,
+        &bundle_checksum,
+        std::slice::from_ref(&bundle_checksum),
+        100 * 1024 * 1024,
+    )
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "assembly with ~/prefix must succeed; got: {:?}",
+        result.err()
+    );
+
+    // Verify source_file_metadata row was actually stored (not silently skipped)
+    let count = count_sfm_for_project(&db.pool, project.id).await;
+    assert_eq!(
+        count, 1,
+        "source_file_metadata row must be stored after assembly; got count={}",
+        count
     );
 }
 

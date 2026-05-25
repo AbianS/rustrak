@@ -46,7 +46,7 @@ impl LocalSourceMapStore {
     }
 
     fn validate_key(key: &str) -> Result<(), StoreError> {
-        if key.len() < 2 || key.contains('/') || key.contains('\\') || key.contains("..") {
+        if key.len() != 40 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!("invalid store key: {key}"),
@@ -121,5 +121,48 @@ impl SourceMapStore for LocalSourceMapStore {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(StoreError::Io(e)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_key_rejects_non_hex_chars() {
+        assert!(LocalSourceMapStore::validate_key("hello_world!!!_too_short_for_sha1xx").is_err());
+    }
+
+    #[test]
+    fn validate_key_rejects_wrong_length_too_short() {
+        assert!(LocalSourceMapStore::validate_key("da39a3ee5e6b4b0d").is_err());
+    }
+
+    #[test]
+    fn validate_key_rejects_wrong_length_too_long() {
+        assert!(
+            LocalSourceMapStore::validate_key("da39a3ee5e6b4b0d3255bfef95601890afd807091").is_err()
+        );
+    }
+
+    #[test]
+    fn validate_key_accepts_valid_sha1_hex() {
+        assert!(
+            LocalSourceMapStore::validate_key("da39a3ee5e6b4b0d3255bfef95601890afd80709").is_ok()
+        );
+    }
+
+    #[test]
+    fn validate_key_rejects_multibyte_unicode_key() {
+        // "€" is 3 bytes; old code checked len() >= 2 which passes, but &key[..2]
+        // would slice in the middle of a multi-byte char and panic.
+        let key = "€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€"; // not hex
+        assert!(LocalSourceMapStore::validate_key(key).is_err());
+    }
+
+    #[test]
+    fn validate_key_rejects_path_traversal_chars() {
+        // Old code blocked these explicitly; new code rejects them implicitly (not hex)
+        assert!(LocalSourceMapStore::validate_key("../../../../etc/passwd_too_long").is_err());
     }
 }

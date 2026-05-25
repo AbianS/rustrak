@@ -15,6 +15,15 @@ use crate::services::sourcemap::{get_missing_chunks, store_chunks, SourceMapProv
 // Request / Response types
 // ---------------------------------------------------------------------------
 
+/// Multipart form body for chunk upload — each field is a binary chunk named by its SHA-1 hex.
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[allow(dead_code)]
+struct ChunkUploadBody {
+    /// Binary chunk data. Field name must be the SHA-1 hex of the content.
+    #[cfg_attr(feature = "openapi", schema(format = Binary, value_type = String))]
+    file: Vec<u8>,
+}
+
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AssembleBody {
@@ -82,14 +91,15 @@ pub async fn chunk_upload_capability(
         .clone()
         .unwrap_or_else(|| format!("http://{}:{}", config.host, config.port));
 
+    let chunk_size = config.max_chunk_size_bytes as u64;
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "url": format!("{}/api/0/organizations/{}/chunk-upload/", base_url, org_slug),
-        "chunkSize": 2_097_152u64,
-        "chunksPerRequest": 64,
-        "maxRequestSize": 33_554_432u64,
+        "chunkSize": chunk_size,
+        "chunksPerRequest": 64u64,
+        "maxRequestSize": chunk_size * 64,
         "hashAlgorithm": "sha1",
         "accept": ["release_files", "sources", "artifact_bundles", "artifact_bundles_v2"],
-        "concurrency": 8
+        "concurrency": 8u64
     })))
 }
 
@@ -98,6 +108,11 @@ pub async fn chunk_upload_capability(
     path = "/api/0/organizations/{org_slug}/chunk-upload/",
     tag = "Source Maps",
     params(("org_slug" = String, Path, description = "Organization slug")),
+    request_body(
+        content_type = "multipart/form-data",
+        description = "One or more binary chunk files. Each multipart field name is the SHA-1 hex of its content (as used by sentry-cli).",
+        content = ChunkUploadBody,
+    ),
     responses(
         (status = 200, description = "Chunks stored successfully"),
         (status = 400, description = "Invalid multipart or chunk too large", body = crate::error::ErrorResponse),
@@ -114,7 +129,10 @@ pub async fn chunk_upload(
     mut payload: Multipart,
 ) -> AppResult<HttpResponse> {
     let max_chunk_size = config.max_chunk_size_bytes;
+    const MAX_PARTS: usize = 64;
+    let max_total_bytes = max_chunk_size.saturating_mul(MAX_PARTS);
     let mut parts: Vec<(String, Vec<u8>)> = Vec::new();
+    let mut total_bytes: usize = 0;
 
     while let Some(field_result) = payload.next().await {
         let mut field =
@@ -128,6 +146,13 @@ pub async fn chunk_upload(
         // Skip unnamed fields; accept any named field (real sentry-cli uses SHA1 hash as name)
         if field_name.is_empty() {
             continue;
+        }
+
+        if parts.len() >= MAX_PARTS {
+            return Err(AppError::Validation(format!(
+                "too many parts: request has more than {} chunks",
+                MAX_PARTS
+            )));
         }
 
         let mut hasher = sha1::Sha1::new();
@@ -145,6 +170,14 @@ pub async fn chunk_upload(
             }
             hasher.update(&data);
             buf.extend_from_slice(&data);
+        }
+
+        total_bytes += buf.len();
+        if total_bytes > max_total_bytes {
+            return Err(AppError::Validation(format!(
+                "request too large: {} bytes exceeds maximum {} bytes",
+                total_bytes, max_total_bytes
+            )));
         }
 
         let sha1_hex = hex::encode(hasher.finalize());

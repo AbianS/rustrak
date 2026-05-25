@@ -181,6 +181,17 @@
             }
           }
         ],
+        "requestBody": {
+          "description": "One or more binary chunk files. Each multipart field name is the SHA-1 hex of its content (as used by sentry-cli).",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ChunkUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Chunks stored successfully"
@@ -2659,6 +2670,20 @@
           "email",
           "slack"
         ]
+      },
+      "ChunkUploadBody": {
+        "type": "object",
+        "description": "Multipart form body for chunk upload — each field is a binary chunk named by its SHA-1 hex.",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Binary chunk data. Field name must be the SHA-1 hex of the content."
+          }
+        }
       },
       "CreateAlertRule": {
         "type": "object",

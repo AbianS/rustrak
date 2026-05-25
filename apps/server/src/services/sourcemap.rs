@@ -318,6 +318,9 @@ pub async fn assemble_bundle(
             }
 
             let name = file.name().to_string();
+            // Strip the "~/" prefix used by Sentry artifact bundles so that extraction
+            // and manifest lookup both resolve to the same relative path.
+            let name = name.trim_start_matches("~/").to_string();
             // Path traversal guard — do NOT use canonicalize() (file doesn't exist yet).
             // Iterate the archive entry name only (not raw_dest) so extract_dir is
             // not duplicated in the resolved path.
@@ -405,6 +408,16 @@ pub async fn assemble_bundle(
         // Read file bytes from extracted dir
         // file_path in manifest may start with "~/" — strip that prefix
         let relative = file_path.trim_start_matches("~/").trim_start_matches('/');
+        // Guard: reject any manifest path with traversal components
+        if Path::new(relative)
+            .components()
+            .any(|c| matches!(c, Component::ParentDir | Component::RootDir))
+        {
+            return Err(AppError::Validation(format!(
+                "invalid manifest file path: {}",
+                file_path
+            )));
+        }
         let file_on_disk = extract_dir.join(relative);
         let file_bytes = match tokio::fs::read(&file_on_disk).await {
             Ok(b) => b,
