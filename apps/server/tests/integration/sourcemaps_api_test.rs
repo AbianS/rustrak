@@ -997,18 +997,18 @@ async fn test_assemble_failed_job_returns_400_on_retry() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    // Handler maps state="error" → HttpResponse::BadRequest (400)
-    assert_eq!(resp.status(), 400, "errored job must return 400 on retry");
+    // Re-submitting a failed job must reset it to 'created' (200), not return 400 permanently.
+    assert_eq!(
+        resp.status(),
+        200,
+        "re-submitting an errored job must re-queue it (200), not block forever (400)"
+    );
 
     let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["state"], "error");
-    assert!(
-        body["detail"]
-            .as_str()
-            .unwrap_or("")
-            .contains("assembly failed"),
-        "detail must contain the stored error message; got: {}",
-        body["detail"]
+    assert_eq!(
+        body["state"], "created",
+        "re-submitted job must have state='created'; got: {}",
+        body["state"]
     );
 }
 

@@ -61,6 +61,25 @@ describe('SourceMapsResource Integration', () => {
         client.sourceMaps.uploadChunks('my-org', chunks),
       ).resolves.toBeUndefined();
     });
+
+    it('should batch chunks into multiple requests when count exceeds chunksPerRequest', async () => {
+      let requestCount = 0;
+      server.use(
+        http.post(
+          `${BASE_URL}/api/0/organizations/batch-org/chunk-upload/`,
+          () => {
+            requestCount++;
+            return new HttpResponse(null, { status: 200 });
+          },
+        ),
+      );
+
+      // 3 chunks with chunksPerRequest=2 → must send 2 requests (batch of 2 + batch of 1)
+      const chunks = [new Blob(['a']), new Blob(['b']), new Blob(['c'])];
+      await client.sourceMaps.uploadChunks('batch-org', chunks, 2);
+
+      expect(requestCount).toBe(2);
+    });
   });
 
   describe('assembleBundle()', () => {

@@ -249,13 +249,15 @@ pub async fn artifact_bundle_assemble(
         }));
     }
 
-    // INSERT ... ON CONFLICT DO NOTHING RETURNING *
+    // INSERT ... ON CONFLICT: re-queue if the existing job errored, otherwise leave it.
     #[cfg(feature = "postgres")]
     let job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(
         r#"
         INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state)
         VALUES ($1, $2, $3, 'created')
-        ON CONFLICT(bundle_checksum, project_id) DO NOTHING
+        ON CONFLICT(bundle_checksum, project_id) DO UPDATE
+          SET state = 'created', detail = NULL
+          WHERE assembly_jobs.state = 'error'
         RETURNING *
         "#,
     )
@@ -273,7 +275,9 @@ pub async fn artifact_bundle_assemble(
             r#"
             INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state)
             VALUES ($1, $2, $3, 'created')
-            ON CONFLICT(bundle_checksum, project_id) DO NOTHING
+            ON CONFLICT(bundle_checksum, project_id) DO UPDATE
+              SET state = 'created', detail = NULL
+              WHERE assembly_jobs.state = 'error'
             RETURNING *
             "#,
         )

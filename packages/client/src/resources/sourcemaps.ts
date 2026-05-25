@@ -32,18 +32,24 @@ export class SourceMapsResource extends BaseResource {
   }
 
   /**
-   * Upload one or more chunks as multipart/form-data.
-   * Each chunk must be a `file` field; the server computes the SHA-1 and
-   * stores the data. Returns once all chunks are persisted.
+   * Upload chunks as multipart/form-data, batching by `chunksPerRequest` (default 64).
+   * Sends one request per batch; each part's field name is arbitrary (server computes SHA-1).
    */
-  async uploadChunks(orgSlug: string, chunks: Blob[]): Promise<void> {
-    const form = new FormData();
-    for (const chunk of chunks) {
-      form.append('file', chunk);
+  async uploadChunks(
+    orgSlug: string,
+    chunks: Blob[],
+    chunksPerRequest = 64,
+  ): Promise<void> {
+    for (let i = 0; i < chunks.length; i += chunksPerRequest) {
+      const batch = chunks.slice(i, i + chunksPerRequest);
+      const form = new FormData();
+      for (const chunk of batch) {
+        form.append('file', chunk);
+      }
+      await this.http.post(`api/0/organizations/${orgSlug}/chunk-upload/`, {
+        body: form,
+      });
     }
-    await this.http.post(`api/0/organizations/${orgSlug}/chunk-upload/`, {
-      body: form,
-    });
   }
 
   /**
