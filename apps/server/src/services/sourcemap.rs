@@ -603,19 +603,20 @@ pub async fn rewrite_frames(
 
         for frame_idx in 0..frame_count {
             // 3a. Extract frame fields as owned values (no live borrow across .await)
-            let filename = match event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
-                [frame_idx]
+            let filename: Option<String> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+                ["frames"][frame_idx]
                 .get("filename")
                 .and_then(|f| f.as_str())
-            {
-                Some(f) => f.to_string(),
-                None => continue,
-            };
-            let abs_path = event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
-                [frame_idx]
+                .map(|s| s.to_string());
+            let abs_path: Option<String> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+                ["frames"][frame_idx]
                 .get("abs_path")
                 .and_then(|f| f.as_str())
                 .map(|s| s.to_string());
+            // Skip only when both are absent — abs_path-only frames are valid
+            if abs_path.is_none() && filename.is_none() {
+                continue;
+            }
             let frame_lineno: Option<u32> = event_data["exception"]["values"][exc_idx]
                 ["stacktrace"]["frames"][frame_idx]
                 .get("lineno")
@@ -629,10 +630,10 @@ pub async fn rewrite_frames(
 
             // 3b. Resolve debug_id from code_file map.
             // Try abs_path first (full URL matching code_file), then filename.
-            let lookup_key = abs_path.as_deref().unwrap_or(&filename);
-            let debug_id = match images_map
-                .get(lookup_key)
-                .or_else(|| images_map.get(filename.as_str()))
+            let debug_id = match abs_path
+                .as_deref()
+                .and_then(|k| images_map.get(k))
+                .or_else(|| filename.as_deref().and_then(|k| images_map.get(k)))
             {
                 Some(id) => id.clone(),
                 None => continue,

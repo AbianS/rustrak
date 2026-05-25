@@ -112,7 +112,10 @@ async fn test_store_path_traversal_in_key() {
         .put("../../etc/passwd", Bytes::from_static(b"bad"))
         .await;
     assert!(result.is_err(), "traversal key must be rejected");
-    // Verify nothing was written outside base_path
-    let escaped = std::path::Path::new("/etc/passwd.map");
-    assert!(!escaped.exists(), "/etc/passwd.map must not exist");
+    // Verify nothing was written inside the store root either
+    let entries: Vec<_> = std::fs::read_dir(tmp.path()).unwrap().collect();
+    assert!(
+        entries.is_empty(),
+        "store root must remain empty after rejected traversal"
+    );
 }

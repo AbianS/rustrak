@@ -40,6 +40,9 @@ export class SourceMapsResource extends BaseResource {
     chunks: Blob[],
     chunksPerRequest = 64,
   ): Promise<void> {
+    if (!Number.isInteger(chunksPerRequest) || chunksPerRequest <= 0) {
+      throw new Error('chunksPerRequest must be a positive integer');
+    }
     for (let i = 0; i < chunks.length; i += chunksPerRequest) {
       const batch = chunks.slice(i, i + chunksPerRequest);
       const form = new FormData();
