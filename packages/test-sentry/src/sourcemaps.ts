@@ -292,17 +292,31 @@ export async function testSourceMaps(
   await uploadChunks(caps.url, config.token, chunks);
   console.log(`[testSourceMaps]   Uploaded ${chunks.length} chunk(s)`);
 
-  // Step 3 — assemble
+  // Step 3 — assemble (poll until worker finishes, mirrors sentry-cli behaviour)
   console.log('[testSourceMaps] Step 3/3  Assembling bundle...');
-  const result = await assembleBundle(
-    config.serverUrl,
-    config.org,
-    config.project,
-    config.token,
-    bundleChecksum,
-    chunks.map((c) => c.hash),
-  );
-  console.log(`[testSourceMaps]   state=${result.state}`);
+  const POLL_INTERVAL_MS = 1_000;
+  const POLL_TIMEOUT_MS = 30_000;
+  const pollStart = Date.now();
+  let result: { state: string; missingChunks: string[] };
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    result = await assembleBundle(
+      config.serverUrl,
+      config.org,
+      config.project,
+      config.token,
+      bundleChecksum,
+      chunks.map((c) => c.hash),
+    );
+    console.log(`[testSourceMaps]   state=${result.state}`);
+    if (result.state === 'ok' || result.state === 'error') break;
+    if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+      throw new Error(
+        `Assembly timed out after ${POLL_TIMEOUT_MS}ms (last state=${result.state})`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
   if (result.state !== 'ok') {
     const missing =
       result.missingChunks.length > 0

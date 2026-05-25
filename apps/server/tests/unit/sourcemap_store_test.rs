@@ -7,8 +7,14 @@ async fn test_store_put_get_roundtrip() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
     let data = Bytes::from_static(b"hello sourcemap");
-    store.put("deadbeef1234", data.clone()).await.unwrap();
-    let retrieved = store.get("deadbeef1234").await.unwrap();
+    store
+        .put("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", data.clone())
+        .await
+        .unwrap();
+    let retrieved = store
+        .get("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+        .await
+        .unwrap();
     assert_eq!(retrieved, data);
 }
 
@@ -16,7 +22,7 @@ async fn test_store_put_get_roundtrip() {
 async fn test_store_put_idempotent() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
-    let key = "deadbeef1234";
+    let key = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef";
     let original = Bytes::from_static(b"original content");
     let different = Bytes::from_static(b"different content");
     store.put(key, original.clone()).await.unwrap();
@@ -28,7 +34,7 @@ async fn test_store_put_idempotent() {
 async fn test_store_get_missing() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
-    let result = store.get("no_such_key_here").await;
+    let result = store.get("0000000000000000000000000000000000000000").await;
     assert!(matches!(result, Err(StoreError::NotFound(_))));
 }
 
@@ -37,11 +43,20 @@ async fn test_store_exists_after_put() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
     store
-        .put("ab12345678", Bytes::from_static(b"data"))
+        .put(
+            "ab12345678ab12345678ab12345678ab12345678",
+            Bytes::from_static(b"data"),
+        )
         .await
         .unwrap();
-    assert!(store.exists("ab12345678").await.unwrap());
-    assert!(!store.exists("nothere001").await.unwrap());
+    assert!(store
+        .exists("ab12345678ab12345678ab12345678ab12345678")
+        .await
+        .unwrap());
+    assert!(!store
+        .exists("1111111111111111111111111111111111111111")
+        .await
+        .unwrap());
 }
 
 #[tokio::test]
@@ -49,11 +64,17 @@ async fn test_store_delete_existing() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
     store
-        .put("ab12345678", Bytes::from_static(b"data"))
+        .put(
+            "ab12345678ab12345678ab12345678ab12345678",
+            Bytes::from_static(b"data"),
+        )
         .await
         .unwrap();
-    store.delete("ab12345678").await.unwrap();
-    let result = store.get("ab12345678").await;
+    store
+        .delete("ab12345678ab12345678ab12345678ab12345678")
+        .await
+        .unwrap();
+    let result = store.get("ab12345678ab12345678ab12345678ab12345678").await;
     assert!(matches!(result, Err(StoreError::NotFound(_))));
 }
 
@@ -61,7 +82,9 @@ async fn test_store_delete_existing() {
 async fn test_store_delete_missing_noop() {
     let tmp = tempdir().unwrap();
     let store = LocalSourceMapStore::new(tmp.path());
-    let result = store.delete("no_such_key_00").await;
+    let result = store
+        .delete("0000000000000000000000000000000000000001")
+        .await;
     assert!(result.is_ok());
 }
 

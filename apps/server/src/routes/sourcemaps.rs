@@ -15,14 +15,13 @@ use crate::services::sourcemap::{get_missing_chunks, store_chunks, SourceMapProv
 // Request / Response types
 // ---------------------------------------------------------------------------
 
-/// Multipart form body for chunk upload — each field is a binary chunk named by its SHA-1 hex.
+/// Multipart chunk upload.
+/// Each part's **field name** is the SHA-1 hex digest of that part's binary content
+/// (e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`). Field names are arbitrary — do not send
+/// a literal field named `file`. Up to 64 parts per request; each part body is raw binary.
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[allow(dead_code)]
-struct ChunkUploadBody {
-    /// Binary chunk data. Field name must be the SHA-1 hex of the content.
-    #[cfg_attr(feature = "openapi", schema(format = Binary, value_type = String))]
-    file: Vec<u8>,
-}
+struct ChunkUploadBody {}
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

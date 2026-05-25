@@ -2673,17 +2673,7 @@
       },
       "ChunkUploadBody": {
         "type": "object",
-        "description": "Multipart form body for chunk upload — each field is a binary chunk named by its SHA-1 hex.",
-        "required": [
-          "file"
-        ],
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "description": "Binary chunk data. Field name must be the SHA-1 hex of the content."
-          }
-        }
+        "description": "Multipart chunk upload.\nEach part's **field name** is the SHA-1 hex digest of that part's binary content\n(e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`). Field names are arbitrary — do not send\na literal field named `file`. Up to 64 parts per request; each part body is raw binary."
       },
       "CreateAlertRule": {
         "type": "object",
