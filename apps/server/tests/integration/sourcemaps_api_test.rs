@@ -382,10 +382,14 @@ async fn test_chunk_upload_stores_chunks_in_db() {
     let sha1_1 = sha1_hex(chunk1);
     let sha1_2 = sha1_hex(chunk2);
 
+    // sentry-cli protocol: field name IS the SHA1 of the content
     let boundary = "testboundary1234";
     let body = build_multipart(
         boundary,
-        &[("file", chunk1.as_ref()), ("file", chunk2.as_ref())],
+        &[
+            (sha1_1.as_str(), chunk1.as_ref()),
+            (sha1_2.as_str(), chunk2.as_ref()),
+        ],
     );
 
     let req = test::TestRequest::post()
@@ -558,7 +562,10 @@ async fn test_chunk_upload_dedup_same_sha1() {
         )
         .await;
 
-        let body = build_multipart(boundary, &[("file", b"deduplicated chunk data".as_ref())]);
+        let body = build_multipart(
+            boundary,
+            &[(sha1_val.as_str(), b"deduplicated chunk data".as_ref())],
+        );
         let req = test::TestRequest::post()
             .uri("/api/0/organizations/my-org/chunk-upload/")
             .insert_header(("Authorization", format!("Bearer {}", token)))
@@ -1897,4 +1904,288 @@ async fn test_cross_project_source_maps_do_not_leak() {
     // THEN:  project B's frames are NOT rewritten (source_file_metadata scoped by project_id)
     //        AND events.data for project B still has the original minified frame values
     todo!("enable after T5 project_id scoping + T8 are complete")
+}
+
+// =============================================================================
+// Bug-fix regression tests (2026-05-25 PR review)
+// =============================================================================
+
+// --- Bug 1: chunk upload must validate field_name == computed SHA1 ---
+
+#[actix_web::test]
+async fn test_chunk_upload_mismatched_sha1_field_name_returns_400() {
+    // GIVEN: a chunk upload where the field name is a valid SHA1 string
+    //        BUT it does NOT match the actual SHA1 of the uploaded bytes
+    // WHEN:  the upload is submitted
+    // THEN:  400 Bad Request is returned (checksum mismatch)
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let real_data = b"the actual chunk bytes";
+    let wrong_sha1 = sha1_hex(b"different data entirely"); // does not match real_data
+
+    let boundary = "mismatchboundary";
+    // Field name is wrong_sha1, but body is real_data — they disagree
+    let body = build_multipart(boundary, &[(wrong_sha1.as_str(), real_data.as_ref())]);
+
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
+        .set_payload(body)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        400,
+        "chunk upload with mismatched field name SHA1 must return 400"
+    );
+}
+
+// --- Bug 2: ON CONFLICT assemble must update chunks column ---
+
+#[actix_web::test]
+async fn test_assemble_re_enqueue_error_job_updates_chunks() {
+    // GIVEN: an assembly_jobs row in state='error' with an old chunk list
+    // WHEN:  assemble is called again (same bundle_checksum) with a new chunk list
+    //        AND all new chunks are present in the chunk table
+    // THEN:  200 {"state": "created"} is returned
+    //        AND the assembly_jobs row has the updated chunks list
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "re-enqueue-chunks-test".to_string(),
+            slug: Some("re-enqueue-chunks-test".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let config = create_test_config();
+
+    // Create the new chunk and store it
+    let new_chunk: &[u8] = b"new corrected chunk data";
+    let new_chunk_sha1 = sha1_hex(new_chunk);
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(new_chunk_sha1.clone(), new_chunk.to_vec())],
+        config.max_chunk_size_bytes,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let bundle_checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    // Pre-insert a failed job with an OLD chunk list (the stale one)
+    let old_chunk_sha1 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_string();
+    insert_assembly_job_with_state_and_chunks(
+        &db.pool,
+        bundle_checksum,
+        project.id,
+        "error",
+        Some("previous failure"),
+        &[old_chunk_sha1.clone()],
+    )
+    .await;
+
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    // Re-submit assemble with the NEW chunk list
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(serde_json::json!({
+            "checksum": bundle_checksum,
+            "chunks": [new_chunk_sha1],
+            "projects": [project.slug]
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        200,
+        "re-enqueue of error job must return 200"
+    );
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["state"], "created",
+        "re-enqueued job must be in created state"
+    );
+
+    // Verify DB chunks column was updated to the NEW chunk list
+    let stored_chunks = fetch_assembly_job_chunks(&db.pool, bundle_checksum, project.id).await;
+    assert!(
+        stored_chunks.contains(&new_chunk_sha1),
+        "chunks column must be updated to new chunk list; got: {:?}",
+        stored_chunks
+    );
+    assert!(
+        !stored_chunks.contains(&old_chunk_sha1),
+        "old chunk sha1 must not be in updated chunks; got: {:?}",
+        stored_chunks
+    );
+}
+
+// --- Bug 5: assemble must accept numeric project ID, not just slug ---
+
+#[actix_web::test]
+async fn test_assemble_with_numeric_project_id_returns_not_found_or_created() {
+    // GIVEN: a project exists with a known numeric ID
+    // WHEN:  assemble is called with projects: ["<numeric_id>"] instead of the slug
+    // THEN:  it does NOT return 404 (project found by ID fallback)
+    //        returns 202 not_found (chunks missing) rather than 404 project not found
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "numeric-id-test-project".to_string(),
+            slug: Some("numeric-id-test-project".to_string()),
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    // Use the numeric project ID as a string in the projects array
+    let req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(serde_json::json!({
+            "checksum": "cccccccccccccccccccccccccccccccccccccccc",
+            "chunks": ["dddddddddddddddddddddddddddddddddddddddd"],
+            "projects": [project.id.to_string()]
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    // Must NOT be 404 — project was found by numeric ID fallback
+    // Should be 202 (missing chunks) since no chunks uploaded
+    assert_ne!(
+        resp.status(),
+        404,
+        "assemble with numeric project ID must not return 404; project should be found by ID fallback"
+    );
+    assert_eq!(
+        resp.status(),
+        202,
+        "assemble with numeric project ID and missing chunks must return 202"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// New test helpers needed by the bug-fix tests above
+// ---------------------------------------------------------------------------
+
+async fn insert_assembly_job_with_state_and_chunks(
+    pool: &rustrak::db::DbPool,
+    checksum: &str,
+    project_id: i32,
+    state: &str,
+    detail: Option<&str>,
+    chunks: &[String],
+) {
+    #[cfg(feature = "postgres")]
+    sqlx::query(
+        "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(checksum)
+    .bind(project_id)
+    .bind(chunks)
+    .bind(state)
+    .bind(detail)
+    .execute(pool)
+    .await
+    .expect("insert assembly_jobs must succeed");
+
+    #[cfg(not(feature = "postgres"))]
+    {
+        let chunks_json = serde_json::to_string(chunks).expect("chunks serialization must succeed");
+        sqlx::query(
+            "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
+             VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(checksum)
+        .bind(project_id)
+        .bind(&chunks_json)
+        .bind(state)
+        .bind(detail)
+        .execute(pool)
+        .await
+        .expect("insert assembly_jobs must succeed");
+    }
+}
+
+async fn fetch_assembly_job_chunks(
+    pool: &rustrak::db::DbPool,
+    checksum: &str,
+    project_id: i32,
+) -> Vec<String> {
+    #[cfg(feature = "postgres")]
+    {
+        let chunks: Vec<String> = sqlx::query_scalar(
+            "SELECT chunks FROM assembly_jobs WHERE bundle_checksum = $1 AND project_id = $2",
+        )
+        .bind(checksum)
+        .bind(project_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch assembly job chunks must succeed");
+        chunks
+    }
+
+    #[cfg(not(feature = "postgres"))]
+    {
+        let chunks_json: String = sqlx::query_scalar(
+            "SELECT chunks FROM assembly_jobs WHERE bundle_checksum = ? AND project_id = ?",
+        )
+        .bind(checksum)
+        .bind(project_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch assembly job chunks must succeed");
+        serde_json::from_str(&chunks_json).expect("chunks json must be valid")
+    }
 }

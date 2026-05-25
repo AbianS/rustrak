@@ -586,46 +586,43 @@ pub async fn rewrite_frames(
         return Ok(());
     }
 
-    // 2. Iterate over exception values → stacktrace → frames
-    let exception_values = match event_data
-        .get_mut("exception")
-        .and_then(|e| e.get_mut("values"))
-        .and_then(|v| v.as_array_mut())
-    {
-        Some(v) => v as *mut Vec<serde_json::Value>,
-        None => return Ok(()),
-    };
+    // 2. Iterate by index to avoid holding a &mut borrow across .await points.
+    let exc_count = event_data["exception"]["values"]
+        .as_array()
+        .map(|a| a.len())
+        .unwrap_or(0);
+    if exc_count == 0 {
+        return Ok(());
+    }
 
-    // SAFETY: we hold a mutable reference to event_data throughout this function;
-    // no other reference is live. Using raw pointer to work around borrow checker
-    // limitations with nested mutable indexing.
-    let exception_values = unsafe { &mut *exception_values };
+    for exc_idx in 0..exc_count {
+        let frame_count = event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
+            .as_array()
+            .map(|a| a.len())
+            .unwrap_or(0);
 
-    for exc_value in exception_values.iter_mut() {
-        let frames = match exc_value
-            .get_mut("stacktrace")
-            .and_then(|st| st.get_mut("frames"))
-            .and_then(|f| f.as_array_mut())
-        {
-            Some(f) => f,
-            None => continue,
-        };
-
-        for frame in frames.iter_mut() {
-            // 3a. Extract frame fields
-            let filename = match frame.get("filename").and_then(|f| f.as_str()) {
+        for frame_idx in 0..frame_count {
+            // 3a. Extract frame fields as owned values (no live borrow across .await)
+            let filename = match event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
+                [frame_idx]
+                .get("filename")
+                .and_then(|f| f.as_str())
+            {
                 Some(f) => f.to_string(),
                 None => continue,
             };
-            let abs_path = frame
+            let abs_path = event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
+                [frame_idx]
                 .get("abs_path")
                 .and_then(|f| f.as_str())
                 .map(|s| s.to_string());
-            let frame_lineno: Option<u32> = frame
+            let frame_lineno: Option<u32> = event_data["exception"]["values"][exc_idx]
+                ["stacktrace"]["frames"][frame_idx]
                 .get("lineno")
                 .and_then(|l| l.as_u64())
                 .map(|l| l as u32);
-            let frame_colno: Option<u32> = frame
+            let frame_colno: Option<u32> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+                ["frames"][frame_idx]
                 .get("colno")
                 .and_then(|c| c.as_u64())
                 .map(|c| c as u32);
@@ -681,29 +678,53 @@ pub async fn rewrite_frames(
             }
 
             // 3h. Original file from token
-            let original_file = token.get_source().unwrap_or("");
+            let original_file = token.get_source().unwrap_or("").to_string();
 
             // 3i. Find source index via linear search (NEVER assume sourcesContent[0])
-            let source_idx =
-                (0..sm.get_source_count()).find(|&i| sm.get_source(i) == Some(original_file));
+            let source_idx = (0..sm.get_source_count())
+                .find(|&i| sm.get_source(i) == Some(original_file.as_str()));
 
-            // 3j. Get source lines
-            let lines: Vec<&str> = source_idx
+            // 3j. Get source lines as owned Strings (sm is dropped after this loop body)
+            let lines: Vec<String> = source_idx
                 .and_then(|i| sm.get_source_contents(i))
-                .map(|s| s.lines().collect())
+                .map(|s| s.lines().map(|l| l.to_string()).collect())
                 .unwrap_or_default();
 
-            // 3k. Rewrite frame fields
+            // 3k. Compute context window bounds
             let l = token.get_src_line() as usize;
-            // saturating_sub required — l can be 0 for tokens at file start
             let pre_start = l.saturating_sub(3);
+            let post_end = lines.len().min(l + 4);
 
-            let existing_function = frame
+            let existing_function = event_data["exception"]["values"][exc_idx]["stacktrace"]
+                ["frames"][frame_idx]
                 .get("function")
                 .and_then(|f| f.as_str())
                 .unwrap_or("")
                 .to_string();
 
+            let new_lineno = token.get_src_line() + 1; // back to 1-indexed
+            let new_colno = token.get_src_col();
+            let new_function = token
+                .get_name()
+                .map(|n| n.to_string())
+                .unwrap_or(existing_function);
+            let context_line = lines.get(l).cloned().unwrap_or_default();
+            let pre_context: Vec<serde_json::Value> = lines
+                .get(pre_start..l)
+                .unwrap_or_default()
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect();
+            let post_context: Vec<serde_json::Value> = lines
+                .get(l + 1..post_end)
+                .unwrap_or_default()
+                .iter()
+                .map(|s| serde_json::Value::String(s.clone()))
+                .collect();
+
+            // 3l. Write rewritten fields back by index path (fresh borrow, no cross-await alias)
+            let frame =
+                &mut event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"][frame_idx];
             frame["filename"] = original_file.into();
             // Clear abs_path — it pointed to the minified JS URL, now irrelevant
             frame["abs_path"] = serde_json::Value::Null;
@@ -712,30 +733,11 @@ pub async fn rewrite_frames(
                 frame["data"] = serde_json::json!({});
             }
             frame["data"]["sourcemap"] = debug_id.clone().into();
-            frame["lineno"] = (token.get_src_line() + 1).into(); // back to 1-indexed
-            frame["colno"] = token.get_src_col().into();
-            frame["function"] = token
-                .get_name()
-                .map(|n| n.to_string())
-                .unwrap_or(existing_function)
-                .into();
-            frame["context_line"] = lines.get(l).copied().unwrap_or("").into();
-
-            let pre_context: Vec<serde_json::Value> = lines
-                .get(pre_start..l)
-                .unwrap_or_default()
-                .iter()
-                .map(|s| serde_json::Value::String(s.to_string()))
-                .collect();
+            frame["lineno"] = new_lineno.into();
+            frame["colno"] = new_colno.into();
+            frame["function"] = new_function.into();
+            frame["context_line"] = context_line.into();
             frame["pre_context"] = pre_context.into();
-
-            let post_end = lines.len().min(l + 4);
-            let post_context: Vec<serde_json::Value> = lines
-                .get(l + 1..post_end)
-                .unwrap_or_default()
-                .iter()
-                .map(|s| serde_json::Value::String(s.to_string()))
-                .collect();
             frame["post_context"] = post_context.into();
         }
     }

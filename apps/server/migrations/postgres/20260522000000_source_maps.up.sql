@@ -40,3 +40,4 @@ CREATE TABLE assembly_jobs (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(bundle_checksum, project_id)
 );
+CREATE INDEX idx_assembly_jobs_poll ON assembly_jobs(state, created_at);

@@ -180,6 +180,12 @@ pub async fn chunk_upload(
         }
 
         let sha1_hex = hex::encode(hasher.finalize());
+        if sha1_hex != field_name {
+            return Err(AppError::Validation(format!(
+                "checksum mismatch for field '{}': content SHA1 is {}",
+                field_name, sha1_hex
+            )));
+        }
         parts.push((sha1_hex, buf));
     }
 
@@ -224,18 +230,33 @@ pub async fn artifact_bundle_assemble(
         })));
     }
 
-    // Lookup project by slug
-    let project_slug = &body.projects[0];
+    // Lookup project by slug first, then fall back to numeric ID (sentry-cli may send either).
+    let project_ref = &body.projects[0];
     let project: Option<(i32,)> = sqlx::query_as("SELECT id FROM projects WHERE slug = $1")
-        .bind(project_slug)
+        .bind(project_ref)
         .fetch_optional(pool.get_ref())
         .await?;
     let project_id = match project {
         Some((id,)) => id,
         None => {
-            return Ok(HttpResponse::NotFound().json(serde_json::json!({
-                "detail": "project not found"
-            })));
+            if let Ok(numeric_id) = project_ref.parse::<i32>() {
+                let by_id: Option<(i32,)> = sqlx::query_as("SELECT id FROM projects WHERE id = $1")
+                    .bind(numeric_id)
+                    .fetch_optional(pool.get_ref())
+                    .await?;
+                match by_id {
+                    Some((id,)) => id,
+                    None => {
+                        return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                            "detail": "project not found"
+                        })));
+                    }
+                }
+            } else {
+                return Ok(HttpResponse::NotFound().json(serde_json::json!({
+                    "detail": "project not found"
+                })));
+            }
         }
     };
 
@@ -250,13 +271,14 @@ pub async fn artifact_bundle_assemble(
     }
 
     // INSERT ... ON CONFLICT: re-queue if the existing job errored, otherwise leave it.
+    // chunks = EXCLUDED.chunks: update the chunk list so a re-submit with corrected chunks is honoured.
     #[cfg(feature = "postgres")]
     let job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(
         r#"
         INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state)
         VALUES ($1, $2, $3, 'created')
         ON CONFLICT(bundle_checksum, project_id) DO UPDATE
-          SET state = 'created', detail = NULL
+          SET state = 'created', detail = NULL, chunks = EXCLUDED.chunks
           WHERE assembly_jobs.state = 'error'
         RETURNING *
         "#,
@@ -276,7 +298,7 @@ pub async fn artifact_bundle_assemble(
             INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state)
             VALUES ($1, $2, $3, 'created')
             ON CONFLICT(bundle_checksum, project_id) DO UPDATE
-              SET state = 'created', detail = NULL
+              SET state = 'created', detail = NULL, chunks = EXCLUDED.chunks
               WHERE assembly_jobs.state = 'error'
             RETURNING *
             "#,
