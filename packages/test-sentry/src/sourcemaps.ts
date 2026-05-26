@@ -192,7 +192,7 @@ async function uploadChunks(
   const form = new FormData();
   for (const chunk of chunks) {
     form.append(
-      'file',
+      chunk.hash,
       new Blob([new Uint8Array(chunk.data)], {
         type: 'application/octet-stream',
       }),
