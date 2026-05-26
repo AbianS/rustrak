@@ -324,23 +324,10 @@ pub async fn artifact_bundle_assemble(
         }
     };
 
-    // Map job state to response
-    match job.state.as_str() {
-        "ok" => Ok(HttpResponse::Ok().json(AssembleResponse {
-            state: "ok".to_string(),
-            missing_chunks: vec![],
-            detail: None,
-        })),
-        "error" => Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "state": "error",
-            "detail": job.detail.unwrap_or_default()
-        }))),
-        state => Ok(HttpResponse::Ok().json(AssembleResponse {
-            state: state.to_string(),
-            missing_chunks: vec![],
-            detail: None,
-        })),
-    }
+    Ok(assembly_state_response(
+        job.state.as_str(),
+        job.detail.clone(),
+    ))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -471,4 +458,42 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             "/api/0/projects/{org_slug}/{project_slug}/files/source-maps/",
             web::get().to(list_source_maps),
         );
+}
+
+/// Maps an assembly job state to the appropriate HTTP response.
+/// All terminal states return HTTP 200; the state field in the body signals outcome.
+fn assembly_state_response(state: &str, detail: Option<String>) -> HttpResponse {
+    match state {
+        "ok" => HttpResponse::Ok().json(AssembleResponse {
+            state: "ok".to_string(),
+            missing_chunks: vec![],
+            detail: None,
+        }),
+        "error" => HttpResponse::Ok().json(AssembleResponse {
+            state: "error".to_string(),
+            missing_chunks: vec![],
+            detail,
+        }),
+        other => HttpResponse::Ok().json(AssembleResponse {
+            state: other.to_string(),
+            missing_chunks: vec![],
+            detail: None,
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::body::to_bytes;
+
+    #[actix_web::test]
+    async fn test_assemble_error_state_returns_200_with_missing_chunks() {
+        let resp = assembly_state_response("error", Some("zip extraction failed".to_string()));
+        assert_eq!(resp.status(), actix_web::http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["state"], "error");
+        assert_eq!(json["missingChunks"], serde_json::json!([]));
+    }
 }
