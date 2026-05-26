@@ -726,9 +726,14 @@ pub async fn rewrite_frames(
             // 3l. Write rewritten fields back by index path (fresh borrow, no cross-await alias)
             let frame =
                 &mut event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"][frame_idx];
-            frame["filename"] = original_file.into();
-            // Clear abs_path — it pointed to the minified JS URL, now irrelevant
-            frame["abs_path"] = serde_json::Value::Null;
+            // Only overwrite filename/abs_path when the token has a non-empty source name.
+            // A None/empty source (malformed map) must not corrupt the original filename.
+            // Reference: getsentry/symbolicator symbolication.rs L246-273 (e282ec0)
+            if !original_file.is_empty() {
+                frame["filename"] = original_file.into();
+                // Clear abs_path — it pointed to the minified JS URL, now irrelevant
+                frame["abs_path"] = serde_json::Value::Null;
+            }
             // Record which source map was applied (Sentry UI observability)
             if !frame["data"].is_object() {
                 frame["data"] = serde_json::json!({});
@@ -744,4 +749,104 @@ pub async fn rewrite_frames(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockProvider {
+        data: Bytes,
+    }
+
+    #[async_trait::async_trait]
+    impl SourceMapProvider for MockProvider {
+        async fn fetch_sourcemap(
+            &self,
+            _project_id: i32,
+            _debug_id: &str,
+            _file_type: &str,
+        ) -> AppResult<Option<SourceMapEntry>> {
+            Ok(Some(SourceMapEntry {
+                data: self.data.clone(),
+            }))
+        }
+    }
+
+    fn mock_provider(sourcemap_json: &str) -> MockProvider {
+        MockProvider {
+            data: Bytes::from(sourcemap_json.to_string()),
+        }
+    }
+
+    // Source map where sources[0] is "" (empty) — token has a valid position and
+    // name but no source file name. VLQ "AAIEA" = gen_col=0, src_idx=0,
+    // src_line=4, src_col=2, name_idx=0 on generated line 0.
+    const SOURCEMAP_EMPTY_SOURCE: &str = r#"{
+        "version": 3,
+        "sources": [""],
+        "sourcesContent": [null],
+        "names": ["originalFunction"],
+        "mappings": "AAIEA"
+    }"#;
+
+    #[tokio::test]
+    async fn rewrite_preserves_filename_when_token_source_is_empty() {
+        let provider = mock_provider(SOURCEMAP_EMPTY_SOURCE);
+        let mut event = serde_json::json!({
+            "debug_meta": {
+                "images": [{"type": "sourcemap", "code_file": "app.min.js", "debug_id": "test-debug-id"}]
+            },
+            "exception": { "values": [{ "type": "Error", "value": "boom", "stacktrace": { "frames": [{
+                "filename": "app.min.js",
+                "abs_path": "https://example.com/app.min.js",
+                "lineno": 1,
+                "colno": 0,
+                "function": "minifiedFn"
+            }]}}]}
+        });
+
+        rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+        let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+        // filename and abs_path must be preserved — empty source name must not corrupt them
+        assert_eq!(
+            frame["filename"], "app.min.js",
+            "filename should not be overwritten with empty string"
+        );
+        assert_eq!(
+            frame["abs_path"], "https://example.com/app.min.js",
+            "abs_path should not be cleared when source name is empty"
+        );
+    }
+
+    #[tokio::test]
+    async fn rewrite_still_updates_lineno_colno_function_when_token_source_is_empty() {
+        let provider = mock_provider(SOURCEMAP_EMPTY_SOURCE);
+        let mut event = serde_json::json!({
+            "debug_meta": {
+                "images": [{"type": "sourcemap", "code_file": "app.min.js", "debug_id": "test-debug-id"}]
+            },
+            "exception": { "values": [{ "type": "Error", "value": "boom", "stacktrace": { "frames": [{
+                "filename": "app.min.js",
+                "lineno": 1,
+                "colno": 0,
+                "function": "minifiedFn"
+            }]}}]}
+        });
+
+        rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+        let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+        // lineno/colno/function must still be remapped even without a source file name
+        assert_eq!(
+            frame["lineno"], 5,
+            "lineno should be remapped to original (src_line 4 + 1)"
+        );
+        assert_eq!(frame["colno"], 2, "colno should be remapped to original");
+        assert_eq!(
+            frame["function"], "originalFunction",
+            "function name should be resolved from names table"
+        );
+    }
 }
