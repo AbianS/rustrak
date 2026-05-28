@@ -1,5 +1,12 @@
 # @rustrak/mcp
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [[`fd768de`](https://github.com/AbianS/rustrak/commit/fd768de0816ba6eeeaa26ed8893d82bd6224fd2b)]:
+  - @rustrak/client@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes
