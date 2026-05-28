@@ -55,7 +55,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
       <PostHeader post={post} />
-      <article className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary prose-code:font-mono prose-pre:bg-transparent prose-pre:p-0">
+      <article className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary prose-code:font-mono">
         <MDXContent />
       </article>
 

@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use chrono::Utc;
+use std::sync::Arc;
 
 use crate::auth::SentryAuth;
 use crate::config::Config;
@@ -11,6 +12,7 @@ use crate::ingest::{
     decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeParser,
     EventMetadata, MAX_COMPRESSED_SIZE,
 };
+use crate::services::sourcemap::SourceMapProvider;
 use crate::services::RateLimitService;
 
 /// Response for successful ingestion
@@ -27,6 +29,7 @@ pub async fn ingest_envelope(
     req: HttpRequest,
     auth: SentryAuth,
     body: Bytes,
+    sourcemap_provider: web::Data<Arc<dyn SourceMapProvider>>,
 ) -> AppResult<HttpResponse> {
     // 0. Check rate limits (fail fast before processing)
     if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
@@ -104,12 +107,14 @@ pub async fn ingest_envelope(
     let pool_clone = pool.get_ref().clone();
     let ingest_dir_clone = ingest_dir.clone();
     let rate_limit_config = config.rate_limit.clone();
+    let provider_clone = Arc::clone(sourcemap_provider.get_ref());
     tokio::spawn(async move {
         if let Err(e) = digest::process_event(
             &pool_clone,
             &metadata,
             &ingest_dir_clone,
             &rate_limit_config,
+            provider_clone,
         )
         .await
         {

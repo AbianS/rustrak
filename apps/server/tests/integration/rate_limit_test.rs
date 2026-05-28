@@ -7,8 +7,11 @@ use actix_web::{test, web, App};
 use chrono::{Duration, Utc};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
-use rustrak::services::ProjectService;
+use rustrak::services::{
+    DbSourceMapProvider, LocalSourceMapStore, ProjectService, SourceMapProvider, SourceMapStore,
+};
 use serde_json::json;
+use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use uuid::Uuid;
 
@@ -32,6 +35,8 @@ fn create_test_config(rate_limit: RateLimitConfig) -> Config {
         },
         ingest_dir: Some("/tmp/rustrak_test_ratelimit".to_string()),
         public_url: None,
+        sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
+        max_chunk_size_bytes: 10 * 1024 * 1024,
     }
 }
 
@@ -112,7 +117,14 @@ async fn test_rate_limit_project_exceeded_returns_429() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -159,7 +171,14 @@ async fn test_rate_limit_project_expired_allows_request() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -199,7 +218,14 @@ async fn test_rate_limit_installation_exceeded_returns_429() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -234,7 +260,14 @@ async fn test_rate_limit_response_body() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -291,7 +324,14 @@ async fn test_rate_limit_429_has_cors_headers() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .wrap(cors)
             .configure(routes::ingest::configure),
     )
@@ -338,7 +378,14 @@ async fn test_no_rate_limit_allows_request() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -379,7 +426,14 @@ async fn test_rate_limit_affects_only_specific_project() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;

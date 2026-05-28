@@ -23,8 +23,8 @@ RUN cargo chef cook --release --no-default-features --features ${FEATURES} --rec
 COPY . .
 RUN cargo build --release --no-default-features --features ${FEATURES}
 
-# Create /data directory for SQLite storage (used when FEATURES=sqlite)
-RUN mkdir -p /data && chown 65532:65532 /data
+# Create /data directories for SQLite storage and source map storage
+RUN mkdir -p /data /data/sourcemaps && chown -R 65532:65532 /data
 
 # ── Stage 4: minimal distroless runtime ──────────────────────────────────────
 FROM gcr.io/distroless/cc-debian12:nonroot
@@ -32,6 +32,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/rustrak /app/rustrak
 COPY --chown=65532:65532 --from=builder /data /data
 VOLUME /data
+VOLUME /data/sourcemaps
 EXPOSE 8080
 USER nonroot
 CMD ["/app/rustrak"]

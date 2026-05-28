@@ -2,13 +2,18 @@ use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, middleware, web, App, HttpServer};
 
+use std::sync::Arc;
+
 use rustrak::bootstrap;
 use rustrak::config;
 use rustrak::db;
 use rustrak::middleware::auth::RequireAuth;
 use rustrak::models;
 use rustrak::routes;
+use rustrak::services::sourcemap::{DbSourceMapProvider, SourceMapProvider};
+use rustrak::services::sourcemap_store::LocalSourceMapStore;
 use rustrak::services::AuthTokenService;
+use rustrak::workers::sourcemap_assembly::AssemblyWorker;
 
 #[cfg(feature = "openapi")]
 use rustrak::openapi;
@@ -42,6 +47,24 @@ async fn main() -> std::io::Result<()> {
         log::error!("Migration error: {}", e);
         std::io::Error::other(e.to_string())
     })?;
+
+    // Create source map store and provider
+    let sourcemap_store: Arc<dyn rustrak::services::sourcemap_store::SourceMapStore> =
+        Arc::new(LocalSourceMapStore::new(&config.sourcemap_storage_path));
+    let sourcemap_provider: Arc<dyn SourceMapProvider> = Arc::new(DbSourceMapProvider::new(
+        db_pool.clone(),
+        Arc::clone(&sourcemap_store),
+    ));
+
+    // Spawn assembly worker
+    {
+        let worker = AssemblyWorker::new(
+            db_pool.clone(),
+            Arc::clone(&sourcemap_store),
+            config.max_chunk_size_bytes * 64,
+        );
+        tokio::spawn(worker.run());
+    }
 
     // Bootstrap: create initial token if none exist
     bootstrap_token(&db_pool).await;
@@ -100,10 +123,13 @@ async fn main() -> std::io::Result<()> {
             ])
             .max_age(3600);
 
+        let sourcemap_provider_data = web::Data::new(Arc::clone(&sourcemap_provider));
+
         let app = App::new()
             // Share database pool and config with all handlers
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
+            .app_data(sourcemap_provider_data)
             // Middleware
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
@@ -139,6 +165,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::tokens::configure)
             // Alert channels (global, not nested under projects)
             .configure(routes::alerts::configure_channels)
+            // Source map upload routes (Bearer auth, Sentry-cli compatible)
+            .configure(routes::sourcemaps::configure)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure);
 

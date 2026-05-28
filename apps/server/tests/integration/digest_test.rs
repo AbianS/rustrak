@@ -87,9 +87,15 @@ async fn test_digest_creates_issue_and_event() {
     };
 
     // Process the event
-    process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     // Verify issue was created
     let (issues, _) = IssueService::list_paginated(
@@ -154,9 +160,15 @@ async fn test_digest_groups_similar_events() {
             remote_addr: None,
         };
 
-        process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-            .await
-            .expect("Failed to process event");
+        process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
     }
 
     // Should have only 1 issue with 2 events
@@ -218,9 +230,15 @@ async fn test_digest_creates_separate_issues_for_different_errors() {
             remote_addr: None,
         };
 
-        process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-            .await
-            .expect("Failed to process event");
+        process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
     }
 
     // Should have 3 separate issues
@@ -276,9 +294,15 @@ async fn test_digest_handles_custom_fingerprint() {
             remote_addr: None,
         };
 
-        process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-            .await
-            .expect("Failed to process event");
+        process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
     }
 
     // Should have 1 issue because of custom fingerprint
@@ -334,9 +358,15 @@ async fn test_digest_handles_default_fingerprint_placeholder() {
         remote_addr: None,
     };
 
-    process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     // Verify issue was created with expanded fingerprint
     let (issues, _) = IssueService::list_paginated(
@@ -384,7 +414,14 @@ async fn test_digest_ignores_duplicate_event_id() {
         };
 
         // Second processing should silently ignore the duplicate
-        let _ = process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config).await;
+        let _ = process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await;
     }
 
     // Should only have 1 issue with 1 event
@@ -442,9 +479,15 @@ async fn test_digest_groups_log_messages() {
             remote_addr: None,
         };
 
-        process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-            .await
-            .expect("Failed to process event");
+        process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
     }
 
     // Should have 1 issue grouped by log message
@@ -504,9 +547,15 @@ async fn test_digest_updates_issue_last_seen() {
         remote_addr: None,
     };
 
-    process_event(&db.pool, &metadata1, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata1,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     let (issues_before, _) = IssueService::list_paginated(
         &db.pool,
@@ -553,9 +602,15 @@ async fn test_digest_updates_issue_last_seen() {
         remote_addr: None,
     };
 
-    process_event(&db.pool, &metadata2, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata2,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     let (issues_after, _) = IssueService::list_paginated(
         &db.pool,
@@ -606,9 +661,15 @@ async fn test_digest_updates_project_counters() {
             remote_addr: None,
         };
 
-        process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-            .await
-            .expect("Failed to process event");
+        process_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
     }
 
     // Check project counters
@@ -652,7 +713,14 @@ async fn test_process_event_cleans_up_temp_file_on_failure() {
         remote_addr: None,
     };
 
-    let result = process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config).await;
+    let result = process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await;
     assert!(
         result.is_err(),
         "process_event must fail for non-existent project"
@@ -698,9 +766,15 @@ async fn test_digest_handles_missing_exception() {
     };
 
     // Should still process successfully with fallback grouping
-    process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
@@ -751,9 +825,15 @@ async fn test_digest_handles_multiline_error_value() {
         remote_addr: None,
     };
 
-    process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
@@ -799,9 +879,15 @@ async fn test_digest_cleans_up_temp_file() {
         remote_addr: None,
     };
 
-    process_event(&db.pool, &metadata, ingest_dir, &rate_limit_config)
-        .await
-        .expect("Failed to process event");
+    process_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
 
     // Verify file is deleted after processing
     assert!(!file_path.exists());

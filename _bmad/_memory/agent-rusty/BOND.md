@@ -18,8 +18,17 @@ _What the owner has told me about Rustrak's current Sentry compatibility._
 - Payload size limits: 1MB per item, 100MB max compressed body
 - Async digest: grouping, issue creation, advisory locks per project
 
+### Implemented (also in feat/source-map-processing, merged to main track)
+- Source map upload protocol (3-step: capability check → chunk upload → assemble)
+- Artifact bundle ZIP extraction with path traversal + symlink protection
+- manifest.json parsing with `debug-id` / `debug_id` header support
+- LocalSourceMapStore: filesystem CAS with atomic writes
+- Assembly worker: background job with retry logic + crash recovery
+- Frame rewriting (debug_meta.images → source map lookup → frame annotation)
+- Frame rewriting called BEFORE grouping (correct ordering)
+
 ### In Progress
-- feat/sentry-agent branch (current)
+- feat/source-map-processing (current branch, PR under review)
 
 ### Known Missing
 - `X-Sentry-Rate-Limits` header on 429 responses
@@ -44,6 +53,10 @@ _Gaps we've already dug into — so I don't repeat the same work. Append after e
 | `/store/` endpoint | ❌ Missing | 2026-05-22 | Relay accepts POST JSON body, wraps in envelope, returns `{"id":"..."}`. Rustrak returns 400. Affects legacy SDK users. Relay permalink: relay-server/src/endpoints/store.rs#L105 |
 | `event_id` auto-generation | ⚠️ Different | 2026-05-22 | Relay: if event_id absent + envelope has event item, auto-generates UUID. Rustrak: returns 400. Relay permalink: relay-server/src/envelope/mod.rs#L290 |
 | 429 response body format | ⚠️ Different | 2026-05-22 | Relay returns `{}` (empty). Rustrak returns `{"error":"rate_limit_exceeded","retry_after":N}`. Low impact — SDKs don't parse 429 body. |
+| Source map: `abs_path` not cleared after frame rewrite | ✅ Fixed | 2026-05-25 | `frame["abs_path"] = null` added after rewrite in sourcemap.rs. TDD: test_rewrite_clears_abs_path. |
+| Source map: chunk upload field name | ✅ Fixed | 2026-05-25 | Filter changed from `!= "file"` to `is_empty()`. Accepts any named field (real sentry-cli uses SHA1). TDD: test_chunk_upload_sha1_field_name_accepted. |
+| Source map: `frame.data.sourcemap` not set | ✅ Fixed | 2026-05-25 | `frame["data"]["sourcemap"] = debug_id` added after rewrite. TDD: test_rewrite_sets_data_sourcemap. |
+| Source map: no total bundle size limit | ✅ Fixed | 2026-05-25 | `max_bundle_size_bytes: usize` added to `assemble_bundle` signature. Worker passes `max_chunk_size_bytes * 64`. TDD: test_assemble_bundle_rejects_oversized_bundle. |
 
 ## How They Work
 {Preferences learned during First Breath and refined over sessions — how deep to go, raw source vs synthesis, what to emphasize.}

@@ -13,6 +13,7 @@ import {
   testMultipleErrors,
   testNestedError,
   testReferenceError,
+  testSourceMaps,
   testTypeError,
   testWithBreadcrumbs,
   testWithContexts,
@@ -79,6 +80,11 @@ function printHelp(): void {
   log('  --levels            Test all severity levels');
   log('  --multiple          Multiple sequential errors');
   log('  --flood [count]     Send many errors (default: 50)');
+  log('  --source-maps       Upload an artifact bundle and send a test event');
+  log('\nSource Map Options:', colors.yellow);
+  log('  --org <slug>        Organization slug (default: my-org)');
+  log('  --project <slug>    Project slug (default: my-project)');
+  log('  --token <token>     API token (or set RUSTRAK_TOKEN env var)');
   log('\nConfiguration:', colors.yellow);
   log('  --debug             Enable Sentry debug mode');
   log('  --env <env>         Set environment (default: test)');
@@ -89,8 +95,10 @@ function printHelp(): void {
   log('  test-sentry --dsn "http://key@localhost:8080/1" --all');
   log('\n  # Run specific test');
   log('  test-sentry --dsn "http://key@localhost:8080/1" --error');
-  log('\n  # Test rate limiting (flood)');
-  log('  test-sentry --dsn "http://key@localhost:8080/1" --flood 100');
+  log('\n  # Test source maps upload');
+  log(
+    '  test-sentry --dsn "http://key@localhost:8080/1" --source-maps --token <api-token>',
+  );
   log('\n  # Use environment variable');
   log('  SENTRY_DSN="http://key@localhost:8080/1" test-sentry --all');
   log('');
@@ -103,6 +111,9 @@ interface CliOptions {
   release?: string;
   tests: Set<string>;
   floodCount: number;
+  org: string;
+  project: string;
+  token?: string;
 }
 
 function parseArgs(args: string[]): CliOptions {
@@ -111,6 +122,8 @@ function parseArgs(args: string[]): CliOptions {
     env: 'test',
     tests: new Set(),
     floodCount: 50,
+    org: 'my-org',
+    project: 'my-project',
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -192,6 +205,18 @@ function parseArgs(args: string[]): CliOptions {
           }
         }
         break;
+      case '--source-maps':
+        options.tests.add('source-maps');
+        break;
+      case '--org':
+        options.org = args[++i]!;
+        break;
+      case '--project':
+        options.project = args[++i]!;
+        break;
+      case '--token':
+        options.token = args[++i];
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -199,9 +224,12 @@ function parseArgs(args: string[]): CliOptions {
     }
   }
 
-  // Check environment variable for DSN
+  // Check environment variables
   if (!options.dsn) {
     options.dsn = process.env.SENTRY_DSN;
+  }
+  if (!options.token) {
+    options.token = process.env.RUSTRAK_TOKEN;
   }
 
   return options;
@@ -301,13 +329,29 @@ async function runSelectedTests(options: CliOptions): Promise<void> {
     testErrorFlood(options.floodCount);
   }
 
-  // Flush all events
-  log('\n--- Flushing Events ---', colors.cyan);
-  const flushed = await flush(10000);
-  log(
-    `Flush ${flushed ? 'completed successfully' : 'timed out'}`,
-    flushed ? colors.green : colors.red,
-  );
+  if (tests.has('source-maps')) {
+    log('\n--- Source Maps Upload ---', colors.yellow);
+    const dsnUrl = new URL(options.dsn!);
+    const serverUrl = `${dsnUrl.protocol}//${dsnUrl.host}`;
+    await testSourceMaps({
+      serverUrl,
+      org: options.org,
+      project: options.project,
+      token: options.token!,
+    });
+  }
+
+  // Flush all events (skip for source-maps-only runs — it calls captureEvent directly)
+  if (!tests.has('source-maps') || tests.size > 1) {
+    log('\n--- Flushing Events ---', colors.cyan);
+    const flushed = await flush(10000);
+    log(
+      `Flush ${flushed ? 'completed successfully' : 'timed out'}`,
+      flushed ? colors.green : colors.red,
+    );
+  } else {
+    await flush(10000);
+  }
 }
 
 async function main(): Promise<void> {
@@ -337,6 +381,16 @@ async function main(): Promise<void> {
     log('\n❌ Error: No test selected', colors.red);
     log('   Use --all to run all tests, or select specific tests', colors.dim);
     log('   Run with --help for available tests\n', colors.dim);
+    process.exit(1);
+  }
+
+  // Validate token required for source-maps
+  if (options.tests.has('source-maps') && !options.token) {
+    log('\n❌ Error: --source-maps requires an API token', colors.red);
+    log(
+      '   Use --token <token> or set RUSTRAK_TOKEN environment variable',
+      colors.dim,
+    );
     process.exit(1);
   }
 
