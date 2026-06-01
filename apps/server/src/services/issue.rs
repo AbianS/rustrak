@@ -521,10 +521,20 @@ impl IssueService {
 
     /// Hard-deletes an issue and all associated events and groupings (via CASCADE)
     pub async fn delete(pool: &DbPool, id: Uuid) -> AppResult<()> {
-        let result = sqlx::query("DELETE FROM issues WHERE id = $1")
-            .bind(id)
-            .execute(pool)
-            .await?;
+        let result = sqlx::query(
+            "WITH deleted AS (
+                DELETE FROM issues WHERE id = $1
+                RETURNING project_id, stored_event_count, digested_event_count
+            )
+            UPDATE projects SET
+                stored_event_count    = GREATEST(0, projects.stored_event_count    - deleted.stored_event_count),
+                digested_event_count  = GREATEST(0, projects.digested_event_count  - deleted.digested_event_count)
+            FROM deleted
+            WHERE projects.id = deleted.project_id",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
 
         if result.rows_affected() == 0 {
             return Err(AppError::NotFound(format!("Issue {} not found", id)));
