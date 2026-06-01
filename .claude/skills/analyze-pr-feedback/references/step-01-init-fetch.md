@@ -13,7 +13,7 @@ Resolve the PR, fetch all active review threads and general reviews. No analysis
 ## CONSTANTS
 
 - `repo` = `rustrak/rustrak`
-- `repo_owner` = `AbianS`
+- `repo_owner` = `rustrak`
 - `repo_name` = `rustrak`
 
 ## SEQUENCE
@@ -66,7 +66,7 @@ gh api graphql -f query='
       }
     }
   }
-' -F owner="AbianS" -F repo="rustrak" -F pr={pr_number}
+' -F owner="rustrak" -F repo="rustrak" -F pr={pr_number}
 ```
 
 Per thread store: `thread_id`, `is_resolved`, `is_outdated`, and per comment: `comment_id` (GraphQL node ID), `comment_db_id` (integer `databaseId`, used for REST `in_reply_to`), `author_login`, `body`, `path`, `line`, `diff_hunk`.
