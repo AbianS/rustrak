@@ -521,6 +521,7 @@ impl IssueService {
 
     /// Hard-deletes an issue and all associated events and groupings (via CASCADE)
     pub async fn delete(pool: &DbPool, id: Uuid) -> AppResult<()> {
+        #[cfg(feature = "postgres")]
         let result = sqlx::query(
             "WITH deleted AS (
                 DELETE FROM issues WHERE id = $1
@@ -529,6 +530,22 @@ impl IssueService {
             UPDATE projects SET
                 stored_event_count    = GREATEST(0, projects.stored_event_count    - deleted.stored_event_count),
                 digested_event_count  = GREATEST(0, projects.digested_event_count  - deleted.digested_event_count)
+            FROM deleted
+            WHERE projects.id = deleted.project_id",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+
+        #[cfg(feature = "sqlite")]
+        let result = sqlx::query(
+            "WITH deleted AS (
+                DELETE FROM issues WHERE id = $1
+                RETURNING project_id, stored_event_count, digested_event_count
+            )
+            UPDATE projects SET
+                stored_event_count    = MAX(0, projects.stored_event_count    - deleted.stored_event_count),
+                digested_event_count  = MAX(0, projects.digested_event_count  - deleted.digested_event_count)
             FROM deleted
             WHERE projects.id = deleted.project_id",
         )
