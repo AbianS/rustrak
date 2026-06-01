@@ -32,10 +32,10 @@ pnpm dev
 ## Docker
 
 ```bash
-docker pull abians7/rustrak-ui
+docker pull rustrak/rustrak-ui
 docker run -d -p 3000:3000 \
   -e RUSTRAK_API_URL="http://your-server:8080" \
-  abians7/rustrak-ui
+  rustrak/rustrak-ui
 ```
 
 ## Environment Variables

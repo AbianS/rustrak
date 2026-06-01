@@ -103,7 +103,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: FEATURES=sqlite
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          tags: abians7/rustrak-server
+          tags: rustrak/rustrak-server
           cache-from: type=gha,scope=server-sqlite-${{ matrix.runner }}
           cache-to: type=gha,mode=max,scope=server-sqlite-${{ matrix.runner }}
 
@@ -143,14 +143,14 @@ jobs:
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
           docker buildx imagetools create \
-            -t abians7/rustrak-server:v${VERSION} \
-            -t abians7/rustrak-server:latest \
-            $(printf 'abians7/rustrak-server@sha256:%s ' *)
+            -t rustrak/rustrak-server:v${VERSION} \
+            -t rustrak/rustrak-server:latest \
+            $(printf 'rustrak/rustrak-server@sha256:%s ' *)
 
       - name: Inspect image
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
-          docker buildx imagetools inspect abians7/rustrak-server:v${VERSION}
+          docker buildx imagetools inspect rustrak/rustrak-server:v${VERSION}
 
   # ── PostgreSQL image ──────────────────────────────────────────────────────────
 
@@ -189,7 +189,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: FEATURES=postgres
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          tags: abians7/rustrak-server
+          tags: rustrak/rustrak-server
           cache-from: type=gha,scope=server-postgres-${{ matrix.runner }}
           cache-to: type=gha,mode=max,scope=server-postgres-${{ matrix.runner }}
 
@@ -229,14 +229,14 @@ jobs:
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
           docker buildx imagetools create \
-            -t abians7/rustrak-server:v${VERSION}-postgres \
-            -t abians7/rustrak-server:postgres \
-            $(printf 'abians7/rustrak-server@sha256:%s ' *)
+            -t rustrak/rustrak-server:v${VERSION}-postgres \
+            -t rustrak/rustrak-server:postgres \
+            $(printf 'rustrak/rustrak-server@sha256:%s ' *)
 
       - name: Inspect image
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
-          docker buildx imagetools inspect abians7/rustrak-server:v${VERSION}-postgres
+          docker buildx imagetools inspect rustrak/rustrak-server:v${VERSION}-postgres
 
   # ── UI image ──────────────────────────────────────────────────────────────────
 
@@ -275,7 +275,7 @@ jobs:
           file: ./apps/webview-ui/Dockerfile
           platforms: ${{ matrix.platform }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
-          tags: abians7/rustrak-ui
+          tags: rustrak/rustrak-ui
           cache-from: type=gha,scope=ui-${{ matrix.runner }}
           cache-to: type=gha,mode=max,scope=ui-${{ matrix.runner }}
 
@@ -315,14 +315,14 @@ jobs:
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
           docker buildx imagetools create \
-            -t abians7/rustrak-ui:v${VERSION} \
-            -t abians7/rustrak-ui:latest \
-            $(printf 'abians7/rustrak-ui@sha256:%s ' *)
+            -t rustrak/rustrak-ui:v${VERSION} \
+            -t rustrak/rustrak-ui:latest \
+            $(printf 'rustrak/rustrak-ui@sha256:%s ' *)
 
       - name: Inspect image
         run: |
           VERSION="${{ needs.detect-package.outputs.version }}"
-          docker buildx imagetools inspect abians7/rustrak-ui:v${VERSION}
+          docker buildx imagetools inspect rustrak/rustrak-ui:v${VERSION}
 
   # ── Docs ──────────────────────────────────────────────────────────────────────
 

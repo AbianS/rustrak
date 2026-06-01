@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [#44](https://github.com/AbianS/rustrak/pull/44) [`4a84415`](https://github.com/AbianS/rustrak/commit/4a84415d867b5a1f15f11006278527671d62b242) Thanks [@AbianS](https://github.com/AbianS)! - Upgrade all dependencies to latest versions across the monorepo.
+- [#44](https://github.com/rustrak/rustrak/pull/44) [`4a84415`](https://github.com/rustrak/rustrak/commit/4a84415d867b5a1f15f11006278527671d62b242) Thanks [@AbianS](https://github.com/AbianS)! - Upgrade all dependencies to latest versions across the monorepo.
 
   - TypeScript 6.0.3 + Node.js engines >=22 across all packages
   - ky 2.x migration: `prefix` (was `prefixUrl`), updated hook signatures, removed 429 from retry list to avoid `Retry-After` sleep

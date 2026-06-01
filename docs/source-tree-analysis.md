@@ -344,6 +344,6 @@ packages/benchmarks/
 5. `docs@X.Y.Z` tag → builds and deploys to GitHub Pages
 
 **Docker images:**
-- `abians7/rustrak-server:latest` (SQLite, linux/amd64 + linux/arm64)
-- `abians7/rustrak-server:postgres` (PostgreSQL, linux/amd64 + linux/arm64)
-- `abians7/rustrak-ui:latest` (linux/amd64 + linux/arm64)
+- `rustrak/rustrak-server:latest` (SQLite, linux/amd64 + linux/arm64)
+- `rustrak/rustrak-server:postgres` (PostgreSQL, linux/amd64 + linux/arm64)
+- `rustrak/rustrak-ui:latest` (linux/amd64 + linux/arm64)

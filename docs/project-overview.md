@@ -158,7 +158,7 @@ docker run -d \
   -e DATABASE_URL=sqlite:/data/rustrak.db \
   -e SESSION_SECRET_KEY=$(openssl rand -hex 32) \
   -e CREATE_SUPERUSER=admin@example.com:yourpassword \
-  abians7/rustrak-server:latest
+  rustrak/rustrak-server:latest
 ```
 
 Then configure your app's Sentry SDK with:
@@ -166,4 +166,4 @@ Then configure your app's Sentry SDK with:
 http://<project_sentry_key>@localhost:8080/<project_id>
 ```
 
-See [full documentation](https://abians.github.io/rustrak) for more.
+See [full documentation](https://rustrak.github.io/rustrak) for more.

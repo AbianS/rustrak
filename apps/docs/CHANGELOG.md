@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [`fd768de`](https://github.com/AbianS/rustrak/commit/fd768de0816ba6eeeaa26ed8893d82bd6224fd2b) Thanks [@AbianS](https://github.com/AbianS)! - Add source map upload and stack frame rewriting support.
+- [`fd768de`](https://github.com/rustrak/rustrak/commit/fd768de0816ba6eeeaa26ed8893d82bd6224fd2b) Thanks [@AbianS](https://github.com/AbianS)! - Add source map upload and stack frame rewriting support.
 
   ## @rustrak/server
 
@@ -21,7 +21,7 @@
 
   ## webview-ui
 
-  - Fix breadcrumb rendering — level badge and message display corrected after PR [#89](https://github.com/AbianS/rustrak/issues/89) review
+  - Fix breadcrumb rendering — level badge and message display corrected after PR [#89](https://github.com/rustrak/rustrak/issues/89) review
   - Fix event display — improved titles, tags layout, and breadcrumb columns in event detail view
 
   ## docs
@@ -34,7 +34,7 @@
 
 ### Patch Changes
 
-- [`324cefd`](https://github.com/AbianS/rustrak/commit/324cefdfbd305d1e53e79ac10c55ca52cc8ef8a4) Thanks [@AbianS](https://github.com/AbianS)! - Fix PUBLIC_URL env var for DSN generation, replace issue soft delete with hard delete, and bump astral-tokio-tar to address RUSTSEC-2026-0145.
+- [`324cefd`](https://github.com/rustrak/rustrak/commit/324cefdfbd305d1e53e79ac10c55ca52cc8ef8a4) Thanks [@AbianS](https://github.com/AbianS)! - Fix PUBLIC_URL env var for DSN generation, replace issue soft delete with hard delete, and bump astral-tokio-tar to address RUSTSEC-2026-0145.
 
   - `@rustrak/server`: Add `PUBLIC_URL` environment variable support so the DSN returned by the server uses the correct public-facing host instead of the internal bind address
   - `@rustrak/server`: Replace issue soft delete with hard delete — issues and their child events/groupings are now removed permanently via CASCADE on DELETE
@@ -45,13 +45,13 @@
 
 ### Patch Changes
 
-- [#79](https://github.com/AbianS/rustrak/pull/79) [`55fa648`](https://github.com/AbianS/rustrak/commit/55fa648963cb9d9cb4055520383fa35653c53052) Thanks [@AbianS](https://github.com/AbianS)! - Add blog section to documentation site
+- [#79](https://github.com/rustrak/rustrak/pull/79) [`55fa648`](https://github.com/rustrak/rustrak/commit/55fa648963cb9d9cb4055520383fa35653c53052) Thanks [@AbianS](https://github.com/AbianS)! - Add blog section to documentation site
 
 ## 0.1.14
 
 ### Patch Changes
 
-- [`6a8b860`](https://github.com/AbianS/rustrak/commit/6a8b860eda0fa199a31089e295a102aef3da6122) Thanks [@AbianS](https://github.com/AbianS)! - Improve npm package metadata, READMEs, and official documentation.
+- [`6a8b860`](https://github.com/rustrak/rustrak/commit/6a8b860eda0fa199a31089e295a102aef3da6122) Thanks [@AbianS](https://github.com/AbianS)! - Improve npm package metadata, READMEs, and official documentation.
 
   - Add `homepage`, `repository` (with monorepo `directory`), `bugs`, `author`, and `engines` fields to both packages
   - Expand `keywords` for better npm search discoverability
@@ -63,7 +63,7 @@
 
 ### Patch Changes
 
-- [`3fc4abb`](https://github.com/AbianS/rustrak/commit/3fc4abba96170c7fbbac708aeb0296c7e759818c) Thanks [@AbianS](https://github.com/AbianS)! - ## webview-ui
+- [`3fc4abb`](https://github.com/rustrak/rustrak/commit/3fc4abba96170c7fbbac708aeb0296c7e759818c) Thanks [@AbianS](https://github.com/AbianS)! - ## webview-ui
 
   ### Features
 
@@ -95,13 +95,13 @@
 
 ### Patch Changes
 
-- [#46](https://github.com/AbianS/rustrak/pull/46) [`c64ebe0`](https://github.com/AbianS/rustrak/commit/c64ebe09d1e2700faf956c757cb21402aa062e5a) Thanks [@AbianS](https://github.com/AbianS)! - Add interactive API reference powered by OpenAPI spec
+- [#46](https://github.com/rustrak/rustrak/pull/46) [`c64ebe0`](https://github.com/rustrak/rustrak/commit/c64ebe09d1e2700faf956c757cb21402aa062e5a) Thanks [@AbianS](https://github.com/AbianS)! - Add interactive API reference powered by OpenAPI spec
 
 ## 0.1.11
 
 ### Patch Changes
 
-- [#44](https://github.com/AbianS/rustrak/pull/44) [`4a84415`](https://github.com/AbianS/rustrak/commit/4a84415d867b5a1f15f11006278527671d62b242) Thanks [@AbianS](https://github.com/AbianS)! - Upgrade all dependencies to latest versions across the monorepo.
+- [#44](https://github.com/rustrak/rustrak/pull/44) [`4a84415`](https://github.com/rustrak/rustrak/commit/4a84415d867b5a1f15f11006278527671d62b242) Thanks [@AbianS](https://github.com/AbianS)! - Upgrade all dependencies to latest versions across the monorepo.
 
   - TypeScript 6.0.3 + Node.js engines >=22 across all packages
   - ky 2.x migration: `prefix` (was `prefixUrl`), updated hook signatures, removed 429 from retry list to avoid `Retry-After` sleep
@@ -112,18 +112,18 @@
 
 ### Patch Changes
 
-- [#39](https://github.com/AbianS/rustrak/pull/39) [`447596b`](https://github.com/AbianS/rustrak/commit/447596b77655e6c8bc24257c603d1a992fb4cb03) Thanks [@kervel](https://github.com/kervel)! - SQLite is now the default database backend
+- [#39](https://github.com/rustrak/rustrak/pull/39) [`447596b`](https://github.com/rustrak/rustrak/commit/447596b77655e6c8bc24257c603d1a992fb4cb03) Thanks [@kervel](https://github.com/kervel)! - SQLite is now the default database backend
 
   BREAKING CHANGE: The `latest` Docker image now uses SQLite instead of PostgreSQL.
 
-  If you are using `abians7/rustrak-server:latest` with PostgreSQL, update your image tag:
+  If you are using `rustrak/rustrak-server:latest` with PostgreSQL, update your image tag:
 
   ```yaml
   # Before
-  image: abians7/rustrak-server:latest
+  image: rustrak/rustrak-server:latest
 
   # After
-  image: abians7/rustrak-server:postgres
+  image: rustrak/rustrak-server:postgres
   ```
 
   No data migration required — only the image tag changes.
@@ -141,52 +141,52 @@
 
 ### Patch Changes
 
-- [#34](https://github.com/AbianS/rustrak/pull/34) [`54efbba`](https://github.com/AbianS/rustrak/commit/54efbba72d56130d3d3b987faf9b829c6041ab3e) Thanks [@AbianS](https://github.com/AbianS)! - chore: update dependencies
+- [#34](https://github.com/rustrak/rustrak/pull/34) [`54efbba`](https://github.com/rustrak/rustrak/commit/54efbba72d56130d3d3b987faf9b829c6041ab3e) Thanks [@AbianS](https://github.com/AbianS)! - chore: update dependencies
 
 ## 0.1.8
 
 ### Patch Changes
 
-- [#23](https://github.com/AbianS/rustrak/pull/23) [`169dc0c`](https://github.com/AbianS/rustrak/commit/169dc0ce73fee276b169f403daa0ed4a00404726) Thanks [@AbianS](https://github.com/AbianS)! - feat: system alert
+- [#23](https://github.com/rustrak/rustrak/pull/23) [`169dc0c`](https://github.com/rustrak/rustrak/commit/169dc0ce73fee276b169f403daa0ed4a00404726) Thanks [@AbianS](https://github.com/AbianS)! - feat: system alert
 
 ## 0.1.7
 
 ### Patch Changes
 
-- [`931d8c9`](https://github.com/AbianS/rustrak/commit/931d8c96d86354ec8069ce317eef3a4426ca8cac) Thanks [@AbianS](https://github.com/AbianS)! - fix: video source github pages
+- [`931d8c9`](https://github.com/rustrak/rustrak/commit/931d8c96d86354ec8069ce317eef3a4426ca8cac) Thanks [@AbianS](https://github.com/AbianS)! - fix: video source github pages
 
 ## 0.1.6
 
 ### Patch Changes
 
-- [`17291c5`](https://github.com/AbianS/rustrak/commit/17291c54ed7e41f9577588aeef29107194186199) Thanks [@AbianS](https://github.com/AbianS)! - fix: favicon
+- [`17291c5`](https://github.com/rustrak/rustrak/commit/17291c54ed7e41f9577588aeef29107194186199) Thanks [@AbianS](https://github.com/AbianS)! - fix: favicon
 
 ## 0.1.5
 
 ### Patch Changes
 
-- [`433921b`](https://github.com/AbianS/rustrak/commit/433921b77a864f6974f467bc932fd943a6b908e1) Thanks [@AbianS](https://github.com/AbianS)! - fix: docs installation
+- [`433921b`](https://github.com/rustrak/rustrak/commit/433921b77a864f6974f467bc932fd943a6b908e1) Thanks [@AbianS](https://github.com/AbianS)! - fix: docs installation
 
 ## 0.1.4
 
 ### Patch Changes
 
-- [`8a3cf61`](https://github.com/AbianS/rustrak/commit/8a3cf618d6d2cd48dbdbab4fa62cc2b8c53e4e22) Thanks [@AbianS](https://github.com/AbianS)! - fix: css
+- [`8a3cf61`](https://github.com/rustrak/rustrak/commit/8a3cf618d6d2cd48dbdbab4fa62cc2b8c53e4e22) Thanks [@AbianS](https://github.com/AbianS)! - fix: css
 
 ## 0.1.3
 
 ### Patch Changes
 
-- [`1d9438d`](https://github.com/AbianS/rustrak/commit/1d9438d83f35ffe8460d7399ccc1d4c58d6b0b3a) Thanks [@AbianS](https://github.com/AbianS)! - chore: publish docs
+- [`1d9438d`](https://github.com/rustrak/rustrak/commit/1d9438d83f35ffe8460d7399ccc1d4c58d6b0b3a) Thanks [@AbianS](https://github.com/AbianS)! - chore: publish docs
 
 ## 0.1.2
 
 ### Patch Changes
 
-- [`2f7a450`](https://github.com/AbianS/rustrak/commit/2f7a450263e2fc3357c5cda614e24774810fa373) Thanks [@AbianS](https://github.com/AbianS)! - chore: second version
+- [`2f7a450`](https://github.com/rustrak/rustrak/commit/2f7a450263e2fc3357c5cda614e24774810fa373) Thanks [@AbianS](https://github.com/AbianS)! - chore: second version
 
 ## 0.1.1
 
 ### Patch Changes
 
-- [`08a1262`](https://github.com/AbianS/rustrak/commit/08a12627dbdf1a044d3a66b25b1ee113583f57f8) Thanks [@AbianS](https://github.com/AbianS)! - chore: first version
+- [`08a1262`](https://github.com/rustrak/rustrak/commit/08a12627dbdf1a044d3a66b25b1ee113583f57f8) Thanks [@AbianS](https://github.com/AbianS)! - chore: first version

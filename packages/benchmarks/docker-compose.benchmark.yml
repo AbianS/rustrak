@@ -43,7 +43,7 @@ services:
 
   # Rustrak server with fixed resource limits
   server-bench:
-    image: abians7/rustrak-server:latest
+    image: rustrak/rustrak-server:latest
     container_name: rustrak-server-bench
     build:
       context: ../../apps/server
