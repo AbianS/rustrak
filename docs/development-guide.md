@@ -29,7 +29,7 @@ npm install -g pnpm@10
 
 ```bash
 # Clone repo
-git clone https://github.com/AbianS/rustrak
+git clone https://github.com/rustrak/rustrak
 cd rustrak
 
 # Install Node.js dependencies

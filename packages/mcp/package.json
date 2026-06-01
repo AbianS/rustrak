@@ -2,14 +2,14 @@
   "name": "@rustrak/mcp",
   "version": "0.1.3",
   "description": "MCP server that gives AI assistants (Claude, Cursor, Continue) full control of your Rustrak error tracking",
-  "homepage": "https://abians.github.io/rustrak/sdks/mcp",
+  "homepage": "https://rustrak.github.io/rustrak/sdks/mcp",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AbianS/rustrak.git",
+    "url": "https://github.com/rustrak/rustrak.git",
     "directory": "packages/mcp"
   },
   "bugs": {
-    "url": "https://github.com/AbianS/rustrak/issues"
+    "url": "https://github.com/rustrak/rustrak/issues"
   },
   "publishConfig": {
     "access": "public"

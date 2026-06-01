@@ -31,11 +31,11 @@ cargo run
 ## Docker
 
 ```bash
-docker pull abians7/rustrak-server
+docker pull rustrak/rustrak-server
 docker run -d -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@localhost:5432/rustrak" \
   -e SESSION_SECRET_KEY="your-secret-key" \
-  abians7/rustrak-server
+  rustrak/rustrak-server
 ```
 
 ## Environment Variables

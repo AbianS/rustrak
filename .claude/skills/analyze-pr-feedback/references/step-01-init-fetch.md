@@ -12,7 +12,7 @@ Resolve the PR, fetch all active review threads and general reviews. No analysis
 
 ## CONSTANTS
 
-- `repo` = `AbianS/rustrak`
+- `repo` = `rustrak/rustrak`
 - `repo_owner` = `AbianS`
 - `repo_name` = `rustrak`
 
@@ -29,7 +29,7 @@ Resolve the PR, fetch all active review threads and general reviews. No analysis
 ### 2. Fetch PR Metadata
 
 ```bash
-gh pr view {pr_number} --repo AbianS/rustrak --json number,title,headRefName,baseRefName,state,url,reviewDecision,author
+gh pr view {pr_number} --repo rustrak/rustrak --json number,title,headRefName,baseRefName,state,url,reviewDecision,author
 ```
 
 Store: `pr_title`, `pr_head_branch`, `pr_base_branch`, `pr_state`, `pr_url`, `pr_review_decision`, `pr_author`.
@@ -74,7 +74,7 @@ Per thread store: `thread_id`, `is_resolved`, `is_outdated`, and per comment: `c
 ### 4. Fetch General Reviews (REST)
 
 ```bash
-gh api repos/AbianS/rustrak/pulls/{pr_number}/reviews
+gh api repos/rustrak/rustrak/pulls/{pr_number}/reviews
 ```
 
 Store reviews with non-empty `body` and state CHANGES_REQUESTED or COMMENTED as `general_reviews` array (fields: `review_id`, `author_login`, `body`, `state`, `submitted_at`).

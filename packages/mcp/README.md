@@ -1,9 +1,9 @@
 <div align="center">
-  <a href="https://abians.github.io/rustrak">
-    <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
+  <a href="https://rustrak.github.io/rustrak">
+    <img src="https://raw.githubusercontent.com/rustrak/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
   </a>
   <h1>@rustrak/mcp</h1>
-  <p>MCP server that gives AI assistants full control of your <a href="https://abians.github.io/rustrak">Rustrak</a> error tracking</p>
+  <p>MCP server that gives AI assistants full control of your <a href="https://rustrak.github.io/rustrak">Rustrak</a> error tracking</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@rustrak/mcp">
@@ -12,28 +12,28 @@
     <a href="https://www.npmjs.com/package/@rustrak/mcp">
       <img src="https://img.shields.io/npm/dw/@rustrak/mcp?style=flat-square" alt="weekly downloads" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+    <a href="https://github.com/rustrak/rustrak/blob/main/LICENSE">
       <img src="https://img.shields.io/npm/l/@rustrak/mcp?style=flat-square" alt="license" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
-      <img src="https://img.shields.io/github/actions/workflow/status/AbianS/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
+    <a href="https://github.com/rustrak/rustrak/actions/workflows/ci.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/rustrak/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
     </a>
   </p>
 
   <p>
-    <a href="https://abians.github.io/rustrak/sdks/mcp">Documentation</a>
+    <a href="https://rustrak.github.io/rustrak/sdks/mcp">Documentation</a>
     ·
-    <a href="https://github.com/AbianS/rustrak">GitHub</a>
+    <a href="https://github.com/rustrak/rustrak">GitHub</a>
     ·
-    <a href="https://github.com/AbianS/rustrak/issues">Report a Bug</a>
+    <a href="https://github.com/rustrak/rustrak/issues">Report a Bug</a>
   </p>
 </div>
 
 ---
 
-`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for [Rustrak](https://abians.github.io/rustrak) — the self-hosted, Sentry-compatible error tracker. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 18 tools to list projects, inspect issues, view stack traces, resolve errors, and manage tokens without leaving your AI tool.
+`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for [Rustrak](https://rustrak.github.io/rustrak) — the self-hosted, Sentry-compatible error tracker. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 18 tools to list projects, inspect issues, view stack traces, resolve errors, and manage tokens without leaving your AI tool.
 
-**[Full documentation →](https://abians.github.io/rustrak/sdks/mcp)**
+**[Full documentation →](https://rustrak.github.io/rustrak/sdks/mcp)**
 
 ## Quick Start
 
@@ -196,11 +196,11 @@ The server runs as a local process over stdio — no open network port, no daemo
 
 ## What is Rustrak?
 
-[Rustrak](https://abians.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. No code changes needed if you're migrating from Sentry. Runs on ~50 MB of memory as a single binary or Docker image.
+[Rustrak](https://rustrak.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. No code changes needed if you're migrating from Sentry. Runs on ~50 MB of memory as a single binary or Docker image.
 
-- [Getting Started](https://abians.github.io/rustrak/getting-started/overview)
-- [Self-Hosting Guide](https://abians.github.io/rustrak/configuration/production)
-- [GitHub](https://github.com/AbianS/rustrak)
+- [Getting Started](https://rustrak.github.io/rustrak/getting-started/overview)
+- [Self-Hosting Guide](https://rustrak.github.io/rustrak/configuration/production)
+- [GitHub](https://github.com/rustrak/rustrak)
 
 ## Development
 
@@ -220,4 +220,4 @@ pnpm --filter @rustrak/mcp dev
 
 ## License
 
-[GPL-3.0](https://github.com/AbianS/rustrak/blob/main/LICENSE)
+[GPL-3.0](https://github.com/rustrak/rustrak/blob/main/LICENSE)

@@ -1,9 +1,9 @@
 <div align="center">
-  <a href="https://abians.github.io/rustrak">
-    <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
+  <a href="https://rustrak.github.io/rustrak">
+    <img src="https://raw.githubusercontent.com/rustrak/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="64" height="64" />
   </a>
   <h1>@rustrak/client</h1>
-  <p>Official TypeScript client for the <a href="https://abians.github.io/rustrak">Rustrak</a> self-hosted error tracking API</p>
+  <p>Official TypeScript client for the <a href="https://rustrak.github.io/rustrak">Rustrak</a> self-hosted error tracking API</p>
 
   <p>
     <a href="https://www.npmjs.com/package/@rustrak/client">
@@ -15,26 +15,26 @@
     <a href="https://bundlephobia.com/package/@rustrak/client">
       <img src="https://img.shields.io/bundlephobia/minzip/@rustrak/client?style=flat-square&label=bundle" alt="bundle size" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+    <a href="https://github.com/rustrak/rustrak/blob/main/LICENSE">
       <img src="https://img.shields.io/npm/l/@rustrak/client?style=flat-square" alt="license" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
-      <img src="https://img.shields.io/github/actions/workflow/status/AbianS/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
+    <a href="https://github.com/rustrak/rustrak/actions/workflows/ci.yml">
+      <img src="https://img.shields.io/github/actions/workflow/status/rustrak/rustrak/ci.yml?style=flat-square&label=CI" alt="CI" />
     </a>
   </p>
 
   <p>
-    <a href="https://abians.github.io/rustrak/sdks/client">Documentation</a>
+    <a href="https://rustrak.github.io/rustrak/sdks/client">Documentation</a>
     ·
-    <a href="https://github.com/AbianS/rustrak">GitHub</a>
+    <a href="https://github.com/rustrak/rustrak">GitHub</a>
     ·
-    <a href="https://github.com/AbianS/rustrak/issues">Report a Bug</a>
+    <a href="https://github.com/rustrak/rustrak/issues">Report a Bug</a>
   </p>
 </div>
 
 ---
 
-`@rustrak/client` is the official TypeScript client for [Rustrak](https://abians.github.io/rustrak) — an ultra-lightweight, self-hosted error tracking system compatible with any Sentry SDK. This package wraps the Rustrak REST API with full type safety, runtime validation via Zod, built-in retry logic, and structured error handling. Total bundle size: ~28 KB.
+`@rustrak/client` is the official TypeScript client for [Rustrak](https://rustrak.github.io/rustrak) — an ultra-lightweight, self-hosted error tracking system compatible with any Sentry SDK. This package wraps the Rustrak REST API with full type safety, runtime validation via Zod, built-in retry logic, and structured error handling. Total bundle size: ~28 KB.
 
 ## Installation
 
@@ -71,7 +71,7 @@ const { items, next_cursor, has_more } = await client.issues.list(1, {
 await client.issues.updateState(1, 'issue-id', { is_resolved: true });
 ```
 
-**[Full documentation →](https://abians.github.io/rustrak/sdks/client)**
+**[Full documentation →](https://rustrak.github.io/rustrak/sdks/client)**
 
 ## Features
 
@@ -231,13 +231,13 @@ import type {
 
 ## What is Rustrak?
 
-[Rustrak](https://abians.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. Drop-in replacement for Sentry — no code changes needed. Runs on ~50 MB of memory as a single binary or Docker image.
+[Rustrak](https://rustrak.github.io/rustrak) is a self-hosted error tracking server written in Rust that is fully compatible with any Sentry SDK. Drop-in replacement for Sentry — no code changes needed. Runs on ~50 MB of memory as a single binary or Docker image.
 
-- [Getting Started](https://abians.github.io/rustrak/getting-started/overview)
-- [Self-Hosting Guide](https://abians.github.io/rustrak/configuration/production)
-- [API Reference](https://abians.github.io/rustrak/api-reference)
-- [GitHub](https://github.com/AbianS/rustrak)
+- [Getting Started](https://rustrak.github.io/rustrak/getting-started/overview)
+- [Self-Hosting Guide](https://rustrak.github.io/rustrak/configuration/production)
+- [API Reference](https://rustrak.github.io/rustrak/api-reference)
+- [GitHub](https://github.com/rustrak/rustrak)
 
 ## License
 
-[GPL-3.0](https://github.com/AbianS/rustrak/blob/main/LICENSE)
+[GPL-3.0](https://github.com/rustrak/rustrak/blob/main/LICENSE)
