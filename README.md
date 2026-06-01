@@ -225,6 +225,10 @@ npx @rustrak/mcp
 
 ## Docker Images
 
+> **Migrating from v0.x?** Images moved from `abians7/rustrak-*` to `rustrak/rustrak-*` starting from v0.4.0.
+> Update your `docker-compose.yml` image references and pull from the new location.
+> Old images on `abians7` remain available but will no longer receive updates.
+
 Available on Docker Hub:
 
 ```bash
