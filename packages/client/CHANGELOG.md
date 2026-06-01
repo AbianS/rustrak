@@ -1,5 +1,11 @@
 # @rustrak/client
 
+## 0.2.1
+
+### Patch Changes
+
+- [`5a0854b`](https://github.com/rustrak/rustrak/commit/5a0854bfd62e1e7e7267b89de248bfab40707b4c) Thanks [@AbianS](https://github.com/AbianS)! - chore: migrate repository to rustrak GitHub organization and Docker Hub
+
 ## 0.2.0
 
 ### Minor Changes
