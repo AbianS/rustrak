@@ -142,7 +142,7 @@ pub async fn chunk_upload(
             .and_then(|cd| cd.get_name().map(|s| s.to_string()))
             .unwrap_or_default();
 
-        // Skip unnamed fields; accept any named field (real sentry-cli uses SHA1 hash as name)
+        // Skip unnamed fields; named fields are validated by chunk_storage_key()
         if field_name.is_empty() {
             continue;
         }
@@ -180,13 +180,8 @@ pub async fn chunk_upload(
         }
 
         let sha1_hex = hex::encode(hasher.finalize());
-        if sha1_hex != field_name {
-            return Err(AppError::Validation(format!(
-                "checksum mismatch for field '{}': content SHA1 is {}",
-                field_name, sha1_hex
-            )));
-        }
-        parts.push((sha1_hex, buf));
+        let key = chunk_storage_key(&field_name, &sha1_hex)?;
+        parts.push((key, buf));
     }
 
     if parts.is_empty() {
@@ -434,6 +429,24 @@ pub async fn list_source_maps(
 // configure
 // ---------------------------------------------------------------------------
 
+/// Returns the storage key for a chunk given the multipart field name and computed SHA1.
+///
+/// sentry-cli v2 uses the SHA1 hash as the field name (verifiable).
+/// sentry-cli v3.x uses "file" or other arbitrary names — in that case we accept the
+/// chunk and key it by the computed SHA1 to stay idempotent with the assemble flow.
+fn chunk_storage_key(field_name: &str, computed_sha1: &str) -> Result<String, AppError> {
+    let is_sha1_name = field_name.len() == 40 && field_name.bytes().all(|b| b.is_ascii_hexdigit());
+
+    if is_sha1_name && computed_sha1 != field_name {
+        return Err(AppError::Validation(format!(
+            "checksum mismatch for field '{}': content SHA1 is {}",
+            field_name, computed_sha1
+        )));
+    }
+
+    Ok(computed_sha1.to_string())
+}
+
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg
         // Organization endpoints
@@ -495,5 +508,42 @@ mod tests {
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(json["state"], "error");
         assert_eq!(json["missingChunks"], serde_json::json!([]));
+    }
+
+    // sentry-cli v2 / old protocol: field name IS the SHA1 hash
+    #[test]
+    fn test_chunk_storage_key_sha1_field_name_matching_accepted() {
+        let sha1 = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+        let result = chunk_storage_key(sha1, sha1);
+        assert_eq!(result.unwrap(), sha1);
+    }
+
+    // field name looks like SHA1 but content is different → corruption, reject
+    #[test]
+    fn test_chunk_storage_key_sha1_field_name_mismatch_rejected() {
+        let field_name = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+        let actual_sha1 = "aabbccdd5e6b4b0d3255bfef95601890afd80709";
+        let result = chunk_storage_key(field_name, actual_sha1);
+        assert!(result.is_err());
+        let err = format!("{:?}", result.unwrap_err());
+        assert!(err.contains("checksum mismatch"));
+        assert!(err.contains(field_name));
+        assert!(err.contains(actual_sha1));
+    }
+
+    // sentry-cli v3.4.2: field name is "file", not SHA1 → accept, key by computed SHA1
+    #[test]
+    fn test_chunk_storage_key_file_field_name_accepted_keyed_by_sha1() {
+        let computed_sha1 = "612d44793ab6d1b3d311b9e1b73785e805ef239a";
+        let result = chunk_storage_key("file", computed_sha1);
+        assert_eq!(result.unwrap(), computed_sha1);
+    }
+
+    // any non-SHA1 field name → accept, key by computed SHA1
+    #[test]
+    fn test_chunk_storage_key_arbitrary_field_name_accepted_keyed_by_sha1() {
+        let computed_sha1 = "612d44793ab6d1b3d311b9e1b73785e805ef239a";
+        let result = chunk_storage_key("chunk_0", computed_sha1);
+        assert_eq!(result.unwrap(), computed_sha1);
     }
 }
