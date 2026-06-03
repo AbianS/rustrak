@@ -521,13 +521,66 @@ impl IssueService {
 
     /// Hard-deletes an issue and all associated events and groupings (via CASCADE)
     pub async fn delete(pool: &DbPool, id: Uuid) -> AppResult<()> {
-        let result = sqlx::query("DELETE FROM issues WHERE id = $1")
+        #[cfg(feature = "postgres")]
+        {
+            let result = sqlx::query(
+                "WITH deleted AS (
+                    DELETE FROM issues WHERE id = $1
+                    RETURNING project_id, stored_event_count, digested_event_count
+                )
+                UPDATE projects SET
+                    stored_event_count    = GREATEST(0, projects.stored_event_count    - deleted.stored_event_count),
+                    digested_event_count  = GREATEST(0, projects.digested_event_count  - deleted.digested_event_count)
+                FROM deleted
+                WHERE projects.id = deleted.project_id",
+            )
             .bind(id)
             .execute(pool)
             .await?;
 
-        if result.rows_affected() == 0 {
-            return Err(AppError::NotFound(format!("Issue {} not found", id)));
+            if result.rows_affected() == 0 {
+                return Err(AppError::NotFound(format!("Issue {} not found", id)));
+            }
+        }
+
+        #[cfg(feature = "sqlite")]
+        {
+            let mut tx = pool.begin().await?;
+
+            let row = sqlx::query_as::<_, (i32, i32, i32)>(
+                "SELECT project_id, stored_event_count, digested_event_count FROM issues WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            let (project_id, stored, digested) = match row {
+                Some(r) => r,
+                None => return Err(AppError::NotFound(format!("Issue {} not found", id))),
+            };
+
+            let delete_result = sqlx::query("DELETE FROM issues WHERE id = $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+
+            if delete_result.rows_affected() == 0 {
+                return Err(AppError::NotFound(format!("Issue {} not found", id)));
+            }
+
+            sqlx::query(
+                "UPDATE projects SET
+                    stored_event_count    = MAX(0, stored_event_count    - $1),
+                    digested_event_count  = MAX(0, digested_event_count  - $2)
+                WHERE id = $3",
+            )
+            .bind(stored)
+            .bind(digested)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+
+            tx.commit().await?;
         }
 
         Ok(())
