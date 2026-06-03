@@ -559,10 +559,14 @@ impl IssueService {
                 None => return Err(AppError::NotFound(format!("Issue {} not found", id))),
             };
 
-            sqlx::query("DELETE FROM issues WHERE id = $1")
+            let delete_result = sqlx::query("DELETE FROM issues WHERE id = $1")
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
+
+            if delete_result.rows_affected() == 0 {
+                return Err(AppError::NotFound(format!("Issue {} not found", id)));
+            }
 
             sqlx::query(
                 "UPDATE projects SET
