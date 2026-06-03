@@ -541,6 +541,8 @@ impl IssueService {
             if result.rows_affected() == 0 {
                 return Err(AppError::NotFound(format!("Issue {} not found", id)));
             }
+
+            return Ok(());
         }
 
         #[cfg(feature = "sqlite")]
