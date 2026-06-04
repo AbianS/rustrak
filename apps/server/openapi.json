@@ -182,7 +182,7 @@
           }
         ],
         "requestBody": {
-          "description": "One or more binary chunk files. Each multipart field name is the SHA-1 hex of its content (as used by sentry-cli).",
+          "description": "One or more binary chunk files. Field names may be SHA-1 hashes (v2 protocol) or arbitrary names like 'file' (v3.x protocol).",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -2673,7 +2673,7 @@
       },
       "ChunkUploadBody": {
         "type": "object",
-        "description": "Multipart chunk upload.\nEach part's **field name** is the SHA-1 hex digest of that part's binary content\n(e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`). Field names are arbitrary — do not send\na literal field named `file`. Up to 64 parts per request; each part body is raw binary."
+        "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
       },
       "CreateAlertRule": {
         "type": "object",
