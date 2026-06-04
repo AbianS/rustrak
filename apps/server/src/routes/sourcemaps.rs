@@ -16,9 +16,9 @@ use crate::services::sourcemap::{get_missing_chunks, store_chunks, SourceMapProv
 // ---------------------------------------------------------------------------
 
 /// Multipart chunk upload.
-/// Each part's **field name** is the SHA-1 hex digest of that part's binary content
-/// (e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`). Field names are arbitrary — do not send
-/// a literal field named `file`. Up to 64 parts per request; each part body is raw binary.
+/// Each part's **field name** may be the SHA-1 hex digest of that part's binary content
+/// (sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary
+/// name like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary.
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[allow(dead_code)]
 struct ChunkUploadBody {}
@@ -109,7 +109,7 @@ pub async fn chunk_upload_capability(
     params(("org_slug" = String, Path, description = "Organization slug")),
     request_body(
         content_type = "multipart/form-data",
-        description = "One or more binary chunk files. Each multipart field name is the SHA-1 hex of its content (as used by sentry-cli).",
+        description = "One or more binary chunk files. Field names may be SHA-1 hashes (v2 protocol) or arbitrary names like 'file' (v3.x protocol).",
         content = ChunkUploadBody,
     ),
     responses(
@@ -437,7 +437,7 @@ pub async fn list_source_maps(
 fn chunk_storage_key(field_name: &str, computed_sha1: &str) -> Result<String, AppError> {
     let is_sha1_name = field_name.len() == 40 && field_name.bytes().all(|b| b.is_ascii_hexdigit());
 
-    if is_sha1_name && computed_sha1 != field_name {
+    if is_sha1_name && !computed_sha1.eq_ignore_ascii_case(field_name) {
         return Err(AppError::Validation(format!(
             "checksum mismatch for field '{}': content SHA1 is {}",
             field_name, computed_sha1
@@ -545,5 +545,25 @@ mod tests {
         let computed_sha1 = "612d44793ab6d1b3d311b9e1b73785e805ef239a";
         let result = chunk_storage_key("chunk_0", computed_sha1);
         assert_eq!(result.unwrap(), computed_sha1);
+    }
+
+    // uppercase SHA1 field name with matching content → accept, return lowercase canonical SHA1
+    #[test]
+    fn test_chunk_storage_key_uppercase_sha1_field_name_accepted() {
+        let lowercase_sha1 = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
+        let uppercase_field = "DA39A3EE5E6B4B0D3255BFEF95601890AFD80709";
+        let result = chunk_storage_key(uppercase_field, lowercase_sha1);
+        assert_eq!(result.unwrap(), lowercase_sha1);
+    }
+
+    // uppercase SHA1 field name with mismatched content → reject
+    #[test]
+    fn test_chunk_storage_key_uppercase_sha1_field_name_mismatch_rejected() {
+        let uppercase_field = "DA39A3EE5E6B4B0D3255BFEF95601890AFD80709";
+        let actual_sha1 = "aabbccdd5e6b4b0d3255bfef95601890afd80709";
+        let result = chunk_storage_key(uppercase_field, actual_sha1);
+        assert!(result.is_err());
+        let err = format!("{:?}", result.unwrap_err());
+        assert!(err.contains("checksum mismatch"));
     }
 }
