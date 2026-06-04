@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.3.2
+
+### Patch Changes
+
+- [`27f6a8a`](https://github.com/rustrak/rustrak/commit/27f6a8a51e8526cc3db8f1116f8449225d5674c8) Thanks [@AbianS](https://github.com/AbianS)! - Fix non-SHA1 multipart field names in chunk upload and decrement project event counts when an issue is deleted.
+
 ## 0.3.1
 
 ### Patch Changes
