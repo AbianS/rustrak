@@ -15,9 +15,7 @@
   "paths": {
     "/api/0/organizations/{org_slug}/": {
       "get": {
-        "tags": [
-          "Source Maps"
-        ],
+        "tags": ["Source Maps"],
         "summary": "GET /api/0/organizations/{org_slug}/\nAlways returns 200 with synthetic org data — sentry-cli validates this before uploading.",
         "operationId": "org_details",
         "parameters": [
@@ -40,9 +38,7 @@
     },
     "/api/0/organizations/{org_slug}/artifactbundle/assemble/": {
       "post": {
-        "tags": [
-          "Source Maps"
-        ],
+        "tags": ["Source Maps"],
         "summary": "POST /api/0/organizations/{org_slug}/artifactbundle/assemble/",
         "operationId": "artifact_bundle_assemble",
         "parameters": [
@@ -127,9 +123,7 @@
     },
     "/api/0/organizations/{org_slug}/chunk-upload/": {
       "get": {
-        "tags": [
-          "Source Maps"
-        ],
+        "tags": ["Source Maps"],
         "summary": "GET /api/0/organizations/{org_slug}/chunk-upload/",
         "operationId": "chunk_upload_capability",
         "parameters": [
@@ -165,9 +159,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Source Maps"
-        ],
+        "tags": ["Source Maps"],
         "summary": "POST /api/0/organizations/{org_slug}/chunk-upload/",
         "operationId": "chunk_upload",
         "parameters": [
@@ -182,7 +174,7 @@
           }
         ],
         "requestBody": {
-          "description": "One or more binary chunk files. Each multipart field name is the SHA-1 hex of its content (as used by sentry-cli).",
+          "description": "One or more binary chunk files. Field names may be SHA-1 hashes (v2 protocol) or arbitrary names like 'file' (v3.x protocol).",
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -226,9 +218,7 @@
     },
     "/api/0/projects/{org_slug}/{project_slug}/files/source-maps/": {
       "get": {
-        "tags": [
-          "Source Maps"
-        ],
+        "tags": ["Source Maps"],
         "summary": "GET /api/0/projects/{org_slug}/{project_slug}/files/source-maps/",
         "operationId": "list_source_maps",
         "parameters": [
@@ -285,9 +275,7 @@
     },
     "/api/alert-channels": {
       "get": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "GET /api/alert-channels",
         "operationId": "list_channels",
         "responses": {
@@ -322,9 +310,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "POST /api/alert-channels",
         "operationId": "create_channel",
         "requestBody": {
@@ -368,9 +354,7 @@
     },
     "/api/alert-channels/{id}": {
       "get": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "GET /api/alert-channels/{id}",
         "operationId": "get_channel",
         "parameters": [
@@ -424,9 +408,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "DELETE /api/alert-channels/{id}",
         "operationId": "delete_channel",
         "parameters": [
@@ -473,9 +455,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "PATCH /api/alert-channels/{id}",
         "operationId": "update_channel",
         "parameters": [
@@ -541,9 +521,7 @@
     },
     "/api/alert-channels/{id}/test": {
       "post": {
-        "tags": [
-          "Alert Channels"
-        ],
+        "tags": ["Alert Channels"],
         "summary": "POST /api/alert-channels/{id}/test",
         "operationId": "test_channel",
         "parameters": [
@@ -592,9 +570,7 @@
     },
     "/api/projects": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "GET /api/projects - List projects with pagination",
         "operationId": "list_projects",
         "parameters": [
@@ -739,9 +715,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "POST /api/projects - Create a new project",
         "operationId": "create_project",
         "requestBody": {
@@ -795,9 +769,7 @@
     },
     "/api/projects/{id}": {
       "get": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "GET /api/projects/{id} - Get a project by ID",
         "operationId": "get_project",
         "parameters": [
@@ -851,9 +823,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "DELETE /api/projects/{id} - Delete a project",
         "operationId": "delete_project",
         "parameters": [
@@ -900,9 +870,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "Projects"
-        ],
+        "tags": ["Projects"],
         "summary": "PATCH /api/projects/{id} - Update a project",
         "operationId": "update_project",
         "parameters": [
@@ -978,9 +946,7 @@
     },
     "/api/projects/{project_id}/alert-history": {
       "get": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "GET /api/projects/{project_id}/alert-history",
         "operationId": "list_history",
         "parameters": [
@@ -1049,9 +1015,7 @@
     },
     "/api/projects/{project_id}/alert-rules": {
       "get": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "GET /api/projects/{project_id}/alert-rules",
         "operationId": "list_rules",
         "parameters": [
@@ -1108,9 +1072,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "POST /api/projects/{project_id}/alert-rules",
         "operationId": "create_rule",
         "parameters": [
@@ -1176,9 +1138,7 @@
     },
     "/api/projects/{project_id}/alert-rules/{rule_id}": {
       "get": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "GET /api/projects/{project_id}/alert-rules/{rule_id}",
         "operationId": "get_rule",
         "parameters": [
@@ -1242,9 +1202,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "DELETE /api/projects/{project_id}/alert-rules/{rule_id}",
         "operationId": "delete_rule",
         "parameters": [
@@ -1301,9 +1259,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "Alert Rules"
-        ],
+        "tags": ["Alert Rules"],
         "summary": "PATCH /api/projects/{project_id}/alert-rules/{rule_id}",
         "operationId": "update_rule",
         "parameters": [
@@ -1379,9 +1335,7 @@
     },
     "/api/projects/{project_id}/issues": {
       "get": {
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "summary": "GET /api/projects/{project_id}/issues\nLists issues for a project with offset-based pagination",
         "operationId": "list_issues",
         "parameters": [
@@ -1503,16 +1457,10 @@
                             "format": "date-time"
                           },
                           "level": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
+                            "type": ["string", "null"]
                           },
                           "platform": {
-                            "type": [
-                              "string",
-                              "null"
-                            ]
+                            "type": ["string", "null"]
                           },
                           "project_id": {
                             "type": "integer",
@@ -1581,9 +1529,7 @@
     },
     "/api/projects/{project_id}/issues/{issue_id}": {
       "get": {
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "summary": "GET /api/projects/{project_id}/issues/{issue_id}\nGets a single issue by ID",
         "operationId": "get_issue",
         "parameters": [
@@ -1647,9 +1593,7 @@
         ]
       },
       "delete": {
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "summary": "DELETE /api/projects/{project_id}/issues/{issue_id}\nHard-deletes an issue and all associated events",
         "operationId": "delete_issue",
         "parameters": [
@@ -1706,9 +1650,7 @@
         ]
       },
       "patch": {
-        "tags": [
-          "Issues"
-        ],
+        "tags": ["Issues"],
         "summary": "PATCH /api/projects/{project_id}/issues/{issue_id}\nUpdates issue state (resolve, mute, etc.)",
         "operationId": "update_issue",
         "parameters": [
@@ -1784,9 +1726,7 @@
     },
     "/api/projects/{project_id}/issues/{issue_id}/events": {
       "get": {
-        "tags": [
-          "Events"
-        ],
+        "tags": ["Events"],
         "summary": "GET /api/projects/{project_id}/issues/{issue_id}/events\nLists events for an issue with cursor-based pagination",
         "operationId": "list_events",
         "parameters": [
@@ -1825,10 +1765,7 @@
             "description": "Pagination cursor",
             "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": ["string", "null"]
             }
           }
         ],
@@ -1840,10 +1777,7 @@
                 "schema": {
                   "type": "object",
                   "description": "Paginated response wrapper (cursor-based)",
-                  "required": [
-                    "items",
-                    "has_more"
-                  ],
+                  "required": ["items", "has_more"],
                   "properties": {
                     "has_more": {
                       "type": "boolean"
@@ -1900,10 +1834,7 @@
                       }
                     },
                     "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": ["string", "null"]
                     }
                   }
                 }
@@ -1940,9 +1871,7 @@
     },
     "/api/projects/{project_id}/issues/{issue_id}/events/{event_id}": {
       "get": {
-        "tags": [
-          "Events"
-        ],
+        "tags": ["Events"],
         "summary": "GET /api/projects/{project_id}/issues/{issue_id}/events/{event_id}\nGets a single event with full data",
         "operationId": "get_event",
         "parameters": [
@@ -2018,9 +1947,7 @@
     },
     "/api/tokens": {
       "get": {
-        "tags": [
-          "Tokens"
-        ],
+        "tags": ["Tokens"],
         "summary": "GET /api/tokens - List all tokens (masked)",
         "operationId": "list_tokens",
         "responses": {
@@ -2055,9 +1982,7 @@
         ]
       },
       "post": {
-        "tags": [
-          "Tokens"
-        ],
+        "tags": ["Tokens"],
         "summary": "POST /api/tokens - Create a new token",
         "operationId": "create_token",
         "requestBody": {
@@ -2101,9 +2026,7 @@
     },
     "/api/tokens/{id}": {
       "delete": {
-        "tags": [
-          "Tokens"
-        ],
+        "tags": ["Tokens"],
         "summary": "DELETE /api/tokens/{id} - Revoke a token",
         "operationId": "delete_token",
         "parameters": [
@@ -2152,9 +2075,7 @@
     },
     "/auth/login": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "POST /auth/login\nAuthenticate user and create session",
         "operationId": "login",
         "requestBody": {
@@ -2189,16 +2110,12 @@
             }
           }
         },
-        "security": [
-          {}
-        ]
+        "security": [{}]
       }
     },
     "/auth/logout": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "POST /auth/logout\nClear session",
         "operationId": "logout",
         "responses": {
@@ -2215,9 +2132,7 @@
     },
     "/auth/me": {
       "get": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "GET /auth/me\nGet current authenticated user",
         "operationId": "get_current_user",
         "responses": {
@@ -2251,9 +2166,7 @@
     },
     "/auth/register": {
       "post": {
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "summary": "POST /auth/register\nCreate new user account",
         "operationId": "register",
         "requestBody": {
@@ -2298,16 +2211,12 @@
             }
           }
         },
-        "security": [
-          {}
-        ]
+        "security": [{}]
       }
     },
     "/health": {
       "get": {
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "summary": "Liveness check - is the process running?\nReturns 200 if the server is alive.",
         "operationId": "liveness",
         "responses": {
@@ -2326,9 +2235,7 @@
     },
     "/health/ready": {
       "get": {
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "summary": "Readiness check - is the service ready to handle requests?\nReturns 200 if all dependencies are available, 503 otherwise.",
         "operationId": "readiness",
         "responses": {
@@ -2373,10 +2280,7 @@
         ],
         "properties": {
           "alert_rule_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32"
           },
           "alert_type": {
@@ -2387,10 +2291,7 @@
             "format": "int32"
           },
           "channel_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32"
           },
           "channel_name": {
@@ -2404,16 +2305,10 @@
             "format": "date-time"
           },
           "error_message": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "http_status_code": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32"
           },
           "id": {
@@ -2424,31 +2319,19 @@
             "type": "string"
           },
           "issue_id": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "uuid"
           },
           "next_retry_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "project_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32"
           },
           "sent_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "status": {
@@ -2501,10 +2384,7 @@
             "type": "boolean"
           },
           "last_triggered_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "name": {
@@ -2523,29 +2403,16 @@
       "AlertStatus": {
         "type": "string",
         "description": "Status of an alert delivery attempt",
-        "enum": [
-          "pending",
-          "sent",
-          "failed",
-          "skipped"
-        ]
+        "enum": ["pending", "sent", "failed", "skipped"]
       },
       "AlertType": {
         "type": "string",
         "description": "Type of alert trigger",
-        "enum": [
-          "new_issue",
-          "regression",
-          "unmute"
-        ]
+        "enum": ["new_issue", "regression", "unmute"]
       },
       "AssembleBody": {
         "type": "object",
-        "required": [
-          "checksum",
-          "chunks",
-          "projects"
-        ],
+        "required": ["checksum", "chunks", "projects"],
         "properties": {
           "checksum": {
             "type": "string"
@@ -2566,16 +2433,10 @@
       },
       "AssembleResponse": {
         "type": "object",
-        "required": [
-          "state",
-          "missingChunks"
-        ],
+        "required": ["state", "missingChunks"],
         "properties": {
           "detail": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "missingChunks": {
             "type": "array",
@@ -2590,9 +2451,7 @@
       },
       "AuthResponse": {
         "type": "object",
-        "required": [
-          "user"
-        ],
+        "required": ["user"],
         "properties": {
           "user": {
             "$ref": "#/components/schemas/UserResponse"
@@ -2602,21 +2461,14 @@
       "AuthTokenCreatedResponse": {
         "type": "object",
         "description": "Response that includes the full token (only on creation)",
-        "required": [
-          "id",
-          "token",
-          "created_at"
-        ],
+        "required": ["id", "token", "created_at"],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
             "type": "integer",
@@ -2630,31 +2482,21 @@
       "AuthTokenResponse": {
         "type": "object",
         "description": "Response for listing (token is masked)",
-        "required": [
-          "id",
-          "token_prefix",
-          "created_at"
-        ],
+        "required": ["id", "token_prefix", "created_at"],
         "properties": {
           "created_at": {
             "type": "string",
             "format": "date-time"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
             "type": "integer",
             "format": "int32"
           },
           "last_used_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "token_prefix": {
@@ -2665,23 +2507,16 @@
       "ChannelType": {
         "type": "string",
         "description": "Type of notification channel",
-        "enum": [
-          "webhook",
-          "email",
-          "slack"
-        ]
+        "enum": ["webhook", "email", "slack"]
       },
       "ChunkUploadBody": {
         "type": "object",
-        "description": "Multipart chunk upload.\nEach part's **field name** is the SHA-1 hex digest of that part's binary content\n(e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`). Field names are arbitrary — do not send\na literal field named `file`. Up to 64 parts per request; each part body is raw binary."
+        "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
       },
       "CreateAlertRule": {
         "type": "object",
         "description": "DTO for creating an alert rule",
-        "required": [
-          "name",
-          "alert_type"
-        ],
+        "required": ["name", "alert_type"],
         "properties": {
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
@@ -2710,21 +2545,14 @@
         "description": "DTO for creating a new token",
         "properties": {
           "description": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "CreateNotificationChannel": {
         "type": "object",
         "description": "DTO for creating a notification channel",
-        "required": [
-          "name",
-          "channel_type",
-          "config"
-        ],
+        "required": ["name", "channel_type", "config"],
         "properties": {
           "channel_type": {
             "$ref": "#/components/schemas/ChannelType"
@@ -2743,27 +2571,19 @@
       "CreateProject": {
         "type": "object",
         "description": "DTO for creating a new project",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string"
           },
           "slug": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "CreateUserRequest": {
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "properties": {
           "email": {
             "type": "string"
@@ -2775,10 +2595,7 @@
       },
       "ErrorDetail": {
         "type": "object",
-        "required": [
-          "type",
-          "message"
-        ],
+        "required": ["type", "message"],
         "properties": {
           "message": {
             "type": "string"
@@ -2791,9 +2608,7 @@
       "ErrorResponse": {
         "type": "object",
         "description": "JSON error response structure",
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "properties": {
           "error": {
             "$ref": "#/components/schemas/ErrorDetail"
@@ -2956,16 +2771,10 @@
             "format": "date-time"
           },
           "level": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "platform": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "project_id": {
             "type": "integer",
@@ -2984,9 +2793,7 @@
       },
       "LivenessResponse": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "properties": {
           "status": {
             "type": "string"
@@ -2995,10 +2802,7 @@
       },
       "LoginRequest": {
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["email", "password"],
         "properties": {
           "email": {
             "type": "string"
@@ -3044,23 +2848,14 @@
             "type": "boolean"
           },
           "last_failure_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "last_failure_message": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "last_success_at": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time"
           },
           "name": {
@@ -3124,9 +2919,7 @@
       },
       "ReadinessChecks": {
         "type": "object",
-        "required": [
-          "database"
-        ],
+        "required": ["database"],
         "properties": {
           "database": {
             "type": "string"
@@ -3135,10 +2928,7 @@
       },
       "ReadinessResponse": {
         "type": "object",
-        "required": [
-          "status",
-          "checks"
-        ],
+        "required": ["status", "checks"],
         "properties": {
           "checks": {
             "$ref": "#/components/schemas/ReadinessChecks"
@@ -3153,39 +2943,24 @@
         "description": "DTO for updating an alert rule",
         "properties": {
           "channel_ids": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "integer",
               "format": "int32"
             }
           },
           "conditions": {
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": ["object", "null"]
           },
           "cooldown_minutes": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "format": "int32"
           },
           "is_enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
@@ -3194,16 +2969,10 @@
         "description": "Request to update issue state",
         "properties": {
           "is_muted": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "is_resolved": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           }
         }
       },
@@ -3212,22 +2981,13 @@
         "description": "DTO for updating a notification channel",
         "properties": {
           "config": {
-            "type": [
-              "object",
-              "null"
-            ]
+            "type": ["object", "null"]
           },
           "is_enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
@@ -3236,20 +2996,13 @@
         "description": "DTO for updating a project",
         "properties": {
           "name": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         }
       },
       "UserResponse": {
         "type": "object",
-        "required": [
-          "id",
-          "email",
-          "is_admin"
-        ],
+        "required": ["id", "email", "is_admin"],
         "properties": {
           "email": {
             "type": "string"
