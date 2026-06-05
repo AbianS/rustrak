@@ -2554,6 +2554,7 @@
           "is_enabled",
           "conditions",
           "cooldown_minutes",
+          "channels",
           "integration_ids",
           "created_at",
           "updated_at"
@@ -2561,6 +2562,13 @@
         "properties": {
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
+          },
+          "channels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertRuleChannelInput"
+            },
+            "description": "All linked integrations including routing_override per channel."
           },
           "conditions": {
             "type": "object"
@@ -2582,7 +2590,8 @@
             "items": {
               "type": "integer",
               "format": "int32"
-            }
+            },
+            "description": "Flat list of integration IDs (backward compat, derived from channels)."
           },
           "is_enabled": {
             "type": "boolean"
