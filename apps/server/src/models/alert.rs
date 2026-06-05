@@ -334,14 +334,19 @@ pub struct AlertRuleResponse {
     pub conditions: serde_json::Value,
     pub cooldown_minutes: i32,
     pub last_triggered_at: Option<DateTime<Utc>>,
+    /// All linked integrations including routing_override per channel.
+    pub channels: Vec<AlertRuleChannelInput>,
+    /// Flat list of integration IDs (backward compat, derived from channels).
     pub integration_ids: Vec<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl AlertRule {
-    /// Converts to response with integration IDs
-    pub fn to_response(&self, integration_ids: Vec<i32>) -> AlertRuleResponse {
+    /// Converts to response. `channels` includes routing_override per integration;
+    /// `integration_ids` is derived from it for backward compat.
+    pub fn to_response(&self, channels: Vec<AlertRuleChannelInput>) -> AlertRuleResponse {
+        let integration_ids = channels.iter().map(|c| c.integration_id).collect();
         AlertRuleResponse {
             id: self.id,
             project_id: self.project_id,
@@ -351,6 +356,7 @@ impl AlertRule {
             conditions: self.conditions.clone(),
             cooldown_minutes: self.cooldown_minutes,
             last_triggered_at: self.last_triggered_at,
+            channels,
             integration_ids,
             created_at: self.created_at,
             updated_at: self.updated_at,

@@ -91,6 +91,7 @@ export const alertRuleSchema = z.object({
   last_triggered_at: dateTimeSchema.nullable(),
   created_at: dateTimeSchema,
   updated_at: dateTimeSchema,
+  channels: z.array(alertRuleChannelInputSchema).default([]),
   integration_ids: z.array(z.number().int()),
 });
 

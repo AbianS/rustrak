@@ -194,18 +194,14 @@ impl AlertService {
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))
     }
 
-    /// Gets alert rule channels (only enabled integrations) for response display.
+    /// Gets all integration_ids linked to a rule (regardless of is_enabled).
     ///
-    /// Returns Vec<i32> of integration_ids for backward compat response shape.
+    /// Returns all links so clients can round-trip without silently losing
+    /// disabled integrations. Dispatch uses get_rule_channel_records which
+    /// still filters by is_enabled.
     pub async fn get_rule_channels(pool: &DbPool, rule_id: i32) -> AppResult<Vec<i32>> {
-        // Only return enabled integrations (SCL-1 is_enabled filter)
         let rows: Vec<(i32,)> = sqlx::query_as(
-            r#"
-            SELECT arc.integration_id
-            FROM alert_rule_channels arc
-            INNER JOIN alert_integrations i ON arc.integration_id = i.id
-            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
-            "#,
+            "SELECT integration_id FROM alert_rule_channels WHERE alert_rule_id = $1",
         )
         .bind(rule_id)
         .fetch_all(pool)
@@ -228,6 +224,24 @@ impl AlertService {
             INNER JOIN alert_integrations i ON arc.integration_id = i.id
             WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
             "#,
+        )
+        .bind(rule_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
+    }
+
+    /// Gets all AlertRuleChannel records for a rule regardless of is_enabled.
+    ///
+    /// Used for API responses so clients can round-trip without losing links to
+    /// disabled integrations. Dispatch uses get_rule_channel_records (SCL-1).
+    pub async fn get_all_rule_channel_records(
+        pool: &DbPool,
+        rule_id: i32,
+    ) -> AppResult<Vec<AlertRuleChannel>> {
+        let channels: Vec<AlertRuleChannel> = sqlx::query_as(
+            "SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels WHERE alert_rule_id = $1",
         )
         .bind(rule_id)
         .fetch_all(pool)
