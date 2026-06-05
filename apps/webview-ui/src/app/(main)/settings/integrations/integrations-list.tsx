@@ -185,17 +185,12 @@ export function IntegrationsList({
   const getIntegrationByType = (type: ProviderType) =>
     initialIntegrations.find((c) => c.provider_type === type);
 
-  const handleTest = (integration: AlertIntegration, channel?: string) => {
+  const handleTest = (
+    integration: AlertIntegration,
+    routingOverride?: Record<string, unknown>,
+  ) => {
     startTransition(async () => {
       try {
-        const routingOverride =
-          integration.provider_type === 'slack' &&
-          (integration.credentials as Record<string, unknown>).method ===
-            'bot_token' &&
-          channel
-            ? { channel }
-            : undefined;
-
         const result = await testIntegration(integration.id, routingOverride);
         if (result.success) {
           toast.success('Test notification sent', {
@@ -376,7 +371,10 @@ interface ConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingIntegration: AlertIntegration | null;
-  onTest: (integration: AlertIntegration, channel?: string) => void;
+  onTest: (
+    integration: AlertIntegration,
+    routingOverride?: Record<string, unknown>,
+  ) => void;
   onDelete: (integration: AlertIntegration) => void;
   isPending: boolean;
 }
@@ -889,7 +887,9 @@ function SlackConfigDialog({
                         size="sm"
                         onClick={() => {
                           if (!testChannel.trim()) return;
-                          onTest(existingIntegration, testChannel.trim());
+                          onTest(existingIntegration, {
+                            channel: testChannel.trim(),
+                          });
                         }}
                         disabled={isLoading || !testChannel.trim()}
                       >
@@ -959,6 +959,7 @@ function EmailConfigDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
+  const [testRecipients, setTestRecipients] = useState('');
 
   const form = useForm<EmailFormData>({
     resolver: zodResolver(emailFormSchema),
@@ -1001,6 +1002,7 @@ function EmailConfigDialog({
         is_enabled: true,
       });
     }
+    setTestRecipients('');
   }, [open, existingIntegration, form]);
 
   const onSubmit = (data: EmailFormData) => {
@@ -1218,16 +1220,32 @@ function EmailConfigDialog({
             <DialogFooter className="gap-2 sm:gap-0">
               {existingIntegration && (
                 <div className="flex gap-2 mr-auto">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onTest(existingIntegration)}
-                    disabled={isLoading}
-                  >
-                    <Play className="size-4 mr-1" />
-                    Test
-                  </Button>
+                  <div className="flex gap-1 items-center">
+                    <Input
+                      placeholder="test@example.com"
+                      value={testRecipients}
+                      onChange={(e) => setTestRecipients(e.target.value)}
+                      className="h-8 w-36 text-xs"
+                      disabled={isLoading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (!testRecipients.trim()) return;
+                        const recipients = testRecipients
+                          .split(',')
+                          .map((a) => a.trim())
+                          .filter(Boolean);
+                        onTest(existingIntegration, { recipients });
+                      }}
+                      disabled={isLoading || !testRecipients.trim()}
+                    >
+                      <Play className="size-4 mr-1" />
+                      Test
+                    </Button>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"

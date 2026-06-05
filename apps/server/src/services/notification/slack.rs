@@ -222,6 +222,18 @@ impl SlackNotifier {
         routing: &SlackRoutingOverride,
         payload: &AlertPayload,
     ) -> NotificationResult {
+        let channel = routing
+            .channel
+            .as_deref()
+            .or(cfg.channel.as_deref())
+            .unwrap_or("");
+        if channel.trim().is_empty() {
+            return NotificationResult::failure(
+                "Slack bot_token requires a channel in routing_override or credentials".to_string(),
+                None,
+            );
+        }
+
         let body = Self::format_bot_message(cfg, routing, payload);
 
         match self

@@ -101,8 +101,6 @@ export const createAlertRuleSchema = z.object({
   name: z.string().min(1),
   alert_type: alertTypeSchema,
   channels: z.array(alertRuleChannelInputSchema).default([]),
-  /** @deprecated Use channels with routing_override */
-  channel_ids: z.array(z.number().int()).optional(),
   is_enabled: z.boolean().optional(),
   conditions: z.record(z.string(), z.unknown()).optional(),
   cooldown_minutes: z.number().int().min(0).optional(),
@@ -117,8 +115,6 @@ export const updateAlertRuleSchema = z.object({
   conditions: z.record(z.string(), z.unknown()).optional(),
   cooldown_minutes: z.number().int().min(0).optional(),
   channels: z.array(alertRuleChannelInputSchema).optional(),
-  /** @deprecated Use channels with routing_override */
-  channel_ids: z.array(z.number().int()).optional(),
 });
 
 /**

@@ -2787,20 +2787,11 @@
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
           },
-          "channel_ids": {
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "description": "Legacy field: kept for backward compat, ignored if channels is provided"
-          },
           "channels": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AlertRuleChannelInput"
-            },
-            "description": "New field: channels with per-rule routing overrides"
+            }
           },
           "conditions": {
             "type": "object"
@@ -3214,17 +3205,6 @@
         "type": "object",
         "description": "DTO for updating an alert rule",
         "properties": {
-          "channel_ids": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "type": "integer",
-              "format": "int32"
-            },
-            "description": "Legacy field: kept for backward compat"
-          },
           "channels": {
             "type": [
               "array",
@@ -3232,8 +3212,7 @@
             ],
             "items": {
               "$ref": "#/components/schemas/AlertRuleChannelInput"
-            },
-            "description": "New field: channels with per-rule routing overrides"
+            }
           },
           "conditions": {
             "type": [
