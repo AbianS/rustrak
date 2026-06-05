@@ -137,6 +137,7 @@ pub fn validate_routing_override(
 
 /// Request body for the test-integration endpoint.
 #[derive(Deserialize, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct TestIntegrationBody {
     #[serde(default)]
     pub routing_override: Option<serde_json::Value>,

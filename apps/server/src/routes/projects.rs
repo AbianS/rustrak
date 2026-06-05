@@ -200,6 +200,8 @@ mod tests {
                 session_secret_key: None,
             },
             ingest_dir: None,
+            sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
+            max_chunk_size_bytes: 10 * 1024 * 1024,
         }
     }
 

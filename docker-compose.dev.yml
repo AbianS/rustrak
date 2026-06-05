@@ -29,6 +29,8 @@ services:
       - DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak
       - SESSION_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       - CREATE_SUPERUSER=admin@admin.com:password123
+    volumes:
+      - sourcemaps_data:/data/sourcemaps
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,3 +48,4 @@ services:
 
 volumes:
   postgres_data:
+  sourcemaps_data:

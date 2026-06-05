@@ -791,4 +791,82 @@ export const handlers = [
       return HttpResponse.json(history);
     },
   ),
+
+  // Source Maps — chunk upload capabilities
+  http.get(
+    `${BASE_URL}/api/0/organizations/:orgSlug/chunk-upload/`,
+    ({ params }) => {
+      const { orgSlug } = params;
+      return HttpResponse.json({
+        url: `http://localhost:8080/api/0/organizations/${orgSlug}/chunk-upload/`,
+        chunkSize: 2097152,
+        chunksPerRequest: 64,
+        maxRequestSize: 33554432,
+        hashAlgorithm: 'sha1',
+        accept: ['artifact_bundles', 'artifact_bundles_v2'],
+      });
+    },
+  ),
+
+  // Source Maps — chunk upload
+  http.post(
+    `${BASE_URL}/api/0/organizations/:orgSlug/chunk-upload/`,
+    () => new HttpResponse(null, { status: 200 }),
+  ),
+
+  // Source Maps — artifact bundle assemble
+  http.post(
+    `${BASE_URL}/api/0/organizations/:orgSlug/artifactbundle/assemble/`,
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        checksum: string;
+        chunks: string[];
+        projects: string[];
+      };
+
+      if (body.projects.length === 0) {
+        return HttpResponse.json(
+          { detail: 'projects array must not be empty' },
+          { status: 400 },
+        );
+      }
+
+      // Simulate missing chunks scenario when checksum starts with 'missing'
+      if (body.checksum.startsWith('missing')) {
+        return HttpResponse.json(
+          {
+            state: 'not_found',
+            missingChunks: body.chunks.slice(0, 1),
+          },
+          { status: 202 },
+        );
+      }
+
+      return HttpResponse.json({ state: 'ok', missingChunks: [] });
+    },
+  ),
+
+  // Source Maps — list source maps for project
+  http.get(
+    `${BASE_URL}/api/0/projects/:orgSlug/:projectSlug/files/source-maps/`,
+    ({ params }) => {
+      if (params.projectSlug === 'not-found') {
+        return HttpResponse.json(
+          { error: 'project not found' },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json({
+        data: [
+          {
+            debugId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+            fileType: 'source_map',
+            size: 15234,
+            timesUsed: 3,
+            dateUploaded: '2026-05-22T10:00:00',
+          },
+        ],
+      });
+    },
+  ),
 ];

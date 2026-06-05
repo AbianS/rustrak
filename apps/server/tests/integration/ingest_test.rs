@@ -6,8 +6,11 @@ use crate::common::TestDb;
 use actix_web::{test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
-use rustrak::services::ProjectService;
+use rustrak::services::{
+    DbSourceMapProvider, LocalSourceMapStore, ProjectService, SourceMapProvider, SourceMapStore,
+};
 use serde_json::{json, Value};
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -36,6 +39,8 @@ fn create_test_config() -> Config {
         },
         ingest_dir: Some("/tmp/rustrak_test_ingest".to_string()),
         public_url: None,
+        sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
+        max_chunk_size_bytes: 10 * 1024 * 1024,
     }
 }
 
@@ -79,7 +84,14 @@ async fn test_ingest_basic_event() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -127,7 +139,14 @@ async fn test_ingest_with_query_param_auth() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -168,7 +187,14 @@ async fn test_ingest_missing_auth() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -196,7 +222,14 @@ async fn test_ingest_invalid_sentry_key() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -227,7 +260,14 @@ async fn test_ingest_wrong_project_id() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -265,7 +305,14 @@ async fn test_ingest_missing_event_id() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -297,7 +344,14 @@ async fn test_ingest_invalid_event_id_format() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -329,7 +383,14 @@ async fn test_ingest_invalid_json_payload() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -369,7 +430,14 @@ async fn test_ingest_envelope_without_event_item() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -409,7 +477,14 @@ async fn test_ingest_empty_body() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -453,7 +528,14 @@ async fn test_ingest_cors_preflight() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .wrap(cors)
             .configure(routes::ingest::configure),
     )
@@ -497,7 +579,14 @@ async fn test_ingest_response_has_cors_headers() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .wrap(cors)
             .configure(routes::ingest::configure),
     )
@@ -541,7 +630,14 @@ async fn test_ingest_large_payload_above_256kb_is_accepted() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;
@@ -602,7 +698,14 @@ async fn test_store_endpoint_deprecated() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
             .configure(routes::ingest::configure),
     )
     .await;

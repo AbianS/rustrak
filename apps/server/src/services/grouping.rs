@@ -128,8 +128,14 @@ pub fn get_title(calculated_type: &str, calculated_value: &str) -> String {
     if calculated_value.is_empty() {
         calculated_type.to_string()
     } else {
-        let first_line = calculated_value.lines().next().unwrap_or("");
-        format!("{}: {}", calculated_type, first_line)
+        match calculated_value
+            .lines()
+            .map(|l| l.trim())
+            .find(|l| !l.is_empty())
+        {
+            Some(first_line) => format!("{}: {}", calculated_type, first_line),
+            None => calculated_type.to_string(),
+        }
     }
 }
 

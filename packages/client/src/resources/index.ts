@@ -5,4 +5,5 @@ export { BaseResource } from './base.js';
 export { EventsResource } from './events.js';
 export { IssuesResource } from './issues.js';
 export { ProjectsResource } from './projects.js';
+export { SourceMapsResource } from './sourcemaps.js';
 export { TokensResource } from './tokens.js';

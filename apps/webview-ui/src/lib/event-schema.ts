@@ -68,9 +68,11 @@ const userSchema = z
   .optional();
 
 /**
- * Schema for tags.
+ * Schema for tags. Sentry SDKs can send tag values as string, boolean, or number.
  */
-const tagsSchema = z.record(z.string(), z.string()).optional();
+const tagsSchema = z
+  .record(z.string(), z.union([z.string(), z.boolean(), z.number()]))
+  .optional();
 
 /**
  * Schema for contexts.
@@ -92,14 +94,21 @@ export function parseEventData(eventData: Record<string, unknown>) {
   const exception = exceptionSchema.safeParse(eventData.exception);
   const breadcrumbs = breadcrumbsSchema.safeParse(eventData.breadcrumbs);
   const contexts = contextsSchema.safeParse(eventData.contexts);
-  const tags = tagsSchema.safeParse(eventData.tags);
+  const tagsResult = tagsSchema.safeParse(eventData.tags);
   const user = userSchema.safeParse(eventData.user);
+
+  const tags =
+    tagsResult.success && tagsResult.data
+      ? (Object.fromEntries(
+          Object.entries(tagsResult.data).map(([k, v]) => [k, String(v)]),
+        ) as Record<string, string>)
+      : undefined;
 
   return {
     exception: exception.success ? exception.data : undefined,
     breadcrumbs: breadcrumbs.success ? breadcrumbs.data : undefined,
     contexts: contexts.success ? contexts.data : undefined,
-    tags: tags.success ? tags.data : undefined,
+    tags,
     user: user.success ? user.data : undefined,
   };
 }

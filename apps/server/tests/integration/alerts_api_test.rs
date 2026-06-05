@@ -41,6 +41,8 @@ fn create_test_config() -> Config {
         },
         ingest_dir: None,
         public_url: None,
+        sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
+        max_chunk_size_bytes: 10 * 1024 * 1024,
     }
 }
 
