@@ -86,9 +86,15 @@ pub fn validate_routing_override(
                     serde_json::from_value(routing.clone()).map_err(|e| {
                         AppError::Validation(format!("Invalid Slack routing_override: {e}"))
                     })?;
-                if r.channel.as_deref().unwrap_or("").trim().is_empty() {
+                // Mirror send_bot_token's fallback: routing.channel ?? credentials.channel
+                let cred_channel = credentials
+                    .get("channel")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let effective_channel = r.channel.as_deref().unwrap_or(cred_channel);
+                if effective_channel.trim().is_empty() {
                     return Err(AppError::Validation(
-                        "Slack bot_token routing_override must include a non-empty 'channel'"
+                        "Slack bot_token requires a non-empty 'channel' in routing_override or credentials"
                             .to_string(),
                     ));
                 }
@@ -358,11 +364,17 @@ pub async fn list_rules(
 
     let rules = AlertService::list_rules(pool.get_ref(), project_id).await?;
 
-    // Enrich with integration IDs
     let mut responses = Vec::new();
     for rule in rules {
-        let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
-        responses.push(rule.to_response(integration_ids));
+        let records = AlertService::get_all_rule_channel_records(pool.get_ref(), rule.id).await?;
+        let channels = records
+            .into_iter()
+            .map(|r| crate::models::AlertRuleChannelInput {
+                integration_id: r.integration_id,
+                routing_override: r.routing_override,
+            })
+            .collect();
+        responses.push(rule.to_response(channels));
     }
 
     Ok(HttpResponse::Ok().json(responses))
@@ -406,9 +418,16 @@ pub async fn create_rule(
     }
 
     let rule = AlertService::create_rule(pool.get_ref(), project_id, body).await?;
-    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let records = AlertService::get_all_rule_channel_records(pool.get_ref(), rule.id).await?;
+    let channels = records
+        .into_iter()
+        .map(|r| crate::models::AlertRuleChannelInput {
+            integration_id: r.integration_id,
+            routing_override: r.routing_override,
+        })
+        .collect();
 
-    Ok(HttpResponse::Created().json(rule.to_response(integration_ids)))
+    Ok(HttpResponse::Created().json(rule.to_response(channels)))
 }
 
 #[derive(Deserialize)]
@@ -452,9 +471,16 @@ pub async fn get_rule(
         ));
     }
 
-    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let records = AlertService::get_all_rule_channel_records(pool.get_ref(), rule.id).await?;
+    let channels = records
+        .into_iter()
+        .map(|r| crate::models::AlertRuleChannelInput {
+            integration_id: r.integration_id,
+            routing_override: r.routing_override,
+        })
+        .collect();
 
-    Ok(HttpResponse::Ok().json(rule.to_response(integration_ids)))
+    Ok(HttpResponse::Ok().json(rule.to_response(channels)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -508,9 +534,16 @@ pub async fn update_rule(
     }
 
     let rule = AlertService::update_rule(pool.get_ref(), params.rule_id, body).await?;
-    let integration_ids = AlertService::get_rule_channels(pool.get_ref(), rule.id).await?;
+    let records = AlertService::get_all_rule_channel_records(pool.get_ref(), rule.id).await?;
+    let channels = records
+        .into_iter()
+        .map(|r| crate::models::AlertRuleChannelInput {
+            integration_id: r.integration_id,
+            routing_override: r.routing_override,
+        })
+        .collect();
 
-    Ok(HttpResponse::Ok().json(rule.to_response(integration_ids)))
+    Ok(HttpResponse::Ok().json(rule.to_response(channels)))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(

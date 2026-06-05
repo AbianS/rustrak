@@ -468,10 +468,20 @@ function AlertRuleForm({
         is_enabled: existingRule.is_enabled,
         cooldown_minutes: existingRule.cooldown_minutes,
       });
-      // Initialize routing map from integration_ids (no routing_override on response yet)
       const initialMap: RoutingMap = {};
-      for (const id of existingRule.integration_ids) {
-        initialMap[id] = {};
+      for (const ch of existingRule.channels) {
+        const override = ch.routing_override ?? {};
+        const integration = integrations.find((i) => i.id === ch.integration_id);
+        const normalized: Record<string, string> = {};
+        if (integration?.provider_type === 'email') {
+          const r = override.recipients;
+          if (Array.isArray(r)) normalized.recipients = r.join(', ');
+        } else {
+          for (const [k, v] of Object.entries(override)) {
+            if (typeof v === 'string') normalized[k] = v;
+          }
+        }
+        initialMap[ch.integration_id] = normalized;
       }
       setRoutingMap(initialMap);
     } else {
