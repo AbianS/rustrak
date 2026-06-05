@@ -458,7 +458,7 @@ export function IntegrationsList({
 }
 
 // ============================================================================
-// ManageDialog — shown when a provider has 2+ configured instances
+// ManageDialog — shown when a provider has 1+ configured instances
 // ============================================================================
 
 interface ManageDialogProps {
