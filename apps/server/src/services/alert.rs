@@ -1,7 +1,7 @@
-//! Alert service for managing notification channels, rules, and dispatching alerts.
+//! Alert service for managing integrations, rules, and dispatching alerts.
 //!
 //! This service handles:
-//! - CRUD operations for notification channels (global)
+//! - CRUD operations for alert integrations (global credentials)
 //! - CRUD operations for alert rules (per-project)
 //! - Alert triggering and dispatching
 
@@ -11,9 +11,9 @@ use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    AlertHistory, AlertPayload, AlertRule, AlertType, CreateAlertRule, CreateNotificationChannel,
-    Issue, IssueInfo, NotificationChannel, Project, ProjectInfo, UpdateAlertRule,
-    UpdateNotificationChannel,
+    AlertHistory, AlertIntegration, AlertPayload, AlertRule, AlertRuleChannel,
+    AlertRuleChannelInput, AlertType, CreateAlertIntegration, CreateAlertRule, Issue, IssueInfo,
+    Project, ProjectInfo, UpdateAlertIntegration, UpdateAlertRule,
 };
 use crate::services::notification::create_dispatcher;
 
@@ -21,133 +21,136 @@ pub struct AlertService;
 
 impl AlertService {
     // =========================================================================
-    // Notification Channel CRUD
+    // Alert Integration CRUD (replaces Notification Channel CRUD)
     // =========================================================================
 
-    /// Lists all notification channels
-    pub async fn list_channels(pool: &DbPool) -> AppResult<Vec<NotificationChannel>> {
-        let channels = sqlx::query_as::<_, NotificationChannel>(
+    /// Lists all alert integrations
+    pub async fn list_channels(pool: &DbPool) -> AppResult<Vec<AlertIntegration>> {
+        let integrations = sqlx::query_as::<_, AlertIntegration>(
             r#"
-            SELECT id, name, channel_type, config, is_enabled, failure_count,
+            SELECT id, name, provider_type, credentials, is_enabled, failure_count,
                    last_failure_at, last_failure_message, last_success_at,
                    created_at, updated_at
-            FROM notification_channels
+            FROM alert_integrations
             ORDER BY created_at DESC
             "#,
         )
         .fetch_all(pool)
         .await?;
 
-        Ok(channels)
+        Ok(integrations)
     }
 
-    /// Gets a notification channel by ID
-    pub async fn get_channel(pool: &DbPool, id: i32) -> AppResult<NotificationChannel> {
-        sqlx::query_as::<_, NotificationChannel>(
+    /// Gets an alert integration by ID
+    pub async fn get_channel(pool: &DbPool, id: i32) -> AppResult<AlertIntegration> {
+        sqlx::query_as::<_, AlertIntegration>(
             r#"
-            SELECT id, name, channel_type, config, is_enabled, failure_count,
+            SELECT id, name, provider_type, credentials, is_enabled, failure_count,
                    last_failure_at, last_failure_message, last_success_at,
                    created_at, updated_at
-            FROM notification_channels
+            FROM alert_integrations
             WHERE id = $1
             "#,
         )
         .bind(id)
         .fetch_optional(pool)
         .await?
-        .ok_or_else(|| AppError::NotFound(format!("Channel {} not found", id)))
+        .ok_or_else(|| AppError::NotFound(format!("Integration {} not found", id)))
     }
 
-    /// Creates a notification channel
+    /// Creates an alert integration
     pub async fn create_channel(
         pool: &DbPool,
-        input: CreateNotificationChannel,
-    ) -> AppResult<NotificationChannel> {
-        // Validate config based on channel type
-        let dispatcher = create_dispatcher(input.channel_type);
-        dispatcher.validate_config(&input.config)?;
+        input: CreateAlertIntegration,
+    ) -> AppResult<AlertIntegration> {
+        // Validate credentials based on provider type
+        let dispatcher = create_dispatcher(input.provider_type);
+        dispatcher.validate_config(&input.credentials)?;
 
-        let channel = sqlx::query_as::<_, NotificationChannel>(
+        let integration = sqlx::query_as::<_, AlertIntegration>(
             r#"
-            INSERT INTO notification_channels (name, channel_type, config, is_enabled)
+            INSERT INTO alert_integrations (name, provider_type, credentials, is_enabled)
             VALUES ($1, $2, $3, $4)
-            RETURNING id, name, channel_type, config, is_enabled, failure_count,
+            RETURNING id, name, provider_type, credentials, is_enabled, failure_count,
                       last_failure_at, last_failure_message, last_success_at,
                       created_at, updated_at
             "#,
         )
         .bind(&input.name)
-        .bind(input.channel_type.to_string())
-        .bind(&input.config)
+        .bind(input.provider_type.to_string())
+        .bind(&input.credentials)
         .bind(input.is_enabled)
         .fetch_one(pool)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
                 if db_err.is_unique_violation() {
-                    return AppError::Conflict(format!("Channel '{}' already exists", input.name));
+                    return AppError::Conflict(format!(
+                        "Integration '{}' already exists",
+                        input.name
+                    ));
                 }
             }
             AppError::Database(e)
         })?;
 
-        Ok(channel)
+        Ok(integration)
     }
 
-    /// Updates a notification channel
+    /// Updates an alert integration
     pub async fn update_channel(
         pool: &DbPool,
         id: i32,
-        input: UpdateNotificationChannel,
-    ) -> AppResult<NotificationChannel> {
+        input: UpdateAlertIntegration,
+    ) -> AppResult<AlertIntegration> {
         let existing = Self::get_channel(pool, id).await?;
 
-        // If config is being updated, validate it
-        if let Some(ref config) = input.config {
-            let dispatcher = create_dispatcher(existing.channel_type);
-            dispatcher.validate_config(config)?;
+        // If credentials are being updated, validate them
+        if let Some(ref credentials) = input.credentials {
+            let dispatcher = create_dispatcher(existing.provider_type);
+            dispatcher.validate_config(credentials)?;
         }
 
-        let channel = sqlx::query_as::<_, NotificationChannel>(
+        let integration = sqlx::query_as::<_, AlertIntegration>(
             r#"
-            UPDATE notification_channels
+            UPDATE alert_integrations
             SET name = COALESCE($2, name),
-                config = COALESCE($3, config),
+                credentials = COALESCE($3, credentials),
                 is_enabled = COALESCE($4, is_enabled),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            RETURNING id, name, channel_type, config, is_enabled, failure_count,
+            RETURNING id, name, provider_type, credentials, is_enabled, failure_count,
                       last_failure_at, last_failure_message, last_success_at,
                       created_at, updated_at
             "#,
         )
         .bind(id)
         .bind(&input.name)
-        .bind(&input.config)
+        .bind(&input.credentials)
         .bind(input.is_enabled)
         .fetch_one(pool)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
                 if db_err.is_unique_violation() {
-                    return AppError::Conflict("Channel name already exists".to_string());
+                    return AppError::Conflict("Integration name already exists".to_string());
                 }
             }
             AppError::Database(e)
         })?;
 
-        Ok(channel)
+        Ok(integration)
     }
 
-    /// Deletes a notification channel
+    /// Deletes an alert integration
     pub async fn delete_channel(pool: &DbPool, id: i32) -> AppResult<()> {
-        let result = sqlx::query("DELETE FROM notification_channels WHERE id = $1")
+        let result = sqlx::query("DELETE FROM alert_integrations WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
 
         if result.rows_affected() == 0 {
-            return Err(AppError::NotFound(format!("Channel {} not found", id)));
+            return Err(AppError::NotFound(format!("Integration {} not found", id)));
         }
 
         Ok(())
@@ -191,15 +194,60 @@ impl AlertService {
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))
     }
 
-    /// Gets channel IDs linked to a rule
+    /// Gets all integration_ids linked to a rule (regardless of is_enabled).
+    ///
+    /// Returns all links so clients can round-trip without silently losing
+    /// disabled integrations. Dispatch uses get_rule_channel_records which
+    /// still filters by is_enabled.
     pub async fn get_rule_channels(pool: &DbPool, rule_id: i32) -> AppResult<Vec<i32>> {
-        let channel_ids: Vec<(i32,)> =
-            sqlx::query_as("SELECT channel_id FROM alert_rule_channels WHERE alert_rule_id = $1")
-                .bind(rule_id)
-                .fetch_all(pool)
-                .await?;
+        let rows: Vec<(i32,)> = sqlx::query_as(
+            "SELECT integration_id FROM alert_rule_channels WHERE alert_rule_id = $1",
+        )
+        .bind(rule_id)
+        .fetch_all(pool)
+        .await?;
 
-        Ok(channel_ids.into_iter().map(|(id,)| id).collect())
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// Gets full AlertRuleChannel records for dispatch (includes routing_override).
+    ///
+    /// Filters disabled integrations (SCL-1).
+    pub async fn get_rule_channel_records(
+        pool: &DbPool,
+        rule_id: i32,
+    ) -> AppResult<Vec<AlertRuleChannel>> {
+        let channels: Vec<AlertRuleChannel> = sqlx::query_as(
+            r#"
+            SELECT arc.alert_rule_id, arc.integration_id, arc.routing_override
+            FROM alert_rule_channels arc
+            INNER JOIN alert_integrations i ON arc.integration_id = i.id
+            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
+            "#,
+        )
+        .bind(rule_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
+    }
+
+    /// Gets all AlertRuleChannel records for a rule regardless of is_enabled.
+    ///
+    /// Used for API responses so clients can round-trip without losing links to
+    /// disabled integrations. Dispatch uses get_rule_channel_records (SCL-1).
+    pub async fn get_all_rule_channel_records(
+        pool: &DbPool,
+        rule_id: i32,
+    ) -> AppResult<Vec<AlertRuleChannel>> {
+        let channels: Vec<AlertRuleChannel> = sqlx::query_as(
+            "SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels WHERE alert_rule_id = $1",
+        )
+        .bind(rule_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(channels)
     }
 
     /// Creates an alert rule
@@ -237,19 +285,36 @@ impl AlertService {
             AppError::Database(e)
         })?;
 
-        // Link channels
-        for channel_id in &input.channel_ids {
+        // Dedup by integration_id to prevent PK constraint violation (ECH-4).
+        let channels_to_link: Vec<AlertRuleChannelInput> = {
+            let mut seen = std::collections::HashSet::new();
+            input
+                .channels
+                .clone()
+                .into_iter()
+                .filter(|ch| seen.insert(ch.integration_id))
+                .collect()
+        };
+
+        for ch in &channels_to_link {
             sqlx::query(
-                "INSERT INTO alert_rule_channels (alert_rule_id, channel_id) VALUES ($1, $2)",
+                r#"
+                INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
+                VALUES ($1, $2, $3)
+                "#,
             )
             .bind(rule.id)
-            .bind(channel_id)
+            .bind(ch.integration_id)
+            .bind(&ch.routing_override)
             .execute(&mut *tx)
             .await
             .map_err(|e| {
                 if let sqlx::Error::Database(ref db_err) = e {
                     if db_err.is_foreign_key_violation() {
-                        return AppError::NotFound(format!("Channel {} not found", channel_id));
+                        return AppError::NotFound(format!(
+                            "Integration {} not found",
+                            ch.integration_id
+                        ));
                     }
                 }
                 AppError::Database(e)
@@ -291,27 +356,42 @@ impl AlertService {
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))?;
 
-        // Update channel links if provided
-        if let Some(ref channel_ids) = input.channel_ids {
+        let channels_update = input.channels;
+
+        if let Some(ref channels) = channels_update {
             // Remove existing links
             sqlx::query("DELETE FROM alert_rule_channels WHERE alert_rule_id = $1")
                 .bind(id)
                 .execute(&mut *tx)
                 .await?;
 
-            // Add new links
-            for channel_id in channel_ids {
+            // Dedup by integration_id before inserting (ECH-4)
+            let mut seen = std::collections::HashSet::new();
+            let channels: Vec<_> = channels
+                .iter()
+                .filter(|ch| seen.insert(ch.integration_id))
+                .collect();
+
+            // Add new links with routing_override
+            for ch in channels {
                 sqlx::query(
-                    "INSERT INTO alert_rule_channels (alert_rule_id, channel_id) VALUES ($1, $2)",
+                    r#"
+                    INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
+                    VALUES ($1, $2, $3)
+                    "#,
                 )
                 .bind(id)
-                .bind(channel_id)
+                .bind(ch.integration_id)
+                .bind(&ch.routing_override)
                 .execute(&mut *tx)
                 .await
                 .map_err(|e| {
                     if let sqlx::Error::Database(ref db_err) = e {
                         if db_err.is_foreign_key_violation() {
-                            return AppError::NotFound(format!("Channel {} not found", channel_id));
+                            return AppError::NotFound(format!(
+                                "Integration {} not found",
+                                ch.integration_id
+                            ));
                         }
                     }
                     AppError::Database(e)
@@ -375,7 +455,6 @@ impl AlertService {
     }
 
     /// Builds the dashboard URL for viewing an issue.
-    /// Uses project_id (numeric) — the frontend routes by ID, not slug.
     pub(crate) fn build_issue_url(
         dashboard_url: &str,
         project_id: i32,
@@ -422,8 +501,6 @@ impl AlertService {
         };
 
         // 2. Atomically check cooldown and update last_triggered_at
-        // Uses a conditional UPDATE to prevent TOCTOU race conditions
-        // datetime() normalizes timestamp formats for safe comparison in SQLite
         let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
 
         #[cfg(feature = "postgres")]
@@ -459,23 +536,21 @@ impl AlertService {
             return Ok(());
         }
 
-        // 3. Get associated channels
-        let channels: Vec<NotificationChannel> = sqlx::query_as(
+        // 3. Get associated rule channels (only enabled integrations — SCL-1)
+        let rule_channels: Vec<AlertRuleChannel> = sqlx::query_as(
             r#"
-            SELECT nc.id, nc.name, nc.channel_type, nc.config, nc.is_enabled,
-                   nc.failure_count, nc.last_failure_at, nc.last_failure_message,
-                   nc.last_success_at, nc.created_at, nc.updated_at
-            FROM notification_channels nc
-            INNER JOIN alert_rule_channels arc ON nc.id = arc.channel_id
-            WHERE arc.alert_rule_id = $1 AND nc.is_enabled = TRUE
+            SELECT arc.alert_rule_id, arc.integration_id, arc.routing_override
+            FROM alert_rule_channels arc
+            INNER JOIN alert_integrations i ON arc.integration_id = i.id
+            WHERE arc.alert_rule_id = $1 AND i.is_enabled = TRUE
             "#,
         )
         .bind(rule.id)
         .fetch_all(pool)
         .await?;
 
-        if channels.is_empty() {
-            log::debug!("No enabled channels for alert rule {}", rule.id);
+        if rule_channels.is_empty() {
+            log::debug!("No enabled integrations for alert rule {}", rule.id);
             return Ok(());
         }
 
@@ -507,8 +582,6 @@ impl AlertService {
             actor: "Rustrak".to_string(),
         };
 
-        // Note: last_triggered_at was already updated atomically in step 2
-
         log::info!(
             "Triggering {} alert for issue {} in project {}",
             alert_type,
@@ -516,19 +589,20 @@ impl AlertService {
             project.name
         );
 
-        // 6. Dispatch to all channels (spawn tasks for parallel execution)
-        for channel in channels {
+        // 5. Dispatch to all rule channels (spawn tasks for parallel execution)
+        for rule_channel in rule_channels {
             let pool = pool.clone();
             let payload = payload.clone();
             let rule_id = rule.id;
 
             tokio::spawn(async move {
-                if let Err(e) = Self::dispatch_to_channel(&pool, &channel, &payload, rule_id).await
+                if let Err(e) =
+                    Self::dispatch_to_channel(&pool, &rule_channel, &payload, rule_id).await
                 {
                     log::error!(
-                        "Failed to dispatch alert to channel {} ({}): {}",
-                        channel.id,
-                        channel.name,
+                        "Failed to dispatch alert to integration {} (rule {}): {}",
+                        rule_channel.integration_id,
+                        rule_id,
                         e
                     );
                 }
@@ -538,24 +612,27 @@ impl AlertService {
         Ok(())
     }
 
-    /// Dispatches an alert to a single channel
+    /// Dispatches an alert to a single rule channel (integration + routing)
     async fn dispatch_to_channel(
         pool: &DbPool,
-        channel: &NotificationChannel,
+        rule_channel: &AlertRuleChannel,
         payload: &AlertPayload,
         rule_id: i32,
     ) -> AppResult<()> {
-        let idempotency_key = format!("{}-{}", payload.alert_id, channel.id);
+        let integration_id = rule_channel.integration_id;
+        let idempotency_key = format!("{}-{}", payload.alert_id, integration_id);
+
+        // Fetch integration record
+        let integration = Self::get_channel(pool, integration_id).await?;
 
         // Parse issue_id as UUID
         let issue_uuid = Uuid::parse_str(&payload.issue.id).ok();
 
-        // Create history record with idempotent insert (ON CONFLICT DO NOTHING)
-        // This avoids TOCTOU race conditions from separate SELECT + INSERT
+        // Create history record with idempotent insert
         let history_id: Option<(i64,)> = sqlx::query_as(
             r#"
             INSERT INTO alert_history (
-                alert_rule_id, channel_id, issue_id, project_id,
+                alert_rule_id, integration_id, issue_id, project_id,
                 alert_type, channel_type, channel_name,
                 status, idempotency_key
             )
@@ -565,12 +642,12 @@ impl AlertService {
             "#,
         )
         .bind(rule_id)
-        .bind(channel.id)
+        .bind(integration_id)
         .bind(issue_uuid)
         .bind(payload.project.id)
         .bind(&payload.alert_type)
-        .bind(channel.channel_type.to_string())
-        .bind(&channel.name)
+        .bind(integration.provider_type.to_string())
+        .bind(&integration.name)
         .bind(&idempotency_key)
         .fetch_optional(pool)
         .await?;
@@ -583,11 +660,13 @@ impl AlertService {
             }
         };
 
-        // Dispatch using appropriate notifier
-        let dispatcher = create_dispatcher(channel.channel_type);
-        let result = dispatcher.send(channel, payload).await;
+        // Dispatch using appropriate notifier with routing_override
+        let dispatcher = create_dispatcher(integration.provider_type);
+        let result = dispatcher
+            .send(&integration, &rule_channel.routing_override, payload)
+            .await;
 
-        // Update history and channel stats based on result
+        // Update history and integration stats based on result
         if result.success {
             sqlx::query(
                 r#"
@@ -603,30 +682,29 @@ impl AlertService {
 
             sqlx::query(
                 r#"
-                UPDATE notification_channels
+                UPDATE alert_integrations
                 SET last_success_at = CURRENT_TIMESTAMP, failure_count = 0
                 WHERE id = $1
                 "#,
             )
-            .bind(channel.id)
+            .bind(integration_id)
             .execute(pool)
             .await?;
 
             log::info!(
-                "Alert sent successfully to channel {} ({})",
-                channel.id,
-                channel.name
+                "Alert sent successfully to integration {} ({})",
+                integration_id,
+                integration.name
             );
         } else {
             // Calculate next retry with exponential backoff + jitter
             let attempt_count = 1;
-            let base_delay = 60; // 1 minute
-            let max_delay = 3600; // 1 hour
+            let base_delay = 60i64;
+            let max_delay = 3600i64;
             let delay_secs = std::cmp::min(
                 base_delay * (2_i64.pow(attempt_count as u32 - 1)),
                 max_delay,
             );
-            // Add 10% jitter
             let jitter = (delay_secs as f64 * 0.1 * rand::random::<f64>()) as i64;
             let next_retry = Utc::now() + Duration::seconds(delay_secs + jitter);
 
@@ -649,22 +727,22 @@ impl AlertService {
 
             sqlx::query(
                 r#"
-                UPDATE notification_channels
+                UPDATE alert_integrations
                 SET last_failure_at = CURRENT_TIMESTAMP,
                     last_failure_message = $2,
                     failure_count = failure_count + 1
                 WHERE id = $1
                 "#,
             )
-            .bind(channel.id)
+            .bind(integration_id)
             .bind(&result.error_message)
             .execute(pool)
             .await?;
 
             log::warn!(
-                "Alert to channel {} ({}) failed: {:?}",
-                channel.id,
-                channel.name,
+                "Alert to integration {} ({}) failed: {:?}",
+                integration_id,
+                integration.name,
                 result.error_message
             );
         }
@@ -684,7 +762,7 @@ impl AlertService {
     ) -> AppResult<Vec<AlertHistory>> {
         let history = sqlx::query_as::<_, AlertHistory>(
             r#"
-            SELECT id, alert_rule_id, channel_id, issue_id, project_id,
+            SELECT id, alert_rule_id, integration_id, issue_id, project_id,
                    alert_type, channel_type, channel_name, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
@@ -708,7 +786,7 @@ impl AlertService {
         #[cfg(feature = "postgres")]
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
-            SELECT id, alert_rule_id, channel_id, issue_id, project_id,
+            SELECT id, alert_rule_id, integration_id, issue_id, project_id,
                    alert_type, channel_type, channel_name, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
@@ -725,7 +803,7 @@ impl AlertService {
         #[cfg(feature = "sqlite")]
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
-            SELECT id, alert_rule_id, channel_id, issue_id, project_id,
+            SELECT id, alert_rule_id, integration_id, issue_id, project_id,
                    alert_type, channel_type, channel_name, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
@@ -744,10 +822,10 @@ impl AlertService {
         let mut processed = 0u32;
 
         for history in pending {
-            // Mark as failed if max retries exceeded or channel deleted
-            if history.channel_id.is_none() {
+            // Mark as failed if integration deleted
+            if history.integration_id.is_none() {
                 sqlx::query(
-                    "UPDATE alert_history SET status = 'failed', error_message = 'Channel deleted' WHERE id = $1",
+                    "UPDATE alert_history SET status = 'failed', error_message = 'Integration deleted' WHERE id = $1",
                 )
                 .bind(history.id)
                 .execute(pool)
@@ -756,7 +834,7 @@ impl AlertService {
                 continue;
             }
 
-            // For now, just mark as failed - full retry would require storing payload
+            // For now, just mark as failed — full retry would require storing payload
             sqlx::query(
                 "UPDATE alert_history SET status = 'failed', error_message = 'Retry not implemented' WHERE id = $1",
             )

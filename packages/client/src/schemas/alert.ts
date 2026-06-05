@@ -2,9 +2,12 @@ import { z } from 'zod';
 import { dateTimeSchema } from './common.js';
 
 /**
- * Channel type enum
+ * Provider type enum (replaces channel_type)
  */
-export const channelTypeSchema = z.enum(['webhook', 'email', 'slack']);
+export const providerTypeSchema = z.enum(['webhook', 'email', 'slack']);
+
+/** @deprecated Use providerTypeSchema */
+export const channelTypeSchema = providerTypeSchema;
 
 /**
  * Alert type enum
@@ -22,13 +25,13 @@ export const alertStatusSchema = z.enum([
 ]);
 
 /**
- * Notification channel response schema
+ * Alert integration response schema (global credentials record)
  */
-export const notificationChannelSchema = z.object({
+export const alertIntegrationSchema = z.object({
   id: z.number().int(),
   name: z.string(),
-  channel_type: channelTypeSchema,
-  config: z.record(z.string(), z.unknown()),
+  provider_type: providerTypeSchema,
+  credentials: z.record(z.string(), z.unknown()),
   is_enabled: z.boolean(),
   failure_count: z.number().int(),
   last_failure_at: dateTimeSchema.nullable(),
@@ -38,23 +41,40 @@ export const notificationChannelSchema = z.object({
   updated_at: dateTimeSchema,
 });
 
+/** @deprecated Use alertIntegrationSchema */
+export const notificationChannelSchema = alertIntegrationSchema;
+
 /**
- * Create notification channel request schema
+ * Create alert integration request schema
  */
-export const createNotificationChannelSchema = z.object({
+export const createAlertIntegrationSchema = z.object({
   name: z.string().min(1),
-  channel_type: channelTypeSchema,
-  config: z.record(z.string(), z.unknown()),
+  provider_type: providerTypeSchema,
+  credentials: z.record(z.string(), z.unknown()),
   is_enabled: z.boolean().optional(),
 });
 
+/** @deprecated Use createAlertIntegrationSchema */
+export const createNotificationChannelSchema = createAlertIntegrationSchema;
+
 /**
- * Update notification channel request schema
+ * Update alert integration request schema
  */
-export const updateNotificationChannelSchema = z.object({
+export const updateAlertIntegrationSchema = z.object({
   name: z.string().min(1).optional(),
-  config: z.record(z.string(), z.unknown()).optional(),
+  credentials: z.record(z.string(), z.unknown()).optional(),
   is_enabled: z.boolean().optional(),
+});
+
+/** @deprecated Use updateAlertIntegrationSchema */
+export const updateNotificationChannelSchema = updateAlertIntegrationSchema;
+
+/**
+ * Per-rule channel routing entry schema
+ */
+export const alertRuleChannelInputSchema = z.object({
+  integration_id: z.number().int(),
+  routing_override: z.record(z.string(), z.unknown()).default({}),
 });
 
 /**
@@ -71,7 +91,8 @@ export const alertRuleSchema = z.object({
   last_triggered_at: dateTimeSchema.nullable(),
   created_at: dateTimeSchema,
   updated_at: dateTimeSchema,
-  channel_ids: z.array(z.number().int()),
+  channels: z.array(alertRuleChannelInputSchema).default([]),
+  integration_ids: z.array(z.number().int()),
 });
 
 /**
@@ -80,7 +101,7 @@ export const alertRuleSchema = z.object({
 export const createAlertRuleSchema = z.object({
   name: z.string().min(1),
   alert_type: alertTypeSchema,
-  channel_ids: z.array(z.number().int()).min(1),
+  channels: z.array(alertRuleChannelInputSchema).default([]),
   is_enabled: z.boolean().optional(),
   conditions: z.record(z.string(), z.unknown()).optional(),
   cooldown_minutes: z.number().int().min(0).optional(),
@@ -94,7 +115,7 @@ export const updateAlertRuleSchema = z.object({
   is_enabled: z.boolean().optional(),
   conditions: z.record(z.string(), z.unknown()).optional(),
   cooldown_minutes: z.number().int().min(0).optional(),
-  channel_ids: z.array(z.number().int()).optional(),
+  channels: z.array(alertRuleChannelInputSchema).optional(),
 });
 
 /**
@@ -103,7 +124,7 @@ export const updateAlertRuleSchema = z.object({
 export const alertHistorySchema = z.object({
   id: z.number().int(),
   alert_rule_id: z.number().int().nullable(),
-  channel_id: z.number().int().nullable(),
+  integration_id: z.number().int().nullable(),
   issue_id: z.string().uuid().nullable(),
   project_id: z.number().int().nullable(),
   alert_type: z.string(),
@@ -125,4 +146,11 @@ export const alertHistorySchema = z.object({
 export const testChannelResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
+});
+
+/**
+ * Test integration request body schema
+ */
+export const testIntegrationBodySchema = z.object({
+  routing_override: z.record(z.string(), z.unknown()).optional(),
 });

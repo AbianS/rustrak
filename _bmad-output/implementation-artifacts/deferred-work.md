@@ -25,6 +25,36 @@ Unit tests cover each function in isolation. No integration/e2e test verifies th
 
 ---
 
+## 2026-05-21 — from spec-alert-two-tier-integrations split
+
+### D-11: Alert two-tier — Client package update (medium)
+After the backend spec (`spec-alert-two-tier-integrations.md`) is merged, update `packages/client`:
+- Add `alertIntegrationSchema`, `routingOverrideSchema`, `alertRuleChannelInputSchema` to `schemas/alert.ts`
+- Update inferred types in `types/alert.ts`
+- Rename `alert-channels.ts` → `alert-integrations.ts` (`AlertIntegrationsResource`)
+- Update `alert-rules.ts` to use `channels: AlertRuleChannelInput[]` instead of `channel_ids`
+- Update `resources/index.ts` export
+
+### D-12: Alert two-tier — Frontend (medium)
+After D-11 is done, update the Next.js UI:
+- Rename `apps/webview-ui/src/actions/alerts.ts` integration actions
+- Rename `settings/alerts/` → `settings/integrations/` — credentials-only form, no routing fields
+- Update `settings-nav.tsx`: href `/settings/integrations`, label "Integrations"
+- Update `projects/[id]/project-alerts-dialog.tsx`: integration picker + per-provider routing override fields (Slack bot_token → channel input required; Slack webhook → none; Email → recipients textarea; Webhook → optional URL + extra_headers)
+
+---
+
+## 2026-05-21 — from spec-alert-two-tier-integrations review (loop 1)
+
+### D-13: AlertRuleResponse missing routing_override (low)
+GET alert rule response exposes only `integration_ids: Vec<i32>`, losing per-rule routing_override data. Clients can't populate an edit form without a separate query. Address in D-12 (frontend) — the response shape should include `channels: [{integration_id, routing_override}]`.
+Source: `apps/server/src/models/alert.rs` — `AlertRuleResponse.integration_ids`
+
+### D-14: validate_channels_routing TOCTOU on is_enabled (low)
+`validate_channels_routing` checks `is_enabled` before DB insert, but the check and insert are not in the same transaction. An integration disabled between the two calls creates a rule linked to a disabled integration. Pre-existing pattern in codebase; very low probability race. Fix when adding transactions to rule creation.
+
+---
+
 ## 2026-05-21 — from spec-remove-issue-soft-delete review
 
 **Source:** 3-reviewer adversarial review
@@ -43,3 +73,21 @@ Unit tests cover each function in isolation. No integration/e2e test verifies th
 
 ### D-10: Integration test suite entirely #[ignore] — delete tests use Bearer auth (low)
 All tests in `tests/integration/issues_api_test.rs` are marked `#[ignore = "Session cookies..."]` but the delete tests only use Bearer token auth, which the actix test framework fully supports. Investigate whether these tests can be unskipped selectively. Source: tests/integration/issues_api_test.rs:609
+
+---
+
+## 2026-05-21 — from spec-alert-two-tier-integrations review (loop 2)
+
+**Source:** 3-reviewer adversarial review (loop 2→3 SCL-2 loopback)
+
+### D-15: Header injection via routing_override.extra_headers (medium)
+`WebhookRoutingOverride.extra_headers` is merged directly into the outgoing HTTP request with no sanitization. An attacker who can set routing_override (e.g. via a compromised API token) could inject arbitrary headers including `Authorization`, `X-Forwarded-For`, or override `Content-Type`. Fix: validate header names against an allowlist or deny-list (reject `Authorization`, `Cookie`, hop-by-hop headers) at rule-create time in `validate_routing_override`. Source: `apps/server/src/services/notification/webhook.rs`
+
+### D-16: SMTP password + webhook secret exposed in GET /api/integrations (medium)
+`AlertIntegration.credentials` is returned as-is via `channel_to_safe_json` (only Slack bot token is redacted). SMTP `smtp_password` and webhook `secret` are plaintext in the response. Fix: add redaction for `smtp_password` → `"****"` and `secret` → `"****"` in `channel_to_safe_json`, similar to the existing `redact_slack_bot_token` pattern. Source: `apps/server/src/routes/alerts.rs:channel_to_safe_json`
+
+### D-17: Per-recipient SMTP connection, no dedup or cap on recipients (low)
+Email dispatcher opens one SMTP connection per dispatch call and sends to all recipients in `routing_override.recipients`. No deduplication of recipients and no cap on list length. A large recipients list will cause the SMTP connection to stay open longer and could trigger rate limits on the SMTP server. Fix: dedup recipients before SMTP RCPT TO, add a configurable cap (e.g. max 50 recipients per send). Source: `apps/server/src/services/notification/email.rs`
+
+### D-18: Retry counter hardcoded to 1 in dispatch_to_channel (low)
+`dispatch_to_channel` always sets `attempt_count = 1` regardless of actual retry history. The exponential backoff is calculated based on `attempt_count = 1`, so the delay never grows on subsequent retries. Fix: read the current `attempt_count` from `alert_history` before updating, or pass it as a parameter. Source: `apps/server/src/services/alert.rs:dispatch_to_channel` ~line 693

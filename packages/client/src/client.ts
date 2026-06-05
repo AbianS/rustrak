@@ -1,7 +1,7 @@
 import type { KyInstance } from 'ky';
 import type { ClientConfig } from './config.js';
 import {
-  AlertChannelsResource,
+  AlertIntegrationsResource,
   AlertRulesResource,
   AuthResource,
   EventsResource,
@@ -61,9 +61,9 @@ export class RustrakClient {
   public readonly tokens: TokensResource;
 
   /**
-   * Alert Channels API resource (global notification destinations)
+   * Alert Integrations API resource (global credential destinations)
    */
-  public readonly alertChannels: AlertChannelsResource;
+  public readonly alertIntegrations: AlertIntegrationsResource;
 
   /**
    * Alert Rules API resource (per-project alert configuration)
@@ -89,7 +89,7 @@ export class RustrakClient {
     this.issues = new IssuesResource(this.http);
     this.events = new EventsResource(this.http);
     this.tokens = new TokensResource(this.http);
-    this.alertChannels = new AlertChannelsResource(this.http);
+    this.alertIntegrations = new AlertIntegrationsResource(this.http);
     this.alertRules = new AlertRulesResource(this.http);
     this.sourceMaps = new SourceMapsResource(this.http);
   }

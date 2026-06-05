@@ -283,7 +283,7 @@
         ]
       }
     },
-    "/api/alert-channels": {
+    "/api/integrations": {
       "get": {
         "tags": [
           "Alert Channels"
@@ -298,7 +298,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/NotificationChannel"
+                    "$ref": "#/components/schemas/AlertIntegration"
                   }
                 }
               }
@@ -331,7 +331,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateNotificationChannel"
+                "$ref": "#/components/schemas/CreateAlertIntegration"
               }
             }
           },
@@ -343,7 +343,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationChannel"
+                  "$ref": "#/components/schemas/AlertIntegration"
                 }
               }
             }
@@ -366,7 +366,7 @@
         ]
       }
     },
-    "/api/alert-channels/{id}": {
+    "/api/integrations/{id}": {
       "get": {
         "tags": [
           "Alert Channels"
@@ -391,7 +391,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationChannel"
+                  "$ref": "#/components/schemas/AlertIntegration"
                 }
               }
             }
@@ -494,7 +494,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateNotificationChannel"
+                "$ref": "#/components/schemas/UpdateAlertIntegration"
               }
             }
           },
@@ -506,7 +506,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotificationChannel"
+                  "$ref": "#/components/schemas/AlertIntegration"
                 }
               }
             }
@@ -539,12 +539,12 @@
         ]
       }
     },
-    "/api/alert-channels/{id}/test": {
+    "/api/integrations/{id}/test": {
       "post": {
         "tags": [
           "Alert Channels"
         ],
-        "summary": "POST /api/alert-channels/{id}/test",
+        "summary": "POST /api/integrations/{id}/test",
         "operationId": "test_channel",
         "parameters": [
           {
@@ -558,6 +558,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestIntegrationBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Test notification sent"
@@ -2386,13 +2395,6 @@
             "type": "integer",
             "format": "int32"
           },
-          "channel_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
           "channel_name": {
             "type": "string"
           },
@@ -2422,6 +2424,13 @@
           },
           "idempotency_key": {
             "type": "string"
+          },
+          "integration_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           },
           "issue_id": {
             "type": [
@@ -2456,9 +2465,87 @@
           }
         }
       },
+      "AlertIntegration": {
+        "type": "object",
+        "description": "Global alert integration record — stores credentials only, no routing.",
+        "required": [
+          "id",
+          "name",
+          "provider_type",
+          "credentials",
+          "is_enabled",
+          "failure_count",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "credentials": {
+            "type": "object"
+          },
+          "failure_count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "last_failure_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_failure_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AlertRuleChannelInput": {
+        "type": "object",
+        "description": "DTO for a channel with routing override in rule create/update",
+        "required": [
+          "integration_id"
+        ],
+        "properties": {
+          "integration_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "routing_override": {}
+        }
+      },
       "AlertRuleResponse": {
         "type": "object",
-        "description": "Response for alert rule including linked channel IDs",
+        "description": "Response for alert rule including linked integration info",
         "required": [
           "id",
           "project_id",
@@ -2467,7 +2554,8 @@
           "is_enabled",
           "conditions",
           "cooldown_minutes",
-          "channel_ids",
+          "channels",
+          "integration_ids",
           "created_at",
           "updated_at"
         ],
@@ -2475,12 +2563,12 @@
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
           },
-          "channel_ids": {
+          "channels": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int32"
-            }
+              "$ref": "#/components/schemas/AlertRuleChannelInput"
+            },
+            "description": "All linked integrations including routing_override per channel."
           },
           "conditions": {
             "type": "object"
@@ -2496,6 +2584,14 @@
           "id": {
             "type": "integer",
             "format": "int32"
+          },
+          "integration_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Flat list of integration IDs (backward compat, derived from channels)."
           },
           "is_enabled": {
             "type": "boolean"
@@ -2662,18 +2758,32 @@
           }
         }
       },
-      "ChannelType": {
-        "type": "string",
-        "description": "Type of notification channel",
-        "enum": [
-          "webhook",
-          "email",
-          "slack"
-        ]
-      },
       "ChunkUploadBody": {
         "type": "object",
         "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
+      },
+      "CreateAlertIntegration": {
+        "type": "object",
+        "description": "DTO for creating an alert integration",
+        "required": [
+          "name",
+          "provider_type",
+          "credentials"
+        ],
+        "properties": {
+          "credentials": {
+            "type": "object"
+          },
+          "is_enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider_type": {
+            "$ref": "#/components/schemas/ProviderType"
+          }
+        }
       },
       "CreateAlertRule": {
         "type": "object",
@@ -2686,11 +2796,10 @@
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
           },
-          "channel_ids": {
+          "channels": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/AlertRuleChannelInput"
             }
           },
           "conditions": {
@@ -2714,29 +2823,6 @@
               "string",
               "null"
             ]
-          }
-        }
-      },
-      "CreateNotificationChannel": {
-        "type": "object",
-        "description": "DTO for creating a notification channel",
-        "required": [
-          "name",
-          "channel_type",
-          "config"
-        ],
-        "properties": {
-          "channel_type": {
-            "$ref": "#/components/schemas/ChannelType"
-          },
-          "config": {
-            "type": "object"
-          },
-          "is_enabled": {
-            "type": "boolean"
-          },
-          "name": {
-            "type": "string"
           }
         }
       },
@@ -3008,70 +3094,6 @@
           }
         }
       },
-      "NotificationChannel": {
-        "type": "object",
-        "description": "Global notification channel (e.g., Slack workspace, webhook endpoint)",
-        "required": [
-          "id",
-          "name",
-          "channel_type",
-          "config",
-          "is_enabled",
-          "failure_count",
-          "created_at",
-          "updated_at"
-        ],
-        "properties": {
-          "channel_type": {
-            "$ref": "#/components/schemas/ChannelType"
-          },
-          "config": {
-            "type": "object"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "failure_count": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "id": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "is_enabled": {
-            "type": "boolean"
-          },
-          "last_failure_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "last_failure_message": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "last_success_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "name": {
-            "type": "string"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
       "ProjectResponse": {
         "type": "object",
         "description": "Response with DSN included",
@@ -3122,6 +3144,15 @@
           }
         }
       },
+      "ProviderType": {
+        "type": "string",
+        "description": "Type of notification provider (replaces ChannelType)",
+        "enum": [
+          "webhook",
+          "email",
+          "slack"
+        ]
+      },
       "ReadinessChecks": {
         "type": "object",
         "required": [
@@ -3148,18 +3179,48 @@
           }
         }
       },
+      "TestIntegrationBody": {
+        "type": "object",
+        "description": "Request body for the test-integration endpoint.",
+        "properties": {
+          "routing_override": {}
+        }
+      },
+      "UpdateAlertIntegration": {
+        "type": "object",
+        "description": "DTO for updating an alert integration",
+        "properties": {
+          "credentials": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "is_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateAlertRule": {
         "type": "object",
         "description": "DTO for updating an alert rule",
         "properties": {
-          "channel_ids": {
+          "channels": {
             "type": [
               "array",
               "null"
             ],
             "items": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/AlertRuleChannelInput"
             }
           },
           "conditions": {
@@ -3202,30 +3263,6 @@
           "is_resolved": {
             "type": [
               "boolean",
-              "null"
-            ]
-          }
-        }
-      },
-      "UpdateNotificationChannel": {
-        "type": "object",
-        "description": "DTO for updating a notification channel",
-        "properties": {
-          "config": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "is_enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
               "null"
             ]
           }

@@ -26,7 +26,9 @@ export {
 // Types
 export type {
   AlertHistory,
+  AlertIntegration,
   AlertRule,
+  AlertRuleChannelInput,
   AlertStatus,
   AlertType,
   ApiError,
@@ -35,10 +37,13 @@ export type {
   AuthResponse,
   AuthToken,
   AuthTokenCreated,
+  /** @deprecated Use ProviderType */
   ChannelType,
   ChunkUploadCapability,
+  CreateAlertIntegration,
   CreateAlertRule,
   CreateAuthToken,
+  /** @deprecated Use CreateAlertIntegration */
   CreateNotificationChannel,
   CreateProject,
   Event,
@@ -53,16 +58,22 @@ export type {
   ListSourceMapsResponse,
   LoginRequest,
   LoginResult,
+  /** @deprecated Use AlertIntegration */
   NotificationChannel,
   OffsetPaginatedResponse,
   PaginatedResponse,
   Project,
+  ProviderType,
   RegisterRequest,
+  RoutingOverride,
   SortOrder,
   SourceMapFile,
   TestChannelResponse,
+  TestIntegrationBody,
+  UpdateAlertIntegration,
   UpdateAlertRule,
   UpdateIssueState,
+  /** @deprecated Use UpdateAlertIntegration */
   UpdateNotificationChannel,
   UpdateProject,
   User,

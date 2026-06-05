@@ -1,13 +1,13 @@
 'use client';
 
-import type { AlertRule, NotificationChannel, Project } from '@rustrak/client';
+import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
 import { ProjectAlertsDialog } from './project-alerts-dialog';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 
 interface ProjectHeaderProps {
   project: Project;
   alertRules: AlertRule[];
-  channels: NotificationChannel[];
+  channels: AlertIntegration[];
 }
 
 export function ProjectHeader({

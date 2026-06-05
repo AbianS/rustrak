@@ -1,4 +1,4 @@
-export { AlertChannelsResource } from './alert-channels.js';
+export { AlertIntegrationsResource } from './alert-integrations.js';
 export { AlertRulesResource } from './alert-rules.js';
 export { AuthResource } from './auth.js';
 export { BaseResource } from './base.js';

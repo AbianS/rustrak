@@ -11,19 +11,32 @@ use std::sync::Mutex;
 /// This prevents race conditions when tests run in parallel.
 static SMTP_ENV_LOCK: Mutex<()> = Mutex::new(());
 
-/// RAII guard that restores SMTP_HOST to its previous value on drop.
+/// RAII guard that serializes SMTP_HOST mutation across parallel tests.
+/// Owns the MutexGuard so the lock is held for the guard's entire lifetime.
 struct SmtpHostGuard {
     previous: Option<String>,
+    _lock: std::sync::MutexGuard<'static, ()>,
 }
 
 impl SmtpHostGuard {
     fn set(value: &str) -> Self {
-        let _lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
         let previous = std::env::var("SMTP_HOST").ok();
         std::env::set_var("SMTP_HOST", value);
-        // Note: We don't store the lock - tests are short enough that
-        // holding it for the guard's lifetime is acceptable
-        Self { previous }
+        Self {
+            previous,
+            _lock: lock,
+        }
+    }
+
+    fn unset() -> Self {
+        let lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let previous = std::env::var("SMTP_HOST").ok();
+        std::env::remove_var("SMTP_HOST");
+        Self {
+            previous,
+            _lock: lock,
+        }
     }
 }
 
@@ -52,11 +65,13 @@ fn test_webhook_validate_config_valid() {
 }
 
 #[test]
-fn test_webhook_validate_config_missing_url() {
+fn test_webhook_validate_config_empty_credentials_ok() {
+    // In two-tier model, URL is optional in credentials — it can come from routing_override.
+    // Empty credentials are valid; URL presence is enforced at rule-create time.
     let dispatcher = create_dispatcher(ChannelType::Webhook);
     let config = json!({});
 
-    assert!(dispatcher.validate_config(&config).is_err());
+    assert!(dispatcher.validate_config(&config).is_ok());
 }
 
 #[test]
@@ -158,11 +173,12 @@ fn test_slack_validate_config_rejects_http() {
 
 #[test]
 fn test_slack_bot_token_validate_config_valid() {
+    // In two-tier model, channel is in routing_override (not credentials).
+    // validate_config only checks the token prefix.
     let dispatcher = create_dispatcher(ChannelType::Slack);
     let config = json!({
         "method": "bot_token",
-        "token": "xoxb-123456789-abcdefghij",
-        "channel": "C1234567890"
+        "token": "xoxb-123456789-abcdefghij"
     });
 
     assert!(dispatcher.validate_config(&config).is_ok());
@@ -183,58 +199,55 @@ fn test_slack_bot_token_validate_rejects_non_xoxb_prefix() {
 }
 
 #[test]
-fn test_slack_bot_token_validate_rejects_empty_channel() {
+fn test_slack_bot_token_validate_config_channel_is_routing_concern() {
+    // In two-tier model, channel moves to routing_override — not validated in credentials.
+    // validate_config only checks the token prefix; channel (empty or absent) is accepted.
     let dispatcher = create_dispatcher(ChannelType::Slack);
     let config = json!({
         "method": "bot_token",
-        "token": "xoxb-valid",
-        "channel": ""
+        "token": "xoxb-valid"
     });
 
-    let result = dispatcher.validate_config(&config);
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Channel"));
+    assert!(dispatcher.validate_config(&config).is_ok());
 }
 
 // =============================================================================
 // Email Config Validation Tests
 // =============================================================================
 
+// In two-tier model, email credentials are SMTP config only; recipients live in
+// routing_override and are validated by validate_routing_override at rule-create time.
+
 #[test]
 fn test_email_validate_config_valid() {
     let _guard = SmtpHostGuard::set("smtp.example.com");
 
+    // Valid: SMTP host is set (globally via guard), credentials may be empty
     let dispatcher = create_dispatcher(ChannelType::Email);
-    let config = json!({
-        "recipients": ["test@example.com"]
-    });
+    let config = json!({});
 
     let result = dispatcher.validate_config(&config);
     assert!(result.is_ok());
 }
 
 #[test]
-fn test_email_validate_config_empty_recipients() {
-    let _guard = SmtpHostGuard::set("smtp.example.com");
-
+fn test_email_validate_config_no_smtp_host_fails() {
+    let _guard = SmtpHostGuard::unset();
+    // No global SMTP and no integration SMTP should fail validation
     let dispatcher = create_dispatcher(ChannelType::Email);
-    let config = json!({
-        "recipients": []
-    });
+    let config = json!({});
 
     let result = dispatcher.validate_config(&config);
     assert!(result.is_err());
 }
 
 #[test]
-fn test_email_validate_config_invalid_email() {
+fn test_email_validate_config_recipients_are_routing_concern() {
+    // recipients in credentials are silently ignored — they belong in routing_override
     let _guard = SmtpHostGuard::set("smtp.example.com");
-
     let dispatcher = create_dispatcher(ChannelType::Email);
-    let config = json!({
-        "recipients": ["not-an-email"]
-    });
+    let config = json!({ "smtp_host": "smtp.example.com" });
 
-    let result = dispatcher.validate_config(&config);
-    assert!(result.is_err());
+    // Extra fields or missing recipients: validate_config still returns Ok
+    assert!(dispatcher.validate_config(&config).is_ok());
 }

@@ -38,7 +38,7 @@ describe('AlertRulesResource Integration', () => {
               is_enabled: true,
               conditions: {},
               cooldown_minutes: 0,
-              channel_ids: [],
+              integration_ids: [],
               created_at: '2026-01-20T10:00:00.000Z',
               updated_at: '2026-01-20T10:00:00.000Z',
             },
@@ -82,7 +82,7 @@ describe('AlertRulesResource Integration', () => {
       expect(rule.name).toBe('New Issue Alert');
       expect(rule.alert_type).toBe('new_issue');
       expect(rule.is_enabled).toBe(true);
-      expect(rule.channel_ids).toEqual([1, 2]);
+      expect(rule.integration_ids).toEqual([1, 2]);
     });
 
     it('should throw NotFoundError for non-existent rule', async () => {
@@ -113,25 +113,40 @@ describe('AlertRulesResource Integration', () => {
   });
 
   describe('create()', () => {
-    it('should create new_issue rule', async () => {
+    it('should create new_issue rule with channels', async () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'New Alert Rule',
         alert_type: 'new_issue',
-        channel_ids: [1],
+        channels: [
+          { integration_id: 1, routing_override: { channel: '#alerts' } },
+        ],
       });
 
       expect(rule.name).toBe('New Alert Rule');
       expect(rule.alert_type).toBe('new_issue');
       expect(rule.id).toBe(3);
       expect(rule.is_enabled).toBe(true);
-      expect(rule.channel_ids).toEqual([1]);
+      expect(rule.integration_ids).toEqual([1]);
+    });
+
+    it('should create rule with multiple channels and routing overrides', async () => {
+      const rule = await client.alertRules.create(projectId, {
+        name: 'Multi-channel Rule',
+        alert_type: 'new_issue',
+        channels: [
+          { integration_id: 1, routing_override: {} },
+          { integration_id: 2, routing_override: { channel: '#dev' } },
+        ],
+      });
+
+      expect(rule.integration_ids).toEqual([1, 2]);
     });
 
     it('should create regression rule', async () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Regression Rule',
         alert_type: 'regression',
-        channel_ids: [1, 2],
+        channels: [{ integration_id: 1, routing_override: {} }],
       });
 
       expect(rule.alert_type).toBe('regression');
@@ -141,7 +156,7 @@ describe('AlertRulesResource Integration', () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Unmute Rule',
         alert_type: 'unmute',
-        channel_ids: [2],
+        channels: [{ integration_id: 2, routing_override: {} }],
       });
 
       expect(rule.alert_type).toBe('unmute');
@@ -151,7 +166,7 @@ describe('AlertRulesResource Integration', () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Cooldown Rule',
         alert_type: 'new_issue',
-        channel_ids: [1],
+        channels: [{ integration_id: 1, routing_override: {} }],
         cooldown_minutes: 30,
       });
 
@@ -162,7 +177,7 @@ describe('AlertRulesResource Integration', () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Conditional Rule',
         alert_type: 'new_issue',
-        channel_ids: [1],
+        channels: [{ integration_id: 1, routing_override: {} }],
         conditions: { min_events: 5 },
       });
 
@@ -173,7 +188,7 @@ describe('AlertRulesResource Integration', () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Disabled Rule',
         alert_type: 'new_issue',
-        channel_ids: [1],
+        channels: [{ integration_id: 1, routing_override: {} }],
         is_enabled: false,
       });
 
@@ -185,7 +200,7 @@ describe('AlertRulesResource Integration', () => {
         client.alertRules.create(projectId, {
           name: '',
           alert_type: 'new_issue',
-          channel_ids: [1],
+          channels: [{ integration_id: 1, routing_override: {} }],
         }),
       ).rejects.toThrow(ValidationError);
     });
@@ -196,19 +211,19 @@ describe('AlertRulesResource Integration', () => {
           name: 'Test',
           // @ts-expect-error - Testing runtime validation
           alert_type: 'invalid',
-          channel_ids: [1],
+          channels: [],
         }),
       ).rejects.toThrow(ValidationError);
     });
 
-    it('should reject empty channel_ids', async () => {
-      await expect(
-        client.alertRules.create(projectId, {
-          name: 'Test',
-          alert_type: 'new_issue',
-          channel_ids: [],
-        }),
-      ).rejects.toThrow(ValidationError);
+    it('should accept empty channels array (relies on server validation)', async () => {
+      const rule = await client.alertRules.create(projectId, {
+        name: 'Empty Channels Rule',
+        alert_type: 'new_issue',
+        channels: [],
+      });
+
+      expect(rule.name).toBe('Empty Channels Rule');
     });
   });
 
@@ -230,12 +245,14 @@ describe('AlertRulesResource Integration', () => {
       expect(updated.is_enabled).toBe(false);
     });
 
-    it('should update channel_ids', async () => {
+    it('should update channels with routing overrides', async () => {
       const updated = await client.alertRules.update(projectId, 1, {
-        channel_ids: [2],
+        channels: [
+          { integration_id: 2, routing_override: { channel: '#dev' } },
+        ],
       });
 
-      expect(updated.channel_ids).toEqual([2]);
+      expect(updated.integration_ids).toEqual([2]);
     });
 
     it('should update cooldown', async () => {
@@ -362,6 +379,13 @@ describe('AlertRulesResource Integration', () => {
       expect(sentItem?.http_status_code).toBe(200);
       expect(failedItem?.error_message).toBe('Slack API timeout');
       expect(failedItem?.http_status_code).toBe(504);
+    });
+
+    it('should return integration_id in history entries', async () => {
+      const history = await client.alertRules.listHistory(projectId);
+
+      expect(history[0]?.integration_id).toBe(1);
+      expect(history[1]?.integration_id).toBe(2);
     });
   });
 });

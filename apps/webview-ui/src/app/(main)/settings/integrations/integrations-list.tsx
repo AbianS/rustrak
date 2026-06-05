@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import type { ChannelType, NotificationChannel } from '@rustrak/client';
+import type { AlertIntegration, ProviderType } from '@rustrak/client';
 import { Hash, Loader2, Mail, Play, Trash2, Webhook } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -9,10 +9,10 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
-  createNotificationChannel,
-  deleteNotificationChannel,
-  testNotificationChannel,
-  updateNotificationChannel,
+  createIntegration,
+  deleteIntegration,
+  testIntegration,
+  updateIntegration,
 } from '@/actions/alerts';
 import {
   AlertDialog,
@@ -47,35 +47,49 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
-// Channel type definitions
-const channelTypes = [
+// Active alert notification providers
+const alertProviders = [
   {
     type: 'slack' as const,
     name: 'Slack',
-    description: 'Send alerts to Slack channels.',
+    description: 'Send alerts to Slack channels via webhook or bot token.',
     icon: Hash,
     color: 'bg-[#4A154B]',
   },
   {
     type: 'email' as const,
-    name: 'Email (SMTP)',
-    description: 'Send alerts via email.',
+    name: 'Email',
+    description: 'Send alerts via SMTP email to any recipient.',
     icon: Mail,
     color: 'bg-[#0066CC]',
   },
   {
     type: 'webhook' as const,
-    name: 'Webhooks',
-    description: 'POST payloads to external APIs.',
+    name: 'Webhook',
+    description: 'POST JSON payloads to any HTTP endpoint.',
     icon: Webhook,
     color: 'bg-orange-600',
   },
 ];
 
-// Form schemas for each channel type
+// ============================================================================
+// Form Schemas — credentials only, no routing fields
+// ============================================================================
+
 const webhookFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
-  url: z.string().url('Please enter a valid URL'),
+  // url is optional: per-rule routing_override.url can supply it
+  url: z
+    .string()
+    .optional()
+    .refine(
+      (v) =>
+        !v ||
+        v.trim() === '' ||
+        v.startsWith('http://') ||
+        v.startsWith('https://'),
+      { message: 'Must be a valid http/https URL' },
+    ),
   secret: z.string().optional(),
   is_enabled: z.boolean(),
 });
@@ -84,16 +98,9 @@ const slackFormSchema = z
   .object({
     name: z.string().min(1, 'Name is required').max(255),
     method: z.enum(['webhook', 'bot_token']),
-    // true when editing an existing channel — token validation is relaxed
-    // because the server never returns the real token (returns "xoxb-****")
     is_edit: z.boolean(),
-    // Webhook fields
     webhook_url: z.string().optional(),
-    // Bot token fields
     token: z.string().optional(),
-    channel: z.string().optional(),
-    username: z.string().optional(),
-    icon_emoji: z.string().optional(),
     is_enabled: z.boolean(),
   })
   .superRefine((data, ctx) => {
@@ -125,20 +132,10 @@ const slackFormSchema = z
       }
     } else if (data.method === 'bot_token') {
       const tokenEmpty = !data.token || data.token.trim() === '';
-
       if (data.is_edit && tokenEmpty) {
-        // Token left blank in edit mode = user didn't change it, that's fine.
-        // Still validate channel — it must not be empty even on edits.
-        if (!data.channel || data.channel.trim() === '') {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Channel is required for bot token method',
-            path: ['channel'],
-          });
-        }
+        // Blank on edit = keep existing — OK
         return;
       }
-
       if (tokenEmpty) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -152,34 +149,11 @@ const slackFormSchema = z
           path: ['token'],
         });
       }
-      if (!data.channel || data.channel.trim() === '') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Channel is required for bot token method',
-          path: ['channel'],
-        });
-      }
     }
   });
 
-// Helper schema for email validation
-const emailAddressRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 const emailFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
-  recipients: z
-    .string()
-    .min(1, 'At least one recipient is required')
-    .refine((value) => {
-      const emails = value
-        .split(',')
-        .map((e) => e.trim())
-        .filter(Boolean);
-      return (
-        emails.length > 0 &&
-        emails.every((email) => emailAddressRegex.test(email))
-      );
-    }, 'Please provide valid comma-separated email addresses'),
   smtp_host: z.string().min(1, 'SMTP host is required'),
   smtp_port: z.number().int().min(1).max(65535),
   smtp_username: z.string().optional(),
@@ -191,32 +165,33 @@ const emailFormSchema = z.object({
 type WebhookFormData = z.infer<typeof webhookFormSchema>;
 type SlackFormData = z.infer<typeof slackFormSchema>;
 type EmailFormData = z.infer<typeof emailFormSchema>;
-
 type SlackMethod = 'webhook' | 'bot_token';
 
-interface AlertChannelsListProps {
-  initialChannels: NotificationChannel[];
+interface IntegrationsListProps {
+  initialIntegrations: AlertIntegration[];
 }
 
-export function AlertChannelsList({ initialChannels }: AlertChannelsListProps) {
+export function IntegrationsList({
+  initialIntegrations,
+}: IntegrationsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [configureType, setConfigureType] = useState<ChannelType | null>(null);
-  const [editChannel, setEditChannel] = useState<NotificationChannel | null>(
-    null,
-  );
-  const [deleteChannel, setDeleteChannel] =
-    useState<NotificationChannel | null>(null);
+  const [configureType, setConfigureType] = useState<ProviderType | null>(null);
+  const [editIntegration, setEditIntegration] =
+    useState<AlertIntegration | null>(null);
+  const [deleteIntegrationItem, setDeleteIntegrationItem] =
+    useState<AlertIntegration | null>(null);
 
-  // Get channel by type
-  const getChannelByType = (type: ChannelType) =>
-    initialChannels.find((c) => c.channel_type === type);
+  const getIntegrationByType = (type: ProviderType) =>
+    initialIntegrations.find((c) => c.provider_type === type);
 
-  // Handle test channel
-  const handleTest = (channel: NotificationChannel) => {
+  const handleTest = (
+    integration: AlertIntegration,
+    routingOverride?: Record<string, unknown>,
+  ) => {
     startTransition(async () => {
       try {
-        const result = await testNotificationChannel(channel.id);
+        const result = await testIntegration(integration.id, routingOverride);
         if (result.success) {
           toast.success('Test notification sent', {
             description: result.message,
@@ -232,146 +207,144 @@ export function AlertChannelsList({ initialChannels }: AlertChannelsListProps) {
     });
   };
 
-  // Handle delete channel
   const handleDelete = () => {
-    if (!deleteChannel) return;
-
+    if (!deleteIntegrationItem) return;
     startTransition(async () => {
       try {
-        await deleteNotificationChannel(deleteChannel.id);
-        toast.success('Channel deleted');
-        setDeleteChannel(null);
-        // Clear configure dialog state to prevent editing a deleted channel
+        await deleteIntegration(deleteIntegrationItem.id);
+        toast.success('Integration deleted');
+        setDeleteIntegrationItem(null);
         setConfigureType(null);
-        setEditChannel(null);
+        setEditIntegration(null);
         router.refresh();
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to delete channel';
-        toast.error('Failed to delete channel', { description: message });
+        const message = err instanceof Error ? err.message : 'Failed to delete';
+        toast.error('Failed to delete integration', { description: message });
       }
     });
   };
 
-  // Open configure dialog
-  const openConfigure = (type: ChannelType) => {
-    const existing = getChannelByType(type);
-    if (existing) {
-      setEditChannel(existing);
-    }
+  const openConfigure = (type: ProviderType) => {
+    const existing = getIntegrationByType(type);
+    if (existing) setEditIntegration(existing);
     setConfigureType(type);
   };
 
-  // Close configure dialog
   const closeConfigure = () => {
     setConfigureType(null);
-    setEditChannel(null);
+    setEditIntegration(null);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Channel Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {channelTypes.map((channelDef) => {
-          const existing = getChannelByType(channelDef.type);
-          const Icon = channelDef.icon;
-          const isConnected = !!existing && existing.is_enabled;
+    <div className="space-y-10">
+      {/* Alert Notifications */}
+      <section>
+        <div className="mb-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Alert Notifications
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1">
+            Get notified when issues occur in your projects.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {alertProviders.map((providerDef) => {
+            const existing = getIntegrationByType(providerDef.type);
+            const Icon = providerDef.icon;
+            const isConnected = !!existing && existing.is_enabled;
+            const isDisabled = !!existing && !existing.is_enabled;
 
-          return (
-            <div
-              key={channelDef.type}
-              className={cn(
-                'group relative bg-card border rounded-lg p-5 flex flex-col justify-between h-48',
-                'hover:border-primary/50 transition-all cursor-pointer',
-                !existing && 'opacity-70 hover:opacity-100',
-              )}
-              onClick={() => openConfigure(channelDef.type)}
-            >
-              <div className="flex justify-between items-start">
-                <div
-                  className={cn(
-                    'size-10 rounded flex items-center justify-center text-white',
-                    channelDef.color,
-                  )}
-                >
-                  <Icon className="size-5" />
-                </div>
-                <Badge
-                  variant={isConnected ? 'default' : 'secondary'}
-                  className={cn(
-                    'text-[10px] font-bold uppercase tracking-wider',
-                    isConnected &&
-                      'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
-                  )}
-                >
-                  {isConnected ? 'Connected' : 'Not Configured'}
-                </Badge>
-              </div>
-
-              <div>
-                <h3 className="font-bold text-base">{channelDef.name}</h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {existing ? `${existing.name}` : channelDef.description}
-                </p>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full text-xs font-bold uppercase tracking-wide"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openConfigure(channelDef.type);
-                }}
+            return (
+              <button
+                key={providerDef.type}
+                type="button"
+                className={cn(
+                  'group bg-card border rounded-xl p-5 flex flex-col gap-4 text-left transition-all',
+                  'hover:border-primary/40 hover:shadow-sm',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                )}
+                onClick={() => openConfigure(providerDef.type)}
               >
-                Configure
-              </Button>
-            </div>
-          );
-        })}
-      </div>
+                <div className="flex items-start justify-between">
+                  <div
+                    className={cn(
+                      'size-10 rounded-lg flex items-center justify-center text-white shrink-0',
+                      providerDef.color,
+                    )}
+                  >
+                    <Icon className="size-5" />
+                  </div>
+                  <Badge
+                    variant={isConnected ? 'default' : 'secondary'}
+                    className={cn(
+                      'text-[10px] font-bold uppercase tracking-wider',
+                      isConnected &&
+                        'bg-green-500/10 text-green-600 border-green-500/20',
+                      isDisabled && 'opacity-60',
+                    )}
+                  >
+                    {isConnected
+                      ? 'Connected'
+                      : isDisabled
+                        ? 'Disabled'
+                        : 'Not configured'}
+                  </Badge>
+                </div>
 
-      {/* Webhook Configuration Dialog */}
+                <div className="flex-1 min-h-0">
+                  <p className="font-semibold text-sm">{providerDef.name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {existing ? existing.name : providerDef.description}
+                  </p>
+                </div>
+
+                <p className="text-xs font-semibold text-primary group-hover:underline">
+                  {existing ? 'Edit configuration →' : 'Configure →'}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       <WebhookConfigDialog
         open={configureType === 'webhook'}
         onOpenChange={(open) => !open && closeConfigure()}
-        existingChannel={editChannel}
-        onTest={handleTest}
-        onDelete={(channel) => setDeleteChannel(channel)}
+        existingIntegration={editIntegration}
+        onTest={(integration) => handleTest(integration)}
+        onDelete={(integration) => setDeleteIntegrationItem(integration)}
         isPending={isPending}
       />
 
-      {/* Slack Configuration Dialog */}
       <SlackConfigDialog
         open={configureType === 'slack'}
         onOpenChange={(open) => !open && closeConfigure()}
-        existingChannel={editChannel}
+        existingIntegration={editIntegration}
         onTest={handleTest}
-        onDelete={(channel) => setDeleteChannel(channel)}
+        onDelete={(integration) => setDeleteIntegrationItem(integration)}
         isPending={isPending}
       />
 
-      {/* Email Configuration Dialog */}
       <EmailConfigDialog
         open={configureType === 'email'}
         onOpenChange={(open) => !open && closeConfigure()}
-        existingChannel={editChannel}
-        onTest={handleTest}
-        onDelete={(channel) => setDeleteChannel(channel)}
+        existingIntegration={editIntegration}
+        onTest={(integration) => handleTest(integration)}
+        onDelete={(integration) => setDeleteIntegrationItem(integration)}
         isPending={isPending}
       />
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog
-        open={!!deleteChannel}
-        onOpenChange={(open) => !open && setDeleteChannel(null)}
+        open={!!deleteIntegrationItem}
+        onOpenChange={(open) => !open && setDeleteIntegrationItem(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Channel</AlertDialogTitle>
+            <AlertDialogTitle>Delete Integration</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deleteChannel?.name}&quot;?
-              This action cannot be undone and will stop all alerts to this
-              destination.
+              Are you sure you want to delete &quot;
+              {deleteIntegrationItem?.name}&quot;? This action cannot be undone
+              and will stop all alerts using this integration.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -391,22 +364,29 @@ export function AlertChannelsList({ initialChannels }: AlertChannelsListProps) {
 }
 
 // ============================================================================
-// Webhook Configuration Dialog
+// Shared dialog props
 // ============================================================================
 
 interface ConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  existingChannel: NotificationChannel | null;
-  onTest: (channel: NotificationChannel) => void;
-  onDelete: (channel: NotificationChannel) => void;
+  existingIntegration: AlertIntegration | null;
+  onTest: (
+    integration: AlertIntegration,
+    routingOverride?: Record<string, unknown>,
+  ) => void;
+  onDelete: (integration: AlertIntegration) => void;
   isPending: boolean;
 }
+
+// ============================================================================
+// Webhook Configuration Dialog
+// ============================================================================
 
 function WebhookConfigDialog({
   open,
   onOpenChange,
-  existingChannel,
+  existingIntegration,
   onTest,
   onDelete,
   isPending: parentPending,
@@ -417,57 +397,46 @@ function WebhookConfigDialog({
 
   const form = useForm<WebhookFormData>({
     resolver: zodResolver(webhookFormSchema),
-    defaultValues: {
-      name: '',
-      url: '',
-      secret: '',
-      is_enabled: true,
-    },
+    defaultValues: { name: '', url: '', secret: '', is_enabled: true },
   });
 
-  // Reset form when dialog opens
   useEffect(() => {
-    if (open && existingChannel) {
-      const config = existingChannel.config as {
+    if (open && existingIntegration) {
+      const creds = existingIntegration.credentials as {
         url?: string;
         secret?: string;
       };
       form.reset({
-        name: existingChannel.name,
-        url: config.url ?? '',
-        secret: config.secret ?? '',
-        is_enabled: existingChannel.is_enabled,
+        name: existingIntegration.name,
+        url: creds.url ?? '',
+        secret: creds.secret ?? '',
+        is_enabled: existingIntegration.is_enabled,
       });
     } else if (open) {
-      form.reset({
-        name: '',
-        url: '',
-        secret: '',
-        is_enabled: true,
-      });
+      form.reset({ name: '', url: '', secret: '', is_enabled: true });
     }
-  }, [open, existingChannel, form]);
+  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: WebhookFormData) => {
     startTransition(async () => {
       try {
-        const config: Record<string, unknown> = { url: data.url };
-        if (data.secret) {
-          config.secret = data.secret;
-        }
+        const credentials: Record<string, unknown> = {};
+        if (data.url && data.url.trim() !== '') credentials.url = data.url;
+        if (data.secret && data.secret.trim() !== '')
+          credentials.secret = data.secret;
 
-        if (existingChannel) {
-          await updateNotificationChannel(existingChannel.id, {
+        if (existingIntegration) {
+          await updateIntegration(existingIntegration.id, {
             name: data.name,
-            config,
+            credentials,
             is_enabled: data.is_enabled,
           });
           toast.success('Webhook updated');
         } else {
-          await createNotificationChannel({
+          await createIntegration({
             name: data.name,
-            channel_type: 'webhook',
-            config,
+            provider_type: 'webhook',
+            credentials,
             is_enabled: data.is_enabled,
           });
           toast.success('Webhook created');
@@ -487,10 +456,11 @@ function WebhookConfigDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {existingChannel ? 'Edit Webhook' : 'Configure Webhook'}
+            {existingIntegration ? 'Edit Webhook' : 'Configure Webhook'}
           </DialogTitle>
           <DialogDescription>
-            Send JSON payloads to your external API endpoints.
+            POST JSON payloads to external API endpoints. Specify the target URL
+            here (global default) or per-alert-rule as an override.
           </DialogDescription>
         </DialogHeader>
 
@@ -522,7 +492,7 @@ function WebhookConfigDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Webhook URL
+                    Default URL (optional)
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -532,6 +502,9 @@ function WebhookConfigDialog({
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>
+                    Leave blank to require a URL override per alert rule.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -571,7 +544,7 @@ function WebhookConfigDialog({
                       Enabled
                     </FormLabel>
                     <FormDescription className="text-xs">
-                      Receive alerts on this channel
+                      Receive alerts on this integration
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -586,13 +559,13 @@ function WebhookConfigDialog({
             />
 
             <DialogFooter className="gap-2 sm:gap-0">
-              {existingChannel && (
+              {existingIntegration && (
                 <div className="flex gap-2 mr-auto">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => onTest(existingChannel)}
+                    onClick={() => onTest(existingIntegration)}
                     disabled={isLoading}
                   >
                     <Play className="size-4 mr-1" />
@@ -602,7 +575,7 @@ function WebhookConfigDialog({
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => onDelete(existingChannel)}
+                    onClick={() => onDelete(existingIntegration)}
                     disabled={isLoading}
                     className="text-destructive hover:text-destructive"
                   >
@@ -621,7 +594,7 @@ function WebhookConfigDialog({
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingChannel ? 'Save Changes' : 'Create Webhook'}
+                {existingIntegration ? 'Save Changes' : 'Create Webhook'}
               </Button>
             </DialogFooter>
           </form>
@@ -638,7 +611,7 @@ function WebhookConfigDialog({
 function SlackConfigDialog({
   open,
   onOpenChange,
-  existingChannel,
+  existingIntegration,
   onTest,
   onDelete,
   isPending: parentPending,
@@ -646,6 +619,7 @@ function SlackConfigDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
+  const [testChannel, setTestChannel] = useState('');
 
   const form = useForm<SlackFormData>({
     resolver: zodResolver(slackFormSchema),
@@ -655,38 +629,25 @@ function SlackConfigDialog({
       is_edit: false,
       webhook_url: '',
       token: '',
-      channel: '',
-      username: '',
-      icon_emoji: '',
       is_enabled: true,
     },
   });
 
   const method = form.watch('method') as SlackMethod;
 
-  // Reset form when dialog opens
   useEffect(() => {
-    if (open && existingChannel) {
-      const config = existingChannel.config as {
+    if (open && existingIntegration) {
+      const creds = existingIntegration.credentials as {
         method?: SlackMethod;
         webhook_url?: string;
-        token?: string;
-        channel?: string;
-        username?: string;
-        icon_emoji?: string;
       };
-      const existingMethod: SlackMethod = config.method ?? 'webhook';
       form.reset({
-        name: existingChannel.name,
-        method: existingMethod,
+        name: existingIntegration.name,
+        method: creds.method ?? 'webhook',
         is_edit: true,
-        webhook_url: config.webhook_url ?? '',
-        // Never pre-fill the token (it is redacted on the server as "xoxb-****")
+        webhook_url: creds.webhook_url ?? '',
         token: '',
-        channel: config.channel ?? '',
-        username: config.username ?? '',
-        icon_emoji: config.icon_emoji ?? '',
-        is_enabled: existingChannel.is_enabled,
+        is_enabled: existingIntegration.is_enabled,
       });
     } else if (open) {
       form.reset({
@@ -695,99 +656,72 @@ function SlackConfigDialog({
         is_edit: false,
         webhook_url: '',
         token: '',
-        channel: '',
-        username: '',
-        icon_emoji: '',
         is_enabled: true,
       });
     }
-  }, [open, existingChannel, form]);
+    setTestChannel('');
+  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: SlackFormData) => {
     startTransition(async () => {
       try {
-        let config: Record<string, unknown>;
+        let credentials: Record<string, unknown>;
 
         if (data.method === 'webhook') {
-          config = {
-            method: 'webhook',
-            webhook_url: data.webhook_url,
-          };
+          credentials = { method: 'webhook', webhook_url: data.webhook_url };
         } else {
-          config = {
-            method: 'bot_token',
-            token: data.token,
-            channel: data.channel,
-          };
-          if (data.username) config.username = data.username;
-          if (data.icon_emoji) config.icon_emoji = data.icon_emoji;
+          credentials = { method: 'bot_token' };
+          const tokenEmpty = !data.token || data.token.trim() === '';
+          if (!tokenEmpty) credentials.token = data.token;
         }
 
-        if (existingChannel) {
-          const tokenEmpty = !data.token || data.token.trim() === '';
-          const tokenReentered = data.method === 'bot_token' && !tokenEmpty;
-          const shouldUpdateConfig =
-            data.method === 'webhook' || tokenReentered;
-
-          // If the user changed bot_token config fields (channel, username,
-          // icon_emoji) without re-entering the token, we cannot safely send
-          // the config — the server replaces it entirely and would lose the
-          // stored token. Block the submit and require the token.
-          if (data.method === 'bot_token' && tokenEmpty) {
-            const orig = existingChannel.config as Record<string, unknown>;
-            const configChanged =
-              data.channel !== (orig.channel ?? '') ||
-              data.username !== (orig.username ?? '') ||
-              data.icon_emoji !== (orig.icon_emoji ?? '');
-            if (configChanged) {
-              form.setError('token', {
-                message:
-                  'Re-enter your bot token to save configuration changes',
-              });
-              return;
-            }
-          }
-
-          await updateNotificationChannel(existingChannel.id, {
+        if (existingIntegration) {
+          await updateIntegration(existingIntegration.id, {
             name: data.name,
-            ...(shouldUpdateConfig ? { config } : {}),
+            credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Slack channel updated');
+          toast.success('Slack integration updated');
         } else {
-          await createNotificationChannel({
+          await createIntegration({
             name: data.name,
-            channel_type: 'slack',
-            config,
+            provider_type: 'slack',
+            credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Slack channel created');
+          toast.success('Slack integration created');
         }
         onOpenChange(false);
         router.refresh();
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Failed to save Slack channel';
-        toast.error('Failed to save Slack channel', { description: message });
+          err instanceof Error
+            ? err.message
+            : 'Failed to save Slack integration';
+        toast.error('Failed to save Slack integration', {
+          description: message,
+        });
       }
     });
   };
+
+  const isBotToken = method === 'bot_token';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {existingChannel ? 'Edit Slack Integration' : 'Configure Slack'}
+            {existingIntegration ? 'Edit Slack Integration' : 'Configure Slack'}
           </DialogTitle>
           <DialogDescription>
-            Send alerts to your Slack workspace.
+            Store Slack credentials here. Choose the target channel when
+            creating an alert rule.
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Channel name */}
             <FormField
               control={form.control}
               name="name"
@@ -808,7 +742,6 @@ function SlackConfigDialog({
               )}
             />
 
-            {/* Method selector */}
             <FormField
               control={form.control}
               name="method"
@@ -856,7 +789,6 @@ function SlackConfigDialog({
               )}
             />
 
-            {/* Webhook-specific fields */}
             {method === 'webhook' && (
               <FormField
                 control={form.control}
@@ -883,59 +815,35 @@ function SlackConfigDialog({
               />
             )}
 
-            {/* Bot token-specific fields */}
             {method === 'bot_token' && (
-              <>
-                <FormField
-                  control={form.control}
-                  name="token"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Bot Token
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          type="password"
-                          placeholder="xoxb-..."
-                          disabled={isLoading}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        OAuth bot token starting with xoxb- from your Slack app
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="channel"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Channel
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="#alerts or C1234567890"
-                          disabled={isLoading}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Channel name or ID where alerts will be posted
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </>
+              <FormField
+                control={form.control}
+                name="token"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Bot Token
+                      {existingIntegration
+                        ? ' (leave blank to keep existing)'
+                        : ''}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="xoxb-..."
+                        disabled={isLoading}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      OAuth bot token starting with xoxb- from your Slack app
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
-            {/* Enabled toggle */}
             <FormField
               control={form.control}
               name="is_enabled"
@@ -946,7 +854,7 @@ function SlackConfigDialog({
                       Enabled
                     </FormLabel>
                     <FormDescription className="text-xs">
-                      Receive alerts on this channel
+                      Receive alerts on this integration
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -961,23 +869,51 @@ function SlackConfigDialog({
             />
 
             <DialogFooter className="gap-2 sm:gap-0">
-              {existingChannel && (
+              {existingIntegration && (
                 <div className="flex gap-2 mr-auto">
+                  {isBotToken ? (
+                    // Inline channel input for bot_token test
+                    <div className="flex gap-1 items-center">
+                      <Input
+                        placeholder="#alerts"
+                        value={testChannel}
+                        onChange={(e) => setTestChannel(e.target.value)}
+                        className="h-8 w-28 text-xs"
+                        disabled={isLoading}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!testChannel.trim()) return;
+                          onTest(existingIntegration, {
+                            channel: testChannel.trim(),
+                          });
+                        }}
+                        disabled={isLoading || !testChannel.trim()}
+                      >
+                        <Play className="size-4 mr-1" />
+                        Test
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onTest(existingIntegration)}
+                      disabled={isLoading}
+                    >
+                      <Play className="size-4 mr-1" />
+                      Test
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => onTest(existingChannel)}
-                    disabled={isLoading}
-                  >
-                    <Play className="size-4 mr-1" />
-                    Test
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(existingChannel)}
+                    onClick={() => onDelete(existingIntegration)}
                     disabled={isLoading}
                     className="text-destructive hover:text-destructive"
                   >
@@ -996,7 +932,9 @@ function SlackConfigDialog({
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingChannel ? 'Save Changes' : 'Create Slack Integration'}
+                {existingIntegration
+                  ? 'Save Changes'
+                  : 'Create Slack Integration'}
               </Button>
             </DialogFooter>
           </form>
@@ -1007,13 +945,13 @@ function SlackConfigDialog({
 }
 
 // ============================================================================
-// Email Configuration Dialog
+// Email Configuration Dialog — credentials only (no recipients)
 // ============================================================================
 
 function EmailConfigDialog({
   open,
   onOpenChange,
-  existingChannel,
+  existingIntegration,
   onTest,
   onDelete,
   isPending: parentPending,
@@ -1021,12 +959,12 @@ function EmailConfigDialog({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
+  const [testRecipients, setTestRecipients] = useState('');
 
   const form = useForm<EmailFormData>({
     resolver: zodResolver(emailFormSchema),
     defaultValues: {
       name: '',
-      recipients: '',
       smtp_host: '',
       smtp_port: 587,
       smtp_username: '',
@@ -1036,31 +974,26 @@ function EmailConfigDialog({
     },
   });
 
-  // Reset form when dialog opens
   useEffect(() => {
-    if (open && existingChannel) {
-      const config = existingChannel.config as {
-        recipients?: string[];
+    if (open && existingIntegration) {
+      const creds = existingIntegration.credentials as {
         smtp_host?: string;
         smtp_port?: number;
         smtp_username?: string;
-        smtp_password?: string;
         from_address?: string;
       };
       form.reset({
-        name: existingChannel.name,
-        recipients: config.recipients?.join(', ') ?? '',
-        smtp_host: config.smtp_host ?? '',
-        smtp_port: config.smtp_port ?? 587,
-        smtp_username: config.smtp_username ?? '',
-        smtp_password: config.smtp_password ?? '',
-        from_address: config.from_address ?? '',
-        is_enabled: existingChannel.is_enabled,
+        name: existingIntegration.name,
+        smtp_host: creds.smtp_host ?? '',
+        smtp_port: creds.smtp_port ?? 587,
+        smtp_username: creds.smtp_username ?? '',
+        smtp_password: '',
+        from_address: creds.from_address ?? '',
+        is_enabled: existingIntegration.is_enabled,
       });
     } else if (open) {
       form.reset({
         name: '',
-        recipients: '',
         smtp_host: '',
         smtp_port: 587,
         smtp_username: '',
@@ -1069,51 +1002,46 @@ function EmailConfigDialog({
         is_enabled: true,
       });
     }
-  }, [open, existingChannel, form]);
+    setTestRecipients('');
+  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: EmailFormData) => {
     startTransition(async () => {
       try {
-        const recipients = data.recipients
-          .split(',')
-          .map((r) => r.trim())
-          .filter(Boolean);
-
-        const config: Record<string, unknown> = {
-          recipients,
+        const credentials: Record<string, unknown> = {
           smtp_host: data.smtp_host,
           smtp_port: data.smtp_port,
           from_address: data.from_address,
         };
-        if (data.smtp_username) {
-          config.smtp_username = data.smtp_username;
-        }
-        if (data.smtp_password) {
-          config.smtp_password = data.smtp_password;
-        }
+        if (data.smtp_username) credentials.smtp_username = data.smtp_username;
+        if (data.smtp_password) credentials.smtp_password = data.smtp_password;
 
-        if (existingChannel) {
-          await updateNotificationChannel(existingChannel.id, {
+        if (existingIntegration) {
+          await updateIntegration(existingIntegration.id, {
             name: data.name,
-            config,
+            credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Email channel updated');
+          toast.success('Email integration updated');
         } else {
-          await createNotificationChannel({
+          await createIntegration({
             name: data.name,
-            channel_type: 'email',
-            config,
+            provider_type: 'email',
+            credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Email channel created');
+          toast.success('Email integration created');
         }
         onOpenChange(false);
         router.refresh();
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : 'Failed to save email channel';
-        toast.error('Failed to save email channel', { description: message });
+          err instanceof Error
+            ? err.message
+            : 'Failed to save email integration';
+        toast.error('Failed to save email integration', {
+          description: message,
+        });
       }
     });
   };
@@ -1123,10 +1051,13 @@ function EmailConfigDialog({
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {existingChannel ? 'Edit Email Channel' : 'Configure Email (SMTP)'}
+            {existingIntegration
+              ? 'Edit Email Integration'
+              : 'Configure Email (SMTP)'}
           </DialogTitle>
           <DialogDescription>
-            Send alerts via email using SMTP.
+            Store SMTP credentials here. Specify recipients when creating an
+            alert rule.
           </DialogDescription>
         </DialogHeader>
 
@@ -1147,29 +1078,6 @@ function EmailConfigDialog({
                       {...field}
                     />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="recipients"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Recipients
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="alerts@example.com, team@example.com"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Comma-separated list of email addresses
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -1295,7 +1203,7 @@ function EmailConfigDialog({
                       Enabled
                     </FormLabel>
                     <FormDescription className="text-xs">
-                      Receive alerts on this channel
+                      Receive alerts on this integration
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -1310,23 +1218,39 @@ function EmailConfigDialog({
             />
 
             <DialogFooter className="gap-2 sm:gap-0">
-              {existingChannel && (
+              {existingIntegration && (
                 <div className="flex gap-2 mr-auto">
+                  <div className="flex gap-1 items-center">
+                    <Input
+                      placeholder="test@example.com"
+                      value={testRecipients}
+                      onChange={(e) => setTestRecipients(e.target.value)}
+                      className="h-8 w-36 text-xs"
+                      disabled={isLoading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (!testRecipients.trim()) return;
+                        const recipients = testRecipients
+                          .split(',')
+                          .map((a) => a.trim())
+                          .filter(Boolean);
+                        onTest(existingIntegration, { recipients });
+                      }}
+                      disabled={isLoading || !testRecipients.trim()}
+                    >
+                      <Play className="size-4 mr-1" />
+                      Test
+                    </Button>
+                  </div>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => onTest(existingChannel)}
-                    disabled={isLoading}
-                  >
-                    <Play className="size-4 mr-1" />
-                    Test
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(existingChannel)}
+                    onClick={() => onDelete(existingIntegration)}
                     disabled={isLoading}
                     className="text-destructive hover:text-destructive"
                   >
@@ -1345,7 +1269,9 @@ function EmailConfigDialog({
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingChannel ? 'Save Changes' : 'Create Email Channel'}
+                {existingIntegration
+                  ? 'Save Changes'
+                  : 'Create Email Integration'}
               </Button>
             </DialogFooter>
           </form>

@@ -2,6 +2,9 @@
 //!
 //! Sends alerts via SMTP using the lettre crate.
 //! Supports both plain text and HTML email formats.
+//!
+//! Routing override (flat struct, no provider_type discriminator — SCL-1):
+//! `{"recipients": ["a@b.com", "c@d.com"]}`
 
 use async_trait::async_trait;
 use lettre::message::header::ContentType;
@@ -10,11 +13,11 @@ use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
 use super::{NotificationDispatcher, NotificationResult};
 use crate::error::{AppError, AppResult};
-use crate::models::{AlertPayload, EmailConfig, NotificationChannel};
+use crate::models::{AlertIntegration, AlertPayload, EmailConfig, EmailRoutingOverride};
 
 /// Email notification dispatcher
 pub struct EmailNotifier {
-    // Global SMTP configuration (fallback if channel doesn't specify)
+    // Global SMTP configuration (fallback if integration doesn't specify)
     global_smtp_host: Option<String>,
     global_smtp_port: u16,
     global_smtp_username: Option<String>,
@@ -164,39 +167,20 @@ This alert was sent by Rustrak for project {project_name}."#,
             issue_url = &payload.issue_url,
         )
     }
-}
 
-impl Default for EmailNotifier {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Simple HTML escaping for email content
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
-#[async_trait]
-impl NotificationDispatcher for EmailNotifier {
-    async fn send(
+    /// Core send logic, separated for testability.
+    /// `credentials` contains SMTP config; `recipients` come from routing_override.
+    async fn send_to_recipients(
         &self,
-        channel: &NotificationChannel,
+        credentials: &EmailConfig,
+        recipients: &[String],
         payload: &AlertPayload,
     ) -> NotificationResult {
-        // Parse config
-        let config: EmailConfig = match serde_json::from_value(channel.config.clone()) {
-            Ok(c) => c,
-            Err(e) => {
-                return NotificationResult::failure(format!("Invalid email config: {}", e), None)
-            }
-        };
-
-        // Determine SMTP settings (channel config overrides global)
-        let smtp_host = config.smtp_host.as_ref().or(self.global_smtp_host.as_ref());
+        // Determine SMTP settings (integration credentials override global)
+        let smtp_host = credentials
+            .smtp_host
+            .as_ref()
+            .or(self.global_smtp_host.as_ref());
         let smtp_host = match smtp_host {
             Some(h) => h,
             None => {
@@ -204,8 +188,8 @@ impl NotificationDispatcher for EmailNotifier {
             }
         };
 
-        let smtp_port = config.smtp_port.unwrap_or(self.global_smtp_port);
-        let from_address = config
+        let smtp_port = credentials.smtp_port.unwrap_or(self.global_smtp_port);
+        let from_address = credentials
             .from_address
             .as_ref()
             .unwrap_or(&self.global_from_address);
@@ -230,14 +214,11 @@ impl NotificationDispatcher for EmailNotifier {
             payload.project.name, alert_type_display, payload.issue.short_id
         );
 
-        // Build HTML and text bodies
         let html_body = Self::format_html(payload);
         let text_body = Self::format_text(payload);
 
-        // Send to each recipient
         let mut sent_any = false;
-        for recipient in &config.recipients {
-            // Build email message
+        for recipient in recipients {
             let email = match Message::builder()
                 .from(
                     from_address
@@ -274,11 +255,7 @@ impl NotificationDispatcher for EmailNotifier {
                 }
             };
 
-            // Build SMTP transport
-            // Port 465 = implicit TLS (SMTPS), Port 587 = STARTTLS
             let mailer_builder = if smtp_port == 465 {
-                // Use implicit TLS for port 465
-                // Build TLS parameters first to handle errors gracefully
                 let tls_params = match lettre::transport::smtp::client::TlsParameters::new(
                     smtp_host.to_string(),
                 ) {
@@ -300,7 +277,6 @@ impl NotificationDispatcher for EmailNotifier {
                         NotificationResult::failure(format!("Invalid SMTP host: {}", e), None)
                     })
             } else {
-                // Use STARTTLS for port 587 (starts plain, upgrades to TLS)
                 AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)
                     .map(|b| b.port(smtp_port))
                     .map_err(|e| {
@@ -313,13 +289,12 @@ impl NotificationDispatcher for EmailNotifier {
                 Err(result) => return result,
             };
 
-            // Add credentials if configured
             let mailer = if let (Some(username), Some(password)) = (
-                config
+                credentials
                     .smtp_username
                     .as_ref()
                     .or(self.global_smtp_username.as_ref()),
-                config
+                credentials
                     .smtp_password
                     .as_ref()
                     .or(self.global_smtp_password.as_ref()),
@@ -331,7 +306,6 @@ impl NotificationDispatcher for EmailNotifier {
                 mailer_builder.build()
             };
 
-            // Send email
             match mailer.send(email).await {
                 Ok(_) => {
                     sent_any = true;
@@ -352,31 +326,73 @@ impl NotificationDispatcher for EmailNotifier {
 
         NotificationResult::success(None)
     }
+}
+
+impl Default for EmailNotifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Simple HTML escaping for email content
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+#[async_trait]
+impl NotificationDispatcher for EmailNotifier {
+    async fn send(
+        &self,
+        integration: &AlertIntegration,
+        routing: &serde_json::Value,
+        payload: &AlertPayload,
+    ) -> NotificationResult {
+        // is_enabled check FIRST (SCL-1)
+        if !integration.is_enabled {
+            log::debug!(
+                "Skipping dispatch to disabled Email integration {} ({})",
+                integration.id,
+                integration.name
+            );
+            return NotificationResult::success(None);
+        }
+
+        // Parse credentials (SMTP config, no recipients)
+        let credentials: EmailConfig = match serde_json::from_value(integration.credentials.clone())
+        {
+            Ok(c) => c,
+            Err(e) => {
+                return NotificationResult::failure(
+                    format!("Invalid email credentials: {}", e),
+                    None,
+                )
+            }
+        };
+
+        // Parse flat routing override — recipients come from here (SCL-1, no tag)
+        let routing_override: EmailRoutingOverride = match serde_json::from_value(routing.clone()) {
+            Ok(r) => r,
+            Err(e) => {
+                return NotificationResult::failure(format!("Invalid email routing: {}", e), None)
+            }
+        };
+
+        self.send_to_recipients(&credentials, &routing_override.recipients, payload)
+            .await
+    }
 
     fn validate_config(&self, config: &serde_json::Value) -> AppResult<()> {
+        // Validate SMTP credentials — not recipients (those live in routing_override)
         let email_config: EmailConfig = serde_json::from_value(config.clone())
             .map_err(|e| AppError::Validation(format!("Invalid email config: {}", e)))?;
 
-        if email_config.recipients.is_empty() {
-            return Err(AppError::Validation(
-                "At least one email recipient is required".to_string(),
-            ));
-        }
-
-        // Validate email addresses
-        for recipient in &email_config.recipients {
-            if !recipient.contains('@') || recipient.len() < 5 {
-                return Err(AppError::Validation(format!(
-                    "Invalid email address: {}",
-                    recipient
-                )));
-            }
-        }
-
-        // If no global SMTP and no channel SMTP, warn
+        // If no global SMTP and no integration SMTP, warn
         if email_config.smtp_host.is_none() && self.global_smtp_host.is_none() {
             return Err(AppError::Validation(
-                "SMTP host must be configured either globally or per-channel".to_string(),
+                "SMTP host must be configured either globally or per-integration".to_string(),
             ));
         }
 
@@ -411,6 +427,47 @@ mod tests {
             issue_url: "https://example.com/issues/abc-123".to_string(),
             actor: "Rustrak".to_string(),
         }
+    }
+
+    fn make_email_integration(is_enabled: bool) -> AlertIntegration {
+        AlertIntegration {
+            id: 2,
+            name: "Test Email".to_string(),
+            provider_type: crate::models::ProviderType::Email,
+            credentials: serde_json::json!({
+                "smtp_host": "smtp.example.com",
+                "smtp_port": 587,
+                "smtp_username": "user",
+                "smtp_password": "pass",
+                "from_address": "alerts@example.com"
+            }),
+            is_enabled,
+            failure_count: 0,
+            last_failure_at: None,
+            last_failure_message: None,
+            last_success_at: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Task 4 RED→GREEN: Email dispatcher reads recipients from flat routing
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn test_disabled_email_integration_skipped() {
+        let notifier = EmailNotifier::new();
+        let integration = make_email_integration(false);
+        let routing = serde_json::json!({"recipients": ["a@b.com"]});
+        let payload = create_test_payload();
+
+        let result = notifier.send(&integration, &routing, &payload).await;
+
+        assert!(
+            result.success,
+            "disabled integration must return success (skip)"
+        );
     }
 
     #[test]

@@ -9,10 +9,36 @@ pub mod source_file;
 pub mod user;
 
 pub use alert::{
-    AlertHistory, AlertPayload, AlertRule, AlertRuleResponse, AlertStatus, AlertType, ChannelType,
-    CreateAlertRule, CreateNotificationChannel, EmailConfig, IssueInfo, NotificationChannel,
-    ProjectInfo, SlackBotTokenConfig, SlackConfig, SlackWebhookConfig, UpdateAlertRule,
-    UpdateNotificationChannel, WebhookConfig,
+    AlertHistory,
+    AlertIntegration,
+    AlertPayload,
+    AlertRule,
+    AlertRuleChannel,
+    AlertRuleChannelInput,
+    AlertRuleResponse,
+    AlertStatus,
+    AlertType,
+    // Legacy aliases
+    ChannelType,
+    // New types
+    CreateAlertIntegration,
+    CreateAlertRule,
+    CreateNotificationChannel,
+    EmailConfig,
+    EmailRoutingOverride,
+    IssueInfo,
+    NotificationChannel,
+    ProjectInfo,
+    ProviderType,
+    SlackBotTokenConfig,
+    SlackConfig,
+    SlackRoutingOverride,
+    SlackWebhookConfig,
+    UpdateAlertIntegration,
+    UpdateAlertRule,
+    UpdateNotificationChannel,
+    WebhookConfig,
+    WebhookRoutingOverride,
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};

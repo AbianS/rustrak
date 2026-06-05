@@ -97,8 +97,11 @@ export async function getEventNavigation(
     totalCount,
     firstEventId: events[0]?.id ?? null,
     lastEventId: events[totalCount - 1]?.id ?? null,
-    prevEventId: currentIndex > 0 ? (events[currentIndex - 1]?.id ?? null) : null,
+    prevEventId:
+      currentIndex > 0 ? (events[currentIndex - 1]?.id ?? null) : null,
     nextEventId:
-      currentIndex < totalCount - 1 ? (events[currentIndex + 1]?.id ?? null) : null,
+      currentIndex < totalCount - 1
+        ? (events[currentIndex + 1]?.id ?? null)
+        : null,
   };
 }

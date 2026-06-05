@@ -1,7 +1,7 @@
 //! Notification dispatcher system using the Strategy pattern.
 //!
 //! This module provides a pluggable notification system that supports
-//! multiple delivery channels (Webhook, Email, Slack) through a common trait.
+//! multiple delivery integrations (Webhook, Email, Slack) through a common trait.
 
 pub mod email;
 pub mod slack;
@@ -10,7 +10,7 @@ pub mod webhook;
 use async_trait::async_trait;
 
 use crate::error::AppResult;
-use crate::models::{AlertPayload, ChannelType, NotificationChannel};
+use crate::models::{AlertIntegration, AlertPayload, ProviderType};
 
 pub use email::EmailNotifier;
 pub use slack::SlackNotifier;
@@ -57,21 +57,29 @@ impl NotificationResult {
 
 /// Trait for notification dispatchers (Strategy pattern)
 ///
-/// Each channel type (Webhook, Email, Slack) implements this trait
-/// to provide channel-specific delivery logic.
+/// Each provider type (Webhook, Email, Slack) implements this trait
+/// to provide provider-specific delivery logic.
 #[async_trait]
 pub trait NotificationDispatcher: Send + Sync {
-    /// Send a notification to the channel
+    /// Send a notification to the integration.
+    ///
+    /// `routing` is the flat JSON routing_override from alert_rule_channels.
+    /// Each dispatcher deserializes it into its own routing struct (no tag needed —
+    /// the provider type is already known from the integration).
+    ///
+    /// Dispatchers MUST check `integration.is_enabled` first and return
+    /// `Ok(NotificationResult::success(None))` immediately if disabled.
     async fn send(
         &self,
-        channel: &NotificationChannel,
+        integration: &AlertIntegration,
+        routing: &serde_json::Value,
         payload: &AlertPayload,
     ) -> NotificationResult;
 
-    /// Validate channel configuration
+    /// Validate integration credentials.
     ///
-    /// Called before creating or updating a channel to ensure
-    /// the configuration is valid for this channel type.
+    /// Called before creating or updating an integration to ensure
+    /// the credentials are valid for this provider type.
     fn validate_config(&self, config: &serde_json::Value) -> AppResult<()>;
 }
 
@@ -79,11 +87,11 @@ pub trait NotificationDispatcher: Send + Sync {
 // Dispatcher Factory
 // =============================================================================
 
-/// Creates the appropriate dispatcher for a channel type
-pub fn create_dispatcher(channel_type: ChannelType) -> Box<dyn NotificationDispatcher> {
-    match channel_type {
-        ChannelType::Webhook => Box::new(WebhookNotifier::new()),
-        ChannelType::Email => Box::new(EmailNotifier::new()),
-        ChannelType::Slack => Box::new(SlackNotifier::new()),
+/// Creates the appropriate dispatcher for a provider type
+pub fn create_dispatcher(provider_type: ProviderType) -> Box<dyn NotificationDispatcher> {
+    match provider_type {
+        ProviderType::Webhook => Box::new(WebhookNotifier::new()),
+        ProviderType::Email => Box::new(EmailNotifier::new()),
+        ProviderType::Slack => Box::new(SlackNotifier::new()),
     }
 }
