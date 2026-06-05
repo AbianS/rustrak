@@ -1,5 +1,8 @@
 import * as Sentry from '@sentry/node';
 
+export type { SourceMapTestConfig } from './sourcemaps.js';
+export { generateDebugId, testSourceMaps } from './sourcemaps.js';
+
 export interface TestConfig {
   dsn: string;
   debug?: boolean;

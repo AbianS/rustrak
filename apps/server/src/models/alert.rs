@@ -190,6 +190,7 @@ pub struct WebhookRoutingOverride {
 
 /// Junction record linking an alert rule to an integration with per-rule routing.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertRuleChannel {
     pub alert_rule_id: i32,
     pub integration_id: i32,
@@ -301,6 +302,7 @@ fn default_conditions() -> serde_json::Value {
 
 /// DTO for a channel with routing override in rule create/update
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AlertRuleChannelInput {
     pub integration_id: i32,
     #[serde(default = "default_empty_object")]

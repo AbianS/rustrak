@@ -13,16 +13,286 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/0/organizations/{org_slug}/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/organizations/{org_slug}/\nAlways returns 200 with synthetic org data — sentry-cli validates this before uploading.",
+        "operationId": "org_details",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Synthetic org metadata accepted by sentry-cli"
+          }
+        }
+      }
+    },
+    "/api/0/organizations/{org_slug}/artifactbundle/assemble/": {
+      "post": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "POST /api/0/organizations/{org_slug}/artifactbundle/assemble/",
+        "operationId": "artifact_bundle_assemble",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssembleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Assembly job state (ok / created / processing)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Missing chunks — upload required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssembleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or checksum mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/organizations/{org_slug}/chunk-upload/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/organizations/{org_slug}/chunk-upload/",
+        "operationId": "chunk_upload_capability",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chunk upload capabilities and URL"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "POST /api/0/organizations/{org_slug}/chunk-upload/",
+        "operationId": "chunk_upload",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "One or more binary chunk files. Field names may be SHA-1 hashes (v2 protocol) or arbitrary names like 'file' (v3.x protocol).",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ChunkUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Chunks stored successfully"
+          },
+          "400": {
+            "description": "Invalid multipart or chunk too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/projects/{org_slug}/{project_slug}/files/source-maps/": {
+      "get": {
+        "tags": [
+          "Source Maps"
+        ],
+        "summary": "GET /api/0/projects/{org_slug}/{project_slug}/files/source-maps/",
+        "operationId": "list_source_maps",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of uploaded source map files"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/integrations": {
       "get": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
-        "summary": "GET /api/integrations",
+        "summary": "GET /api/alert-channels",
         "operationId": "list_channels",
         "responses": {
           "200": {
-            "description": "List of alert integrations",
+            "description": "List of notification channels",
             "content": {
               "application/json": {
                 "schema": {
@@ -53,9 +323,9 @@
       },
       "post": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
-        "summary": "POST /api/integrations",
+        "summary": "POST /api/alert-channels",
         "operationId": "create_channel",
         "requestBody": {
           "content": {
@@ -69,7 +339,7 @@
         },
         "responses": {
           "201": {
-            "description": "Integration created",
+            "description": "Channel created",
             "content": {
               "application/json": {
                 "schema": {
@@ -80,16 +350,6 @@
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid routing override",
             "content": {
               "application/json": {
                 "schema": {
@@ -109,15 +369,15 @@
     "/api/integrations/{id}": {
       "get": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
-        "summary": "GET /api/integrations/{id}",
+        "summary": "GET /api/alert-channels/{id}",
         "operationId": "get_channel",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Integration ID",
+            "description": "Channel ID",
             "required": true,
             "schema": {
               "type": "integer",
@@ -127,7 +387,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Integration details",
+            "description": "Channel details",
             "content": {
               "application/json": {
                 "schema": {
@@ -165,15 +425,15 @@
       },
       "delete": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
-        "summary": "DELETE /api/integrations/{id}",
+        "summary": "DELETE /api/alert-channels/{id}",
         "operationId": "delete_channel",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Integration ID",
+            "description": "Channel ID",
             "required": true,
             "schema": {
               "type": "integer",
@@ -183,7 +443,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Integration deleted"
+            "description": "Channel deleted"
           },
           "401": {
             "description": "Unauthorized",
@@ -214,15 +474,15 @@
       },
       "patch": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
-        "summary": "PATCH /api/integrations/{id}",
+        "summary": "PATCH /api/alert-channels/{id}",
         "operationId": "update_channel",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Integration ID",
+            "description": "Channel ID",
             "required": true,
             "schema": {
               "type": "integer",
@@ -242,7 +502,7 @@
         },
         "responses": {
           "200": {
-            "description": "Integration updated",
+            "description": "Channel updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -282,7 +542,7 @@
     "/api/integrations/{id}/test": {
       "post": {
         "tags": [
-          "Alert Integrations"
+          "Alert Channels"
         ],
         "summary": "POST /api/integrations/{id}/test",
         "operationId": "test_channel",
@@ -290,7 +550,7 @@
           {
             "name": "id",
             "in": "path",
-            "description": "Integration ID",
+            "description": "Channel ID",
             "required": true,
             "schema": {
               "type": "integer",
@@ -914,16 +1174,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Invalid routing override",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         },
         "security": [
@@ -1120,16 +1370,6 @@
           },
           "404": {
             "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid routing override",
             "content": {
               "application/json": {
                 "schema": {
@@ -2190,8 +2430,7 @@
               "integer",
               "null"
             ],
-            "format": "int32",
-            "description": "FK to alert_integrations (nullable — SET NULL on integration delete)"
+            "format": "int32"
           },
           "issue_id": {
             "type": [
@@ -2228,7 +2467,7 @@
       },
       "AlertIntegration": {
         "type": "object",
-        "description": "Global alert integration — stores provider credentials only.\n\nRouting information (target Slack channel, email recipients, webhook URL\noverrides) lives in `AlertRuleChannel.routing_override` so a single\nintegration can be reused across multiple projects with different routing.",
+        "description": "Global alert integration record — stores credentials only, no routing.",
         "required": [
           "id",
           "name",
@@ -2245,8 +2484,7 @@
             "format": "date-time"
           },
           "credentials": {
-            "type": "object",
-            "description": "Provider credentials (bot token, SMTP settings, webhook URL, etc.)\nRouting fields (channel, recipients) are intentionally absent here."
+            "type": "object"
           },
           "failure_count": {
             "type": "integer",
@@ -2293,7 +2531,7 @@
       },
       "AlertRuleChannelInput": {
         "type": "object",
-        "description": "Input DTO for one channel entry when creating/updating an alert rule",
+        "description": "DTO for a channel with routing override in rule create/update",
         "required": [
           "integration_id"
         ],
@@ -2302,14 +2540,12 @@
             "type": "integer",
             "format": "int32"
           },
-          "routing_override": {
-            "type": "object"
-          }
+          "routing_override": {}
         }
       },
       "AlertRuleResponse": {
         "type": "object",
-        "description": "Response for alert rule including linked integration IDs",
+        "description": "Response for alert rule including linked integration info",
         "required": [
           "id",
           "project_id",
@@ -2346,8 +2582,7 @@
             "items": {
               "type": "integer",
               "format": "int32"
-            },
-            "description": "Integration IDs linked to this rule (without routing details)"
+            }
           },
           "is_enabled": {
             "type": "boolean"
@@ -2390,6 +2625,55 @@
           "regression",
           "unmute"
         ]
+      },
+      "AssembleBody": {
+        "type": "object",
+        "required": [
+          "checksum",
+          "chunks",
+          "projects"
+        ],
+        "properties": {
+          "checksum": {
+            "type": "string"
+          },
+          "chunks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AssembleResponse": {
+        "type": "object",
+        "required": [
+          "state",
+          "missingChunks"
+        ],
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "missingChunks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string"
+          }
+        }
       },
       "AuthResponse": {
         "type": "object",
@@ -2465,6 +2749,10 @@
           }
         }
       },
+      "ChunkUploadBody": {
+        "type": "object",
+        "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
+      },
       "CreateAlertIntegration": {
         "type": "object",
         "description": "DTO for creating an alert integration",
@@ -2499,12 +2787,20 @@
           "alert_type": {
             "$ref": "#/components/schemas/AlertType"
           },
+          "channel_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Legacy field: kept for backward compat, ignored if channels is provided"
+          },
           "channels": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AlertRuleChannelInput"
             },
-            "description": "Per-channel routing overrides — replaces the old `channel_ids: Vec<i32>`"
+            "description": "New field: channels with per-rule routing overrides"
           },
           "conditions": {
             "type": "object"
@@ -2850,7 +3146,7 @@
       },
       "ProviderType": {
         "type": "string",
-        "description": "Type of integration provider (formerly ChannelType)",
+        "description": "Type of notification provider (replaces ChannelType)",
         "enum": [
           "webhook",
           "email",
@@ -2885,7 +3181,7 @@
       },
       "TestIntegrationBody": {
         "type": "object",
-        "description": "Request body for test endpoint (routing_override is optional)",
+        "description": "Request body for the test-integration endpoint.",
         "properties": {
           "routing_override": {}
         }
@@ -2918,6 +3214,17 @@
         "type": "object",
         "description": "DTO for updating an alert rule",
         "properties": {
+          "channel_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "description": "Legacy field: kept for backward compat"
+          },
           "channels": {
             "type": [
               "array",
@@ -2926,7 +3233,7 @@
             "items": {
               "$ref": "#/components/schemas/AlertRuleChannelInput"
             },
-            "description": "If provided, replaces the full set of channel-integration links for this rule"
+            "description": "New field: channels with per-rule routing overrides"
           },
           "conditions": {
             "type": [

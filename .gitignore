@@ -43,3 +43,7 @@ yarn-error.log*
 
 # Generated release card images
 release-cards/
+
+# Python
+__pycache__/
+*.pyc

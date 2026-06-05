@@ -90,6 +90,13 @@ url = "2.5.8"
 # Async trait support
 async-trait = "0.1.89"
 
+# Source map processing
+sourcemap = "9"
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }  # CVE-2025-29787 fixed in 2.3+; DO NOT lower below 2.3; no zstd (non-SPDX license)
+actix-multipart = "0.7"
+sha1 = "0.11"
+tempfile = "3.27.0"
+
 # Email sending
 lettre = { version = "0.11.22", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 
@@ -119,8 +126,7 @@ proptest = "1.11.0"
 # Better assertion diffs
 pretty_assertions = "1.4.1"
 
-# Temp directories for tests
-tempfile = "3.27.0"
+# tempfile moved to [dependencies] (needed at runtime for assembly)
 
 [[bin]]
 name = "rustrak"

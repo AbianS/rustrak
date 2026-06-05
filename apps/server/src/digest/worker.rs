@@ -1,5 +1,6 @@
 use chrono::Utc;
 use std::path::Path;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::config::RateLimitConfig;
@@ -7,6 +8,7 @@ use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::ingest::{delete_event, read_event, EventMetadata};
 use crate::models::{Grouping, Issue};
+use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
     DenormalizedFields, EventService, ProjectService, RateLimitService,
@@ -19,8 +21,16 @@ pub async fn process_event(
     metadata: &EventMetadata,
     ingest_dir: &Path,
     rate_limit_config: &RateLimitConfig,
+    sourcemap_provider: Arc<dyn SourceMapProvider>,
 ) -> AppResult<()> {
-    let result = process_event_impl(pool, metadata, ingest_dir, rate_limit_config).await;
+    let result = process_event_impl(
+        pool,
+        metadata,
+        ingest_dir,
+        rate_limit_config,
+        sourcemap_provider,
+    )
+    .await;
     if result.is_err() {
         if let Err(e) = delete_event(ingest_dir, &metadata.event_id).await {
             log::warn!(
@@ -38,6 +48,7 @@ async fn process_event_impl(
     metadata: &EventMetadata,
     ingest_dir: &Path,
     rate_limit_config: &RateLimitConfig,
+    sourcemap_provider: Arc<dyn SourceMapProvider>,
 ) -> AppResult<()> {
     let _digested_at = Utc::now();
 
@@ -54,8 +65,23 @@ async fn process_event_impl(
 
     // 1. Read event from filesystem
     let event_bytes = read_event(ingest_dir, &metadata.event_id).await?;
-    let event_data: serde_json::Value = serde_json::from_slice(&event_bytes)
+    let mut event_data: serde_json::Value = serde_json::from_slice(&event_bytes)
         .map_err(|e| AppError::Internal(format!("Invalid event JSON: {}", e)))?;
+
+    // 1b. Rewrite stack frames using source maps (non-fatal)
+    if let Err(e) = crate::services::sourcemap::rewrite_frames(
+        sourcemap_provider.as_ref(),
+        metadata.project_id,
+        &mut event_data,
+    )
+    .await
+    {
+        log::warn!(
+            "source map rewriting failed for event {}: {:?}",
+            metadata.event_id,
+            e
+        );
+    }
 
     // 2. Parse event_id as UUID
     let event_id = Uuid::parse_str(&metadata.event_id)

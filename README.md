@@ -1,26 +1,26 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/AbianS/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="80" height="80" />
+  <img src="https://raw.githubusercontent.com/rustrak/rustrak/main/apps/docs/public/logo.svg" alt="Rustrak" width="80" height="80" />
   <h1>Rustrak</h1>
   <p><strong>Ultra-lightweight, self-hosted error tracking compatible with Sentry SDKs</strong></p>
 
   <p>
-    <a href="https://github.com/AbianS/rustrak/actions/workflows/ci.yml">
-      <img src="https://github.com/AbianS/rustrak/actions/workflows/ci.yml/badge.svg" alt="CI" />
+    <a href="https://github.com/rustrak/rustrak/actions/workflows/ci.yml">
+      <img src="https://github.com/rustrak/rustrak/actions/workflows/ci.yml/badge.svg" alt="CI" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/blob/main/LICENSE">
+    <a href="https://github.com/rustrak/rustrak/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="License" />
     </a>
-    <a href="https://github.com/AbianS/rustrak/releases">
-      <img src="https://img.shields.io/github/v/release/AbianS/rustrak" alt="Release" />
+    <a href="https://github.com/rustrak/rustrak/releases">
+      <img src="https://img.shields.io/github/v/release/rustrak/rustrak" alt="Release" />
     </a>
   </p>
 
   <p>
-    <a href="https://abians.github.io/rustrak">Documentation</a>
+    <a href="https://rustrak.github.io/rustrak">Documentation</a>
     ·
-    <a href="https://github.com/AbianS/rustrak/issues">Report Bug</a>
+    <a href="https://github.com/rustrak/rustrak/issues">Report Bug</a>
     ·
-    <a href="https://github.com/AbianS/rustrak/issues">Request Feature</a>
+    <a href="https://github.com/rustrak/rustrak/issues">Request Feature</a>
   </p>
 </div>
 
@@ -48,7 +48,7 @@ The default image uses SQLite. No PostgreSQL needed.
 ```yaml
 services:
   server:
-    image: abians7/rustrak-server:latest
+    image: rustrak/rustrak-server:latest
     ports:
       - "8080:8080"
     volumes:
@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
 
   ui:
-    image: abians7/rustrak-ui:latest
+    image: rustrak/rustrak-ui:latest
     ports:
       - "3000:3000"
     environment:
@@ -104,7 +104,7 @@ services:
     restart: unless-stopped
 
   server:
-    image: abians7/rustrak-server:postgres
+    image: rustrak/rustrak-server:postgres
     ports:
       - "${SERVER_PORT}:8080"
     environment:
@@ -119,7 +119,7 @@ services:
     restart: unless-stopped
 
   ui:
-    image: abians7/rustrak-ui:latest
+    image: rustrak/rustrak-ui:latest
     ports:
       - "${UI_PORT}:3000"
     environment:
@@ -225,12 +225,16 @@ npx @rustrak/mcp
 
 ## Docker Images
 
+> **Migrating from v0.x?** Images moved from `abians7/rustrak-*` to `rustrak/rustrak-*` starting from v0.4.0.
+> Update your `docker-compose.yml` image references and pull from the new location.
+> Old images on `abians7` remain available but will no longer receive updates.
+
 Available on Docker Hub:
 
 ```bash
-docker pull abians7/rustrak-server         # SQLite (default)
-docker pull abians7/rustrak-server:postgres # PostgreSQL
-docker pull abians7/rustrak-ui
+docker pull rustrak/rustrak-server         # SQLite (default)
+docker pull rustrak/rustrak-server:postgres # PostgreSQL
+docker pull rustrak/rustrak-ui
 ```
 
 | Image | Tag | Size | Description |
@@ -274,12 +278,12 @@ The docs site copies the spec automatically at build time — `apps/docs/public/
 
 ## Documentation
 
-Full documentation is available at **[docs](https://abians.github.io/rustrak/)**
+Full documentation is available at **[docs](https://rustrak.github.io/rustrak/)**
 
-- [Getting Started](https://abians.github.io/rustrak/getting-started)
-- [Configuration](https://abians.github.io/rustrak/configuration)
-- [API Reference](https://abians.github.io/rustrak/api)
-- [Self-Hosting Guide](https://abians.github.io/rustrak/self-hosting)
+- [Getting Started](https://rustrak.github.io/rustrak/getting-started)
+- [Configuration](https://rustrak.github.io/rustrak/configuration)
+- [API Reference](https://rustrak.github.io/rustrak/api)
+- [Self-Hosting Guide](https://rustrak.github.io/rustrak/self-hosting)
 
 ## Contributing
 

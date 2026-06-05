@@ -25,7 +25,6 @@ export {
 } from './errors/index.js';
 // Types
 export type {
-  // Alerts
   AlertHistory,
   AlertIntegration,
   AlertRule,
@@ -33,23 +32,22 @@ export type {
   AlertStatus,
   AlertType,
   ApiError,
-  // Auth
+  AssembleInput,
+  AssembleResponse,
   AuthResponse,
-  // Tokens
   AuthToken,
   AuthTokenCreated,
   /** @deprecated Use ProviderType */
   ChannelType,
+  ChunkUploadCapability,
   CreateAlertIntegration,
   CreateAlertRule,
   CreateAuthToken,
   /** @deprecated Use CreateAlertIntegration */
   CreateNotificationChannel,
   CreateProject,
-  // Events
   Event,
   EventDetail,
-  // Issues
   Issue,
   IssueFilter,
   IssueSort,
@@ -57,19 +55,19 @@ export type {
   ListEventsOptions,
   ListIssuesOptions,
   ListProjectsOptions,
+  ListSourceMapsResponse,
   LoginRequest,
   LoginResult,
   /** @deprecated Use AlertIntegration */
   NotificationChannel,
-  // Common
   OffsetPaginatedResponse,
   PaginatedResponse,
-  // Projects
   Project,
   ProviderType,
   RegisterRequest,
   RoutingOverride,
   SortOrder,
+  SourceMapFile,
   TestChannelResponse,
   TestIntegrationBody,
   UpdateAlertIntegration,

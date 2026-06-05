@@ -101,6 +101,7 @@ async fn test_concurrent_different_errors_same_project_creates_sequential_issues
                 &metadata,
                 &ingest_dir_clone,
                 &rate_limit_config_clone,
+                crate::common::null_sourcemap_provider(),
             )
             .await
             .expect("Failed to process event");
@@ -191,6 +192,7 @@ async fn test_concurrent_same_errors_same_project_groups_into_one_issue() {
                 &metadata,
                 &ingest_dir_clone,
                 &rate_limit_config_clone,
+                crate::common::null_sourcemap_provider(),
             )
             .await
             .expect("Failed to process event");
@@ -281,6 +283,7 @@ async fn test_concurrent_different_projects_process_in_parallel() {
                     &metadata,
                     &ingest_dir_clone,
                     &rate_limit_config_clone,
+                    crate::common::null_sourcemap_provider(),
                 )
                 .await
                 .expect("Failed to process event");
@@ -377,6 +380,7 @@ async fn test_high_concurrency_stress_test() {
                 &metadata,
                 &ingest_dir_clone,
                 &rate_limit_config_clone,
+                crate::common::null_sourcemap_provider(),
             )
             .await
             .expect("Failed to process event");
@@ -481,6 +485,7 @@ async fn test_concurrent_mixed_create_and_update() {
                     &metadata,
                     &ingest_dir_clone,
                     &rate_limit_config_clone,
+                    crate::common::null_sourcemap_provider(),
                 )
                 .await
                 .expect("Failed to process event");

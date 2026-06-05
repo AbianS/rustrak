@@ -8,9 +8,9 @@ Rustrak has a **decoupled deployment architecture**: the server and dashboard ca
 
 | Component | Docker Image | RAM | Disk |
 |-----------|-------------|-----|------|
-| Server (SQLite) | `abians7/rustrak-server:latest` | ~50MB | ~20MB image |
-| Server (PostgreSQL) | `abians7/rustrak-server:postgres` | ~50MB | ~20MB image |
-| Dashboard | `abians7/rustrak-ui:latest` | ~100MB | ~150MB image |
+| Server (SQLite) | `rustrak/rustrak-server:latest` | ~50MB | ~20MB image |
+| Server (PostgreSQL) | `rustrak/rustrak-server:postgres` | ~50MB | ~20MB image |
+| Dashboard | `rustrak/rustrak-ui:latest` | ~100MB | ~150MB image |
 | Docs | GitHub Pages | — | static |
 
 **Supported architectures:** `linux/amd64`, `linux/arm64`
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   server:
-    image: abians7/rustrak-server:postgres
+    image: rustrak/rustrak-server:postgres
     ports:
       - "${SERVER_PORT}:8080"
     environment:
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
 
   ui:
-    image: abians7/rustrak-ui:latest
+    image: rustrak/rustrak-ui:latest
     ports:
       - "${UI_PORT}:3000"
     environment:
@@ -105,7 +105,7 @@ docker run -d \
   -e CREATE_SUPERUSER=admin@example.com:your-password \
   -e INGEST_DIR=/tmp/rustrak/ingest \
   --restart unless-stopped \
-  abians7/rustrak-server:latest
+  rustrak/rustrak-server:latest
 ```
 
 Access dashboard at: http://localhost:8080 (server only) or run UI separately.
@@ -126,7 +126,7 @@ docker run -d \
   -e CREATE_SUPERUSER=admin@example.com:password \
   -e SSL_PROXY=true \
   --restart unless-stopped \
-  abians7/rustrak-server:postgres
+  rustrak/rustrak-server:postgres
 ```
 
 ```bash
@@ -249,12 +249,12 @@ git push origin feat/my-feature
 
 | Tag | Description |
 |-----|-------------|
-| `abians7/rustrak-server:latest` | Latest SQLite build |
-| `abians7/rustrak-server:vX.Y.Z` | Specific SQLite version |
-| `abians7/rustrak-server:postgres` | Latest PostgreSQL build |
-| `abians7/rustrak-server:vX.Y.Z-postgres` | Specific PostgreSQL version |
-| `abians7/rustrak-ui:latest` | Latest UI build |
-| `abians7/rustrak-ui:vX.Y.Z` | Specific UI version |
+| `rustrak/rustrak-server:latest` | Latest SQLite build |
+| `rustrak/rustrak-server:vX.Y.Z` | Specific SQLite version |
+| `rustrak/rustrak-server:postgres` | Latest PostgreSQL build |
+| `rustrak/rustrak-server:vX.Y.Z-postgres` | Specific PostgreSQL version |
+| `rustrak/rustrak-ui:latest` | Latest UI build |
+| `rustrak/rustrak-ui:vX.Y.Z` | Specific UI version |
 
 All images are multi-arch (`linux/amd64` + `linux/arm64`).
 

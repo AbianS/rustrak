@@ -12,7 +12,7 @@
 - **Type:** Turborepo Monorepo — 6 parts
 - **Primary Language:** Rust (server), TypeScript (UI, client, tools)
 - **Architecture:** Decoupled server + optional dashboard, Sentry SDK compatible
-- **Repository:** https://github.com/AbianS/rustrak
+- **Repository:** https://github.com/rustrak/rustrak
 
 ### Quick Reference by Part
 

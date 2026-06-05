@@ -11,7 +11,10 @@ use rustrak::digest::worker::process_event;
 use rustrak::ingest::EventMetadata;
 use rustrak::models::CreateProject;
 use rustrak::routes;
-use rustrak::services::{IssueService, ProjectService};
+use rustrak::services::{
+    DbSourceMapProvider, IssueService, LocalSourceMapStore, ProjectService, SourceMapProvider,
+    SourceMapStore,
+};
 use sentry::protocol::{Event, Exception, Frame, Level, Stacktrace};
 use std::net::TcpListener;
 use std::sync::Arc;
@@ -19,7 +22,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 use tokio::sync::Notify;
 
-use crate::common::TestDb;
+use crate::common::{null_sourcemap_provider, TestDb};
 
 fn create_test_config(ingest_dir: &str) -> Config {
     Config {
@@ -45,6 +48,8 @@ fn create_test_config(ingest_dir: &str) -> Config {
         },
         ingest_dir: Some(ingest_dir.to_string()),
         public_url: None,
+        sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
+        max_chunk_size_bytes: 10 * 1024 * 1024,
     }
 }
 
@@ -85,12 +90,19 @@ impl TestServer {
         let pool_clone = pool.clone();
         let shutdown_clone = shutdown.clone();
 
+        // Build sourcemap provider for the ingest handler
+        let store: Arc<dyn SourceMapStore> =
+            Arc::new(LocalSourceMapStore::new(&config.sourcemap_storage_path));
+        let provider: Arc<dyn SourceMapProvider> =
+            Arc::new(DbSourceMapProvider::new(pool.clone(), Arc::clone(&store)));
+
         // Start the server in a background task
         tokio::spawn(async move {
             let server = HttpServer::new(move || {
                 App::new()
                     .app_data(web::Data::new(pool_clone.clone()))
                     .app_data(web::Data::new(config.clone()))
+                    .app_data(web::Data::new(Arc::clone(&provider)))
                     .wrap(middleware::Logger::default())
                     .service(
                         web::scope("/health")
@@ -143,8 +155,14 @@ impl TestServer {
                         remote_addr: None,
                     };
 
-                    let _ =
-                        process_event(&self.pool, &metadata, ingest_path, rate_limit_config).await;
+                    let _ = process_event(
+                        &self.pool,
+                        &metadata,
+                        ingest_path,
+                        rate_limit_config,
+                        null_sourcemap_provider(),
+                    )
+                    .await;
                 }
             }
         }
