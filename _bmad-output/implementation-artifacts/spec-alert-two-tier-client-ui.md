@@ -93,7 +93,7 @@ context:
 
 **Routing override fields per provider (shown only in rule dialog):**
 
-```
+```text
 slack/webhook   → no routing fields
 slack/bot_token → required text input "Slack Channel" — placeholder "#alerts"
 email           → required textarea "Recipients" — comma-separated, validated on @

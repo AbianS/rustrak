@@ -288,12 +288,8 @@ pub struct CreateAlertRule {
     pub conditions: serde_json::Value,
     #[serde(default)]
     pub cooldown_minutes: i32,
-    /// New field: channels with per-rule routing overrides
     #[serde(default)]
     pub channels: Vec<AlertRuleChannelInput>,
-    /// Legacy field: kept for backward compat, ignored if channels is provided
-    #[serde(default)]
-    pub channel_ids: Vec<i32>,
 }
 
 fn default_conditions() -> serde_json::Value {
@@ -322,10 +318,7 @@ pub struct UpdateAlertRule {
     #[cfg_attr(feature = "openapi", schema(value_type = Option<Object>))]
     pub conditions: Option<serde_json::Value>,
     pub cooldown_minutes: Option<i32>,
-    /// New field: channels with per-rule routing overrides
     pub channels: Option<Vec<AlertRuleChannelInput>>,
-    /// Legacy field: kept for backward compat
-    pub channel_ids: Option<Vec<i32>>,
 }
 
 /// Response for alert rule including linked integration info

@@ -8,8 +8,8 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::models::{
-    AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel, UpdateAlertRule,
-    UpdateNotificationChannel,
+    AlertRuleChannelInput, AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel,
+    UpdateAlertRule, UpdateNotificationChannel,
 };
 use rustrak::routes;
 use rustrak::services::{AlertService, ProjectService};
@@ -232,8 +232,10 @@ async fn test_rule_crud_service_level() {
     let create_input = CreateAlertRule {
         name: "New Issue Alert".to_string(),
         alert_type: AlertType::NewIssue,
-        channels: vec![],
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: channel.id,
+            routing_override: json!({}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 5,
     };
@@ -272,7 +274,6 @@ async fn test_rule_crud_service_level() {
         conditions: None,
         cooldown_minutes: Some(10),
         channels: None,
-        channel_ids: None,
     };
 
     let updated = AlertService::update_rule(&db.pool, rule.id, update_input)
@@ -314,8 +315,10 @@ async fn test_rule_duplicate_alert_type_fails() {
     let create_input = CreateAlertRule {
         name: "First Rule".to_string(),
         alert_type: AlertType::NewIssue,
-        channels: vec![],
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: channel.id,
+            routing_override: json!({}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -328,8 +331,10 @@ async fn test_rule_duplicate_alert_type_fails() {
     let duplicate_input = CreateAlertRule {
         name: "Duplicate Rule".to_string(),
         alert_type: AlertType::NewIssue, // Same type
-        channels: vec![],
-        channel_ids: vec![channel.id],
+        channels: vec![AlertRuleChannelInput {
+            integration_id: channel.id,
+            routing_override: json!({}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -346,12 +351,14 @@ async fn test_rule_with_invalid_channel_fails() {
 
     let project_id = create_test_project(&db.pool).await;
 
-    // Create rule with non-existent channel ID
+    // Create rule with non-existent integration ID
     let create_input = CreateAlertRule {
         name: "Invalid Channel Rule".to_string(),
         alert_type: AlertType::NewIssue,
-        channels: vec![],
-        channel_ids: vec![99999], // Non-existent
+        channels: vec![AlertRuleChannelInput {
+            integration_id: 99999, // Non-existent
+            routing_override: json!({}),
+        }],
         conditions: json!({}),
         cooldown_minutes: 0,
     };
@@ -398,8 +405,10 @@ async fn test_update_rule_channels() {
         CreateAlertRule {
             name: "Multi Channel Rule".to_string(),
             alert_type: AlertType::NewIssue,
-            channels: vec![],
-            channel_ids: vec![channel1.id],
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel1.id,
+                routing_override: json!({}),
+            }],
             conditions: json!({}),
             cooldown_minutes: 0,
         },
@@ -422,8 +431,16 @@ async fn test_update_rule_channels() {
             is_enabled: None,
             conditions: None,
             cooldown_minutes: None,
-            channels: None,
-            channel_ids: Some(vec![channel1.id, channel2.id]),
+            channels: Some(vec![
+                AlertRuleChannelInput {
+                    integration_id: channel1.id,
+                    routing_override: json!({}),
+                },
+                AlertRuleChannelInput {
+                    integration_id: channel2.id,
+                    routing_override: json!({}),
+                },
+            ]),
         },
     )
     .await
@@ -446,8 +463,10 @@ async fn test_update_rule_channels() {
             is_enabled: None,
             conditions: None,
             cooldown_minutes: None,
-            channels: None,
-            channel_ids: Some(vec![channel2.id]),
+            channels: Some(vec![AlertRuleChannelInput {
+                integration_id: channel2.id,
+                routing_override: json!({}),
+            }]),
         },
     )
     .await
@@ -485,8 +504,10 @@ async fn test_deleting_channel_removes_from_rules() {
         CreateAlertRule {
             name: "Rule with deletable channel".to_string(),
             alert_type: AlertType::NewIssue,
-            channels: vec![],
-            channel_ids: vec![channel.id],
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel.id,
+                routing_override: json!({}),
+            }],
             conditions: json!({}),
             cooldown_minutes: 0,
         },

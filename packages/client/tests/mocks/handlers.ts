@@ -697,12 +697,9 @@ export const handlers = [
           integration_id: number;
           routing_override?: Record<string, unknown>;
         }>;
-        channel_ids?: number[];
       };
 
-      const integrationIds = body.channels
-        ? body.channels.map((c) => c.integration_id)
-        : (body.channel_ids ?? []);
+      const integrationIds = body.channels?.map((c) => c.integration_id) ?? [];
 
       const newRule = {
         id: 3,
@@ -735,7 +732,6 @@ export const handlers = [
           integration_id: number;
           routing_override?: Record<string, unknown>;
         }>;
-        channel_ids?: number[];
       };
       const rule = mockAlertRules.find(
         (r) => r.project_id === Number(projectId) && r.id === Number(ruleId),
@@ -747,7 +743,7 @@ export const handlers = [
 
       const integrationIds = body.channels
         ? body.channels.map((c) => c.integration_id)
-        : (body.channel_ids ?? rule.integration_ids);
+        : rule.integration_ids;
 
       const updated = {
         ...rule,

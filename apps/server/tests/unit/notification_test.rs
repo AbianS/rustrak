@@ -11,19 +11,32 @@ use std::sync::Mutex;
 /// This prevents race conditions when tests run in parallel.
 static SMTP_ENV_LOCK: Mutex<()> = Mutex::new(());
 
-/// RAII guard that restores SMTP_HOST to its previous value on drop.
+/// RAII guard that serializes SMTP_HOST mutation across parallel tests.
+/// Owns the MutexGuard so the lock is held for the guard's entire lifetime.
 struct SmtpHostGuard {
     previous: Option<String>,
+    _lock: std::sync::MutexGuard<'static, ()>,
 }
 
 impl SmtpHostGuard {
     fn set(value: &str) -> Self {
-        let _lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
         let previous = std::env::var("SMTP_HOST").ok();
         std::env::set_var("SMTP_HOST", value);
-        // Note: We don't store the lock - tests are short enough that
-        // holding it for the guard's lifetime is acceptable
-        Self { previous }
+        Self {
+            previous,
+            _lock: lock,
+        }
+    }
+
+    fn unset() -> Self {
+        let lock = SMTP_ENV_LOCK.lock().expect("SMTP env lock poisoned");
+        let previous = std::env::var("SMTP_HOST").ok();
+        std::env::remove_var("SMTP_HOST");
+        Self {
+            previous,
+            _lock: lock,
+        }
     }
 }
 
@@ -219,6 +232,7 @@ fn test_email_validate_config_valid() {
 
 #[test]
 fn test_email_validate_config_no_smtp_host_fails() {
+    let _guard = SmtpHostGuard::unset();
     // No global SMTP and no integration SMTP should fail validation
     let dispatcher = create_dispatcher(ChannelType::Email);
     let config = json!({});

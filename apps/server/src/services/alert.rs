@@ -271,28 +271,15 @@ impl AlertService {
             AppError::Database(e)
         })?;
 
-        // Use new channels field; fall back to legacy channel_ids for compat.
         // Dedup by integration_id to prevent PK constraint violation (ECH-4).
         let channels_to_link: Vec<AlertRuleChannelInput> = {
             let mut seen = std::collections::HashSet::new();
-            if !input.channels.is_empty() {
-                input
-                    .channels
-                    .clone()
-                    .into_iter()
-                    .filter(|ch| seen.insert(ch.integration_id))
-                    .collect()
-            } else {
-                input
-                    .channel_ids
-                    .iter()
-                    .filter(|&&id| seen.insert(id))
-                    .map(|&id| AlertRuleChannelInput {
-                        integration_id: id,
-                        routing_override: serde_json::json!({}),
-                    })
-                    .collect()
-            }
+            input
+                .channels
+                .clone()
+                .into_iter()
+                .filter(|ch| seen.insert(ch.integration_id))
+                .collect()
         };
 
         for ch in &channels_to_link {
@@ -355,17 +342,7 @@ impl AlertService {
         .await?
         .ok_or_else(|| AppError::NotFound(format!("Alert rule {} not found", id)))?;
 
-        // Determine what channel updates to apply
-        let channels_update: Option<Vec<AlertRuleChannelInput>> = input.channels.or_else(|| {
-            input.channel_ids.map(|ids| {
-                ids.iter()
-                    .map(|&integration_id| AlertRuleChannelInput {
-                        integration_id,
-                        routing_override: serde_json::json!({}),
-                    })
-                    .collect()
-            })
-        });
+        let channels_update = input.channels;
 
         if let Some(ref channels) = channels_update {
             // Remove existing links

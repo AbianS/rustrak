@@ -216,17 +216,6 @@ describe('AlertRulesResource Integration', () => {
       ).rejects.toThrow(ValidationError);
     });
 
-    it('should support legacy channel_ids field', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Legacy Rule',
-        alert_type: 'new_issue',
-        channels: [],
-        channel_ids: [1, 2],
-      });
-
-      expect(rule.name).toBe('Legacy Rule');
-    });
-
     it('should accept empty channels array (relies on server validation)', async () => {
       const rule = await client.alertRules.create(projectId, {
         name: 'Empty Channels Rule',
