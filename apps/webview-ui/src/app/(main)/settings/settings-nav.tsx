@@ -1,13 +1,13 @@
 'use client';
 
-import { Bell, Info, Key, Palette, User } from 'lucide-react';
+import { Info, Key, Palette, Plug, User } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },
-  { href: '/settings/integrations', label: 'Integrations', icon: Bell },
+  { href: '/settings/integrations', label: 'Integrations', icon: Plug },
   { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings/appearance', label: 'Appearance', icon: Palette },
   { href: '/settings/about', label: 'About', icon: Info },

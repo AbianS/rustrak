@@ -7,7 +7,20 @@ import type {
   AlertType,
   Project,
 } from '@rustrak/client';
-import { Bell, Hash, Loader2, Mail, Plus, Trash2, Webhook } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  Hash,
+  Loader2,
+  Mail,
+  Minus,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Webhook,
+  Zap,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
@@ -30,11 +43,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -49,13 +62,6 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -65,21 +71,25 @@ const alertTypes: {
   type: AlertType;
   name: string;
   description: string;
+  icon: React.ElementType;
 }[] = [
   {
     type: 'new_issue',
     name: 'New Issue',
-    description: 'When a new issue is first detected',
+    description: 'A new issue is first detected',
+    icon: Zap,
   },
   {
     type: 'regression',
     name: 'Regression',
-    description: 'When a resolved issue reappears',
+    description: 'A resolved issue reappears',
+    icon: RefreshCw,
   },
   {
     type: 'unmute',
     name: 'Unmute',
-    description: 'When a muted issue is unmuted',
+    description: 'A muted issue is unmuted',
+    icon: BellOff,
   },
 ];
 
@@ -120,7 +130,6 @@ function ProviderIcon({
   }
 }
 
-// Helper: get credentials method for a Slack integration
 function getSlackMethod(integration: AlertIntegration): string {
   return (
     ((integration.credentials as Record<string, unknown>).method as string) ??
@@ -128,7 +137,6 @@ function getSlackMethod(integration: AlertIntegration): string {
   );
 }
 
-// Helper: validate routing fields for a given integration before submit
 function validateRoutingForIntegration(
   integration: AlertIntegration,
   routing: Record<string, string>,
@@ -196,6 +204,7 @@ export function ProjectAlertsDialog({
       type,
       name: type,
       description: '',
+      icon: Bell,
     };
 
   const getIntegrationById = (id: number) => channels.find((c) => c.id === id);
@@ -241,7 +250,7 @@ export function ProjectAlertsDialog({
         >
           <Bell className="size-4" />
         </DialogTrigger>
-        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Alert Rules</DialogTitle>
             <DialogDescription>
@@ -250,12 +259,12 @@ export function ProjectAlertsDialog({
           </DialogHeader>
 
           {enabledIntegrations.length === 0 ? (
-            <div className="py-8 text-center">
-              <Bell className="size-12 mx-auto text-muted-foreground/50 mb-4" />
-              <p className="text-sm text-muted-foreground mb-2">
-                No integrations configured
-              </p>
-              <p className="text-xs text-muted-foreground">
+            <div className="py-10 text-center">
+              <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
+                <Bell className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">No integrations configured</p>
+              <p className="mt-1 text-xs text-muted-foreground">
                 Go to{' '}
                 <a
                   href="/settings/integrations"
@@ -267,126 +276,132 @@ export function ProjectAlertsDialog({
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {alertRules.length > 0 && (
-                <div className="space-y-2">
-                  {alertRules.map((rule) => {
-                    const typeInfo = getAlertTypeInfo(rule.alert_type);
-                    return (
-                      <div
-                        key={rule.id}
-                        className={cn(
-                          'flex items-center justify-between gap-4 p-3 rounded-lg border',
-                          !rule.is_enabled && 'opacity-60',
-                        )}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm truncate">
-                              {rule.name}
-                            </span>
-                            <Badge variant="secondary" className="text-[10px]">
-                              {typeInfo.name}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-1 mt-1">
-                            {rule.integration_ids.map((integrationId) => {
-                              const integration =
-                                getIntegrationById(integrationId);
-                              if (!integration) return null;
-                              return (
-                                <Badge
-                                  key={integrationId}
-                                  variant="outline"
-                                  className="text-[10px] gap-1"
-                                >
-                                  <ProviderIcon
-                                    type={integration.provider_type}
-                                    className="size-3"
-                                  />
-                                  {integration.name}
-                                </Badge>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={rule.is_enabled}
-                            onCheckedChange={() => handleToggleEnabled(rule)}
-                            disabled={isPending}
-                            size="sm"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => setEditingRule(rule)}
-                            disabled={isPending}
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="size-4"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+            <div className="space-y-3">
+              {alertRules.length === 0 && (
+                <p className="text-sm text-muted-foreground py-2">
+                  No alert rules yet. Create one to start receiving
+                  notifications.
+                </p>
+              )}
+
+              {alertRules.map((rule) => {
+                const typeInfo = getAlertTypeInfo(rule.alert_type);
+                const TypeIcon = typeInfo.icon;
+                return (
+                  <div
+                    key={rule.id}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg border bg-card p-3 transition-opacity',
+                      !rule.is_enabled && 'opacity-50',
+                    )}
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                      <TypeIcon className="size-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {rule.name}
+                      </p>
+                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <span className="text-[11px] text-muted-foreground">
+                          {typeInfo.name}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          ·
+                        </span>
+                        {rule.integration_ids.map((integrationId) => {
+                          const integration = getIntegrationById(integrationId);
+                          if (!integration) return null;
+                          return (
+                            <Badge
+                              key={integrationId}
+                              variant="outline"
+                              className="text-[10px] gap-1 py-0"
                             >
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              <path d="m15 5 4 4" />
-                            </svg>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => setDeletingRule(rule)}
-                            disabled={isPending}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </div>
+                              <ProviderIcon
+                                type={integration.provider_type}
+                                className="size-3"
+                              />
+                              {integration.name}
+                            </Badge>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Switch
+                        checked={rule.is_enabled}
+                        onCheckedChange={() => handleToggleEnabled(rule)}
+                        disabled={isPending}
+                        size="sm"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Edit rule"
+                        className="size-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditingRule(rule)}
+                        disabled={isPending}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Delete rule"
+                        className="size-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => setDeletingRule(rule)}
+                        disabled={isPending}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
 
-              {!showAddForm && !editingRule ? (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowAddForm(true)}
-                >
-                  <Plus className="size-4 mr-2" />
-                  Add Alert Rule
-                </Button>
-              ) : null}
-
-              {(showAddForm || editingRule) && (
-                <AlertRuleForm
-                  projectId={project.id}
-                  integrations={enabledIntegrations}
-                  existingRule={editingRule}
-                  existingRuleTypes={alertRules.map((r) => r.alert_type)}
-                  onCancel={() => {
-                    setShowAddForm(false);
-                    setEditingRule(null);
-                  }}
-                  onSuccess={() => {
-                    setShowAddForm(false);
-                    setEditingRule(null);
-                    router.refresh();
-                  }}
-                />
-              )}
+              <Button
+                variant="outline"
+                className="w-full border-dashed"
+                onClick={() => setShowAddForm(true)}
+              >
+                <Plus className="size-4 mr-2" />
+                Add Alert Rule
+              </Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
+      {/* Form dialog — create */}
+      <AlertRuleFormDialog
+        open={showAddForm}
+        onOpenChange={(o) => !o && setShowAddForm(false)}
+        projectId={project.id}
+        integrations={enabledIntegrations}
+        existingRule={null}
+        existingRuleTypes={alertRules.map((r) => r.alert_type)}
+        onSuccess={() => {
+          setShowAddForm(false);
+          router.refresh();
+        }}
+      />
+
+      {/* Form dialog — edit */}
+      <AlertRuleFormDialog
+        open={!!editingRule}
+        onOpenChange={(o) => !o && setEditingRule(null)}
+        projectId={project.id}
+        integrations={enabledIntegrations}
+        existingRule={editingRule}
+        existingRuleTypes={alertRules.map((r) => r.alert_type)}
+        onSuccess={() => {
+          setEditingRule(null);
+          router.refresh();
+        }}
+      />
+
+      {/* Delete confirmation */}
       <AlertDialog
         open={!!deletingRule}
         onOpenChange={(open) => !open && setDeletingRule(null)}
@@ -416,26 +431,28 @@ export function ProjectAlertsDialog({
 }
 
 // ============================================================================
-// Alert Rule Form Component
+// Alert Rule Form Dialog
 // ============================================================================
 
-interface AlertRuleFormProps {
+interface AlertRuleFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   projectId: number;
   integrations: AlertIntegration[];
   existingRule: AlertRule | null;
   existingRuleTypes: string[];
-  onCancel: () => void;
   onSuccess: () => void;
 }
 
-function AlertRuleForm({
+function AlertRuleFormDialog({
+  open,
+  onOpenChange,
   projectId,
   integrations,
   existingRule,
   existingRuleTypes,
-  onCancel,
   onSuccess,
-}: AlertRuleFormProps) {
+}: AlertRuleFormDialogProps) {
   const [isPending, startTransition] = useTransition();
   const [routingMap, setRoutingMap] = useState<RoutingMap>({});
   const [routingErrors, setRoutingErrors] = useState<Record<number, string>>(
@@ -460,6 +477,7 @@ function AlertRuleForm({
   });
 
   useEffect(() => {
+    if (!open) return;
     if (existingRule) {
       form.reset({
         name: existingRule.name,
@@ -471,7 +489,9 @@ function AlertRuleForm({
       const initialMap: RoutingMap = {};
       for (const ch of existingRule.channels) {
         const override = ch.routing_override ?? {};
-        const integration = integrations.find((i) => i.id === ch.integration_id);
+        const integration = integrations.find(
+          (i) => i.id === ch.integration_id,
+        );
         const normalized: Record<string, string> = {};
         if (integration?.provider_type === 'email') {
           const r = override.recipients;
@@ -498,14 +518,19 @@ function AlertRuleForm({
       setRoutingMap({});
     }
     setRoutingErrors({});
-  }, [existingRule, existingRuleTypes, form]);
+  }, [open, existingRule, existingRuleTypes, form]);
 
   const selectedIds = form.watch('selected_integration_ids');
+  const cooldown = form.watch('cooldown_minutes');
+  const alertType = form.watch('alert_type');
 
-  const toggleIntegration = (id: number, checked: boolean) => {
+  const toggleIntegration = (id: number, enabled: boolean) => {
     const current = form.getValues('selected_integration_ids');
-    if (checked) {
-      form.setValue('selected_integration_ids', [...current, id]);
+    if (enabled) {
+      form.setValue('selected_integration_ids', [...current, id], {
+        shouldValidate: true,
+      });
+      form.clearErrors('selected_integration_ids');
       setRoutingMap((prev) => ({ ...prev, [id]: {} }));
     } else {
       form.setValue(
@@ -542,7 +567,6 @@ function AlertRuleForm({
   };
 
   const onSubmit = (data: AlertRuleFormData) => {
-    // Validate routing fields per integration
     const errors: Record<number, string> = {};
     for (const id of data.selected_integration_ids) {
       const integration = integrations.find((i) => i.id === id);
@@ -566,10 +590,10 @@ function AlertRuleForm({
 
     startTransition(async () => {
       try {
-        // Build channels array
-        const channels = data.selected_integration_ids.map((id) => {
+        const channelsPayload = data.selected_integration_ids.flatMap((id) => {
           const routing = routingMap[id] ?? {};
-          const integration = integrations.find((i) => i.id === id)!;
+          const integration = integrations.find((i) => i.id === id);
+          if (!integration) return [];
           const routingOverride: Record<string, unknown> = {};
 
           if (
@@ -589,14 +613,14 @@ function AlertRuleForm({
             routingOverride.url = routing.url.trim();
           }
 
-          return { integration_id: id, routing_override: routingOverride };
+          return [{ integration_id: id, routing_override: routingOverride }];
         });
 
         if (existingRule) {
           await updateAlertRule(projectId, existingRule.id, {
             name: data.name,
             is_enabled: data.is_enabled,
-            channels,
+            channels: channelsPayload,
             cooldown_minutes: data.cooldown_minutes,
           });
           toast.success('Alert rule updated');
@@ -604,7 +628,7 @@ function AlertRuleForm({
           await createAlertRule(projectId, {
             name: data.name,
             alert_type: data.alert_type,
-            channels,
+            channels: channelsPayload,
             is_enabled: data.is_enabled,
             cooldown_minutes: data.cooldown_minutes,
           });
@@ -620,125 +644,188 @@ function AlertRuleForm({
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-muted/30">
-      <h4 className="font-medium text-sm mb-4">
-        {existingRule ? 'Edit Alert Rule' : 'New Alert Rule'}
-      </h4>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {existingRule ? 'Edit Alert Rule' : 'New Alert Rule'}
+          </DialogTitle>
+          <DialogDescription>
+            {existingRule
+              ? 'Update when and where this rule sends notifications.'
+              : 'Define when to trigger an alert and where to send it.'}
+          </DialogDescription>
+        </DialogHeader>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Rule Name
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="e.g., Notify team on new issues"
-                    disabled={isPending}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="alert_type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Trigger
-                </FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  disabled={isPending || !!existingRule}
-                >
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-5 py-1"
+          >
+            {/* Name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Rule Name
+                  </FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select trigger type" />
-                    </SelectTrigger>
+                    <Input
+                      placeholder="e.g., Notify team on new issues"
+                      autoComplete="off"
+                      disabled={isPending}
+                      {...field}
+                    />
                   </FormControl>
-                  <SelectContent>
-                    {availableTypes.map((type) => (
-                      <SelectItem key={type.type} value={type.type}>
-                        <div>
-                          <span>{type.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            - {type.description}
-                          </span>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Trigger — radio cards */}
+            <FormField
+              control={form.control}
+              name="alert_type"
+              render={() => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Trigger
+                  </FormLabel>
+                  <div className="grid grid-cols-3 gap-2 mt-1">
+                    {availableTypes.map((t) => {
+                      const Icon = t.icon;
+                      const isSelected = alertType === t.type;
+                      return (
+                        <button
+                          key={t.type}
+                          type="button"
+                          disabled={isPending || !!existingRule}
+                          onClick={() =>
+                            form.setValue('alert_type', t.type, {
+                              shouldValidate: true,
+                            })
+                          }
+                          className={cn(
+                            'flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all',
+                            'hover:border-primary/50 hover:bg-accent/50',
+                            isSelected
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                              : 'border-border bg-card',
+                            (isPending || !!existingRule) &&
+                              'opacity-60 cursor-not-allowed',
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              'size-4',
+                              isSelected
+                                ? 'text-primary'
+                                : 'text-muted-foreground',
+                            )}
+                          />
+                          <div>
+                            <p
+                              className={cn(
+                                'text-xs font-semibold leading-none',
+                                isSelected ? 'text-primary' : 'text-foreground',
+                              )}
+                            >
+                              {t.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
+                              {t.description}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Send To — integration toggle cards */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Send To
+              </p>
+              <div className="space-y-2">
+                {integrations.map((integration) => {
+                  const isSelected = selectedIds.includes(integration.id);
+                  const routing = routingMap[integration.id] ?? {};
+                  const routingErr = routingErrors[integration.id];
+                  const isSlackBot =
+                    integration.provider_type === 'slack' &&
+                    getSlackMethod(integration) === 'bot_token';
+                  const needsChannel = isSlackBot;
+                  const needsRecipients = integration.provider_type === 'email';
+                  const credUrl = (
+                    integration.credentials as Record<string, unknown>
+                  ).url as string | undefined;
+                  const needsUrl =
+                    integration.provider_type === 'webhook' && !credUrl;
+                  const hasRoutingFields =
+                    needsChannel ||
+                    needsRecipients ||
+                    integration.provider_type === 'webhook';
+
+                  return (
+                    <div key={integration.id}>
+                      {/* Toggle card — never changes background, only border */}
+                      <div
+                        className={cn(
+                          'flex items-center justify-between rounded-lg border bg-card px-3 py-2.5 transition-colors',
+                          isSelected ? 'border-primary/50' : 'border-border',
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={cn(
+                              'flex size-7 items-center justify-center rounded-md transition-colors',
+                              isSelected
+                                ? 'bg-primary/10 text-primary'
+                                : 'bg-muted text-muted-foreground',
+                            )}
+                          >
+                            <ProviderIcon
+                              type={integration.provider_type}
+                              className="size-3.5"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium leading-none">
+                              {integration.name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
+                              {integration.provider_type}
+                              {isSlackBot ? ' · bot token' : ''}
+                            </p>
+                          </div>
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Integration picker + per-integration routing fields */}
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-              Send To
-            </p>
-            <div className="space-y-3">
-              {integrations.map((integration) => {
-                const isSelected = selectedIds.includes(integration.id);
-                const routing = routingMap[integration.id] ?? {};
-                const routingErr = routingErrors[integration.id];
-                const isSlackBot =
-                  integration.provider_type === 'slack' &&
-                  getSlackMethod(integration) === 'bot_token';
-                const needsChannel = isSlackBot;
-                const needsRecipients = integration.provider_type === 'email';
-                const credUrl = (
-                  integration.credentials as Record<string, unknown>
-                ).url as string | undefined;
-                const needsUrl =
-                  integration.provider_type === 'webhook' && !credUrl;
-
-                return (
-                  <div key={integration.id} className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) =>
-                          toggleIntegration(integration.id, checked === true)
-                        }
-                        disabled={isPending}
-                      />
-                      <div className="flex items-center gap-2">
-                        <ProviderIcon
-                          type={integration.provider_type}
-                          className="size-4 text-muted-foreground"
+                        <Switch
+                          checked={isSelected}
+                          onCheckedChange={(checked) =>
+                            toggleIntegration(integration.id, checked)
+                          }
+                          disabled={isPending}
+                          size="sm"
                         />
-                        <span className="text-sm">{integration.name}</span>
-                        <Badge variant="outline" className="text-[10px]">
-                          {integration.provider_type}
-                          {isSlackBot ? '/bot' : ''}
-                        </Badge>
                       </div>
-                    </div>
 
-                    {/* Routing override fields — only shown when integration is selected */}
-                    {isSelected &&
-                      (needsChannel || needsRecipients || needsUrl) && (
-                        <div className="ml-7 space-y-2">
+                      {/* Routing fields — separate block below the card */}
+                      {isSelected && hasRoutingFields && (
+                        <div className="mx-3 rounded-b-lg border border-t-0 border-primary/20 bg-muted/40 px-3 py-3 space-y-3">
                           {needsChannel && (
-                            <div>
-                              <label className="text-xs text-muted-foreground">
-                                Slack Channel{' '}
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium text-muted-foreground">
+                                Channel{' '}
                                 <span className="text-destructive">*</span>
                               </label>
                               <Input
-                                placeholder="#alerts"
+                                placeholder="#alerts or C1234567890"
                                 value={routing.channel ?? ''}
                                 onChange={(e) =>
                                   updateRoutingField(
@@ -748,13 +835,20 @@ function AlertRuleForm({
                                   )
                                 }
                                 disabled={isPending}
-                                className="h-8 text-sm mt-1"
+                                className="h-8 text-sm"
+                                autoComplete="off"
                               />
+                              <p className="text-[10px] text-muted-foreground">
+                                Channel name (e.g.{' '}
+                                <code className="font-mono">#alerts</code>) or
+                                channel ID (e.g.{' '}
+                                <code className="font-mono">C1234567890</code>)
+                              </p>
                             </div>
                           )}
                           {needsRecipients && (
-                            <div>
-                              <label className="text-xs text-muted-foreground">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium text-muted-foreground">
                                 Recipients{' '}
                                 <span className="text-destructive">*</span>
                               </label>
@@ -769,21 +863,25 @@ function AlertRuleForm({
                                   )
                                 }
                                 disabled={isPending}
-                                className="text-sm mt-1 min-h-[60px]"
+                                className="text-sm min-h-15 resize-none"
+                                autoComplete="off"
                               />
-                              <p className="text-xs text-muted-foreground mt-0.5">
+                              <p className="text-[10px] text-muted-foreground">
                                 Comma-separated email addresses
                               </p>
                             </div>
                           )}
                           {integration.provider_type === 'webhook' && (
-                            <div>
-                              <label className="text-xs text-muted-foreground">
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium text-muted-foreground">
                                 Override URL
                                 {needsUrl ? (
                                   <span className="text-destructive"> *</span>
                                 ) : (
-                                  ' (optional)'
+                                  <span className="text-muted-foreground/60">
+                                    {' '}
+                                    (optional)
+                                  </span>
                                 )}
                               </label>
                               <Input
@@ -797,8 +895,14 @@ function AlertRuleForm({
                                   )
                                 }
                                 disabled={isPending}
-                                className="h-8 text-sm mt-1"
+                                className="h-8 text-sm"
+                                autoComplete="off"
                               />
+                              {!needsUrl && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  Overrides the URL configured in credentials
+                                </p>
+                              )}
                             </div>
                           )}
                           {routingErr && (
@@ -809,92 +913,122 @@ function AlertRuleForm({
                         </div>
                       )}
 
-                    {isSelected &&
-                      routingErr &&
-                      !needsChannel &&
-                      !needsRecipients &&
-                      !needsUrl && (
-                        <p className="ml-7 text-xs text-destructive">
+                      {isSelected && routingErr && !hasRoutingFields && (
+                        <p className="mx-3 text-xs text-destructive">
                           {routingErr}
                         </p>
                       )}
-                  </div>
-                );
-              })}
+                    </div>
+                  );
+                })}
+              </div>
+              {form.formState.errors.selected_integration_ids && (
+                <p className="text-xs text-destructive mt-1.5">
+                  {form.formState.errors.selected_integration_ids.message}
+                </p>
+              )}
             </div>
-            {form.formState.errors.selected_integration_ids && (
-              <p className="text-xs text-destructive mt-1">
-                {form.formState.errors.selected_integration_ids.message}
-              </p>
-            )}
-          </div>
 
-          <FormField
-            control={form.control}
-            name="cooldown_minutes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Cooldown (minutes)
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    disabled={isPending}
-                    {...field}
-                    onChange={(e) =>
-                      field.onChange(parseInt(e.target.value, 10) || 0)
-                    }
-                  />
-                </FormControl>
-                <FormDescription>
-                  Minimum time between alerts for the same issue (0 = no limit)
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="is_enabled"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <FormLabel className="text-sm font-medium">Enabled</FormLabel>
-                  <FormDescription className="text-xs">
-                    Start sending alerts immediately
+            {/* Cooldown */}
+            <FormField
+              control={form.control}
+              name="cooldown_minutes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Cooldown
+                  </FormLabel>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Decrease cooldown by 5 minutes"
+                      className="size-9 shrink-0"
+                      disabled={isPending || cooldown <= 0}
+                      onClick={() => field.onChange(Math.max(0, cooldown - 5))}
+                    >
+                      <Minus className="size-3.5" />
+                    </Button>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        disabled={isPending}
+                        className="text-center"
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(parseInt(e.target.value, 10) || 0)
+                        }
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Increase cooldown by 5 minutes"
+                      className="size-9 shrink-0"
+                      disabled={isPending}
+                      onClick={() => field.onChange(cooldown + 5)}
+                    >
+                      <Plus className="size-3.5" />
+                    </Button>
+                    <span className="text-sm text-muted-foreground shrink-0">
+                      min
+                    </span>
+                  </div>
+                  <FormDescription>
+                    {cooldown === 0
+                      ? 'No limit — alert fires every time'
+                      : `At most one alert every ${cooldown} minute${cooldown !== 1 ? 's' : ''} per issue`}
                   </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    disabled={isPending}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="size-4 mr-2 animate-spin" />}
-              {existingRule ? 'Save Changes' : 'Create Rule'}
-            </Button>
-          </div>
-        </form>
-      </Form>
-    </div>
+            {/* Enabled toggle */}
+            <FormField
+              control={form.control}
+              name="is_enabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <FormLabel className="text-sm font-medium">
+                      Enable rule
+                    </FormLabel>
+                    <FormDescription className="text-xs">
+                      Start sending alerts immediately after saving
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={isPending}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending && <Loader2 className="size-4 mr-2 animate-spin" />}
+                {existingRule ? 'Save Changes' : 'Create Rule'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 }
