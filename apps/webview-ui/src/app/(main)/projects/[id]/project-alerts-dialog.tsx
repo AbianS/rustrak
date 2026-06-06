@@ -338,6 +338,7 @@ export function ProjectAlertsDialog({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label="Edit rule"
                         className="size-7 text-muted-foreground hover:text-foreground"
                         onClick={() => setEditingRule(rule)}
                         disabled={isPending}
@@ -347,6 +348,7 @@ export function ProjectAlertsDialog({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label="Delete rule"
                         className="size-7 text-muted-foreground hover:text-destructive"
                         onClick={() => setDeletingRule(rule)}
                         disabled={isPending}
@@ -487,7 +489,9 @@ function AlertRuleFormDialog({
       const initialMap: RoutingMap = {};
       for (const ch of existingRule.channels) {
         const override = ch.routing_override ?? {};
-        const integration = integrations.find((i) => i.id === ch.integration_id);
+        const integration = integrations.find(
+          (i) => i.id === ch.integration_id,
+        );
         const normalized: Record<string, string> = {};
         if (integration?.provider_type === 'email') {
           const r = override.recipients;
@@ -523,7 +527,10 @@ function AlertRuleFormDialog({
   const toggleIntegration = (id: number, enabled: boolean) => {
     const current = form.getValues('selected_integration_ids');
     if (enabled) {
-      form.setValue('selected_integration_ids', [...current, id]);
+      form.setValue('selected_integration_ids', [...current, id], {
+        shouldValidate: true,
+      });
+      form.clearErrors('selected_integration_ids');
       setRoutingMap((prev) => ({ ...prev, [id]: {} }));
     } else {
       form.setValue(
@@ -583,9 +590,10 @@ function AlertRuleFormDialog({
 
     startTransition(async () => {
       try {
-        const channelsPayload = data.selected_integration_ids.map((id) => {
+        const channelsPayload = data.selected_integration_ids.flatMap((id) => {
           const routing = routingMap[id] ?? {};
-          const integration = integrations.find((i) => i.id === id)!;
+          const integration = integrations.find((i) => i.id === id);
+          if (!integration) return [];
           const routingOverride: Record<string, unknown> = {};
 
           if (
@@ -605,7 +613,7 @@ function AlertRuleFormDialog({
             routingOverride.url = routing.url.trim();
           }
 
-          return { integration_id: id, routing_override: routingOverride };
+          return [{ integration_id: id, routing_override: routingOverride }];
         });
 
         if (existingRule) {
@@ -935,6 +943,7 @@ function AlertRuleFormDialog({
                       type="button"
                       variant="outline"
                       size="icon"
+                      aria-label="Decrease cooldown by 5 minutes"
                       className="size-9 shrink-0"
                       disabled={isPending || cooldown <= 0}
                       onClick={() => field.onChange(Math.max(0, cooldown - 5))}
@@ -957,6 +966,7 @@ function AlertRuleFormDialog({
                       type="button"
                       variant="outline"
                       size="icon"
+                      aria-label="Increase cooldown by 5 minutes"
                       className="size-9 shrink-0"
                       disabled={isPending}
                       onClick={() => field.onChange(cooldown + 5)}

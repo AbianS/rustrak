@@ -536,6 +536,7 @@ function ManageDialog({
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={`Delete ${integration.name}`}
                   className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
                   onClick={() => onDelete(integration)}
                 >
