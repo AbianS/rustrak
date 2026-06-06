@@ -1,6 +1,11 @@
 'use server';
 
-import type { LoginRequest, User } from '@rustrak/client';
+import type {
+  AcceptInvitation,
+  InvitationInfo,
+  LoginRequest,
+  User,
+} from '@rustrak/client';
 import { RustrakError } from '@rustrak/client';
 import {
   applySetCookies,
@@ -68,5 +73,66 @@ export async function getCurrentUser(): Promise<User | null> {
     // to avoid breaking the app on transient errors
     console.error('Failed to get current user:', err);
     return null;
+  }
+}
+
+export type GetInvitationResult =
+  | { success: true; invitation: InvitationInfo }
+  | { success: false; error: 'invalid' | 'unknown' };
+
+/**
+ * Fetch public information about an invitation by its token.
+ * Used by the public accept-invitation page (no auth required).
+ *
+ * @param token - The invitation token
+ * @returns Result with the invitation info or an error type
+ */
+export async function getInvitation(
+  token: string,
+): Promise<GetInvitationResult> {
+  try {
+    const client = await createClient();
+    const invitation = await client.auth.getInvitation(token);
+    return { success: true, invitation };
+  } catch (err) {
+    if (
+      err instanceof RustrakError &&
+      (err.statusCode === 404 ||
+        err.statusCode === 400 ||
+        err.statusCode === 410)
+    ) {
+      return { success: false, error: 'invalid' };
+    }
+    return { success: false, error: 'unknown' };
+  }
+}
+
+export type AcceptInvitationResult =
+  | { success: true; user: User }
+  | { success: false; error: string };
+
+/**
+ * Accept an invitation by setting a password.
+ * On success the backend creates a session; the cookie is persisted here.
+ *
+ * @param input - The invitation token and chosen password
+ * @returns Result with the new user or a friendly error message
+ */
+export async function acceptInvitation(
+  input: AcceptInvitation,
+): Promise<AcceptInvitationResult> {
+  try {
+    const client = await createClient();
+    const result = await client.auth.acceptInvitation(input);
+
+    // Apply session cookies so the user is logged in immediately
+    await applySetCookies(result.cookies);
+
+    return { success: true, user: result.user };
+  } catch (err) {
+    if (err instanceof RustrakError) {
+      return { success: false, error: err.message };
+    }
+    return { success: false, error: 'Failed to accept invitation' };
   }
 }

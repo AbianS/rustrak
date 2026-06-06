@@ -1,8 +1,8 @@
 use actix_web::{web, HttpResponse};
 
-use crate::auth::ApiAuth;
+use crate::auth::ApiActor;
 use crate::db::DbPool;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::CreateAuthToken;
 #[cfg(feature = "openapi")]
 use crate::models::{AuthTokenCreatedResponse, AuthTokenResponse};
@@ -21,9 +21,18 @@ use utoipa::OpenApi;
     ),
     security(("bearer_auth" = [])),
 ))]
-/// GET /api/tokens - List all tokens (masked)
-pub async fn list_tokens(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult<HttpResponse> {
-    let tokens = AuthTokenService::list(pool.get_ref()).await?;
+/// GET /api/tokens - List tokens (masked)
+///
+/// Admins see all tokens; non-admins see only the tokens they own.
+pub async fn list_tokens(pool: web::Data<DbPool>, actor: ApiActor) -> AppResult<HttpResponse> {
+    let tokens = if actor.is_admin() {
+        AuthTokenService::list(pool.get_ref()).await?
+    } else {
+        let uid = actor
+            .user_id()
+            .ok_or_else(|| AppError::Unauthorized("Not authenticated".to_string()))?;
+        AuthTokenService::list_for_user(pool.get_ref(), uid).await?
+    };
     let responses: Vec<_> = tokens.iter().map(|t| t.to_response()).collect();
 
     Ok(HttpResponse::Ok().json(responses))
@@ -40,13 +49,15 @@ pub async fn list_tokens(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult<H
     ),
     security(("bearer_auth" = [])),
 ))]
-/// POST /api/tokens - Create a new token
+/// POST /api/tokens - Create a new token (scoped to the acting user)
 pub async fn create_token(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     body: web::Json<CreateAuthToken>,
 ) -> AppResult<HttpResponse> {
-    let token = AuthTokenService::create(pool.get_ref(), body.into_inner()).await?;
+    let token =
+        AuthTokenService::create_for_user(pool.get_ref(), body.into_inner(), actor.user_id())
+            .await?;
 
     // Return full token (only time it's visible!)
     Ok(HttpResponse::Created().json(token.to_created_response()))
@@ -60,17 +71,30 @@ pub async fn create_token(
     responses(
         (status = 204, description = "Token revoked"),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
         (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
 /// DELETE /api/tokens/{id} - Revoke a token
+///
+/// Admins may revoke any token; non-admins may only revoke their own.
 pub async fn delete_token(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
+
+    if !actor.is_admin() {
+        let token = AuthTokenService::get_by_id(pool.get_ref(), id).await?;
+        if token.user_id != actor.user_id() {
+            return Err(AppError::Forbidden(
+                "You can only revoke your own tokens".to_string(),
+            ));
+        }
+    }
+
     AuthTokenService::delete(pool.get_ref(), id).await?;
 
     Ok(HttpResponse::NoContent().finish())

@@ -1,12 +1,13 @@
 use actix_web::{web, HttpResponse};
 use uuid::Uuid;
 
-use crate::auth::ApiAuth;
+use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 #[cfg(feature = "openapi")]
 use crate::models::{EventDetailResponse, EventResponse};
 use crate::pagination::{EventCursor, ListEventsQuery, PaginatedResponse, PAGE_SIZE};
+use crate::services::access::{self, Action};
 use crate::services::{EventService, IssueService};
 
 #[cfg(feature = "openapi")]
@@ -34,9 +35,18 @@ pub async fn list_events(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
     query: web::Query<ListEventsQuery>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify issue exists and belongs to the project
     let issue = IssueService::get_by_id(pool.get_ref(), issue_id).await?;
@@ -98,9 +108,18 @@ pub async fn list_events(
 pub async fn get_event(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid, Uuid)>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id, event_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify issue exists and belongs to the project
     let issue = IssueService::get_by_id(pool.get_ref(), issue_id).await?;

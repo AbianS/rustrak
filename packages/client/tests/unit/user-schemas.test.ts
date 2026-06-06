@@ -12,6 +12,7 @@ describe('User Schemas', () => {
       const validUser = {
         id: 1,
         email: 'test@example.com',
+        role: 'member',
         is_admin: false,
       };
 
@@ -26,11 +27,24 @@ describe('User Schemas', () => {
       const adminUser = {
         id: 2,
         email: 'admin@example.com',
+        role: 'admin',
         is_admin: true,
       };
 
       const result = userSchema.safeParse(adminUser);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject an invalid role', () => {
+      const invalidUser = {
+        id: 1,
+        email: 'test@example.com',
+        role: 'superuser',
+        is_admin: false,
+      };
+
+      const result = userSchema.safeParse(invalidUser);
+      expect(result.success).toBe(false);
     });
 
     it('should reject negative user ID', () => {
@@ -125,6 +139,7 @@ describe('User Schemas', () => {
       const userWithExtra = {
         id: 1,
         email: 'test@example.com',
+        role: 'member',
         is_admin: false,
         extra_field: 'should be stripped',
       };
@@ -152,6 +167,7 @@ describe('User Schemas', () => {
         const user = {
           id: 1,
           email,
+          role: 'member',
           is_admin: false,
         };
 
@@ -167,6 +183,7 @@ describe('User Schemas', () => {
         user: {
           id: 1,
           email: 'test@example.com',
+          role: 'member',
           is_admin: false,
         },
       };
@@ -235,24 +252,24 @@ describe('User Schemas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject password shorter than 8 characters', () => {
-      const invalidRequest = {
-        email: 'test@example.com',
-        password: '1234567', // 7 characters
-      };
-
-      const result = loginRequestSchema.safeParse(invalidRequest);
-      expect(result.success).toBe(false);
-    });
-
-    it('should accept password with exactly 8 characters', () => {
+    it('should accept short (non-empty) passwords (no length policy)', () => {
       const validRequest = {
         email: 'test@example.com',
-        password: '12345678', // exactly 8
+        password: '1234567', // 7 characters — allowed
       };
 
       const result = loginRequestSchema.safeParse(validRequest);
       expect(result.success).toBe(true);
+    });
+
+    it('should reject an empty password (required)', () => {
+      const invalidRequest = {
+        email: 'test@example.com',
+        password: '',
+      };
+
+      const result = loginRequestSchema.safeParse(invalidRequest);
+      expect(result.success).toBe(false);
     });
 
     it('should accept long passwords', () => {
@@ -350,10 +367,20 @@ describe('User Schemas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should reject short password', () => {
-      const invalidRequest = {
+    it('should accept short (non-empty) password (no length policy)', () => {
+      const validRequest = {
         email: 'test@example.com',
         password: 'short',
+      };
+
+      const result = registerRequestSchema.safeParse(validRequest);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject an empty password (required)', () => {
+      const invalidRequest = {
+        email: 'test@example.com',
+        password: '',
       };
 
       const result = registerRequestSchema.safeParse(invalidRequest);
@@ -388,6 +415,7 @@ describe('User Schemas', () => {
       const user = {
         id: 1,
         email: longEmail,
+        role: 'member',
         is_admin: false,
       };
 
@@ -400,6 +428,7 @@ describe('User Schemas', () => {
       const user = {
         id: 1,
         email: 'test@mail.subdomain.example.com',
+        role: 'member',
         is_admin: false,
       };
 
@@ -411,6 +440,7 @@ describe('User Schemas', () => {
       const user = {
         id: 1,
         email: 'user123@example123.com',
+        role: 'member',
         is_admin: false,
       };
 
@@ -422,6 +452,7 @@ describe('User Schemas', () => {
       const user = {
         id: 2147483647, // Max 32-bit integer
         email: 'test@example.com',
+        role: 'member',
         is_admin: false,
       };
 
@@ -435,6 +466,7 @@ describe('User Schemas', () => {
       const user = {
         id: 1,
         email: 'test@example.com',
+        role: 'member',
         is_admin: false,
       };
 
@@ -466,10 +498,10 @@ describe('User Schemas', () => {
       }
     });
 
-    it('should provide helpful error message for invalid password length', () => {
+    it('should provide a helpful error message for a missing password', () => {
       const invalidRequest = {
         email: 'test@example.com',
-        password: 'short',
+        password: '',
       };
 
       const result = loginRequestSchema.safeParse(invalidRequest);
@@ -483,7 +515,7 @@ describe('User Schemas', () => {
     it('should report multiple validation errors', () => {
       const invalidRequest = {
         email: 'not-an-email',
-        password: 'short',
+        password: '',
       };
 
       const result = loginRequestSchema.safeParse(invalidRequest);

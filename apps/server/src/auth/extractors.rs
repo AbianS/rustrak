@@ -5,9 +5,9 @@ use std::pin::Pin;
 use crate::auth::sentry_auth::parse_sentry_auth_header;
 use crate::auth::session::AuthenticatedUser;
 use crate::db::DbPool;
-use crate::error::AppError;
-use crate::models::{AuthToken, Project};
-use crate::services::{AuthTokenService, ProjectService};
+use crate::error::{AppError, AppResult};
+use crate::models::{AuthToken, Project, User};
+use crate::services::{AuthTokenService, ProjectService, UsersService};
 
 /// Extractor for Bearer token authentication (API endpoints)
 ///
@@ -197,6 +197,94 @@ impl FromRequest for ApiAuth {
                 } else {
                     AppError::Unauthorized("Not authenticated".to_string())
                 }
+            })
+        })
+    }
+}
+
+/// Authenticated principal for management API endpoints, carrying the acting user.
+///
+/// Resolves from a Bearer token (owner user) or a session cookie. A legacy
+/// token with no owning user (`user_id = NULL`) resolves to `user: None`, which
+/// is treated as a full-access instance admin.
+pub struct ApiActor {
+    pub user: Option<User>,
+}
+
+impl ApiActor {
+    /// Whether this actor has full instance access (global admin or legacy token).
+    pub fn is_admin(&self) -> bool {
+        self.user.as_ref().is_none_or(|u| u.is_admin())
+    }
+
+    /// The acting user's id, if any (`None` for a legacy user-less token).
+    pub fn user_id(&self) -> Option<i32> {
+        self.user.as_ref().map(|u| u.id)
+    }
+
+    /// Returns the acting user or an error when the action requires a real account.
+    pub fn require_user(&self) -> AppResult<&User> {
+        self.user
+            .as_ref()
+            .ok_or_else(|| AppError::Forbidden("This action requires a user account".to_string()))
+    }
+}
+
+impl FromRequest for ApiActor {
+    type Error = AppError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut Payload) -> Self::Future {
+        let pool = match req.app_data::<web::Data<DbPool>>().cloned() {
+            Some(pool) => pool,
+            None => {
+                return Box::pin(async {
+                    Err(AppError::Internal(
+                        "Database pool not configured".to_string(),
+                    ))
+                });
+            }
+        };
+
+        let bearer_future = BearerAuth::from_request(req, payload);
+        let session_future = AuthenticatedUser::from_request(req, payload);
+
+        Box::pin(async move {
+            match bearer_future.await {
+                Ok(bearer) => {
+                    return match bearer.token.user_id {
+                        Some(uid) => {
+                            let user = UsersService::get_by_id(pool.get_ref(), uid)
+                                .await?
+                                .ok_or_else(|| {
+                                    AppError::Unauthorized("Token owner not found".to_string())
+                                })?;
+                            // Mirror the session/login path: a disabled account
+                            // must not authenticate even with a valid token.
+                            if !user.is_active {
+                                return Err(AppError::Unauthorized(
+                                    "Account is disabled".to_string(),
+                                ));
+                            }
+                            Ok(ApiActor { user: Some(user) })
+                        }
+                        None => Ok(ApiActor { user: None }),
+                    };
+                }
+                Err(AppError::Unauthorized(_)) => {} // fall through to session
+                Err(e) => return Err(e),
+            }
+
+            let authed = session_future.await.map_err(|e| {
+                if e.as_response_error().status_code().is_server_error() {
+                    AppError::Internal(format!("Session error: {e}"))
+                } else {
+                    AppError::Unauthorized("Not authenticated".to_string())
+                }
+            })?;
+
+            Ok(ApiActor {
+                user: Some(authed.0),
             })
         })
     }

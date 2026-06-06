@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { globalRoleSchema } from './team.js';
 
 /**
  * User schema - authenticated user information
@@ -6,6 +7,7 @@ import { z } from 'zod';
 export const userSchema = z.object({
   id: z.number().int().positive(),
   email: z.string().email(),
+  role: globalRoleSchema,
   is_admin: z.boolean(),
 });
 
@@ -29,7 +31,7 @@ export const loginResultSchema = z.object({
  */
 export const loginRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(1),
 });
 
 /**
@@ -37,5 +39,5 @@ export const loginRequestSchema = z.object({
  */
 export const registerRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(1),
 });

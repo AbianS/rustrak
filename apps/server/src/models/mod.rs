@@ -3,8 +3,10 @@ pub mod auth_token;
 pub mod event;
 pub mod grouping;
 pub mod installation;
+pub mod invitation;
 pub mod issue;
 pub mod project;
+pub mod project_member;
 pub mod source_file;
 pub mod user;
 
@@ -44,6 +46,10 @@ pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, Cre
 pub use event::{Event, EventDetailResponse, EventResponse};
 pub use grouping::Grouping;
 pub use installation::Installation;
+pub use invitation::{
+    AcceptInvitation, CreateInvitation, Invitation, InvitationResponse, InvitationStatus,
+};
 pub use issue::{Issue, IssueResponse, UpdateIssueState};
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
-pub use user::{CreateUserRequest, LoginRequest, User};
+pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
+pub use user::{CreateUserRequest, LoginRequest, User, UserRole};

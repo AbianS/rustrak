@@ -1,13 +1,14 @@
 use actix_web::{web, HttpResponse};
 use uuid::Uuid;
 
-use crate::auth::ApiAuth;
+use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 #[cfg(feature = "openapi")]
 use crate::models::IssueResponse;
 use crate::models::UpdateIssueState;
 use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
+use crate::services::access::{self, Action};
 use crate::services::{IssueService, ProjectService};
 
 #[cfg(feature = "openapi")]
@@ -34,9 +35,18 @@ pub async fn list_issues(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
     query: web::Query<ListIssuesQuery>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify project exists and get slug for response
     let project = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
@@ -87,9 +97,18 @@ pub async fn list_issues(
 pub async fn get_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify project exists and get slug
     let project = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
@@ -126,9 +145,18 @@ pub async fn update_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
     body: web::Json<UpdateIssueState>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::MutateIssue,
+    )
+    .await?;
 
     // Verify project exists and get slug
     let project = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
@@ -172,9 +200,18 @@ pub async fn update_issue(
 pub async fn delete_issue(
     pool: web::Data<DbPool>,
     path: web::Path<(i32, Uuid)>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::MutateIssue,
+    )
+    .await?;
 
     // Verify issue belongs to the project before deleting
     let issue = IssueService::get_by_id(pool.get_ref(), issue_id).await?;

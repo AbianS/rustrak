@@ -1,14 +1,15 @@
 use actix_web::{web, HttpResponse};
 
-use crate::auth::ApiAuth;
+use crate::auth::ApiActor;
 use crate::config::Config;
 use crate::db::DbPool;
 use crate::error::AppResult;
 #[cfg(feature = "openapi")]
 use crate::models::ProjectResponse;
-use crate::models::{CreateProject, UpdateProject};
+use crate::models::{CreateProject, ProjectRole, UpdateProject};
 use crate::pagination::{ListProjectsQuery, OffsetPaginatedResponse};
-use crate::services::ProjectService;
+use crate::services::access::{self, Action};
+use crate::services::{ProjectMemberService, ProjectService};
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
@@ -25,15 +26,30 @@ use utoipa::OpenApi;
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/projects - List projects with pagination
+///
+/// Admins see every project. Non-admins see only the projects they belong to.
 pub async fn list_projects(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     query: web::Query<ListProjectsQuery>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
-    let (projects, total_count) =
-        ProjectService::list_offset(pool.get_ref(), query.order, query.page, query.per_page)
-            .await?;
+    let (projects, total_count) = if actor.is_admin() {
+        ProjectService::list_offset(pool.get_ref(), query.order, query.page, query.per_page).await?
+    } else {
+        let uid = actor
+            .user_id()
+            .ok_or_else(|| crate::error::AppError::Unauthorized("Not authenticated".to_string()))?;
+        let ids = ProjectMemberService::accessible_project_ids(pool.get_ref(), uid).await?;
+        ProjectService::list_offset_for_ids(
+            pool.get_ref(),
+            &ids,
+            query.order,
+            query.page,
+            query.per_page,
+        )
+        .await?
+    };
 
     let base_url = build_base_url(&config);
     let responses: Vec<_> = projects.iter().map(|p| p.to_response(&base_url)).collect();
@@ -63,9 +79,18 @@ pub async fn get_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     path: web::Path<i32>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        id,
+        Action::ViewProject,
+    )
+    .await?;
+
     let project = ProjectService::get_by_id(pool.get_ref(), id).await?;
     let base_url = build_base_url(&config);
 
@@ -85,13 +110,24 @@ pub async fn get_project(
     security(("bearer_auth" = [])),
 ))]
 /// POST /api/projects - Create a new project
+///
+/// Any authenticated user may create a project. A non-admin creator is
+/// automatically granted the project `admin` role so they can access it.
 pub async fn create_project(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     body: web::Json<CreateProject>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project = ProjectService::create(pool.get_ref(), body.into_inner()).await?;
+
+    if !actor.is_admin() {
+        if let Some(uid) = actor.user_id() {
+            ProjectMemberService::upsert(pool.get_ref(), project.id, uid, ProjectRole::Admin)
+                .await?;
+        }
+    }
+
     let base_url = build_base_url(&config);
 
     Ok(HttpResponse::Created().json(project.to_response(&base_url)))
@@ -117,9 +153,18 @@ pub async fn update_project(
     config: web::Data<Config>,
     path: web::Path<i32>,
     body: web::Json<UpdateProject>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        id,
+        Action::UpdateProject,
+    )
+    .await?;
+
     let project = ProjectService::update(pool.get_ref(), id, body.into_inner()).await?;
     let base_url = build_base_url(&config);
 
@@ -142,9 +187,18 @@ pub async fn update_project(
 pub async fn delete_project(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    _auth: ApiAuth,
+    actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let id = path.into_inner();
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        id,
+        Action::DeleteProject,
+    )
+    .await?;
+
     ProjectService::delete(pool.get_ref(), id).await?;
 
     Ok(HttpResponse::NoContent().finish())

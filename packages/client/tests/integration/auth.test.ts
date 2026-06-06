@@ -4,6 +4,7 @@ import { RustrakClient } from '../../src/client.js';
 import {
   AuthenticationError,
   BadRequestError,
+  NotFoundError,
   ValidationError,
 } from '../../src/errors/index.js';
 import { server } from '../setup.js';
@@ -40,11 +41,11 @@ describe('AuthResource Integration', () => {
       ).rejects.toThrow(ValidationError); // Client-side validation
     });
 
-    it('should validate password minimum length', async () => {
+    it('should reject an empty password (required, no length policy)', async () => {
       await expect(
         client.auth.register({
           email: 'test@example.com',
-          password: 'short',
+          password: '',
         }),
       ).rejects.toThrow(ValidationError); // Client-side validation
     });
@@ -100,19 +101,10 @@ describe('AuthResource Integration', () => {
       }
     });
 
-    it('should require password of exactly 8 characters minimum', async () => {
-      // 7 characters should fail
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: '1234567',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
-
-      // 8 characters should succeed
+    it('should accept short (non-empty) passwords (no length policy)', async () => {
       const result = await client.auth.register({
         email: 'test8@example.com',
-        password: '12345678',
+        password: '1234567', // 7 chars — allowed
       });
 
       expect(result.user.email).toBe('test8@example.com');
@@ -277,6 +269,79 @@ describe('AuthResource Integration', () => {
       expect(typeof user.id).toBe('number');
       expect(typeof user.email).toBe('string');
       expect(typeof user.is_admin).toBe('boolean');
+    });
+  });
+
+  describe('getInvitation()', () => {
+    it('should fetch invitation details by token', async () => {
+      const info = await client.auth.getInvitation('invite-token-abc123');
+
+      expect(info.email).toBe('invitee@example.com');
+      expect(info.role).toBe('member');
+      expect(info.status).toBe('pending');
+      expect(info.expires_at).toBeDefined();
+    });
+
+    it('should reject an unknown token (404)', async () => {
+      await expect(client.auth.getInvitation('does-not-exist')).rejects.toThrow(
+        NotFoundError,
+      );
+    });
+
+    it('should reject an expired/used invitation (400)', async () => {
+      await expect(client.auth.getInvitation('expired-token')).rejects.toThrow(
+        BadRequestError,
+      );
+    });
+
+    it('should reject malformed response', async () => {
+      server.use(
+        http.get('http://localhost:8080/auth/invitation/:token', () => {
+          return HttpResponse.json({ email: 'x' });
+        }),
+      );
+
+      await expect(
+        client.auth.getInvitation('invite-token-abc123'),
+      ).rejects.toThrow(ValidationError);
+    });
+  });
+
+  describe('acceptInvitation()', () => {
+    it('should accept an invitation and return user + cookies', async () => {
+      const result = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
+        password: 'password123',
+      });
+
+      expect(result.user.email).toBe('invitee@example.com');
+      expect(result.user.role).toBe('member');
+      expect(result.cookies).toBeDefined();
+      expect(Array.isArray(result.cookies)).toBe(true);
+    });
+
+    it('should reject an empty password client-side (required)', async () => {
+      await expect(
+        client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: '',
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should validate token is non-empty client-side', async () => {
+      await expect(
+        client.auth.acceptInvitation({ token: '', password: 'password123' }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should reject an invalid invitation (400)', async () => {
+      await expect(
+        client.auth.acceptInvitation({
+          token: 'invalid-token',
+          password: 'password123',
+        }),
+      ).rejects.toThrow(BadRequestError);
     });
   });
 
@@ -520,11 +585,11 @@ describe('AuthResource Integration', () => {
       ).rejects.toThrow();
     });
 
-    it('should validate password minimum length at runtime', async () => {
+    it('should reject an empty password at runtime (required)', async () => {
       await expect(
         client.auth.register({
           email: 'test@example.com',
-          password: '1234567', // 7 characters
+          password: '',
         }),
       ).rejects.toThrow();
     });

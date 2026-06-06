@@ -1,19 +1,31 @@
 'use client';
 
-import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
+import type {
+  AlertIntegration,
+  AlertRule,
+  Project,
+  ProjectMember,
+} from '@rustrak/client';
 import { ProjectAlertsDialog } from './project-alerts-dialog';
+import { ProjectMembersDialog } from './project-members-dialog';
 import { ProjectSettingsDialog } from './project-settings-dialog';
 
 interface ProjectHeaderProps {
   project: Project;
   alertRules: AlertRule[];
   channels: AlertIntegration[];
+  members: ProjectMember[];
+  currentUserId?: number;
+  canManageMembers: boolean;
 }
 
 export function ProjectHeader({
   project,
   alertRules,
   channels,
+  members,
+  currentUserId,
+  canManageMembers,
 }: ProjectHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -40,6 +52,12 @@ export function ProjectHeader({
           project={project}
           alertRules={alertRules}
           channels={channels}
+        />
+        <ProjectMembersDialog
+          projectId={project.id}
+          members={members}
+          currentUserId={currentUserId}
+          canManage={canManageMembers}
         />
         <ProjectSettingsDialog project={project} />
       </div>

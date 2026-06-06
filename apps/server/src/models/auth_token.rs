@@ -8,6 +8,8 @@ pub struct AuthToken {
     pub id: i32,
     pub token: String,
     pub description: Option<String>,
+    /// Owning user. `None` for legacy/instance-level tokens (full access).
+    pub user_id: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub last_used_at: Option<DateTime<Utc>>,
 }

@@ -31,6 +31,9 @@ pub enum AppError {
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Payload too large: {0}")]
     PayloadTooLarge(String),
 
@@ -48,6 +51,7 @@ impl ResponseError for AppError {
             AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::PayloadTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -60,6 +64,7 @@ impl ResponseError for AppError {
             AppError::Validation(_) => "ValidationError",
             AppError::Conflict(_) => "Conflict",
             AppError::Unauthorized(_) => "Unauthorized",
+            AppError::Forbidden(_) => "Forbidden",
             AppError::PayloadTooLarge(_) => "PayloadTooLarge",
             AppError::Database(_) => "DatabaseError",
             AppError::Internal(_) => "InternalError",
