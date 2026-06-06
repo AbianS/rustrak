@@ -162,16 +162,6 @@ fn channel_to_safe_json(channel: &crate::models::AlertIntegration) -> serde_json
     value
 }
 
-#[cfg_attr(feature = "openapi", utoipa::path(
-    get,
-    path = "/api/integrations",
-    tag = "Alert Channels",
-    responses(
-        (status = 200, description = "List of notification channels", body = Vec<NotificationChannel>),
-        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
-    ),
-    security(("bearer_auth" = [])),
-))]
 /// Instance-wide alert channels hold sensitive credentials (Slack tokens,
 /// webhook URLs, SMTP config), so all channel management is restricted to
 /// instance admins — project membership is not enough.
@@ -185,6 +175,16 @@ fn require_admin(actor: &ApiActor) -> AppResult<()> {
     }
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/integrations",
+    tag = "Alert Channels",
+    responses(
+        (status = 200, description = "List of notification channels", body = Vec<NotificationChannel>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/alert-channels
 pub async fn list_channels(pool: web::Data<DbPool>, actor: ApiActor) -> AppResult<HttpResponse> {
     require_admin(&actor)?;
