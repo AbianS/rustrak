@@ -1,6 +1,6 @@
 # @rustrak/mcp
 
-`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for Rustrak. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 18 tools to manage your error tracking without leaving your AI tool.
+`@rustrak/mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server for Rustrak. Connect it to Claude Desktop, Cursor, Continue.dev, or any MCP-compatible AI assistant and get 27 tools to manage your error tracking without leaving your AI tool.
 
 ```bash
 npx @rustrak/mcp   # run directly with npx (no install needed)
@@ -24,7 +24,8 @@ AI Client (Claude / Cursor / Continue)
 │   ├── issues        │
 │   ├── events        │
 │   ├── tokens        │
-│   └── alerts        │
+│   ├── alerts        │
+│   └── team          │
 └──────────┬──────────┘
            │  HTTP via @rustrak/client
            ▼
@@ -104,7 +105,7 @@ In the Rustrak web UI: **Settings → Tokens → Create token**. Save the full t
 
 The server exits immediately with a clear error message if either variable is missing.
 
-## Available Tools (18)
+## Available Tools (27)
 
 ### Projects
 
@@ -148,6 +149,22 @@ The server exits immediately with a clear error message if either variable is mi
 | `test_alert_channel` | Send a test notification to a channel |
 | `list_alert_rules` | List alert rules for a project |
 
+### Team & Access
+
+Managing the team and invitations requires the API token to belong to an **admin** user (or be a legacy full-access token). Project-member tools require global-admin or project-admin access. See [Team & Access](/usage/team).
+
+| Tool | Description |
+|---|---|
+| `list_team_members` | List instance users with their global role and status |
+| `update_member_role` | Change a user's global role (admin / member) |
+| `remove_team_member` | ⚠️ Permanently remove a user from the instance |
+| `create_invitation` | Invite a person by email; returns a single-use invite token |
+| `list_invitations` | List invitations (pending / accepted / revoked) |
+| `revoke_invitation` | ⚠️ Revoke a pending invitation |
+| `list_project_members` | List a project's members and their per-project roles |
+| `set_project_member` | Add a user to a project or change their role (viewer / editor / admin) |
+| `remove_project_member` | ⚠️ Remove a user's access to a project |
+
 > Tools marked ⚠️ are annotated with `destructiveHint` — supported clients will prompt for confirmation before executing.
 
 ## Example Prompts
@@ -160,6 +177,9 @@ Once connected, you can ask things like:
 - *"Create a token called 'CI pipeline' and give me the value"*
 - *"How many events does issue xyz have?"*
 - *"Mute all database timeout issues"*
+- *"Invite alice@example.com as a member and give me the invite link"*
+- *"Add user 5 to project 1 as an editor"*
+- *"Who has access to project 3?"*
 
 ## Security Notes
 

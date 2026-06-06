@@ -24,6 +24,16 @@ const EXPECTED_TOOLS = [
   'list_alert_channels',
   'test_alert_channel',
   'list_alert_rules',
+  // Team (9)
+  'list_team_members',
+  'update_member_role',
+  'remove_team_member',
+  'create_invitation',
+  'list_invitations',
+  'revoke_invitation',
+  'list_project_members',
+  'set_project_member',
+  'remove_project_member',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -41,8 +51,11 @@ describe('MCP server integration', () => {
       },
       events: { list: vi.fn(), get: vi.fn() },
       tokens: { list: vi.fn(), create: vi.fn(), delete: vi.fn() },
-      alertChannels: { list: vi.fn(), test: vi.fn() },
+      alertIntegrations: { list: vi.fn(), test: vi.fn() },
       alertRules: { list: vi.fn() },
+      team: { list: vi.fn(), updateRole: vi.fn(), remove: vi.fn() },
+      invitations: { create: vi.fn(), list: vi.fn(), revoke: vi.fn() },
+      members: { list: vi.fn(), upsert: vi.fn(), remove: vi.fn() },
     };
     testEnv = await createTestEnv(mockClient);
   });
@@ -81,5 +94,16 @@ describe('MCP server integration', () => {
     );
     expect(revokeToken).toBeDefined();
     expect(revokeToken?.annotations?.destructiveHint).toBe(true);
+  });
+
+  it.each([
+    'remove_team_member',
+    'revoke_invitation',
+    'remove_project_member',
+  ])('%s has destructiveHint: true', async (name) => {
+    const { tools } = await testEnv.mcpClient.listTools();
+    const tool = tools.find((t: { name: string }) => t.name === name);
+    expect(tool).toBeDefined();
+    expect(tool?.annotations?.destructiveHint).toBe(true);
   });
 });

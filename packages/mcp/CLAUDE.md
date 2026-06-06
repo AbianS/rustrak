@@ -8,7 +8,7 @@
 
 ## Overview
 
-`@rustrak/mcp` is an MCP (Model Context Protocol) server that wraps `@rustrak/client` and exposes 18 tools so AI assistants (Claude Desktop, Cursor, etc.) can manage Rustrak error tracking directly — list projects, inspect issues, view stack traces, resolve errors, and manage tokens without leaving the AI tool.
+`@rustrak/mcp` is an MCP (Model Context Protocol) server that wraps `@rustrak/client` and exposes 27 tools so AI assistants (Claude Desktop, Cursor, etc.) can manage Rustrak error tracking directly — list projects, inspect issues, view stack traces, resolve errors, manage tokens, and administer the team (roles, invitations, project members) without leaving the AI tool.
 
 **Key Features:**
 - 18 tools covering projects, issues, events, tokens, and alert channels
