@@ -1,5 +1,20 @@
 # @rustrak/server
 
+## 0.3.3
+
+### Patch Changes
+
+- [`f748f8c`](https://github.com/rustrak/rustrak/commit/f748f8cce27cb6599a2503aec74b257778b05866) Thanks [@AbianS](https://github.com/AbianS)! - feat(alerts): two-tier integrations with global credentials and per-rule routing override
+
+  - Add alert integrations hub UI with collapsible section layout
+  - Add two-tier alert routing: global channel credentials + per-rule override
+  - Redesign alert rule form dialog
+  - Remove legacy `channel_ids` field from alert rules
+  - Add `alert-integrations` and `alert-channels` resources to client package
+  - Fix source maps chunk upload to accept non-SHA1 multipart field names
+  - Fix project event counts not decrementing when an issue is deleted
+  - Regenerate OpenAPI spec with updated alert models
+
 ## 0.3.2
 
 ### Patch Changes
