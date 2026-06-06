@@ -74,8 +74,8 @@ export function ProjectMembersDialog({
           const result = await listTeam();
           setTeam(result);
         } catch {
-          // Non-fatal: the add-member dropdown just stays empty.
-          setTeam([]);
+          // Leave team as null (not []) so reopening the dialog retries the
+          // fetch instead of being stuck with an empty dropdown.
         }
       });
     }

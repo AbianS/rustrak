@@ -130,16 +130,31 @@ impl InvitationService {
             email: invitation.email.clone(),
             password: password.to_string(),
         };
-        let user = UsersService::create_user(pool, &req, role).await?;
 
-        // Consume the invitation only if still pending — prevents re-stamping an
-        // already-accepted/revoked invitation under a concurrent double-accept.
-        sqlx::query(
+        // Create the user and consume the invitation atomically: if either step
+        // fails the whole thing rolls back, so we never leave a created user with
+        // an invitation still marked pending.
+        let mut tx = pool.begin().await?;
+
+        let user = UsersService::create_user(&mut *tx, &req, role).await?;
+
+        // Consume only if still pending — guards against a concurrent accept/
+        // revoke that slipped in between the check above and now.
+        let consumed = sqlx::query(
             "UPDATE invitations SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP WHERE token = $1 AND status = 'pending'",
         )
         .bind(token)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+
+        if consumed.rows_affected() == 0 {
+            // Someone else consumed/revoked it first — roll back the user.
+            return Err(AppError::Validation(
+                "Invitation is expired or already used".to_string(),
+            ));
+        }
+
+        tx.commit().await?;
 
         Ok(user)
     }

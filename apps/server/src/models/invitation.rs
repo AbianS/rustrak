@@ -9,6 +9,9 @@ pub enum InvitationStatus {
     Pending,
     Accepted,
     Revoked,
+    /// Any value not recognized above. Treated as non-acceptable (fail closed)
+    /// so a corrupted status can never make an invitation redeemable.
+    Unknown,
 }
 
 impl InvitationStatus {
@@ -17,14 +20,16 @@ impl InvitationStatus {
             InvitationStatus::Pending => "pending",
             InvitationStatus::Accepted => "accepted",
             InvitationStatus::Revoked => "revoked",
+            InvitationStatus::Unknown => "unknown",
         }
     }
 
     pub fn from_db(s: &str) -> Self {
         match s {
+            "pending" => InvitationStatus::Pending,
             "accepted" => InvitationStatus::Accepted,
             "revoked" => InvitationStatus::Revoked,
-            _ => InvitationStatus::Pending,
+            _ => InvitationStatus::Unknown,
         }
     }
 }

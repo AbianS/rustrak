@@ -6,11 +6,18 @@ pub struct UsersService;
 
 impl UsersService {
     /// Creates a new user with the given global role.
-    pub async fn create_user(
-        pool: &DbPool,
+    ///
+    /// Generic over the executor so it can run on a pool (`&DbPool`) or inside a
+    /// transaction (`&mut *tx`) — the latter lets callers create a user and do
+    /// follow-up writes atomically (e.g. consuming an invitation).
+    pub async fn create_user<'e, E>(
+        executor: E,
         req: &CreateUserRequest,
         role: UserRole,
-    ) -> AppResult<User> {
+    ) -> AppResult<User>
+    where
+        E: sqlx::Executor<'e, Database = crate::db::Db>,
+    {
         let password_hash = User::hash_password(&req.password)?;
 
         let user = sqlx::query_as::<_, User>(
@@ -23,7 +30,7 @@ impl UsersService {
         .bind(&req.email)
         .bind(&password_hash)
         .bind(role.as_str())
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(|e| match e {
             sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {

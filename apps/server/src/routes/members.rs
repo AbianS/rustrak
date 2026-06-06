@@ -40,12 +40,14 @@ pub async fn list_members(
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+    // Any project member (viewer+) may see who else is on the project; only
+    // mutating membership (PUT/DELETE below) requires the admin role.
     access::require(
         pool.get_ref(),
         actor.is_admin(),
         actor.user_id(),
         project_id,
-        Action::ManageMembers,
+        Action::ViewProject,
     )
     .await?;
 

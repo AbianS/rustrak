@@ -172,8 +172,22 @@ fn channel_to_safe_json(channel: &crate::models::AlertIntegration) -> serde_json
     ),
     security(("bearer_auth" = [])),
 ))]
+/// Instance-wide alert channels hold sensitive credentials (Slack tokens,
+/// webhook URLs, SMTP config), so all channel management is restricted to
+/// instance admins — project membership is not enough.
+fn require_admin(actor: &ApiActor) -> AppResult<()> {
+    if actor.is_admin() {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "Admin privileges required to manage alert channels".to_string(),
+        ))
+    }
+}
+
 /// GET /api/alert-channels
-pub async fn list_channels(pool: web::Data<DbPool>, _actor: ApiActor) -> AppResult<HttpResponse> {
+pub async fn list_channels(pool: web::Data<DbPool>, actor: ApiActor) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channels = AlertService::list_channels(pool.get_ref()).await?;
     let safe: Vec<serde_json::Value> = channels.iter().map(channel_to_safe_json).collect();
     Ok(HttpResponse::Ok().json(safe))
@@ -193,9 +207,10 @@ pub async fn list_channels(pool: web::Data<DbPool>, _actor: ApiActor) -> AppResu
 /// POST /api/alert-channels
 pub async fn create_channel(
     pool: web::Data<DbPool>,
-    _actor: ApiActor,
+    actor: ApiActor,
     body: web::Json<CreateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::create_channel(pool.get_ref(), body.into_inner()).await?;
     Ok(HttpResponse::Created().json(channel_to_safe_json(&channel)))
 }
@@ -215,9 +230,10 @@ pub async fn create_channel(
 /// GET /api/alert-channels/{id}
 pub async fn get_channel(
     pool: web::Data<DbPool>,
-    _actor: ApiActor,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
 }
@@ -238,10 +254,11 @@ pub async fn get_channel(
 /// PATCH /api/alert-channels/{id}
 pub async fn update_channel(
     pool: web::Data<DbPool>,
-    _actor: ApiActor,
+    actor: ApiActor,
     path: web::Path<i32>,
     body: web::Json<UpdateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel =
         AlertService::update_channel(pool.get_ref(), path.into_inner(), body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
@@ -262,9 +279,10 @@ pub async fn update_channel(
 /// DELETE /api/alert-channels/{id}
 pub async fn delete_channel(
     pool: web::Data<DbPool>,
-    _actor: ApiActor,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     AlertService::delete_channel(pool.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }
@@ -284,10 +302,11 @@ pub async fn delete_channel(
 /// POST /api/integrations/{id}/test
 pub async fn test_channel(
     pool: web::Data<DbPool>,
-    _actor: ApiActor,
+    actor: ApiActor,
     path: web::Path<i32>,
     body: Option<web::Json<TestIntegrationBody>>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
 
     let routing = body
