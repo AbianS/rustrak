@@ -57,7 +57,12 @@ export function ProjectMembersDialog({
   const [addRole, setAddRole] = useState<ProjectRole>('viewer');
 
   const memberIds = new Set(members.map((m) => m.user_id));
-  const availableUsers = (team ?? []).filter((user) => !memberIds.has(user.id));
+  // Exclude users who are already members, and global admins — admins (including
+  // the primary user) already have implicit access to every project, so adding
+  // them as a project member is meaningless.
+  const availableUsers = (team ?? []).filter(
+    (user) => !memberIds.has(user.id) && user.role !== 'admin',
+  );
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);

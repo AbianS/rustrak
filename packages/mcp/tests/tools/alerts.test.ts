@@ -8,7 +8,7 @@ describe('alert tools', () => {
 
   beforeEach(async () => {
     mockClient = {
-      alertChannels: {
+      alertIntegrations: {
         list: vi.fn(),
         test: vi.fn(),
       },
@@ -35,9 +35,12 @@ describe('alert tools', () => {
           updated_at: '2024-01-01T00:00:00Z',
         },
       ];
-      mockClient.alertChannels.list.mockResolvedValue(mockChannels);
+      mockClient.alertIntegrations.list.mockResolvedValue(mockChannels);
 
-      const result = await callTool({ name: 'list_alert_channels', arguments: {} });
+      const result = await callTool({
+        name: 'list_alert_channels',
+        arguments: {},
+      });
 
       expect(result.isError).toBeFalsy();
       const parsed = JSON.parse(result.content[0].text);
@@ -49,7 +52,7 @@ describe('alert tools', () => {
   describe('test_alert_channel', () => {
     it('sends a test notification to the channel', async () => {
       const mockResponse = { success: true, message: 'Test notification sent' };
-      mockClient.alertChannels.test.mockResolvedValue(mockResponse);
+      mockClient.alertIntegrations.test.mockResolvedValue(mockResponse);
 
       const result = await callTool({
         name: 'test_alert_channel',
@@ -59,7 +62,7 @@ describe('alert tools', () => {
       expect(result.isError).toBeFalsy();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.success).toBe(true);
-      expect(mockClient.alertChannels.test).toHaveBeenCalledWith(1);
+      expect(mockClient.alertIntegrations.test).toHaveBeenCalledWith(1);
     });
   });
 
