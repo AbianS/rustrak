@@ -16,7 +16,7 @@ export function registerAlertTools(
     },
     async () => {
       try {
-        const result = await client.alertChannels.list();
+        const result = await client.alertIntegrations.list();
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
@@ -37,7 +37,7 @@ export function registerAlertTools(
     },
     async ({ channel_id }) => {
       try {
-        const result = await client.alertChannels.test(channel_id);
+        const result = await client.alertIntegrations.test(channel_id);
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };

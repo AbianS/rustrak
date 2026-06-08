@@ -12,7 +12,11 @@ import {
 } from '@/components/ui/sheet';
 import { SettingsNav } from './settings-nav';
 
-export function SettingsMobileNav() {
+interface SettingsMobileNavProps {
+  isAdmin?: boolean;
+}
+
+export function SettingsMobileNav({ isAdmin }: SettingsMobileNavProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -29,7 +33,7 @@ export function SettingsMobileNav() {
             Settings
           </SheetTitle>
         </SheetHeader>
-        <SettingsNav onNavigate={() => setOpen(false)} />
+        <SettingsNav onNavigate={() => setOpen(false)} isAdmin={isAdmin} />
       </SheetContent>
     </Sheet>
   );

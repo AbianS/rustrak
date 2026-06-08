@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getCurrentUser } from '@/actions/auth';
 import { SettingsMobileNav } from './settings-mobile-nav';
 import { SettingsNav } from './settings-nav';
 
@@ -7,16 +8,19 @@ export const metadata: Metadata = {
   description: 'Manage your Rustrak settings',
 };
 
-export default function SettingsLayout({
+export default async function SettingsLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getCurrentUser();
+  const isAdmin = user?.role === 'admin';
+
   return (
     <div className="max-w-400 w-full mx-auto">
       {/* Mobile top bar */}
       <div className="sticky top-16 z-40 bg-background flex items-center gap-3 border-b px-4 py-3 md:hidden">
-        <SettingsMobileNav />
+        <SettingsMobileNav isAdmin={isAdmin} />
         <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
           Settings
         </span>
@@ -28,7 +32,7 @@ export default function SettingsLayout({
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-3">
             Settings
           </h2>
-          <SettingsNav />
+          <SettingsNav isAdmin={isAdmin} />
         </aside>
 
         {/* Main content */}

@@ -91,3 +91,13 @@ Email dispatcher opens one SMTP connection per dispatch call and sends to all re
 
 ### D-18: Retry counter hardcoded to 1 in dispatch_to_channel (low)
 `dispatch_to_channel` always sets `attempt_count = 1` regardless of actual retry history. The exponential backoff is calculated based on `attempt_count = 1`, so the delay never grows on subsequent retries. Fix: read the current `attempt_count` from `alert_history` before updating, or pass it as a parameter. Source: `apps/server/src/services/alert.rs:dispatch_to_channel` ~line 693
+
+## Team RBAC review — deferred findings (2026-06-06)
+
+Surfaced by the adversarial review of `spec-team-rbac.md`. Not blocking; not this story's core problem.
+
+- **create_project is non-atomic for non-admin creators.** `ProjectService::create` then `ProjectMemberService::upsert(...Admin)` run as two statements (`apps/server/src/routes/projects.rs` create_project). If the grant fails after creation, the project is orphaned (invisible to its creator, governable only by a global admin). Fix: wrap create + self-admin grant in a single transaction (needs executor plumbing through the services). Low probability (DB blip), Medium impact.
+- **Email is case-sensitive everywhere** (login, invite, accept). `Foo@x.com` and `foo@x.com` are distinct. Pre-existing behavior, not introduced here. Fix: normalize email to lowercase on user + invitation create/lookup; add a partial unique index on pending invitations per email.
+- **Legacy (user-less) bearer tokens are unauditable.** Tokens with `user_id = NULL` grant full instance access (by design), but `AuthTokenResponse` doesn't surface owner/legacy status, so an operator can't tell a full-access token from a scoped one. Fix: expose `user_id`/owner (or a "legacy" flag) in the admin token list; consider a migration to attribute/revoke legacy tokens.
+- **Source-map chunk upload is authenticated but not project-scoped.** `chunk_upload`/`chunk_upload_capability` (`apps/server/src/routes/sourcemaps.rs`) are org-level endpoints with no `project_id`, so they require auth only (matching the prior `BearerAuth` behavior — NOT a regression). Chunks are content-addressed; the `assemble` step is project-gated. Revisit if per-project gating of raw chunk staging becomes a requirement.
+- **`list_offset_for_ids` does not clamp `page`/`per_page`.** Consistent with the existing `list_offset`, which relies on the query-param layer. If `ListProjectsQuery` ever allows `page=0`, the non-admin path would hit a negative OFFSET. Fix: clamp `page >= 1` in both paths for defense in depth.

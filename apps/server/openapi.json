@@ -599,12 +599,196 @@
         ]
       }
     },
+    "/api/invitations": {
+      "get": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "GET /api/invitations — list invitations (admin only)",
+        "operationId": "list_invitations",
+        "responses": {
+          "200": {
+            "description": "List of invitations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "POST /api/invitations — create an invitation (admin only)",
+        "operationId": "create_invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvitation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Invitation created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already a user or pending invite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/invitations/{token}": {
+      "delete": {
+        "tags": [
+          "Invitations"
+        ],
+        "summary": "DELETE /api/invitations/{token} — revoke a pending invitation (admin only)",
+        "operationId": "revoke_invitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Invitation token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Invitation revoked"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Pending invitation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects": {
       "get": {
         "tags": [
           "Projects"
         ],
         "summary": "GET /api/projects - List projects with pagination",
+        "description": "Admins see every project. Non-admins see only the projects they belong to.",
         "operationId": "list_projects",
         "parameters": [
           {
@@ -752,6 +936,7 @@
           "Projects"
         ],
         "summary": "POST /api/projects - Create a new project",
+        "description": "Any authenticated user may create a project. A non-admin creator is\nautomatically granted the project `admin` role so they can access it.",
         "operationId": "create_project",
         "requestBody": {
           "content": {
@@ -2025,12 +2210,465 @@
         ]
       }
     },
+    "/api/projects/{project_id}/members": {
+      "get": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "GET /api/projects/{project_id}/members",
+        "operationId": "list_members",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of project members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectMemberResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "PUT /api/projects/{project_id}/members",
+        "operationId": "upsert_member",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProjectMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Member added or updated"
+          },
+          "400": {
+            "description": "Invalid role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or user not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot downgrade last project admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/members/{user_id}": {
+      "delete": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "DELETE /api/projects/{project_id}/members/{user_id}",
+        "operationId": "remove_member",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Member removed"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Membership not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot remove last project admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/team": {
+      "get": {
+        "tags": [
+          "Team"
+        ],
+        "summary": "GET /api/team — list all users (admin only)",
+        "operationId": "list_team",
+        "responses": {
+          "200": {
+            "description": "List of team members",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamMemberResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/team/{user_id}": {
+      "delete": {
+        "tags": [
+          "Team"
+        ],
+        "summary": "DELETE /api/team/{user_id} — remove a user from the instance (admin only)",
+        "operationId": "delete_user",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot delete the last admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/team/{user_id}/role": {
+      "patch": {
+        "tags": [
+          "Team"
+        ],
+        "summary": "PATCH /api/team/{user_id}/role — change a user's global role (admin only)",
+        "operationId": "update_team_role",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRole"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Role updated"
+          },
+          "400": {
+            "description": "Invalid role",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cannot demote the last admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/tokens": {
       "get": {
         "tags": [
           "Tokens"
         ],
-        "summary": "GET /api/tokens - List all tokens (masked)",
+        "summary": "GET /api/tokens - List tokens (masked)",
+        "description": "Admins see all tokens; non-admins see only the tokens they own.",
         "operationId": "list_tokens",
         "responses": {
           "200": {
@@ -2067,7 +2705,7 @@
         "tags": [
           "Tokens"
         ],
-        "summary": "POST /api/tokens - Create a new token",
+        "summary": "POST /api/tokens - Create a new token (scoped to the acting user)",
         "operationId": "create_token",
         "requestBody": {
           "content": {
@@ -2114,6 +2752,7 @@
           "Tokens"
         ],
         "summary": "DELETE /api/tokens/{id} - Revoke a token",
+        "description": "Admins may revoke any token; non-admins may only revoke their own.",
         "operationId": "delete_token",
         "parameters": [
           {
@@ -2141,6 +2780,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
             "content": {
@@ -2156,6 +2805,105 @@
           {
             "bearer_auth": []
           }
+        ]
+      }
+    },
+    "/auth/accept-invitation": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "POST /auth/accept-invitation\nAccept a pending invitation: creates the user (with the invite's email + role) and logs in.",
+        "operationId": "accept_invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Invitation accepted, user created and logged in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or expired invitation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/auth/invitation/{token}": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "GET /auth/invitation/{token}\nReturns the invitation's details if it is still acceptable (for the accept page).",
+        "operationId": "get_invitation",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "Invitation token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationInfoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invitation expired or used",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Invitation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
         ]
       }
     },
@@ -2263,7 +3011,7 @@
         "tags": [
           "Auth"
         ],
-        "summary": "POST /auth/register\nCreate new user account",
+        "summary": "POST /auth/register\nRegistration is invite-only — always rejected. Use `/auth/accept-invitation`.",
         "operationId": "register",
         "requestBody": {
           "content": {
@@ -2276,28 +3024,8 @@
           "required": true
         },
         "responses": {
-          "201": {
-            "description": "User registered",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Email already in use",
+          "403": {
+            "description": "Registration is invite-only",
             "content": {
               "application/json": {
                 "schema": {
@@ -2367,6 +3095,21 @@
   },
   "components": {
     "schemas": {
+      "AcceptInvitation": {
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "AlertHistory": {
         "type": "object",
         "description": "Alert delivery history record (audit log and retry queue)",
@@ -2826,6 +3569,22 @@
           }
         }
       },
+      "CreateInvitation": {
+        "type": "object",
+        "required": [
+          "email",
+          "role"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "description": "Global role the invited user will receive (`admin` | `member`)."
+          }
+        }
+      },
       "CreateProject": {
         "type": "object",
         "description": "DTO for creating a new project",
@@ -3003,6 +3762,65 @@
           }
         }
       },
+      "InvitationInfoResponse": {
+        "type": "object",
+        "description": "Public-facing invitation info for the accept page.",
+        "required": [
+          "email",
+          "role",
+          "status",
+          "expires_at"
+        ],
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "InvitationResponse": {
+        "type": "object",
+        "description": "Public-facing invitation (no internal columns beyond what the UI needs).",
+        "required": [
+          "token",
+          "email",
+          "role",
+          "status",
+          "expires_at",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "role": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
       "IssueResponse": {
         "type": "object",
         "description": "Response for API",
@@ -3094,6 +3912,32 @@
           }
         }
       },
+      "ProjectMemberResponse": {
+        "type": "object",
+        "description": "Member row joined with the user's email, for listing a project's team.",
+        "required": [
+          "user_id",
+          "email",
+          "role",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "ProjectResponse": {
         "type": "object",
         "description": "Response with DSN included",
@@ -3175,6 +4019,48 @@
             "$ref": "#/components/schemas/ReadinessChecks"
           },
           "status": {
+            "type": "string"
+          }
+        }
+      },
+      "TeamMemberResponse": {
+        "type": "object",
+        "description": "A user as exposed on the team roster.",
+        "required": [
+          "id",
+          "email",
+          "role",
+          "is_active",
+          "is_primary",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "is_primary": {
+            "type": "boolean",
+            "description": "True for the first-registered (primary) account, which cannot be demoted\nor deleted."
+          },
+          "last_login": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "role": {
             "type": "string"
           }
         }
@@ -3280,11 +4166,40 @@
           }
         }
       },
+      "UpdateUserRole": {
+        "type": "object",
+        "description": "Request body for changing a user's global role.",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        }
+      },
+      "UpsertProjectMember": {
+        "type": "object",
+        "required": [
+          "user_id",
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "UserResponse": {
         "type": "object",
         "required": [
           "id",
           "email",
+          "role",
           "is_admin"
         ],
         "properties": {
@@ -3296,7 +4211,11 @@
             "format": "int32"
           },
           "is_admin": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Convenience flag derived from `role` (kept for backward compatibility)."
+          },
+          "role": {
+            "type": "string"
           }
         }
       }

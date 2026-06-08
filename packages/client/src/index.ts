@@ -25,6 +25,7 @@ export {
 } from './errors/index.js';
 // Types
 export type {
+  AcceptInvitation,
   AlertHistory,
   AlertIntegration,
   AlertRule,
@@ -43,11 +44,15 @@ export type {
   CreateAlertIntegration,
   CreateAlertRule,
   CreateAuthToken,
+  CreateInvitation,
   /** @deprecated Use CreateAlertIntegration */
   CreateNotificationChannel,
   CreateProject,
   Event,
   EventDetail,
+  GlobalRole,
+  Invitation,
+  InvitationInfo,
   Issue,
   IssueFilter,
   IssueSort,
@@ -63,11 +68,14 @@ export type {
   OffsetPaginatedResponse,
   PaginatedResponse,
   Project,
+  ProjectMember,
+  ProjectRole,
   ProviderType,
   RegisterRequest,
   RoutingOverride,
   SortOrder,
   SourceMapFile,
+  TeamMember,
   TestChannelResponse,
   TestIntegrationBody,
   UpdateAlertIntegration,
@@ -76,5 +84,7 @@ export type {
   /** @deprecated Use UpdateAlertIntegration */
   UpdateNotificationChannel,
   UpdateProject,
+  UpdateUserRole,
+  UpsertProjectMember,
   User,
 } from './types/index.js';

@@ -5,9 +5,12 @@ import {
   AlertRulesResource,
   AuthResource,
   EventsResource,
+  InvitationsResource,
   IssuesResource,
+  MembersResource,
   ProjectsResource,
   SourceMapsResource,
+  TeamResource,
   TokensResource,
 } from './resources/index.js';
 import { createKyInstance } from './utils/index.js';
@@ -76,6 +79,21 @@ export class RustrakClient {
   public readonly sourceMaps: SourceMapsResource;
 
   /**
+   * Team API resource (global user roster and roles)
+   */
+  public readonly team: TeamResource;
+
+  /**
+   * Invitations API resource (pending user invitations)
+   */
+  public readonly invitations: InvitationsResource;
+
+  /**
+   * Project Members API resource (per-project membership and roles)
+   */
+  public readonly members: MembersResource;
+
+  /**
    * Create a new Rustrak API client
    *
    * @param config - Client configuration
@@ -92,5 +110,8 @@ export class RustrakClient {
     this.alertIntegrations = new AlertIntegrationsResource(this.http);
     this.alertRules = new AlertRulesResource(this.http);
     this.sourceMaps = new SourceMapsResource(this.http);
+    this.team = new TeamResource(this.http);
+    this.invitations = new InvitationsResource(this.http);
+    this.members = new MembersResource(this.http);
   }
 }

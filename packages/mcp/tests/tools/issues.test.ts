@@ -18,7 +18,7 @@ describe('issue tools', () => {
       projects: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
       events: { list: vi.fn(), get: vi.fn() },
       tokens: { list: vi.fn(), create: vi.fn(), delete: vi.fn() },
-      alertChannels: { list: vi.fn(), test: vi.fn() },
+      alertIntegrations: { list: vi.fn(), test: vi.fn() },
       alertRules: { list: vi.fn() },
     };
     testEnv = await createTestEnv(mockClient);

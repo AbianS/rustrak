@@ -2,10 +2,12 @@ use actix_session::Session;
 use actix_web::{web, HttpResponse, Responder};
 use serde::Serialize;
 
+use chrono::{DateTime, Utc};
+
 use crate::auth::{self, AuthenticatedUser};
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUserRequest, LoginRequest, User};
-use crate::services::UsersService;
+use crate::models::{AcceptInvitation, CreateUserRequest, LoginRequest, User};
+use crate::services::{InvitationService, UsersService};
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
@@ -21,21 +23,25 @@ struct AuthResponse {
 struct UserResponse {
     id: i32,
     email: String,
+    role: String,
+    /// Convenience flag derived from `role` (kept for backward compatibility).
     is_admin: bool,
 }
 
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
+        let is_admin = user.is_admin();
         Self {
             id: user.id,
             email: user.email,
-            is_admin: user.is_admin,
+            role: user.role,
+            is_admin,
         }
     }
 }
 
 /// Email validation - checks basic format requirements
-fn is_valid_email(email: &str) -> bool {
+pub(crate) fn is_valid_email(email: &str) -> bool {
     // Must have exactly one @
     let parts: Vec<&str> = email.split('@').collect();
     if parts.len() != 2 {
@@ -75,42 +81,97 @@ fn is_valid_email(email: &str) -> bool {
     true
 }
 
+/// Public-facing invitation info for the accept page.
+#[derive(serde::Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+struct InvitationInfoResponse {
+    email: String,
+    role: String,
+    status: String,
+    expires_at: DateTime<Utc>,
+}
+
 #[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/auth/register",
     tag = "Auth",
     request_body = CreateUserRequest,
     responses(
-        (status = 201, description = "User registered", body = AuthResponse),
-        (status = 400, description = "Validation error", body = crate::error::ErrorResponse),
-        (status = 409, description = "Email already in use", body = crate::error::ErrorResponse),
+        (status = 403, description = "Registration is invite-only", body = crate::error::ErrorResponse),
     ),
     security(()),
 ))]
 /// POST /auth/register
-/// Create new user account
+/// Registration is invite-only — always rejected. Use `/auth/accept-invitation`.
 pub async fn register(
+    _pool: web::Data<crate::db::DbPool>,
+    _session: Session,
+    _req: web::Json<CreateUserRequest>,
+) -> AppResult<impl Responder> {
+    Err::<HttpResponse, _>(AppError::Forbidden(
+        "Registration is invite-only".to_string(),
+    ))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/auth/accept-invitation",
+    tag = "Auth",
+    request_body = AcceptInvitation,
+    responses(
+        (status = 201, description = "Invitation accepted, user created and logged in", body = AuthResponse),
+        (status = 400, description = "Invalid or expired invitation", body = crate::error::ErrorResponse),
+    ),
+    security(()),
+))]
+/// POST /auth/accept-invitation
+/// Accept a pending invitation: creates the user (with the invite's email + role) and logs in.
+pub async fn accept_invitation(
     pool: web::Data<crate::db::DbPool>,
     session: Session,
-    req: web::Json<CreateUserRequest>,
+    req: web::Json<AcceptInvitation>,
 ) -> AppResult<impl Responder> {
-    // Validate email format
-    if !is_valid_email(&req.email) {
-        return Err(AppError::Validation("Invalid email format".to_string()));
-    }
+    let user = InvitationService::accept(pool.get_ref(), &req.token, &req.password).await?;
 
-    // Validate password is provided
-    if req.password.is_empty() {
-        return Err(AppError::Validation("Password is required".to_string()));
-    }
-
-    // Create user (non-admin by default)
-    let user = UsersService::create_user(pool.get_ref(), &req, false).await?;
-
-    // Set session
     auth::set_user_session(&session, user.id)?;
 
     Ok(HttpResponse::Created().json(AuthResponse { user: user.into() }))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/auth/invitation/{token}",
+    tag = "Auth",
+    params(("token" = String, Path, description = "Invitation token")),
+    responses(
+        (status = 200, description = "Invitation info", body = InvitationInfoResponse),
+        (status = 400, description = "Invitation expired or used", body = crate::error::ErrorResponse),
+        (status = 404, description = "Invitation not found", body = crate::error::ErrorResponse),
+    ),
+    security(()),
+))]
+/// GET /auth/invitation/{token}
+/// Returns the invitation's details if it is still acceptable (for the accept page).
+pub async fn get_invitation(
+    pool: web::Data<crate::db::DbPool>,
+    path: web::Path<String>,
+) -> AppResult<impl Responder> {
+    let invitation = InvitationService::get(pool.get_ref(), &path.into_inner())
+        .await?
+        .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
+
+    if !invitation.is_acceptable(Utc::now()) {
+        return Err(AppError::Validation(
+            "Invitation is expired or already used".to_string(),
+        ));
+    }
+
+    Ok(HttpResponse::Ok().json(InvitationInfoResponse {
+        email: invitation.email,
+        role: invitation.role,
+        status: invitation.status,
+        expires_at: invitation.expires_at,
+    }))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -190,12 +251,21 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(register, login, logout, get_current_user),
+    paths(
+        register,
+        accept_invitation,
+        get_invitation,
+        login,
+        logout,
+        get_current_user
+    ),
     components(schemas(
         crate::models::CreateUserRequest,
         crate::models::LoginRequest,
+        crate::models::AcceptInvitation,
         AuthResponse,
         UserResponse,
+        InvitationInfoResponse,
     ))
 )]
 pub struct AuthApi;
@@ -205,6 +275,8 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/auth")
             .route("/register", web::post().to(register))
+            .route("/accept-invitation", web::post().to(accept_invitation))
+            .route("/invitation/{token}", web::get().to(get_invitation))
             .route("/login", web::post().to(login))
             .route("/logout", web::post().to(logout))
             .route("/me", web::get().to(get_current_user)),

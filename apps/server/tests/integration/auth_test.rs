@@ -55,7 +55,12 @@ async fn create_test_user(
         email: email.to_string(),
         password: password.to_string(),
     };
-    UsersService::create_user(pool, &req, is_admin)
+    let role = if is_admin {
+        rustrak::models::UserRole::Admin
+    } else {
+        rustrak::models::UserRole::Member
+    };
+    UsersService::create_user(pool, &req, role)
         .await
         .expect("Failed to create test user")
 }
@@ -94,29 +99,16 @@ async fn test_register_success() {
         }))
         .to_request();
 
+    // Registration is now invite-only: /auth/register always returns 403 and
+    // never creates a user. (RBAC: use /auth/accept-invitation instead.)
     let resp = test::call_service(&app, req).await;
-    let status = resp.status();
+    assert_eq!(resp.status(), 403, "registration is invite-only");
 
-    if status != 201 {
-        let body_bytes = test::read_body(resp).await;
-        let body_str = String::from_utf8_lossy(&body_bytes);
-        eprintln!("Error response: {}", body_str);
-        panic!("Expected 201, got {}", status);
-    }
-
-    let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["user"]["email"], "newuser@example.com");
-    assert_eq!(body["user"]["is_admin"], false);
-    assert!(body["user"]["id"].is_number());
-
-    // Verify user was created in database
-    let user = UsersService::get_by_email(&db.pool, "newuser@example.com")
+    // Verify NO user was created in the database.
+    assert!(UsersService::get_by_email(&db.pool, "newuser@example.com")
         .await
         .unwrap()
-        .unwrap();
-    assert_eq!(user.email, "newuser@example.com");
-    assert!(!user.is_admin);
-    assert!(user.is_active);
+        .is_none());
 }
 
 #[actix_web::test]
@@ -147,8 +139,9 @@ async fn test_register_invalid_email() {
         }))
         .to_request();
 
+    // Invite-only: register rejects everything with 403 before any validation.
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400);
+    assert_eq!(resp.status(), 403);
 }
 
 #[actix_web::test]
@@ -170,7 +163,7 @@ async fn test_register_empty_password_rejected() {
     )
     .await;
 
-    // Empty password should be rejected
+    // Invite-only: register rejects everything with 403.
     let req = test::TestRequest::post()
         .uri("/auth/register")
         .insert_header(("Content-Type", "application/json"))
@@ -181,7 +174,7 @@ async fn test_register_empty_password_rejected() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400);
+    assert_eq!(resp.status(), 403);
 }
 
 #[actix_web::test]
@@ -215,8 +208,9 @@ async fn test_register_duplicate_email() {
         }))
         .to_request();
 
+    // Invite-only: register always returns 403 (does not reach duplicate check).
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400);
+    assert_eq!(resp.status(), 403);
 }
 
 #[actix_web::test]
@@ -248,12 +242,9 @@ async fn test_register_creates_session() {
         }))
         .to_request();
 
+    // Invite-only: register no longer creates a session; it returns 403.
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 201);
-
-    // Check that Set-Cookie header is present
-    let cookies = resp.headers().get_all("set-cookie");
-    assert!(cookies.into_iter().count() > 0);
+    assert_eq!(resp.status(), 403);
 }
 
 // =============================================================================
@@ -573,33 +564,10 @@ async fn test_get_current_user_unauthenticated() {
 #[actix_web::test]
 async fn test_password_is_hashed_in_database() {
     let db = TestDb::new().await;
-    let config = create_test_config();
-    let session_key = Key::from(&[0u8; 64]);
 
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(db.pool.clone()))
-            .app_data(web::Data::new(config))
-            .wrap(
-                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
-                    .cookie_secure(false)
-                    .build(),
-            )
-            .configure(routes::auth::configure),
-    )
-    .await;
-
-    let req = test::TestRequest::post()
-        .uri("/auth/register")
-        .insert_header(("Content-Type", "application/json"))
-        .set_json(json!({
-            "email": "hashtest@example.com",
-            "password": "mysecretpassword"
-        }))
-        .to_request();
-
-    let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 201);
+    // Registration is invite-only, so create the user directly via the service
+    // (the service is what performs the Argon2 hashing).
+    create_test_user(&db.pool, "hashtest@example.com", "mysecretpassword", false).await;
 
     // Get user from database
     let user = UsersService::get_by_email(&db.pool, "hashtest@example.com")
@@ -726,7 +694,9 @@ async fn test_middleware_exempts_auth_routes() {
     )
     .await;
 
-    // Auth routes should be accessible without authentication
+    // Auth routes should be reachable without authentication. The register
+    // route is invite-only so it returns 403 (handler-level), NOT 401 from the
+    // RequireAuth middleware — proving the route is exempt and was reached.
     let req = test::TestRequest::post()
         .uri("/auth/register")
         .insert_header(("Content-Type", "application/json"))
@@ -737,7 +707,7 @@ async fn test_middleware_exempts_auth_routes() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 201);
+    assert_eq!(resp.status(), 403);
 }
 
 #[actix_web::test]
@@ -806,9 +776,9 @@ async fn test_register_with_very_long_email() {
         }))
         .to_request();
 
+    // Invite-only: register rejects with 403 before any validation runs.
     let resp = test::call_service(&app, req).await;
-    // Should fail due to email validation (local part > 64 chars)
-    assert_eq!(resp.status(), 400);
+    assert_eq!(resp.status(), 403);
 }
 
 #[actix_web::test]
@@ -888,10 +858,15 @@ async fn test_concurrent_registrations_same_email() {
     let resp1 = test::call_service(&app, req1).await;
     let resp2 = test::call_service(&app, req2).await;
 
-    // One should succeed, one should fail
+    // Invite-only: both registrations are rejected with 403, and no user is
+    // ever created regardless of concurrency.
+    assert_eq!(resp1.status(), 403);
+    assert_eq!(resp2.status(), 403);
     assert!(
-        (resp1.status() == 201 && resp2.status() == 400)
-            || (resp1.status() == 400 && resp2.status() == 201)
+        UsersService::get_by_email(&db.pool, "concurrent@example.com")
+            .await
+            .unwrap()
+            .is_none()
     );
 }
 

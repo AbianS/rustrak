@@ -22,7 +22,7 @@ use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
 
-use crate::auth::ApiAuth;
+use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::ChannelType;
@@ -33,6 +33,7 @@ use crate::models::{
 };
 #[cfg(feature = "openapi")]
 use crate::models::{AlertRuleResponse, NotificationChannel};
+use crate::services::access::{self, Action};
 use crate::services::{create_dispatcher, AlertService, ProjectService};
 
 #[cfg(feature = "openapi")]
@@ -161,6 +162,19 @@ fn channel_to_safe_json(channel: &crate::models::AlertIntegration) -> serde_json
     value
 }
 
+/// Instance-wide alert channels hold sensitive credentials (Slack tokens,
+/// webhook URLs, SMTP config), so all channel management is restricted to
+/// instance admins — project membership is not enough.
+fn require_admin(actor: &ApiActor) -> AppResult<()> {
+    if actor.is_admin() {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden(
+            "Admin privileges required to manage alert channels".to_string(),
+        ))
+    }
+}
+
 #[cfg_attr(feature = "openapi", utoipa::path(
     get,
     path = "/api/integrations",
@@ -172,7 +186,8 @@ fn channel_to_safe_json(channel: &crate::models::AlertIntegration) -> serde_json
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/alert-channels
-pub async fn list_channels(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult<HttpResponse> {
+pub async fn list_channels(pool: web::Data<DbPool>, actor: ApiActor) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channels = AlertService::list_channels(pool.get_ref()).await?;
     let safe: Vec<serde_json::Value> = channels.iter().map(channel_to_safe_json).collect();
     Ok(HttpResponse::Ok().json(safe))
@@ -192,9 +207,10 @@ pub async fn list_channels(pool: web::Data<DbPool>, _auth: ApiAuth) -> AppResult
 /// POST /api/alert-channels
 pub async fn create_channel(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     body: web::Json<CreateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::create_channel(pool.get_ref(), body.into_inner()).await?;
     Ok(HttpResponse::Created().json(channel_to_safe_json(&channel)))
 }
@@ -214,9 +230,10 @@ pub async fn create_channel(
 /// GET /api/alert-channels/{id}
 pub async fn get_channel(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
 }
@@ -237,10 +254,11 @@ pub async fn get_channel(
 /// PATCH /api/alert-channels/{id}
 pub async fn update_channel(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
     body: web::Json<UpdateNotificationChannel>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel =
         AlertService::update_channel(pool.get_ref(), path.into_inner(), body.into_inner()).await?;
     Ok(HttpResponse::Ok().json(channel_to_safe_json(&channel)))
@@ -261,9 +279,10 @@ pub async fn update_channel(
 /// DELETE /api/alert-channels/{id}
 pub async fn delete_channel(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     AlertService::delete_channel(pool.get_ref(), path.into_inner()).await?;
     Ok(HttpResponse::NoContent().finish())
 }
@@ -283,10 +302,11 @@ pub async fn delete_channel(
 /// POST /api/integrations/{id}/test
 pub async fn test_channel(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
     body: Option<web::Json<TestIntegrationBody>>,
 ) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
     let channel = AlertService::get_channel(pool.get_ref(), path.into_inner()).await?;
 
     let routing = body
@@ -354,10 +374,19 @@ pub async fn test_channel(
 /// GET /api/projects/{project_id}/alert-rules
 pub async fn list_rules(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
@@ -396,11 +425,20 @@ pub async fn list_rules(
 /// POST /api/projects/{project_id}/alert-rules
 pub async fn create_rule(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
     body: web::Json<CreateAlertRule>,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::UpdateProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
@@ -454,10 +492,19 @@ pub struct RulePath {
 /// GET /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn get_rule(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<RulePath>,
 ) -> AppResult<HttpResponse> {
     let params = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        params.project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), params.project_id).await?;
@@ -502,11 +549,20 @@ pub async fn get_rule(
 /// PATCH /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn update_rule(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<RulePath>,
     body: web::Json<UpdateAlertRule>,
 ) -> AppResult<HttpResponse> {
     let params = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        params.project_id,
+        Action::UpdateProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), params.project_id).await?;
@@ -564,10 +620,19 @@ pub async fn update_rule(
 /// DELETE /api/projects/{project_id}/alert-rules/{rule_id}
 pub async fn delete_rule(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<RulePath>,
 ) -> AppResult<HttpResponse> {
     let params = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        params.project_id,
+        Action::UpdateProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), params.project_id).await?;
@@ -617,11 +682,20 @@ fn default_limit() -> i64 {
 /// GET /api/projects/{project_id}/alert-history
 pub async fn list_history(
     pool: web::Data<DbPool>,
-    _auth: ApiAuth,
+    actor: ApiActor,
     path: web::Path<i32>,
     query: web::Query<HistoryQuery>,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     // Verify project exists
     let _ = ProjectService::get_by_id(pool.get_ref(), project_id).await?;

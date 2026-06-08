@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use sha1::Digest as _;
 use std::sync::Arc;
 
-use crate::auth::BearerAuth;
+use crate::auth::ApiActor;
 use crate::config::Config;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
+use crate::services::access::{self, Action};
 use crate::services::sourcemap::{get_missing_chunks, store_chunks, SourceMapProvider};
 
 // ---------------------------------------------------------------------------
@@ -80,7 +81,7 @@ pub async fn org_details(path: web::Path<String>) -> AppResult<HttpResponse> {
 /// GET /api/0/organizations/{org_slug}/chunk-upload/
 pub async fn chunk_upload_capability(
     path: web::Path<String>,
-    _auth: BearerAuth,
+    _actor: ApiActor,
     config: web::Data<Config>,
 ) -> AppResult<HttpResponse> {
     let org_slug = path.into_inner();
@@ -122,7 +123,7 @@ pub async fn chunk_upload_capability(
 /// POST /api/0/organizations/{org_slug}/chunk-upload/
 pub async fn chunk_upload(
     _path: web::Path<String>,
-    _auth: BearerAuth,
+    _actor: ApiActor,
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
     mut payload: Multipart,
@@ -213,7 +214,7 @@ pub async fn chunk_upload(
 /// POST /api/0/organizations/{org_slug}/artifactbundle/assemble/
 pub async fn artifact_bundle_assemble(
     _path: web::Path<String>,
-    _auth: BearerAuth,
+    actor: ApiActor,
     pool: web::Data<DbPool>,
     _provider: web::Data<Arc<dyn SourceMapProvider>>,
     body: web::Json<AssembleBody>,
@@ -254,6 +255,16 @@ pub async fn artifact_bundle_assemble(
             }
         }
     };
+
+    // Enforce mutation access on the resolved project.
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::UpdateProject,
+    )
+    .await?;
 
     // Check for missing chunks
     let missing = get_missing_chunks(pool.get_ref(), &body.chunks).await?;
@@ -343,7 +354,7 @@ pub async fn artifact_bundle_assemble(
 /// GET /api/0/projects/{org_slug}/{project_slug}/files/source-maps/
 pub async fn list_source_maps(
     path: web::Path<(String, String)>,
-    _auth: BearerAuth,
+    actor: ApiActor,
     pool: web::Data<DbPool>,
 ) -> AppResult<HttpResponse> {
     let (_, project_slug) = path.into_inner();
@@ -361,6 +372,15 @@ pub async fn list_source_maps(
             )));
         }
     };
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
 
     #[derive(sqlx::FromRow)]
     struct Row {

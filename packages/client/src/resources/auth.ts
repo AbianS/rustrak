@@ -1,9 +1,14 @@
 import {
+  acceptInvitationSchema,
+  invitationInfoSchema,
+} from '../schemas/invitation.js';
+import {
   authResponseSchema,
   loginRequestSchema,
   registerRequestSchema,
   userSchema,
 } from '../schemas/user.js';
+import type { AcceptInvitation, InvitationInfo } from '../types/invitation.js';
 import type {
   LoginRequest,
   LoginResult,
@@ -87,5 +92,39 @@ export class AuthResource extends BaseResource {
   async getCurrentUser(): Promise<User> {
     const data = await this.http.get('auth/me').json();
     return this.validate(data, userSchema);
+  }
+
+  /**
+   * Get the details of a pending invitation by its token (public endpoint)
+   * Used by the accept-invitation page before the user has an account
+   * @param token - Invitation token
+   * @returns Invitation info (email, role, status, expiry)
+   */
+  async getInvitation(token: string): Promise<InvitationInfo> {
+    const data = await this.http.get(`auth/invitation/${token}`).json();
+    return this.validate(data, invitationInfoSchema);
+  }
+
+  /**
+   * Accept a pending invitation, creating the user account and logging in
+   * @param input - Invitation token and the new account's password
+   * @returns LoginResult with user information and session cookies
+   */
+  async acceptInvitation(input: AcceptInvitation): Promise<LoginResult> {
+    const validatedInput = this.validate(input, acceptInvitationSchema);
+
+    const response = await this.http.post('auth/accept-invitation', {
+      json: validatedInput,
+    });
+
+    const cookies = response.headers.getSetCookie();
+
+    const data = await response.json();
+    const authResponse = this.validate(data, authResponseSchema);
+
+    return {
+      user: authResponse.user,
+      cookies,
+    };
   }
 }

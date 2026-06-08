@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { listAlertRules, listIntegrations } from '@/actions/alerts';
+import { getCurrentUser } from '@/actions/auth';
 import { listIssues } from '@/actions/issues';
+import { listProjectMembers } from '@/actions/members';
 import { getProject } from '@/actions/projects';
 import { IssuesList } from './issues-list';
 import { ProjectHeader } from './project-header';
@@ -42,18 +44,29 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Fetch issues and alert data in parallel
-  const [issuesResponse, alertRules, channels] = await Promise.all([
-    listIssues(projectId, {
-      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
-      page: currentPage,
-      per_page: 20,
-      sort: 'last_seen',
-      order: 'desc',
-    }),
-    listAlertRules(projectId).catch(() => []),
-    listIntegrations().catch(() => []),
-  ]);
+  // Fetch issues, alert, member and user data in parallel
+  const [issuesResponse, alertRules, channels, members, currentUser] =
+    await Promise.all([
+      listIssues(projectId, {
+        filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+        page: currentPage,
+        per_page: 20,
+        sort: 'last_seen',
+        order: 'desc',
+      }),
+      listAlertRules(projectId).catch(() => []),
+      listIntegrations().catch(() => []),
+      listProjectMembers(projectId).catch(() => []),
+      getCurrentUser(),
+    ]);
+
+  // A user can manage project members if they are a global admin or have the
+  // project-level 'admin' role on this project.
+  const currentMembership = currentUser
+    ? members.find((member) => member.user_id === currentUser.id)
+    : undefined;
+  const canManageMembers =
+    currentUser?.role === 'admin' || currentMembership?.role === 'admin';
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -63,6 +76,9 @@ export default async function ProjectPage({
           project={project}
           alertRules={alertRules}
           channels={channels}
+          members={members}
+          currentUserId={currentUser?.id}
+          canManageMembers={canManageMembers}
         />
       </div>
 

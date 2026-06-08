@@ -1,29 +1,36 @@
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateUserRequest, User};
+use crate::models::{CreateUserRequest, User, UserRole};
 
 pub struct UsersService;
 
 impl UsersService {
-    /// Creates a new user
-    pub async fn create_user(
-        pool: &DbPool,
+    /// Creates a new user with the given global role.
+    ///
+    /// Generic over the executor so it can run on a pool (`&DbPool`) or inside a
+    /// transaction (`&mut *tx`) — the latter lets callers create a user and do
+    /// follow-up writes atomically (e.g. consuming an invitation).
+    pub async fn create_user<'e, E>(
+        executor: E,
         req: &CreateUserRequest,
-        is_admin: bool,
-    ) -> AppResult<User> {
+        role: UserRole,
+    ) -> AppResult<User>
+    where
+        E: sqlx::Executor<'e, Database = crate::db::Db>,
+    {
         let password_hash = User::hash_password(&req.password)?;
 
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (email, password_hash, is_admin)
+            INSERT INTO users (email, password_hash, role)
             VALUES ($1, $2, $3)
-            RETURNING id, email, password_hash, is_active, is_admin, created_at, last_login
+            RETURNING id, email, password_hash, is_active, role, created_at, last_login
             "#,
         )
         .bind(&req.email)
         .bind(&password_hash)
-        .bind(is_admin)
-        .fetch_one(pool)
+        .bind(role.as_str())
+        .fetch_one(executor)
         .await
         .map_err(|e| match e {
             sqlx::Error::Database(db_err) if db_err.is_unique_violation() => {
@@ -39,7 +46,7 @@ impl UsersService {
     pub async fn get_by_email(pool: &DbPool, email: &str) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, is_active, is_admin, created_at, last_login
+            SELECT id, email, password_hash, is_active, role, created_at, last_login
             FROM users
             WHERE email = $1
             "#,
@@ -55,7 +62,7 @@ impl UsersService {
     pub async fn get_by_id(pool: &DbPool, user_id: i32) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, is_active, is_admin, created_at, last_login
+            SELECT id, email, password_hash, is_active, role, created_at, last_login
             FROM users
             WHERE id = $1
             "#,
@@ -65,6 +72,62 @@ impl UsersService {
         .await?;
 
         Ok(user)
+    }
+
+    /// Lists all users (team roster), most recent first.
+    pub async fn list(pool: &DbPool) -> AppResult<Vec<User>> {
+        let users = sqlx::query_as::<_, User>(
+            r#"
+            SELECT id, email, password_hash, is_active, role, created_at, last_login
+            FROM users
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        Ok(users)
+    }
+
+    /// The primary user = the first-registered account (lowest id), i.e. the
+    /// bootstrap superuser Rustrak was set up with. It is protected from demotion
+    /// and deletion. Returns `None` only when there are no users.
+    pub async fn primary_user_id(pool: &DbPool) -> AppResult<Option<i32>> {
+        let row: (Option<i32>,) = sqlx::query_as("SELECT MIN(id) FROM users")
+            .fetch_one(pool)
+            .await?;
+
+        Ok(row.0)
+    }
+
+    /// Permanently deletes a user. Memberships and owned tokens cascade
+    /// (`ON DELETE CASCADE`); invitations they sent keep `invited_by = NULL`.
+    pub async fn delete(pool: &DbPool, user_id: i32) -> AppResult<()> {
+        let result = sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(user_id)
+            .execute(pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("User {} not found", user_id)));
+        }
+
+        Ok(())
+    }
+
+    /// Updates a user's global role.
+    pub async fn update_role(pool: &DbPool, user_id: i32, role: UserRole) -> AppResult<()> {
+        let result = sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+            .bind(role.as_str())
+            .bind(user_id)
+            .execute(pool)
+            .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(format!("User {} not found", user_id)));
+        }
+
+        Ok(())
     }
 
     /// Updates the last login timestamp for a user
@@ -93,6 +156,17 @@ impl UsersService {
         )
         .fetch_one(pool)
         .await?;
+
+        Ok(count.0)
+    }
+
+    /// Counts how many *active* admins exist (to prevent demoting the last usable
+    /// admin and locking the instance out — inactive admins cannot act).
+    pub async fn admin_count(pool: &DbPool) -> AppResult<i64> {
+        let count: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = 'admin' AND is_active = true")
+                .fetch_one(pool)
+                .await?;
 
         Ok(count.0)
     }

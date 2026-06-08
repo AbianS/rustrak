@@ -3,7 +3,7 @@ use std::env;
 
 use crate::db::DbPool;
 use crate::error::AppResult;
-use crate::models::CreateUserRequest;
+use crate::models::{CreateUserRequest, UserRole};
 use crate::services::UsersService;
 
 /// Bootstrap initial superuser from CREATE_SUPERUSER env var
@@ -48,7 +48,7 @@ pub async fn create_superuser_if_needed(pool: &DbPool) -> AppResult<()> {
         password: password.to_string(),
     };
 
-    UsersService::create_user(pool, &req, true).await?;
+    UsersService::create_user(pool, &req, UserRole::Admin).await?;
     info!("✅ Superuser created: {}", email);
 
     Ok(())

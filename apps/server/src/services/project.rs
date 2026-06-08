@@ -66,6 +66,65 @@ impl ProjectService {
         Ok((projects, total_count.0))
     }
 
+    /// Lists projects with offset-based pagination, restricted to the given ids.
+    ///
+    /// Used to scope the project list for non-admin members to only the projects
+    /// they belong to. If `ids` is empty, returns `(vec![], 0)` without issuing a
+    /// query (avoids an invalid `IN ()` clause).
+    pub async fn list_offset_for_ids(
+        pool: &DbPool,
+        ids: &[i32],
+        order: SortOrder,
+        page: i64,
+        per_page: i64,
+    ) -> AppResult<(Vec<Project>, i64)> {
+        if ids.is_empty() {
+            return Ok((Vec::new(), 0));
+        }
+
+        let offset = (page - 1) * per_page;
+
+        // Build a parameterized IN list ($1, $2, ...). Bind params start at $1
+        // for the ids; LIMIT/OFFSET come after.
+        let placeholders: Vec<String> = (1..=ids.len()).map(|i| format!("${}", i)).collect();
+        let in_clause = placeholders.join(", ");
+        let limit_param = ids.len() + 1;
+        let offset_param = ids.len() + 2;
+
+        let order_clause = match order {
+            SortOrder::Asc => "ORDER BY created_at ASC",
+            SortOrder::Desc => "ORDER BY created_at DESC",
+        };
+
+        let count_query = format!("SELECT COUNT(*) FROM projects WHERE id IN ({})", in_clause);
+        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_query);
+        for id in ids {
+            count_q = count_q.bind(id);
+        }
+        let total_count: (i64,) = count_q.fetch_one(pool).await?;
+
+        let query = format!(
+            r#"
+            SELECT id, name, slug, sentry_key, stored_event_count,
+                   digested_event_count, created_at, updated_at,
+                   quota_exceeded_until, quota_exceeded_reason, next_quota_check
+            FROM projects
+            WHERE id IN ({})
+            {}
+            LIMIT ${} OFFSET ${}
+            "#,
+            in_clause, order_clause, limit_param, offset_param
+        );
+
+        let mut q = sqlx::query_as::<_, Project>(&query);
+        for id in ids {
+            q = q.bind(id);
+        }
+        let projects = q.bind(per_page).bind(offset).fetch_all(pool).await?;
+
+        Ok((projects, total_count.0))
+    }
+
     /// Gets a project by ID
     pub async fn get_by_id(pool: &DbPool, id: i32) -> AppResult<Project> {
         let project = sqlx::query_as::<_, Project>(

@@ -112,14 +112,63 @@ export const mockTokens = [
 export const mockUser = {
   id: 1,
   email: 'test@example.com',
+  role: 'member',
   is_admin: false,
 };
 
 export const mockAdminUser = {
   id: 2,
   email: 'admin@example.com',
+  role: 'admin',
   is_admin: true,
 };
+
+export const mockTeamMembers = [
+  {
+    id: 1,
+    email: 'test@example.com',
+    role: 'member',
+    is_active: true,
+    is_primary: false,
+    created_at: '2026-01-20T10:00:00.000Z',
+    last_login: '2026-01-20T11:00:00.000Z',
+  },
+  {
+    id: 2,
+    email: 'admin@example.com',
+    role: 'admin',
+    is_active: true,
+    is_primary: true,
+    created_at: '2026-01-19T10:00:00.000Z',
+    last_login: null,
+  },
+];
+
+export const mockInvitations = [
+  {
+    token: 'invite-token-abc123',
+    email: 'invitee@example.com',
+    role: 'member',
+    status: 'pending',
+    expires_at: '2026-02-20T10:00:00.000Z',
+    created_at: '2026-01-20T10:00:00.000Z',
+  },
+];
+
+export const mockProjectMembers = [
+  {
+    user_id: 1,
+    email: 'test@example.com',
+    role: 'editor',
+    created_at: '2026-01-20T10:00:00.000Z',
+  },
+  {
+    user_id: 2,
+    email: 'admin@example.com',
+    role: 'admin',
+    created_at: '2026-01-19T10:00:00.000Z',
+  },
+];
 
 export const mockAlertIntegrations = [
   {
@@ -449,10 +498,10 @@ export const handlers = [
       );
     }
 
-    // Validate password length
-    if (body.password.length < 8) {
+    // Password is required (no length policy, matching the real server)
+    if (body.password.length === 0) {
       return HttpResponse.json(
-        { error: 'Password must be at least 8 characters' },
+        { error: 'Password is required' },
         { status: 400 },
       );
     }
@@ -468,6 +517,7 @@ export const handlers = [
     const newUser = {
       id: 3,
       email: body.email,
+      role: 'member',
       is_admin: false,
     };
 
@@ -541,16 +591,239 @@ export const handlers = [
     const cookieHeader = request.headers.get('Cookie');
 
     // Check if session cookie is present
-    if (
-      !cookieHeader ||
-      !cookieHeader.includes('session=mock-session-cookie')
-    ) {
+    if (!cookieHeader?.includes('session=mock-session-cookie')) {
       return HttpResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     // Return current user based on session
     return HttpResponse.json(mockUser);
   }),
+
+  // Public invitation lookup (accept page)
+  http.get(`${BASE_URL}/auth/invitation/:token`, ({ params }) => {
+    const { token } = params;
+
+    if (token === 'expired-token') {
+      return HttpResponse.json(
+        { error: 'Invitation expired or used' },
+        { status: 400 },
+      );
+    }
+
+    const invitation = mockInvitations.find((i) => i.token === token);
+
+    if (!invitation) {
+      return HttpResponse.json(
+        { error: 'Invitation not found' },
+        { status: 404 },
+      );
+    }
+
+    return HttpResponse.json({
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expires_at: invitation.expires_at,
+    });
+  }),
+
+  // Accept invitation (public)
+  http.post(`${BASE_URL}/auth/accept-invitation`, async ({ request }) => {
+    const body = (await request.json()) as {
+      token: string;
+      password: string;
+    };
+
+    if (body.token === 'invalid-token') {
+      return HttpResponse.json(
+        { error: 'Invalid or expired invitation' },
+        { status: 400 },
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        user: {
+          id: 5,
+          email: 'invitee@example.com',
+          role: 'member',
+          is_admin: false,
+        },
+      },
+      {
+        status: 201,
+        headers: {
+          'Set-Cookie': 'session=mock-session-cookie; HttpOnly; SameSite=Lax',
+        },
+      },
+    );
+  }),
+
+  // Team (users)
+  http.get(`${BASE_URL}/api/team`, () => {
+    return HttpResponse.json(mockTeamMembers);
+  }),
+
+  http.patch(
+    `${BASE_URL}/api/team/:userId/role`,
+    async ({ params, request }) => {
+      const { userId } = params;
+      const body = (await request.json()) as { role: string };
+
+      if (body.role !== 'admin' && body.role !== 'member') {
+        return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+      }
+
+      const member = mockTeamMembers.find((m) => m.id === Number(userId));
+
+      if (!member) {
+        return HttpResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+
+      // Simulate "cannot demote the last admin"
+      if (member.id === 2 && body.role === 'member') {
+        return HttpResponse.json(
+          { error: 'Cannot demote the last admin' },
+          { status: 409 },
+        );
+      }
+
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
+
+  http.delete(`${BASE_URL}/api/team/:userId`, ({ params }) => {
+    const member = mockTeamMembers.find((m) => m.id === Number(params.userId));
+    if (!member) {
+      return HttpResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    // Simulate "the primary user cannot be deleted".
+    if (member.is_primary) {
+      return HttpResponse.json(
+        { error: 'The primary admin cannot be deleted' },
+        { status: 403 },
+      );
+    }
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Invitations
+  http.get(`${BASE_URL}/api/invitations`, () => {
+    return HttpResponse.json(mockInvitations);
+  }),
+
+  http.post(`${BASE_URL}/api/invitations`, async ({ request }) => {
+    const body = (await request.json()) as { email: string; role: string };
+
+    if (body.role !== 'admin' && body.role !== 'member') {
+      return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+    }
+
+    if (body.email === 'existing@example.com') {
+      return HttpResponse.json(
+        { error: 'Email already a user or pending invite' },
+        { status: 409 },
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        token: 'new-invite-token',
+        email: body.email,
+        role: body.role,
+        status: 'pending',
+        expires_at: '2026-02-20T10:00:00.000Z',
+        created_at: new Date().toISOString(),
+      },
+      { status: 201 },
+    );
+  }),
+
+  http.delete(`${BASE_URL}/api/invitations/:token`, ({ params }) => {
+    const { token } = params;
+    const invitation = mockInvitations.find((i) => i.token === token);
+
+    if (!invitation) {
+      return HttpResponse.json(
+        { error: 'Pending invitation not found' },
+        { status: 404 },
+      );
+    }
+
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Project members
+  http.get(`${BASE_URL}/api/projects/:projectId/members`, ({ params }) => {
+    const { projectId } = params;
+    const project = mockProjects.find((p) => p.id === Number(projectId));
+
+    if (!project) {
+      return HttpResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    return HttpResponse.json(mockProjectMembers);
+  }),
+
+  http.put(
+    `${BASE_URL}/api/projects/:projectId/members`,
+    async ({ params, request }) => {
+      const { projectId } = params;
+      const body = (await request.json()) as {
+        user_id: number;
+        role: string;
+      };
+      const project = mockProjects.find((p) => p.id === Number(projectId));
+
+      if (!project) {
+        return HttpResponse.json(
+          { error: 'Project or user not found' },
+          { status: 404 },
+        );
+      }
+
+      if (!['viewer', 'editor', 'admin'].includes(body.role)) {
+        return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+      }
+
+      // Simulate "cannot downgrade last project admin"
+      if (body.user_id === 2 && body.role !== 'admin') {
+        return HttpResponse.json(
+          { error: 'Cannot downgrade last project admin' },
+          { status: 409 },
+        );
+      }
+
+      return new HttpResponse(null, { status: 200 });
+    },
+  ),
+
+  http.delete(
+    `${BASE_URL}/api/projects/:projectId/members/:userId`,
+    ({ params }) => {
+      const { userId } = params;
+      const member = mockProjectMembers.find(
+        (m) => m.user_id === Number(userId),
+      );
+
+      if (!member) {
+        return HttpResponse.json(
+          { error: 'Membership not found' },
+          { status: 404 },
+        );
+      }
+
+      // Simulate "cannot remove last project admin"
+      if (member.user_id === 2) {
+        return HttpResponse.json(
+          { error: 'Cannot remove last project admin' },
+          { status: 409 },
+        );
+      }
+
+      return new HttpResponse(null, { status: 204 });
+    },
+  ),
 
   // Alert Integrations (Global)
   http.get(`${BASE_URL}/api/integrations`, () => {

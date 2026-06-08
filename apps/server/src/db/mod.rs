@@ -14,6 +14,13 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 #[cfg(feature = "sqlite")]
 use std::str::FromStr;
 
+/// The active SQLx database backend (selected by feature flag).
+#[cfg(feature = "postgres")]
+pub type Db = sqlx::Postgres;
+
+#[cfg(feature = "sqlite")]
+pub type Db = sqlx::Sqlite;
+
 /// Type alias for the database connection pool
 #[cfg(feature = "postgres")]
 pub type DbPool = PgPool;

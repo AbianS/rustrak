@@ -25,7 +25,7 @@ async fn test_bootstrap_creates_superuser_when_empty() {
         .unwrap();
 
     assert_eq!(user.email, "admin@example.com");
-    assert!(user.is_admin);
+    assert!(user.is_admin());
     assert!(user.is_active);
 
     // Clean up
@@ -41,7 +41,7 @@ async fn test_bootstrap_skips_when_users_exist() {
         email: "existing@example.com".to_string(),
         password: "password123".to_string(),
     };
-    UsersService::create_user(&db.pool, &req, false)
+    UsersService::create_user(&db.pool, &req, rustrak::models::UserRole::Member)
         .await
         .unwrap();
 
@@ -146,7 +146,7 @@ async fn test_bootstrap_creates_admin_user() {
         .unwrap();
 
     // Verify it's an admin user
-    assert!(user.is_admin);
+    assert!(user.is_admin());
 
     // Clean up
     env::remove_var("CREATE_SUPERUSER");

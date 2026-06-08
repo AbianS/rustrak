@@ -3,5 +3,6 @@ export default {
   issues: 'Issues',
   'source-maps': 'Source Maps',
   alerts: 'Alerts',
+  team: 'Team & Access',
   tokens: 'API Tokens',
 };

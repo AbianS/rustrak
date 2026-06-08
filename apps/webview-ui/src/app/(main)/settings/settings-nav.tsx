@@ -1,6 +1,6 @@
 'use client';
 
-import { Info, Key, Palette, Plug, User } from 'lucide-react';
+import { Info, Key, Palette, Plug, User, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
+  { href: '/settings/team', label: 'Team', icon: Users, adminOnly: true },
   { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings/appearance', label: 'Appearance', icon: Palette },
   { href: '/settings/about', label: 'About', icon: Info },
@@ -15,14 +16,17 @@ const navItems = [
 
 interface SettingsNavProps {
   onNavigate?: () => void;
+  isAdmin?: boolean;
 }
 
-export function SettingsNav({ onNavigate }: SettingsNavProps) {
+export function SettingsNav({ onNavigate, isAdmin = false }: SettingsNavProps) {
   const pathname = usePathname();
+
+  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <nav className="flex flex-col gap-1">
-      {navItems.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         const isActive = pathname === item.href;
 
