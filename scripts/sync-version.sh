@@ -26,4 +26,9 @@ else
   sed -i -E "s/^version = \".+\"/version = \"$VERSION\"/" "$CARGO_TOML"
 fi
 
+if ! grep -Eq "^version = \"$VERSION\"$" "$CARGO_TOML"; then
+  echo "ERROR: failed to update version in $CARGO_TOML"
+  exit 1
+fi
+
 echo "Synced version $VERSION to Cargo.toml"

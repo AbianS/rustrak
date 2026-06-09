@@ -3091,6 +3091,27 @@
           }
         }
       }
+    },
+    "/health/version": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Version check - returns the server version compiled from Cargo.toml.",
+        "operationId": "version",
+        "responses": {
+          "200": {
+            "description": "Server version info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4215,6 +4236,17 @@
             "description": "Convenience flag derived from `role` (kept for backward compatibility)."
           },
           "role": {
+            "type": "string"
+          }
+        }
+      },
+      "VersionResponse": {
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
             "type": "string"
           }
         }
