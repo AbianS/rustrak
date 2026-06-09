@@ -1,5 +1,14 @@
 # webview-ui
 
+## 0.3.1
+
+### Patch Changes
+
+- [#112](https://github.com/rustrak/rustrak/pull/112) [`174f439`](https://github.com/rustrak/rustrak/commit/174f4396749cac04fa2b07e0f90d3a76b67b0bd5) Thanks [@AbianS](https://github.com/AbianS)! - Add `/health/version` endpoint and display server version in About page. Expose version via client SDK and MCP tool.
+
+- Updated dependencies [[`174f439`](https://github.com/rustrak/rustrak/commit/174f4396749cac04fa2b07e0f90d3a76b67b0bd5)]:
+  - @rustrak/client@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
