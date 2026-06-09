@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { registerAlertTools } from './tools/alerts.js';
 import { registerEventTools } from './tools/events.js';
+import { registerHealthTools } from './tools/health.js';
 import { registerIssueTools } from './tools/issues.js';
 import { registerProjectTools } from './tools/projects.js';
 import { registerTeamTools } from './tools/team.js';
@@ -19,6 +20,7 @@ export function createServer(client: RustrakClient): McpServer {
   registerTokenTools(server, client);
   registerAlertTools(server, client);
   registerTeamTools(server, client);
+  registerHealthTools(server, client);
 
   return server;
 }
