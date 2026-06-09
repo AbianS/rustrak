@@ -15,7 +15,7 @@
     "check-types": "turbo run check-types",
     "clean": "turbo run clean",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && bash scripts/sync-version.sh",
     "release": "changeset publish",
     "update:monorepo": "pnpx npm-check-updates -i --deep --doctorInstall pnpm"
   },

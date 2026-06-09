@@ -5,6 +5,7 @@ import {
   AlertRulesResource,
   AuthResource,
   EventsResource,
+  HealthResource,
   InvitationsResource,
   IssuesResource,
   MembersResource,
@@ -94,6 +95,11 @@ export class RustrakClient {
   public readonly members: MembersResource;
 
   /**
+   * Health API resource (version info)
+   */
+  public readonly health: HealthResource;
+
+  /**
    * Create a new Rustrak API client
    *
    * @param config - Client configuration
@@ -113,5 +119,6 @@ export class RustrakClient {
     this.team = new TeamResource(this.http);
     this.invitations = new InvitationsResource(this.http);
     this.members = new MembersResource(this.http);
+    this.health = new HealthResource(this.http);
   }
 }

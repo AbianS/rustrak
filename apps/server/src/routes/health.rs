@@ -25,6 +25,12 @@ pub struct ReadinessChecks {
     database: &'static str,
 }
 
+#[derive(Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct VersionResponse {
+    version: &'static str,
+}
+
 #[cfg_attr(feature = "openapi", utoipa::path(
     get,
     path = "/health",
@@ -37,6 +43,21 @@ pub struct ReadinessChecks {
 /// Returns 200 if the server is alive.
 pub async fn liveness() -> HttpResponse {
     HttpResponse::Ok().json(LivenessResponse { status: "ok" })
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/health/version",
+    tag = "Health",
+    responses(
+        (status = 200, description = "Server version info", body = VersionResponse),
+    ),
+))]
+/// Version check - returns the server version compiled from Cargo.toml.
+pub async fn version() -> HttpResponse {
+    HttpResponse::Ok().json(VersionResponse {
+        version: env!("CARGO_PKG_VERSION"),
+    })
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -72,7 +93,7 @@ pub async fn readiness(pool: web::Data<DbPool>) -> HttpResponse {
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(liveness, readiness),
-    components(schemas(LivenessResponse, ReadinessResponse, ReadinessChecks))
+    paths(liveness, version, readiness),
+    components(schemas(LivenessResponse, VersionResponse, ReadinessResponse, ReadinessChecks))
 )]
 pub struct HealthApi;

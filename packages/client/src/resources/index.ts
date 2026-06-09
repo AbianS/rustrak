@@ -3,6 +3,7 @@ export { AlertRulesResource } from './alert-rules.js';
 export { AuthResource } from './auth.js';
 export { BaseResource } from './base.js';
 export { EventsResource } from './events.js';
+export { HealthResource } from './health.js';
 export { InvitationsResource } from './invitations.js';
 export { IssuesResource } from './issues.js';
 export { MembersResource } from './members.js';
