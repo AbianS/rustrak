@@ -88,7 +88,7 @@ If you're running the dashboard on your laptop connecting to a remote server:
 ```bash
 docker run -p 3000:3000 \
   -e RUSTRAK_API_URL=https://your-server.com \
-  abians7/rustrak-ui:latest
+  rustrak/rustrak-ui:latest
 ```
 
 Make sure:
@@ -174,12 +174,12 @@ Run just the server (~50MB RAM) and access the dashboard separately:
 
 ```bash
 # On server
-docker run -d -p 8080:8080 abians7/rustrak-server:latest
+docker run -d -p 8080:8080 rustrak/rustrak-server:latest
 
 # Dashboard on another machine
 docker run -d -p 3000:3000 \
   -e RUSTRAK_API_URL=https://your-server.com \
-  abians7/rustrak-ui:latest
+  rustrak/rustrak-ui:latest
 ```
 
 ## Events delayed

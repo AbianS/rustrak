@@ -64,7 +64,7 @@ The fastest way is with Docker — no database setup required, SQLite is include
 # docker-compose.yml
 services:
   server:
-    image: abians7/rustrak-server:latest
+    image: rustrak/rustrak-server:latest
     ports:
       - "8080:8080"
     volumes:
@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
 
   ui:
-    image: abians7/rustrak-ui:latest
+    image: rustrak/rustrak-ui:latest
     ports:
       - "3000:3000"
     environment:

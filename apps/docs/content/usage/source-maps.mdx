@@ -123,7 +123,7 @@ Mount a shared network volume (NFS, AWS EFS, etc.) and set the same `SOURCEMAP_S
 # docker-compose.yml (multi-server example)
 services:
   rustrak:
-    image: abians7/rustrak-server:latest
+    image: rustrak/rustrak-server:latest
     volumes:
       - sourcemaps_nfs:/var/lib/rustrak/sourcemaps
     environment:
