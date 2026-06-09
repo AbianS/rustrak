@@ -31,4 +31,7 @@ if ! grep -Eq "^version = \"$VERSION\"$" "$CARGO_TOML"; then
   exit 1
 fi
 
+cd "$SERVER_DIR" && cargo generate-lockfile
+cd "$SERVER_DIR" && cargo run --bin gen_openapi --features openapi
+
 echo "Synced version $VERSION to Cargo.toml"
