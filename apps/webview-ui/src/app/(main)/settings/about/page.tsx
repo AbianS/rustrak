@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getServerVersion } from '@/actions/server';
 import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import {
   Card,
@@ -14,7 +15,9 @@ export const metadata: Metadata = {
   description: 'About Rustrak error tracking system',
 };
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const serverVersion = await getServerVersion();
+
   return (
     <>
       <div className="mb-6 md:mb-8">
@@ -42,8 +45,16 @@ export default function AboutPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">Version</p>
-                <p className="font-mono font-medium">{APP_VERSION}</p>
+                <p className="text-muted-foreground">WebView version</p>
+                <p className="font-mono font-medium">v{APP_VERSION}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Server version</p>
+                <p className="font-mono font-medium">
+                  {serverVersion?.version
+                    ? `v${serverVersion.version}`
+                    : 'Unavailable'}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Environment</p>

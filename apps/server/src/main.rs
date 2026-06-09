@@ -148,6 +148,7 @@ async fn main() -> std::io::Result<()> {
             .service(
                 web::scope("/health")
                     .route("", web::get().to(routes::health::liveness))
+                    .route("/version", web::get().to(routes::health::version))
                     .route("/ready", web::get().to(routes::health::readiness)),
             )
             // Root health check alias

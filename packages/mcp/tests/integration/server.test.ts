@@ -34,6 +34,8 @@ const EXPECTED_TOOLS = [
   'list_project_members',
   'set_project_member',
   'remove_project_member',
+  // Health (1)
+  'get_server_version',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -56,6 +58,7 @@ describe('MCP server integration', () => {
       team: { list: vi.fn(), updateRole: vi.fn(), remove: vi.fn() },
       invitations: { create: vi.fn(), list: vi.fn(), revoke: vi.fn() },
       members: { list: vi.fn(), upsert: vi.fn(), remove: vi.fn() },
+      health: { getVersion: vi.fn() },
     };
     testEnv = await createTestEnv(mockClient);
   });
