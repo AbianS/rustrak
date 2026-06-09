@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.22
+
+### Patch Changes
+
+- [`2567c58`](https://github.com/rustrak/rustrak/commit/2567c587691947c1b6d7ee0ab69c9e912a437c7c) Thanks [@AbianS](https://github.com/AbianS)! - Fix Docker image references: replace abians7/ with rustrak/ across all documentation pages
+
 ## 0.1.21
 
 ### Patch Changes
