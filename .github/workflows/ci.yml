@@ -22,7 +22,7 @@ jobs:
       # Rust setup + caching
       # sccache caches individual crate compilations; rust-cache caches the registry/index.
       # Both are complementary: sccache speeds up recompilation, rust-cache avoids re-downloading.
-      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           components: rustfmt, clippy
 
