@@ -1115,6 +1115,32 @@ export const handlers = [
     },
   ),
 
+  // Sessions — release health stats
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/sessions/stats`,
+    ({ params, request }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      const url = new URL(request.url);
+      const period = url.searchParams.get('period') ?? '24h';
+      return HttpResponse.json([
+        {
+          release: '1.0.0',
+          environment: 'production',
+          total: 100,
+          errored: 5,
+          crashed: 2,
+          abnormal: 1,
+          healthy: 92,
+          crash_free_sessions_rate: 0.98,
+          crash_free_users_rate: 0.99,
+          _period: period,
+        },
+      ]);
+    },
+  ),
+
   // Source Maps — list source maps for project
   http.get(
     `${BASE_URL}/api/0/projects/:orgSlug/:projectSlug/files/source-maps/`,

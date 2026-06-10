@@ -2451,6 +2451,62 @@
         ]
       }
     },
+    "/api/projects/{project_id}/sessions/stats": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "GET /api/projects/{project_id}/sessions/stats",
+        "operationId": "get_stats",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time window, e.g. '24h', '7d' (default: 24h)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-release health stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseHealthRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/team": {
       "get": {
         "tags": [
@@ -4041,6 +4097,61 @@
           },
           "status": {
             "type": "string"
+          }
+        }
+      },
+      "ReleaseHealthRow": {
+        "type": "object",
+        "description": "Per-release health row returned by the stats endpoint.",
+        "required": [
+          "release",
+          "environment",
+          "total",
+          "errored",
+          "crashed",
+          "abnormal",
+          "healthy"
+        ],
+        "properties": {
+          "abnormal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "crash_free_sessions_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "crash_free_users_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "crashed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "errored": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "healthy": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "release": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

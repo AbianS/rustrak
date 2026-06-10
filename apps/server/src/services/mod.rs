@@ -9,6 +9,7 @@ pub mod notification;
 pub mod project;
 pub mod project_member;
 pub mod rate_limit;
+pub mod session;
 pub mod sourcemap;
 pub mod sourcemap_store;
 pub mod users;

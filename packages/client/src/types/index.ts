@@ -6,6 +6,7 @@ export * from './invitation.js';
 export * from './issue.js';
 export * from './member.js';
 export * from './project.js';
+export * from './session.js';
 export * from './sourcemap.js';
 export * from './team.js';
 export * from './token.js';

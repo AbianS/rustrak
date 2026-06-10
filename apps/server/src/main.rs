@@ -13,6 +13,7 @@ use rustrak::routes;
 use rustrak::services::sourcemap::{DbSourceMapProvider, SourceMapProvider};
 use rustrak::services::sourcemap_store::LocalSourceMapStore;
 use rustrak::services::AuthTokenService;
+use rustrak::workers::session_aggregator::SessionAggregator;
 use rustrak::workers::sourcemap_assembly::AssemblyWorker;
 
 #[cfg(feature = "openapi")]
@@ -66,6 +67,17 @@ async fn main() -> std::io::Result<()> {
         tokio::spawn(worker.run());
     }
 
+    // Spawn session aggregator
+    let session_aggregator = SessionAggregator::new(
+        db_pool.clone(),
+        config.session_flush_interval_secs,
+        config.session_cardinality_cap,
+    );
+    {
+        let handle = session_aggregator.clone();
+        tokio::spawn(SessionAggregator::run(handle));
+    }
+
     // Bootstrap: create initial token if none exist
     bootstrap_token(&db_pool).await;
 
@@ -103,6 +115,8 @@ async fn main() -> std::io::Result<()> {
     #[cfg(feature = "openapi")]
     let openapi_scalar_doc = openapi::ApiDoc::openapi();
 
+    let session_aggregator_data = web::Data::new(session_aggregator.clone());
+
     let server = HttpServer::new(move || {
         // CORS configuration - permissive for event ingestion
         // Sentry SDKs can send from any origin. CORS protects the user from
@@ -130,6 +144,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
             .app_data(sourcemap_provider_data)
+            .app_data(session_aggregator_data.clone())
             // Middleware
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
@@ -174,7 +189,9 @@ async fn main() -> std::io::Result<()> {
             // Source map upload routes (Bearer auth, Sentry-cli compatible)
             .configure(routes::sourcemaps::configure)
             // Ingest routes (Sentry SDK auth)
-            .configure(routes::ingest::configure);
+            .configure(routes::ingest::configure)
+            // Session stats routes (Bearer/Session auth)
+            .configure(routes::sessions::configure);
 
         #[cfg(feature = "openapi")]
         let app = {
@@ -199,9 +216,12 @@ async fn main() -> std::io::Result<()> {
 
     // Spawn graceful shutdown handler
     let server_handle = server.handle();
+    let agg_for_shutdown = session_aggregator.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
         log::info!("Shutdown signal received, stopping server...");
+        // Flush any un-flushed session buckets before stopping
+        agg_for_shutdown.flush().await;
         server_handle.stop(true).await;
     });
 

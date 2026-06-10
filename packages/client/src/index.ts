@@ -72,6 +72,8 @@ export type {
   ProjectRole,
   ProviderType,
   RegisterRequest,
+  ReleaseHealth,
+  ReleaseHealthRow,
   RoutingOverride,
   ServerVersion,
   SortOrder,

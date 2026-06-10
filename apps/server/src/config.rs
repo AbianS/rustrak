@@ -20,6 +20,12 @@ pub struct Config {
     /// Maximum allowed size of a single uploaded chunk in bytes.
     /// Default: 10 MB. Override with MAX_CHUNK_SIZE_BYTES env var.
     pub max_chunk_size_bytes: usize,
+    /// How often the session aggregator flushes in-memory buckets to the DB (seconds).
+    /// Default: 30. Override with SESSION_FLUSH_INTERVAL_SECS env var.
+    pub session_flush_interval_secs: u64,
+    /// Max distinct (release, environment) pairs tracked per project before folding into <overflow>.
+    /// Default: 10000. Override with SESSION_CARDINALITY_CAP env var.
+    pub session_cardinality_cap: usize,
 }
 
 /// Database connection pool configuration
@@ -87,6 +93,14 @@ impl Config {
                         trimmed.to_string()
                     }
                 }),
+            session_flush_interval_secs: env::var("SESSION_FLUSH_INTERVAL_SECS")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()
+                .unwrap_or(30),
+            session_cardinality_cap: env::var("SESSION_CARDINALITY_CAP")
+                .unwrap_or_else(|_| "10000".to_string())
+                .parse()
+                .unwrap_or(10_000),
         })
     }
 }

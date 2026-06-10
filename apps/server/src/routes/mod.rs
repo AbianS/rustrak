@@ -7,6 +7,7 @@ pub mod invitations;
 pub mod issues;
 pub mod members;
 pub mod projects;
+pub mod sessions;
 pub mod sourcemaps;
 pub mod team;
 pub mod tokens;

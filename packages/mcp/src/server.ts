@@ -5,6 +5,7 @@ import { registerEventTools } from './tools/events.js';
 import { registerHealthTools } from './tools/health.js';
 import { registerIssueTools } from './tools/issues.js';
 import { registerProjectTools } from './tools/projects.js';
+import { registerSessionTools } from './tools/sessions.js';
 import { registerTeamTools } from './tools/team.js';
 import { registerTokenTools } from './tools/tokens.js';
 
@@ -21,6 +22,7 @@ export function createServer(client: RustrakClient): McpServer {
   registerAlertTools(server, client);
   registerTeamTools(server, client);
   registerHealthTools(server, client);
+  registerSessionTools(server, client);
 
   return server;
 }

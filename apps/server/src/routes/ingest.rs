@@ -12,8 +12,10 @@ use crate::ingest::{
     decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeParser,
     EventMetadata, MAX_COMPRESSED_SIZE,
 };
+use crate::models::session::{SessionAggregates, SessionUpdate};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::RateLimitService;
+use crate::workers::session_aggregator::SessionAggregatorHandle;
 
 /// Response for successful ingestion
 #[derive(serde::Serialize)]
@@ -30,6 +32,7 @@ pub async fn ingest_envelope(
     auth: SentryAuth,
     body: Bytes,
     sourcemap_provider: web::Data<Arc<dyn SourceMapProvider>>,
+    session_aggregator: Option<web::Data<SessionAggregatorHandle>>,
 ) -> AppResult<HttpResponse> {
     // 0. Check rate limits (fail fast before processing)
     if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
@@ -73,17 +76,48 @@ pub async fn ingest_envelope(
     uuid::Uuid::parse_str(&event_id)
         .map_err(|_| AppError::Validation("event_id must be a valid UUID".to_string()))?;
 
-    // 5. Find item of type "event"
-    let event_item = envelope
-        .items
-        .into_iter()
-        .find(|item| item.headers.item_type == "event");
+    // 5. Partition items: extract session/sessions for the aggregator, keep event for digestion.
+    let mut event_item = None;
+    for item in envelope.items {
+        match item.headers.item_type.as_str() {
+            "session" => {
+                if let Some(ref agg) = session_aggregator {
+                    match serde_json::from_slice::<SessionUpdate>(&item.payload) {
+                        Ok(update) => {
+                            agg.ingest_session(auth.project.id, &update).await;
+                        }
+                        Err(e) => {
+                            log::warn!("session item: invalid JSON, dropping: {}", e);
+                        }
+                    }
+                }
+            }
+            "sessions" => {
+                if let Some(ref agg) = session_aggregator {
+                    match serde_json::from_slice::<SessionAggregates>(&item.payload) {
+                        Ok(agg_payload) => {
+                            agg.ingest_aggregates(auth.project.id, &agg_payload).await;
+                        }
+                        Err(e) => {
+                            log::warn!("sessions item: invalid JSON, dropping: {}", e);
+                        }
+                    }
+                }
+            }
+            "event" => {
+                event_item = Some(item);
+            }
+            other => {
+                log::debug!("envelope item type '{}' ignored", other);
+            }
+        }
+    }
 
     let event_item = match event_item {
         Some(item) => item,
         None => {
-            // No event, just log and return OK
-            log::info!("No event item in envelope, ignoring");
+            // No event (may have had session-only envelope)
+            log::debug!("No event item in envelope");
             return Ok(HttpResponse::Ok().json(IngestResponse { id: event_id }));
         }
     };
