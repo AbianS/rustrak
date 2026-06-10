@@ -101,11 +101,10 @@ export function PendingInvitations({ invitations }: PendingInvitationsProps) {
                     <Copy className="size-4" />
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon"
                     onClick={() => handleRevoke(invitation)}
                     disabled={isPending}
-                    className="text-destructive hover:text-destructive"
                     aria-label={`Revoke invitation for ${invitation.email}`}
                   >
                     <X className="size-4" />

@@ -182,11 +182,10 @@ export function TeamMembersList({
                   />
                   {!locked && (
                     <Button
-                      variant="ghost"
+                      variant="destructive"
                       size="icon"
                       onClick={() => setMemberToDelete(member)}
                       disabled={isPending}
-                      className="text-destructive hover:text-destructive"
                       aria-label={`Remove ${member.email}`}
                     >
                       <Trash2 className="size-4" />
@@ -258,11 +257,10 @@ export function TeamMembersList({
                   <TableCell>
                     {!locked && (
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="icon"
                         onClick={() => setMemberToDelete(member)}
                         disabled={isPending}
-                        className="text-destructive hover:text-destructive"
                         aria-label={`Remove ${member.email}`}
                       >
                         <Trash2 className="size-4" />

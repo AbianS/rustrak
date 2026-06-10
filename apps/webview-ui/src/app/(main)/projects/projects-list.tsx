@@ -156,11 +156,10 @@ export function ProjectsList({
             {selectedIds.size} selected
           </span>
           <Button
-            variant="outline"
+            variant="destructive"
             size="sm"
             onClick={openBatchDeleteDialog}
             disabled={isPending}
-            className="text-destructive hover:text-destructive"
           >
             <Trash2 className="mr-1 size-3" />
             Delete
@@ -249,8 +248,8 @@ export function ProjectsList({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem
+                      variant="destructive"
                       onClick={() => openDeleteDialog(project)}
-                      className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="mr-2 size-4" />
                       Delete

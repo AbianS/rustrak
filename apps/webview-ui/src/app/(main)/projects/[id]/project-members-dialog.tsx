@@ -207,11 +207,10 @@ export function ProjectMembersDialog({
                           </SelectContent>
                         </Select>
                         <Button
-                          variant="ghost"
+                          variant="destructive"
                           size="icon"
                           onClick={() => handleRemove(member)}
                           disabled={isPending}
-                          className="text-destructive hover:text-destructive"
                           aria-label={`Remove ${member.email}`}
                         >
                           <Trash2 className="size-4" />
