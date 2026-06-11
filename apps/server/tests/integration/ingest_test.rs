@@ -625,9 +625,9 @@ async fn test_mixed_session_and_event_without_event_id_auto_generates() {
     let envelope = format!(
         "{}\n{}\n{}\n{}\n{}\n",
         "{}",
-        format!(r#"{{"type":"session","length":{}}}"#, session_json.len()),
+        format_args!(r#"{{"type":"session","length":{}}}"#, session_json.len()),
         session_json,
-        format!(r#"{{"type":"event","length":{}}}"#, event_json.len()),
+        format_args!(r#"{{"type":"event","length":{}}}"#, event_json.len()),
         event_json,
     );
 

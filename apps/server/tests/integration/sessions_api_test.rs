@@ -17,6 +17,7 @@ use rustrak::services::session::SessionService;
 
 /// Insert one row into session_counts.
 /// `hours_ago` controls how old the bucket timestamp is.
+#[allow(clippy::too_many_arguments)]
 async fn seed_count(
     pool: &DbPool,
     project_id: i32,
