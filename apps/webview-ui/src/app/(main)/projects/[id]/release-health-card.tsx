@@ -47,13 +47,13 @@ export function ReleaseHealthCard({ health }: ReleaseHealthCardProps) {
                   <td className="py-2 pr-4 text-right">
                     <span
                       className={
-                        row.crash_free_sessions_rate !== null &&
-                        row.crash_free_sessions_rate >= 0.99
-                          ? 'text-green-600 dark:text-green-400'
-                          : row.crash_free_sessions_rate !== null &&
-                              row.crash_free_sessions_rate >= 0.95
-                            ? 'text-yellow-600 dark:text-yellow-400'
-                            : 'text-red-600 dark:text-red-400'
+                        row.crash_free_sessions_rate === null
+                          ? 'text-muted-foreground'
+                          : row.crash_free_sessions_rate >= 0.99
+                            ? 'text-green-600 dark:text-green-400'
+                            : row.crash_free_sessions_rate >= 0.95
+                              ? 'text-yellow-600 dark:text-yellow-400'
+                              : 'text-red-600 dark:text-red-400'
                       }
                     >
                       {pct(row.crash_free_sessions_rate)}

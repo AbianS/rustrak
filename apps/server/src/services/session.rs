@@ -45,9 +45,9 @@ async fn query_release_health(
                     ON su.project_id = sc.project_id
                    AND su.release    = sc.release
                    AND su.environment = sc.environment
-                   AND su.day >= (NOW() - ($2 || ' hours')::interval)::date
+                   AND su.day >= (NOW() - ($2::text || ' hours')::interval)::date
                 WHERE sc.project_id = $1
-                  AND sc.bucket >= NOW() - ($2 || ' hours')::interval
+                  AND sc.bucket >= NOW() - ($2::text || ' hours')::interval
                 GROUP BY sc.release, sc.environment
                 ORDER BY SUM(sc.total) DESC
                 "#,
@@ -122,8 +122,7 @@ async fn query_release_health(
             .bind(&environment)
             .bind(period_hours)
             .fetch_one(pool)
-            .await
-            .unwrap_or((0, 0));
+            .await?;
 
             let crash_free_sessions_rate = if total > 0 {
                 Some(1.0 - crashed as f64 / total as f64)

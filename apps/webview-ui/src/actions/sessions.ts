@@ -17,7 +17,8 @@ export async function getReleaseHealth(
   try {
     const client = await createClient();
     return await client.sessions.stats(projectId, period);
-  } catch {
+  } catch (error) {
+    console.error('getReleaseHealth failed', { projectId, period, error });
     return [];
   }
 }

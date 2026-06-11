@@ -76,6 +76,7 @@ pub struct SessionAggregator {
 }
 
 impl SessionAggregator {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new(
         pool: DbPool,
         flush_interval_secs: u64,

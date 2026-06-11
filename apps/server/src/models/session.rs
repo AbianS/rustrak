@@ -1,5 +1,15 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
+
+fn de_non_negative_i64<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    let v = i64::deserialize(d)?;
+    if v < 0 {
+        Err(de::Error::custom("must be non-negative"))
+    } else {
+        Ok(v)
+    }
+}
 
 /// Wire struct for a single `session` envelope item from a Sentry SDK.
 #[derive(Debug, Deserialize)]
@@ -13,7 +23,7 @@ pub struct SessionUpdate {
     pub timestamp: Option<String>,
     pub duration: Option<f64>,
     pub status: Option<SessionStatus>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_non_negative_i64")]
     pub errors: i64,
     pub attrs: Option<SessionAttributes>,
 }
@@ -30,13 +40,13 @@ pub struct SessionAggregates {
 #[derive(Debug, Deserialize)]
 pub struct SessionAggregateItem {
     pub started: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_non_negative_i64")]
     pub exited: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_non_negative_i64")]
     pub errored: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_non_negative_i64")]
     pub abnormal: i64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "de_non_negative_i64")]
     pub crashed: i64,
 }
 

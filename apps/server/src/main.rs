@@ -220,9 +220,9 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move {
         shutdown_signal().await;
         log::info!("Shutdown signal received, stopping server...");
-        // Flush any un-flushed session buckets before stopping
-        agg_for_shutdown.flush().await;
+        // Stop accepting new requests first, then flush remaining buckets
         server_handle.stop(true).await;
+        agg_for_shutdown.flush().await;
     });
 
     server.await
