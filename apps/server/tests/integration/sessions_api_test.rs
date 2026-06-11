@@ -10,9 +10,7 @@
 //!   - orders by total DESC
 
 use crate::common::TestDb;
-use chrono::Utc;
 use rustrak::db::DbPool;
-use rustrak::models::session::ReleaseHealthRow;
 use rustrak::services::session::SessionService;
 
 // ── seed helpers ─────────────────────────────────────────────────────────────
