@@ -178,6 +178,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::alerts::configure_history)
             // Project members (more specific than generic projects scope)
             .configure(routes::members::configure)
+            // Session stats routes (more specific than generic projects scope)
+            .configure(routes::sessions::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)
@@ -189,9 +191,7 @@ async fn main() -> std::io::Result<()> {
             // Source map upload routes (Bearer auth, Sentry-cli compatible)
             .configure(routes::sourcemaps::configure)
             // Ingest routes (Sentry SDK auth)
-            .configure(routes::ingest::configure)
-            // Session stats routes (Bearer/Session auth)
-            .configure(routes::sessions::configure);
+            .configure(routes::ingest::configure);
 
         #[cfg(feature = "openapi")]
         let app = {

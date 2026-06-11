@@ -24,7 +24,8 @@
     "test:flood": "tsx src/cli.ts --flood",
     "check-types": "tsc --noEmit",
     "demo:build": "node demo/build.mjs",
-    "demo:run": "node demo/dist/app.js"
+    "demo:run": "node demo/dist/app.js",
+    "demo:sessions": "tsx demo/src/sessions.ts"
   },
   "dependencies": {
     "@sentry/node": "10.53.1"

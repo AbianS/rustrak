@@ -31,10 +31,10 @@ async fn query_release_health(
                 SELECT
                     sc.release,
                     sc.environment,
-                    SUM(sc.total)    AS total,
-                    SUM(sc.errored)  AS errored,
-                    SUM(sc.crashed)  AS crashed,
-                    SUM(sc.abnormal) AS abnormal,
+                    SUM(sc.total)::bigint    AS total,
+                    SUM(sc.errored)::bigint  AS errored,
+                    SUM(sc.crashed)::bigint  AS crashed,
+                    SUM(sc.abnormal)::bigint AS abnormal,
                     CASE WHEN SUM(sc.total) > 0
                          THEN 1.0 - SUM(sc.crashed)::float8 / NULLIF(SUM(sc.total), 0)
                          ELSE NULL END AS crash_free_sessions_rate,
