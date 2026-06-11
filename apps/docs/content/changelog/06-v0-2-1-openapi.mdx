@@ -1,0 +1,38 @@
+---
+version: v0.2.1
+title: OpenAPI Spec & Interactive API Reference
+description: Auto-generated OpenAPI specification and interactive API reference documentation.
+date: 2026-04-29
+tags: [docs, server, openapi]
+---
+
+## OpenAPI Specification
+
+The Rustrak server now generates a full OpenAPI 3.0 specification:
+
+- Auto-generated from utoipa annotations on all endpoints
+- Feature-gated behind `openapi` feature flag
+- Committed to the repository for reference
+- CI-generated on each build
+
+## Interactive API Reference
+
+A new interactive API reference page powered by Scalar:
+
+- Try endpoints directly from the browser
+- Full request/response schemas
+- Searchable endpoint listing
+- Available at `/api-reference`
+
+## Security Hardening
+
+- CodeQL SAST scanning added to CI
+- Rust supply chain security scanning
+- cargo-deny configuration for dependency auditing
+- Fixed all clippy, fmt, and audit failures
+
+## Improvements
+
+- Updated dependencies across all packages
+- TypeScript 6.0 migration
+- Fixed CI release workflows

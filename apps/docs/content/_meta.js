@@ -18,6 +18,16 @@ export default {
     type: 'page',
     href: '/getting-started/overview',
   },
+  changelog: {
+    title: 'Changelog',
+    type: 'page',
+    theme: {
+      sidebar: false,
+      toc: false,
+      breadcrumb: false,
+      pagination: false,
+    },
+  },
   blog: {
     title: 'Blog',
     type: 'page',

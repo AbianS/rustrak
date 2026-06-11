@@ -1,0 +1,38 @@
+---
+version: v0.2.6
+title: Source Map Processing
+description: Full source map upload, storage, and frame rewriting pipeline for readable stack traces.
+date: 2026-05-28
+tags: [server, client, sourcemaps]
+---
+
+## Source Map Processing
+
+Complete source map support:
+
+- Artifact bundle upload via Sentry-compatible API
+- Chunked uploads for large source map bundles
+- Frame rewriting — automatic resolution of minified stack traces
+- Background assembly jobs with validation
+- Automatic retry of failed jobs with backoff
+
+## Client Package
+
+`@rustrak/client` now includes a `SourceMapsResource`:
+
+- Upload artifact bundles
+- List and delete artifacts
+- Full type safety with Zod validation
+
+## Documentation
+
+- New source maps usage guide
+- Blog post: "Source Maps in Rustrak"
+- Updated API reference with source map endpoints
+
+## Improvements
+
+- Fixed permanently-failed jobs and chunk batching
+- Corrected protocol gaps for Sentry SDK compatibility
+- Preserved filenames when token source name is empty
+- Proper HTTP 200 response for assembly error states
