@@ -2,6 +2,9 @@ use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::models::session::ReleaseHealthRow;
 
+#[cfg(feature = "postgres")]
+type PgHealthRow = (String, String, i64, i64, i64, i64, Option<f64>, Option<f64>);
+
 pub struct SessionService;
 
 impl SessionService {
@@ -23,9 +26,8 @@ async fn query_release_health(
 ) -> Result<Vec<ReleaseHealthRow>, sqlx::Error> {
     #[cfg(feature = "postgres")]
     {
-        let rows: Vec<(String, String, i64, i64, i64, i64, Option<f64>, Option<f64>)> =
-            sqlx::query_as(
-                r#"
+        let rows: Vec<PgHealthRow> = sqlx::query_as(
+            r#"
                 SELECT
                     sc.release,
                     sc.environment,
@@ -51,13 +53,13 @@ async fn query_release_health(
                 GROUP BY sc.release, sc.environment
                 ORDER BY SUM(sc.total) DESC
                 "#,
-            )
-            .bind(project_id)
-            .bind(period_hours)
-            .fetch_all(pool)
-            .await?;
+        )
+        .bind(project_id)
+        .bind(period_hours)
+        .fetch_all(pool)
+        .await?;
 
-        return Ok(rows
+        Ok(rows
             .into_iter()
             .map(
                 |(release, environment, total, errored, crashed, abnormal, cfsr, cfur)| {
@@ -75,7 +77,7 @@ async fn query_release_health(
                     }
                 },
             )
-            .collect());
+            .collect())
     }
 
     #[cfg(not(feature = "postgres"))]
