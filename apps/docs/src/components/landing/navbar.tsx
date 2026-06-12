@@ -13,7 +13,7 @@ export function LandingNavbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-md">
-      <nav className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-6 md:px-12">
+      <nav className="mx-auto flex h-16 max-w-350 items-center justify-between px-6 md:px-12">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-bold">
           <RustrakLogoIcon className="size-8" />
@@ -29,6 +29,12 @@ export function LandingNavbar() {
             className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             Documentation
+          </Link>
+          <Link
+            href="/changelog"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Changelog
           </Link>
           <Link
             href="/blog"
@@ -72,6 +78,13 @@ export function LandingNavbar() {
               onClick={() => setIsMenuOpen(false)}
             >
               Documentation
+            </Link>
+            <Link
+              href="/changelog"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors py-2"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Changelog
             </Link>
             <Link
               href="/blog"

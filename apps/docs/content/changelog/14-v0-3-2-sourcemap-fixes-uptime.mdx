@@ -1,0 +1,31 @@
+---
+version: v0.3.2
+title: Source Map Fixes & Uptime Monitoring
+description: Robust source map processing fixes and the foundation for uptime monitoring.
+date: 2026-06-06
+tags: [server, sourcemaps, uptime]
+---
+
+## Source Map Processing Fixes
+
+Multiple correctness and reliability improvements:
+
+- Accept non-SHA1 multipart field names in chunk uploads for broader SDK compatibility
+- Fixed event count decrement when issues are deleted
+- SQLite compatibility fixes for issue deletion
+- Guarded against concurrent deletes with proper locking
+
+## Uptime Monitoring (Backend)
+
+The foundation for uptime monitoring is now in place:
+
+- Probe scheduling and execution engine
+- Manual check endpoint for on-demand verification
+- DNS rebinding protection for security
+- Alert channel assignment for monitors
+
+## Improvements
+
+- Fixed scheduler probe slot claiming at fetch time
+- SSRF protection with conditional imports
+- OpenAPI spec regeneration

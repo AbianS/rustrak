@@ -1,0 +1,20 @@
+---
+version: v0.1.4
+title: SQLite Support
+description: SQLite becomes the default database backend with PostgreSQL as an optional upgrade for production.
+date: 2026-03-09
+tags: [server, database, docker, sqlite]
+---
+
+## SQLite Support
+
+- SQLite is now the default database — zero configuration needed
+- PostgreSQL remains fully supported for production workloads
+- Feature flags for compile-time database selection
+- Cross-database compatible SQL queries
+- Dual migration directories
+
+## Docker
+
+- Two image variants: `latest-sqlite` and `latest-postgres`
+- Lighter footprint for the SQLite variant
