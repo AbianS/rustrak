@@ -4,8 +4,9 @@ import { useMDXComponents } from '../../../mdx-components';
 export async function generateStaticParams() {
   const all = await generateStaticParamsFor('mdxPath')();
   // Blog posts are handled by app/blog/[slug]/page.tsx
+  // Changelog posts are handled by app/changelog/page.tsx
   return all.filter(
-    (p) => !Array.isArray(p.mdxPath) || p.mdxPath[0] !== 'blog',
+    (p) => !Array.isArray(p.mdxPath) || (p.mdxPath[0] !== 'blog' && p.mdxPath[0] !== 'changelog'),
   );
 }
 

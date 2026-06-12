@@ -1,0 +1,31 @@
+---
+version: v0.4.1
+title: Session Tracking & Release Health
+description: Track user sessions, monitor release health, and get real-time insights into application stability.
+date: 2026-06-09
+tags: [server, sessions, release-health]
+---
+
+## Session Tracking
+
+Rustrak now tracks user sessions with full Sentry SDK compatibility:
+
+- **Session lifecycle** — automatic creation, update, and termination
+- **Release health** — track crash-free rates per release
+- **Aggregation** — sessions are aggregated into release health statistics
+
+## Release Health Dashboard
+
+The new release health feature provides:
+
+- Crash-free session rate per release
+- Crash-free user rate per release
+- Session count and duration statistics
+- Automatic aggregation from incoming session events
+
+## Improvements
+
+- Session-only envelopes without event_id are now accepted
+- Removed unused imports in session API tests
+- Extracted release health row type alias for cleaner code
+- Addressed PR review feedback for session tracking implementation

@@ -1,0 +1,32 @@
+---
+version: v0.2.3
+title: Slack Multi-Method & Bearer Auth
+description: Slack bot token support, Bearer token API authentication, and security hardening.
+date: 2026-05-16
+tags: [server, auth, slack, security]
+---
+
+## Slack Multi-Method Configuration
+
+Slack integration now supports two authentication methods:
+
+- Incoming Webhooks — simple URL-based integration
+- Bot Tokens — full Slack bot token support with channel listing
+- Token redaction on edits to prevent silent data loss
+- Whitespace-only channel validation
+
+## Bearer Token API Authentication
+
+API authentication overhaul:
+
+- Bearer tokens accepted on all management API endpoints
+- Per-IP rate limiting on login and register endpoints
+- Proper error propagation instead of masking as 401
+- Docker compose builds with postgres feature
+
+## Improvements
+
+- Fixed alert issue URL to use project ID instead of slug
+- Retry slug INSERT on unique violation instead of returning 409
+- Delete temp files when process_event fails
+- Raised ingest payload limit to 100MB

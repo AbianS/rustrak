@@ -1,0 +1,37 @@
+---
+version: v0.2.0
+title: Initial Public Release
+description: The first public release of Rustrak — a self-hosted, Sentry-compatible error tracking system.
+date: 2026-04-24
+tags: [server, ui, docs, client]
+---
+
+## Server
+
+- Event ingestion with full Sentry envelope protocol support
+- Automatic issue grouping for similar errors
+- Project management — create and manage multiple projects
+- Email/password authentication with session management
+- Bearer token authentication for SDKs
+- PostgreSQL backend with Docker and docker-compose support
+
+## Web UI
+
+- Dashboard with overview of projects and recent issues
+- Issue detail view with stack traces, breadcrumbs, tags, and context
+- Project settings and basic user management
+- Responsive design for desktop and mobile
+
+## Client Package
+
+- `@rustrak/client` — TypeScript API client with full type safety
+- Resource-based API for projects, issues, and events
+- Zod validation for runtime type safety
+- Lightweight ky HTTP client
+
+## Infrastructure
+
+- GitHub Actions CI/CD with automated releases
+- Docker image publishing to Docker Hub
+- GitHub Pages documentation deployment
+- Changeset-based version management

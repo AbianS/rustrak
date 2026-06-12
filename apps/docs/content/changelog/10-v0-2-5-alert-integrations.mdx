@@ -1,0 +1,33 @@
+---
+version: v0.2.5
+title: Alert Integrations
+description: Two-tier alert integrations with global credentials and per-rule routing, plus improved event display.
+date: 2026-05-21
+tags: [server, ui, alerts, events]
+---
+
+## Alert Integrations
+
+Major improvements to the alerting system with a two-tier integration architecture:
+
+- Global credentials — configure Slack webhooks and bot tokens at the organization level
+- Per-rule routing — route alerts to specific channels per alert rule
+- Slack bot token support alongside incoming webhooks
+- Redesigned UI with collapsible integration sections
+- Client package with full integration resource API
+
+## Event Display Improvements
+
+Better visualization of error events:
+
+- Improved event titles and descriptions
+- Better tag rendering and breadcrumb display
+- Fixed hydration mismatch in stack trace syntax highlighting
+
+## Improvements
+
+- Hard delete replaces soft delete for issues
+- DSN generation now uses PUBLIC_URL environment variable
+- Rate limiting on login and register endpoints
+- Fixed orphaned temp files on digest errors
+- Slug TOCTOU retry on collision

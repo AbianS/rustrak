@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.23
+
+### Patch Changes
+
+- [#119](https://github.com/rustrak/rustrak/pull/119) [`4320803`](https://github.com/rustrak/rustrak/commit/4320803e527132353135686550befd825870fc72) Thanks [@AbianS](https://github.com/AbianS)! - Add changelog page with version history to documentation
+
 ## 0.1.22
 
 ### Patch Changes
