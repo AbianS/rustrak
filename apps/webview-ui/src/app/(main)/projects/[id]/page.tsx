@@ -8,7 +8,6 @@ import { getProject } from '@/actions/projects';
 import { getReleaseHealth } from '@/actions/sessions';
 import { IssuesList } from './issues-list';
 import { ProjectHeader } from './project-header';
-import { ReleaseHealthCard } from './release-health-card';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;
@@ -88,12 +87,12 @@ export default async function ProjectPage({
           members={members}
           currentUserId={currentUser?.id}
           canManageMembers={canManageMembers}
+          releaseHealth={releaseHealth}
         />
       </div>
 
       {/* Content section - grows and handles overflow */}
       <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
-        <ReleaseHealthCard health={releaseHealth} />
         <IssuesList
           projectId={projectId}
           initialIssues={issuesResponse}
