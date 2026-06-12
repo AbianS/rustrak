@@ -46,8 +46,12 @@ export function getReleases(): Release[] {
       };
     })
     .sort(
-      (a, b) =>
-        (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0),
+      (a, b) => {
+        const byDate =
+          (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0);
+        if (byDate !== 0) return byDate;
+        return b.slug.localeCompare(a.slug);
+      },
     );
 }
 
