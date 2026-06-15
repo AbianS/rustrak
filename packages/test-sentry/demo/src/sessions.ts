@@ -1,6 +1,13 @@
 import * as Sentry from '@sentry/node';
 
-const DSN = process.env.SENTRY_DSN!;
+const DSN = process.env.SENTRY_DSN;
+if (!DSN) {
+  console.error('Error: SENTRY_DSN environment variable is required');
+  console.error(
+    'Usage: SENTRY_DSN=http://key@host:port/project pnpm demo:sessions',
+  );
+  process.exit(1);
+}
 const RELEASE = process.env.SENTRY_RELEASE ?? 'demo@1.0.0';
 const ENV = process.env.SENTRY_ENV ?? 'production';
 
@@ -81,7 +88,7 @@ async function main() {
   try {
     throw new Error('Out of memory');
   } catch (err) {
-    Sentry.captureException(err);
+    Sentry.captureException(err, { mechanism: { handled: false } });
   }
   await sleep(200);
   Sentry.endSession();
@@ -101,7 +108,7 @@ async function main() {
       Sentry.startSession({
         sid: `sess-bulk-${release}-${i}`,
         did: `user-bulk-${i}`,
-        status: i === 0 ? 'crashed' : i === 1 ? 'ok' : 'ok',
+        status: 'ok',
         errors: i === 1 ? 2 : 0,
       });
       if (i === 0) {

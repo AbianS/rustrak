@@ -294,13 +294,16 @@ async fn test_release_health_crash_free_sessions_rate_is_none_when_no_sessions()
         .await
         .expect("query failed");
 
-    // A bucket with all zeros may not surface (GROUP BY + ORDER BY SUM DESC), but if it does:
-    if !rows.is_empty() {
-        assert!(
-            rows[0].crash_free_sessions_rate.is_none(),
-            "rate must be None when total is 0"
-        );
-    }
+    // A bucket with all zeros should still surface via GROUP BY:
+    assert_eq!(
+        rows.len(),
+        1,
+        "zero-total bucket should produce one grouped row"
+    );
+    assert!(
+        rows[0].crash_free_sessions_rate.is_none(),
+        "rate must be None when total is 0"
+    );
 }
 
 #[actix_web::test]

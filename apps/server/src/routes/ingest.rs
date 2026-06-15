@@ -81,6 +81,7 @@ pub async fn ingest_envelope(
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
     let mut event_item = None;
+    let mut requires_event_id = false;
     for item in envelope.items {
         match item.headers.item_type.as_str() {
             "session" => {
@@ -108,7 +109,8 @@ pub async fn ingest_envelope(
                 }
             }
             t if item_requires_event(t) => {
-                if event_item.is_none() {
+                requires_event_id = true;
+                if matches!(t, "event" | "transaction" | "security") && event_item.is_none() {
                     event_item = Some(item);
                 }
             }
@@ -121,7 +123,7 @@ pub async fn ingest_envelope(
     // 5. Resolve event_id — only required when there is an event item.
     //    If the SDK omitted it, auto-generate (mirrors Relay's get_or_insert_with(EventId::new)).
     //    For session-only envelopes, pass through whatever the SDK provided (may be None).
-    let event_id: Option<String> = if event_item.is_some() {
+    let event_id: Option<String> = if requires_event_id {
         let id = envelope
             .headers
             .event_id
