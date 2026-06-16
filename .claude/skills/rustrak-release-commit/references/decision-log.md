@@ -55,3 +55,22 @@ last_touched: 2026-06-16
 - All suggested bumps accepted with no overrides
 - Release title: "Session Tracking & Release Health"
 - No breaking changes detected
+
+---
+
+## Session 3 — 2026-06-16: v0.5.1 Release
+
+### Bumps Applied
+| Package | From | To | Bump |
+|---|---|---|---|
+| `@rustrak/server` | 0.5.0 | 0.5.1 | patch (fix: transaction digest) |
+
+### Artifacts Created
+- **Changeset:** `.changeset/fix-transaction-digest.md`
+- **Changelog:** `apps/docs/content/changelog/19-v0-5-1-transaction-digest-fix.mdx`
+
+### Key Decisions
+- Only `@rustrak/server` had changes; all other packages untouched
+- Single 1-line fix for transaction items leaking into error digest pipeline
+- All suggested bumps accepted with no overrides
+- Release title: "Transaction Digest Fix"

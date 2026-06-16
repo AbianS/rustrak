@@ -1,0 +1,15 @@
+---
+version: v0.5.1
+title: Transaction Digest Fix
+description: Fix for transaction items being incorrectly processed through the error digest pipeline.
+date: 2026-06-16
+tags: [server, bugfix, ingestion]
+---
+
+## Bug Fix
+
+- Transaction envelope items from performance monitoring SDKs are now correctly skipped during error ingestion, preventing them from being processed as unknown error events.
+
+## Improvements
+
+- Aligned ingestion behavior with Sentry Relay's ErrorsProcessor — performance monitoring items are silently ignored rather than creating spurious error events.
