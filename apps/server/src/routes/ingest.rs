@@ -110,7 +110,7 @@ pub async fn ingest_envelope(
             }
             t if item_requires_event(t) => {
                 requires_event_id = true;
-                if matches!(t, "event" | "transaction" | "security") && event_item.is_none() {
+                if t == "event" && event_item.is_none() {
                     event_item = Some(item);
                 }
             }
