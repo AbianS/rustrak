@@ -41,8 +41,8 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    - `webview-ui` (apps/webview-ui)
    - `@rustrak/client` (packages/client)
    - `@rustrak/mcp` (packages/mcp)
-   - `docs` (apps/docs) — only if docs/ directory has changes
-7. **Headless:** Use the suggested bump for all packages, skip confirmation.
+    - `docs` (apps/docs) — always `patch` since a changelog entry is created in docs
+ 7. **Headless:** Use the suggested bump for all packages, skip confirmation.
 
 ## Stage 2: Create Changeset
 
@@ -57,7 +57,7 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    <description of changes>
    ```
 
-   Only include packages that are being bumped. The description should be a concise bullet-free summary of what changed, written for the changelog audience.
+   Only include packages that are being bumped (docs is always included as `patch` since a changelog entry is created). The description should be a concise bullet-free summary of what changed, written for the changelog audience.
 
 3. **Interactive:** Show the generated changeset to the user and ask for approval before writing.
 4. **Headless:** Write directly without confirmation.
@@ -107,4 +107,3 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    - Run `pnpm changeset version` to apply versions
    - Run `pnpm run build` to verify
    - Commit and push
-3. Write a `decision-log.md` entry at `{skill-root}/references/decision-log.md` documenting the release decisions made this session.
