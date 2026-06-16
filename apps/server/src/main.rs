@@ -13,6 +13,7 @@ use rustrak::routes;
 use rustrak::services::sourcemap::{DbSourceMapProvider, SourceMapProvider};
 use rustrak::services::sourcemap_store::LocalSourceMapStore;
 use rustrak::services::AuthTokenService;
+use rustrak::workers::session_aggregator::SessionAggregator;
 use rustrak::workers::sourcemap_assembly::AssemblyWorker;
 
 #[cfg(feature = "openapi")]
@@ -66,6 +67,17 @@ async fn main() -> std::io::Result<()> {
         tokio::spawn(worker.run());
     }
 
+    // Spawn session aggregator
+    let session_aggregator = SessionAggregator::new(
+        db_pool.clone(),
+        config.session_flush_interval_secs,
+        config.session_cardinality_cap,
+    );
+    {
+        let handle = session_aggregator.clone();
+        tokio::spawn(SessionAggregator::run(handle));
+    }
+
     // Bootstrap: create initial token if none exist
     bootstrap_token(&db_pool).await;
 
@@ -103,6 +115,8 @@ async fn main() -> std::io::Result<()> {
     #[cfg(feature = "openapi")]
     let openapi_scalar_doc = openapi::ApiDoc::openapi();
 
+    let session_aggregator_data = web::Data::new(session_aggregator.clone());
+
     let server = HttpServer::new(move || {
         // CORS configuration - permissive for event ingestion
         // Sentry SDKs can send from any origin. CORS protects the user from
@@ -130,6 +144,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
             .app_data(sourcemap_provider_data)
+            .app_data(session_aggregator_data.clone())
             // Middleware
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
@@ -163,6 +178,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::alerts::configure_history)
             // Project members (more specific than generic projects scope)
             .configure(routes::members::configure)
+            // Session stats routes (more specific than generic projects scope)
+            .configure(routes::sessions::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)
@@ -199,10 +216,13 @@ async fn main() -> std::io::Result<()> {
 
     // Spawn graceful shutdown handler
     let server_handle = server.handle();
+    let agg_for_shutdown = session_aggregator.clone();
     tokio::spawn(async move {
         shutdown_signal().await;
         log::info!("Shutdown signal received, stopping server...");
+        // Stop accepting new requests first, then flush remaining buckets
         server_handle.stop(true).await;
+        agg_for_shutdown.flush().await;
     });
 
     server.await

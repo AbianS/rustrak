@@ -8,6 +8,7 @@ export { InvitationsResource } from './invitations.js';
 export { IssuesResource } from './issues.js';
 export { MembersResource } from './members.js';
 export { ProjectsResource } from './projects.js';
+export { SessionsResource } from './sessions.js';
 export { SourceMapsResource } from './sourcemaps.js';
 export { TeamResource } from './team.js';
 export { TokensResource } from './tokens.js';

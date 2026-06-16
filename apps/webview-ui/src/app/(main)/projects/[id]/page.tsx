@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/actions/auth';
 import { listIssues } from '@/actions/issues';
 import { listProjectMembers } from '@/actions/members';
 import { getProject } from '@/actions/projects';
+import { getReleaseHealth } from '@/actions/sessions';
 import { IssuesList } from './issues-list';
 import { ProjectHeader } from './project-header';
 
@@ -44,21 +45,28 @@ export default async function ProjectPage({
     notFound();
   }
 
-  // Fetch issues, alert, member and user data in parallel
-  const [issuesResponse, alertRules, channels, members, currentUser] =
-    await Promise.all([
-      listIssues(projectId, {
-        filter: filter as 'open' | 'resolved' | 'muted' | 'all',
-        page: currentPage,
-        per_page: 20,
-        sort: 'last_seen',
-        order: 'desc',
-      }),
-      listAlertRules(projectId).catch(() => []),
-      listIntegrations().catch(() => []),
-      listProjectMembers(projectId).catch(() => []),
-      getCurrentUser(),
-    ]);
+  // Fetch issues, alert, member, release health and user data in parallel
+  const [
+    issuesResponse,
+    alertRules,
+    channels,
+    members,
+    currentUser,
+    releaseHealth,
+  ] = await Promise.all([
+    listIssues(projectId, {
+      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+      page: currentPage,
+      per_page: 20,
+      sort: 'last_seen',
+      order: 'desc',
+    }),
+    listAlertRules(projectId).catch(() => []),
+    listIntegrations().catch(() => []),
+    listProjectMembers(projectId).catch(() => []),
+    getCurrentUser(),
+    getReleaseHealth(projectId).catch(() => []),
+  ]);
 
   // A user can manage project members if they are a global admin or have the
   // project-level 'admin' role on this project.
@@ -79,6 +87,7 @@ export default async function ProjectPage({
           members={members}
           currentUserId={currentUser?.id}
           canManageMembers={canManageMembers}
+          releaseHealth={releaseHealth}
         />
       </div>
 

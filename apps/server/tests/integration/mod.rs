@@ -13,6 +13,7 @@ mod ingest_test;
 mod issues_api_test;
 mod projects_api_test;
 mod rate_limit_test;
+mod sessions_api_test;
 mod sourcemaps_api_test;
 mod team_rbac_test;
 mod tokens_api_test;

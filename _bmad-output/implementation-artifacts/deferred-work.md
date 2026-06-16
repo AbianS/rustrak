@@ -101,3 +101,21 @@ Surfaced by the adversarial review of `spec-team-rbac.md`. Not blocking; not thi
 - **Legacy (user-less) bearer tokens are unauditable.** Tokens with `user_id = NULL` grant full instance access (by design), but `AuthTokenResponse` doesn't surface owner/legacy status, so an operator can't tell a full-access token from a scoped one. Fix: expose `user_id`/owner (or a "legacy" flag) in the admin token list; consider a migration to attribute/revoke legacy tokens.
 - **Source-map chunk upload is authenticated but not project-scoped.** `chunk_upload`/`chunk_upload_capability` (`apps/server/src/routes/sourcemaps.rs`) are org-level endpoints with no `project_id`, so they require auth only (matching the prior `BearerAuth` behavior — NOT a regression). Chunks are content-addressed; the `assemble` step is project-gated. Revisit if per-project gating of raw chunk staging becomes a requirement.
 - **`list_offset_for_ids` does not clamp `page`/`per_page`.** Consistent with the existing `list_offset`, which relies on the query-param layer. If `ListProjectsQuery` ever allows `page=0`, the non-admin path would hit a negative OFFSET. Fix: clamp `page >= 1` in both paths for defense in depth.
+
+---
+
+## 2026-06-10 — from spec-gh-115-session-tracking review
+
+**Source:** 3-reviewer adversarial review (blind hunter + edge case hunter + acceptance auditor)
+
+### D-19: `flush()` non-atomic — data loss on partial DB failure (medium)
+`SessionAggregator::flush()` drains in-memory state via `std::mem::take` before any DB writes. If `upsert_count` or `upsert_user` fails mid-loop (network blip, DB restart), those rows are permanently dropped with only an error log — no retry queue, no dead-letter store. Fix: retain failed rows in a secondary map and re-merge them into state on the next flush cycle. Source: `apps/server/src/workers/session_aggregator.rs:flush`
+
+### D-20: `apply_cardinality_cap` is O(n) per ingested session (low)
+On every call to `ingest_session` / `ingest_aggregates`, `apply_cardinality_cap` builds a `HashSet<&str>` by iterating all keys in `state.counts` while holding the async mutex. For projects with many in-flight buckets this is O(buckets). Fix: maintain a per-project `HashMap<i32, HashSet<String>>` release counter incremented on insert; O(1) check. Source: `apps/server/src/workers/session_aggregator.rs:apply_cardinality_cap`
+
+### D-21: `period_hours()` silently returns 24 on malformed or zero period (low)
+`StatsQuery::period_hours()` falls back to 24 for any unparseable or zero input (e.g. `period=foo`, `period=0d`). The caller receives the same response as for a valid `24h` request with no indication of the error. Fix: validate and return HTTP 400 for non-positive or unrecognized period formats. Source: `apps/server/src/routes/sessions.rs:period_hours`
+
+### D-22: Postgres `session_users` JOIN window granularity mismatch (low)
+The Postgres stats query filters `session_counts` by `bucket >= NOW() - interval` (precise) but `session_users` by `day >= (NOW() - interval)::date` (day-truncated). User counts can span a slightly wider window than session counts, producing a small asymmetry in crash-free-users rate near day boundaries. Pre-existing by design (day-bucketed users); document explicitly in the query comment. Source: `apps/server/src/services/session.rs` Postgres branch.

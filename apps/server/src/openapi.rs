@@ -75,6 +75,7 @@ impl Modify for SecurityAddon {
         crate::routes::sourcemaps::chunk_upload,
         crate::routes::sourcemaps::artifact_bundle_assemble,
         crate::routes::sourcemaps::list_source_maps,
+        crate::routes::sessions::get_stats,
     ),
     components(schemas(
         crate::models::ProjectResponse,
@@ -108,6 +109,7 @@ impl Modify for SecurityAddon {
         crate::models::AlertHistory,
         crate::routes::sourcemaps::AssembleBody,
         crate::routes::sourcemaps::AssembleResponse,
+        crate::models::session::ReleaseHealthRow,
         crate::error::ErrorResponse,
         crate::error::ErrorDetail,
         crate::routes::health::LivenessResponse,

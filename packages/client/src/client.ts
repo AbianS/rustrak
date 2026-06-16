@@ -10,6 +10,7 @@ import {
   IssuesResource,
   MembersResource,
   ProjectsResource,
+  SessionsResource,
   SourceMapsResource,
   TeamResource,
   TokensResource,
@@ -95,6 +96,11 @@ export class RustrakClient {
   public readonly members: MembersResource;
 
   /**
+   * Sessions API resource (release health)
+   */
+  public readonly sessions: SessionsResource;
+
+  /**
    * Health API resource (version info)
    */
   public readonly health: HealthResource;
@@ -119,6 +125,7 @@ export class RustrakClient {
     this.team = new TeamResource(this.http);
     this.invitations = new InvitationsResource(this.http);
     this.members = new MembersResource(this.http);
+    this.sessions = new SessionsResource(this.http);
     this.health = new HealthResource(this.http);
   }
 }

@@ -7,6 +7,7 @@ pub mod invitation;
 pub mod issue;
 pub mod project;
 pub mod project_member;
+pub mod session;
 pub mod source_file;
 pub mod user;
 

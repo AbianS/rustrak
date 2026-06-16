@@ -41,6 +41,8 @@ fn create_test_config() -> Config {
         public_url: None,
         sourcemap_storage_path: "/tmp/test_sourcemaps".to_string(),
         max_chunk_size_bytes: 10 * 1024 * 1024,
+        session_flush_interval_secs: 30,
+        session_cardinality_cap: 10_000,
     }
 }
 
@@ -298,6 +300,9 @@ async fn test_ingest_wrong_project_id() {
 
 #[actix_web::test]
 async fn test_ingest_missing_event_id() {
+    // Relay behavior: if an event item is present but event_id is absent from headers,
+    // the server must auto-generate a UUID (not reject with 400).
+    // relay-server/src/envelope/mod.rs:300 — get_or_insert_with(EventId::new)
     let db = TestDb::new().await;
     let (project_id, sentry_key) = create_test_project(&db.pool, "Missing Event ID").await;
     let config = create_test_config();
@@ -317,7 +322,7 @@ async fn test_ingest_missing_event_id() {
     )
     .await;
 
-    // Envelope without event_id in headers
+    // Envelope without event_id in headers — valid per Sentry protocol
     let envelope = br#"{}
 {"type":"event","length":2}
 {}"#;
@@ -332,7 +337,22 @@ async fn test_ingest_missing_event_id() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400);
+    assert_eq!(
+        resp.status(),
+        200,
+        "event without event_id must be accepted"
+    );
+
+    let body: Value = test::read_body_json(resp).await;
+    let id = body["id"]
+        .as_str()
+        .expect("response must contain id when event item is present");
+    assert_eq!(id.len(), 32, "auto-generated event_id must be 32-char hex");
+    assert!(
+        id.chars().all(|c| c.is_ascii_hexdigit()),
+        "auto-generated event_id must be valid hex: {}",
+        id
+    );
 }
 
 #[actix_web::test]
@@ -415,6 +435,220 @@ not valid json"#,
 
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 400);
+}
+
+// =============================================================================
+// Session Tracking Protocol Tests
+// =============================================================================
+
+#[actix_web::test]
+async fn test_session_only_without_event_id_accepted() {
+    // Sentry Node.js SDK sends session-only envelopes with empty headers: {}
+    // Relay protocol: session items do NOT require event_id (requires_event() == false)
+    // Expected: 200, response body {} (no id field — mirrors Relay StoreResponse)
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Session Only No ID").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let session_json =
+        r#"{"started":"2020-02-07T14:16:00Z","attrs":{"release":"sentry-test@1.0.0"}}"#;
+    let item_header = format!(r#"{{"type":"session","length":{}}}"#, session_json.len());
+    let envelope = format!("{}\n{}\n{}\n", "{}", item_header, session_json);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200, "session-only envelope must be accepted");
+
+    let body: Value = test::read_body_json(resp).await;
+    assert!(
+        body.get("id").is_none(),
+        "session-only envelope must not have id in response, got: {}",
+        body
+    );
+}
+
+#[actix_web::test]
+async fn test_session_only_with_event_id_in_headers_echoes_it() {
+    // When SDK provides event_id in envelope headers on a session-only envelope,
+    // the server must echo it back (but still not reject if absent).
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Session With ID").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let session_json =
+        r#"{"started":"2020-02-07T14:16:00Z","attrs":{"release":"sentry-test@1.0.0"}}"#;
+    let item_header = format!(r#"{{"type":"session","length":{}}}"#, session_json.len());
+    let envelope = format!(r#"{{"event_id":"{}"}}"#, event_id)
+        + &format!("\n{}\n{}\n", item_header, session_json);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], event_id);
+}
+
+#[actix_web::test]
+async fn test_event_without_event_id_auto_generates_uuid() {
+    // Relay behavior: if envelope has an event item but no event_id in headers,
+    // auto-generate a UUID (get_or_insert_with(EventId::new)).
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Auto Generate ID").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_json =
+        r#"{"level":"error","exception":{"values":[{"type":"Error","value":"test"}]}}"#;
+    let item_header = format!(r#"{{"type":"event","length":{}}}"#, event_json.len());
+    let envelope = format!("{}\n{}\n{}\n", "{}", item_header, event_json);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        200,
+        "event without event_id must be accepted"
+    );
+
+    let body: Value = test::read_body_json(resp).await;
+    let id = body["id"]
+        .as_str()
+        .expect("response must contain id field for event items");
+    assert_eq!(id.len(), 32, "auto-generated id must be 32-char hex");
+    assert!(
+        id.chars().all(|c| c.is_ascii_hexdigit()),
+        "auto-generated id must be valid hex: {}",
+        id
+    );
+}
+
+#[actix_web::test]
+async fn test_mixed_session_and_event_without_event_id_auto_generates() {
+    // Mixed envelope: session + event items, no event_id in headers.
+    // Server must auto-generate event_id (event item requires one).
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Mixed Envelope").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let session_json =
+        r#"{"started":"2020-02-07T14:16:00Z","attrs":{"release":"sentry-test@1.0.0"}}"#;
+    let event_json =
+        r#"{"level":"error","exception":{"values":[{"type":"Error","value":"mixed"}]}}"#;
+    let envelope = format!(
+        "{}\n{}\n{}\n{}\n{}\n",
+        "{}",
+        format_args!(r#"{{"type":"session","length":{}}}"#, session_json.len()),
+        session_json,
+        format_args!(r#"{{"type":"event","length":{}}}"#, event_json.len()),
+        event_json,
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    let id = body["id"]
+        .as_str()
+        .expect("mixed envelope with event must have id in response");
+    assert_eq!(id.len(), 32, "auto-generated id must be 32-char hex");
 }
 
 // =============================================================================
