@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.25
+
+### Patch Changes
+
+- [`8b9c5f3`](https://github.com/rustrak/rustrak/commit/8b9c5f3579f8c9d7dddc5f3f8e9d96ee2c19aa0f) Thanks [@AbianS](https://github.com/AbianS)! - Add changelog page documenting the v0.5.1 server release (transaction digest fix) to the documentation site
+
 ## 0.1.24
 
 ### Patch Changes
