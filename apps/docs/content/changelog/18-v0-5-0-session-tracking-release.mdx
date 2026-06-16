@@ -1,0 +1,44 @@
+---
+version: v0.5.0
+title: Session Tracking & Release Health
+description: Session tracking, release health monitoring, and a new changelog documentation page.
+date: 2026-06-16
+tags: [server, sessions, release-health, docs]
+---
+
+## Session Tracking
+
+Rustrak now tracks user sessions with full Sentry SDK compatibility:
+
+- **Session lifecycle** — automatic creation, update, and termination
+- **Release health** — track crash-free rates per release
+- **Aggregation** — sessions are aggregated into release health statistics
+
+## Release Health Dashboard
+
+The new release health feature provides:
+
+- Crash-free session rate per release
+- Crash-free user rate per release
+- Session count and duration statistics
+- Automatic aggregation from incoming session events
+
+## Changelog Page
+
+The documentation site now includes a dedicated changelog page with version history:
+
+- Full release history from early development to present
+- Links to detailed changelog entries for each version
+- Integrated into the docs navigation
+
+## Improvements
+
+- Session-only envelopes without event_id are now accepted
+- Fixed UI destructive variant for delete buttons and webhook test handler
+- Updated API reference link to rustrak.github.io
+- Replaced ReleaseHealthCard with ReleaseHealthSheet in project header
+- Fixed Clippy warnings by replacing format! with format_args! in test envelopes
+- Pinned time crate to 0.3.47 to resolve cookie 0.16.2 compatibility conflict
+- Synced Cargo.lock and OpenAPI spec on version bump
+- Pinned dtolnay/rust-toolchain to commit SHA for reproducible CI builds
+- Added issue templates and Contributor Covenant Code of Conduct
