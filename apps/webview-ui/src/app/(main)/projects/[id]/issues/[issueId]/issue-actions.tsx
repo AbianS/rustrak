@@ -99,8 +99,8 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
+            variant="destructive"
             onClick={() => setDeleteDialogOpen(true)}
-            className="text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 size-4" />
             Delete Issue

@@ -186,11 +186,10 @@ export function IssuesList({
               Mute
             </Button>
             <Button
-              variant="outline"
+              variant="destructive"
               size="sm"
               onClick={openBatchDeleteDialog}
               disabled={isPending}
-              className="text-destructive hover:text-destructive"
             >
               <Trash2 className="mr-1 size-3" />
               Delete
@@ -350,8 +349,8 @@ export function IssuesList({
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
+                      variant="destructive"
                       onClick={() => openDeleteDialog(issue)}
-                      className="text-destructive focus:text-destructive"
                     >
                       <Trash2 className="mr-2 size-4" />
                       Delete

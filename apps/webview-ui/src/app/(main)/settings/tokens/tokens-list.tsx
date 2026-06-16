@@ -251,11 +251,10 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     </p>
                   </div>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon"
                     onClick={() => handleDelete(token.id)}
                     disabled={isPending}
-                    className="shrink-0 text-destructive hover:text-destructive"
                     aria-label={`Delete token ${token.description || token.token_prefix}`}
                   >
                     <Trash2 className="size-4" />
@@ -308,11 +307,10 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     </TableCell>
                     <TableCell>
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="icon"
                         onClick={() => handleDelete(token.id)}
                         disabled={isPending}
-                        className="text-destructive hover:text-destructive"
                         aria-label={`Delete token ${token.description || token.token_prefix}`}
                       >
                         <Trash2 className="size-4" />

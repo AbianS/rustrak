@@ -62,7 +62,7 @@ export function Header({ user }: HeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{user.email}</p>
+              <p className="text-sm font-medium truncate">{user.email}</p>
               {user.is_admin && (
                 <p className="text-xs text-muted-foreground">Admin</p>
               )}
@@ -76,9 +76,9 @@ export function Header({ user }: HeaderProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
+              variant="destructive"
               onClick={handleLogout}
               disabled={isPending}
-              className="cursor-pointer text-destructive focus:text-destructive"
             >
               <LogOut className="mr-2 size-4" />
               {isPending ? 'Signing out...' : 'Sign out'}

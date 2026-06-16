@@ -534,10 +534,10 @@ function ManageDialog({
                   Edit
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
                   aria-label={`Delete ${integration.name}`}
-                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  className="h-7 w-7 p-0"
                   onClick={() => onDelete(integration)}
                 >
                   <Trash2 className="size-3.5" />
@@ -761,9 +761,9 @@ function WebhookConfigDialog({
                 <div className="flex gap-2 mr-auto">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="destructive"
                     size="sm"
-                    onClick={() => onTest(existingIntegration)}
+                    onClick={() => onDelete(existingIntegration)}
                     disabled={isLoading}
                   >
                     <Play className="size-4 mr-1" />
@@ -1110,11 +1110,10 @@ function SlackConfigDialog({
               {existingIntegration && (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
                   onClick={() => onDelete(existingIntegration)}
                   disabled={isLoading}
-                  className="mr-auto text-destructive hover:text-destructive"
                 >
                   <Trash2 className="size-4 mr-1" />
                   Delete

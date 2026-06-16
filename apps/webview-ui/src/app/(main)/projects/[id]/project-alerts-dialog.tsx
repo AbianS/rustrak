@@ -346,10 +346,10 @@ export function ProjectAlertsDialog({
                         <Pencil className="size-3.5" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        variant="destructive"
                         size="icon"
                         aria-label="Delete rule"
-                        className="size-7 text-muted-foreground hover:text-destructive"
+                        className="size-7"
                         onClick={() => setDeletingRule(rule)}
                         disabled={isPending}
                       >
