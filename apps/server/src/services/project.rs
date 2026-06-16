@@ -57,7 +57,7 @@ impl ProjectService {
             order_clause
         );
 
-        let projects = sqlx::query_as::<_, Project>(&query)
+        let projects = sqlx::query_as::<_, Project>(sqlx::AssertSqlSafe(&*query))
             .bind(per_page)
             .bind(offset)
             .fetch_all(pool)
@@ -97,7 +97,7 @@ impl ProjectService {
         };
 
         let count_query = format!("SELECT COUNT(*) FROM projects WHERE id IN ({})", in_clause);
-        let mut count_q = sqlx::query_as::<_, (i64,)>(&count_query);
+        let mut count_q = sqlx::query_as::<_, (i64,)>(sqlx::AssertSqlSafe(&*count_query));
         for id in ids {
             count_q = count_q.bind(id);
         }
@@ -116,7 +116,7 @@ impl ProjectService {
             in_clause, order_clause, limit_param, offset_param
         );
 
-        let mut q = sqlx::query_as::<_, Project>(&query);
+        let mut q = sqlx::query_as::<_, Project>(sqlx::AssertSqlSafe(&*query));
         for id in ids {
             q = q.bind(id);
         }

@@ -340,7 +340,7 @@ impl IssueService {
 
         // Get total count
         let count_query = format!("SELECT COUNT(*) FROM issues WHERE {}", where_clause);
-        let total_count: (i64,) = sqlx::query_as(&count_query)
+        let total_count: (i64,) = sqlx::query_as(sqlx::AssertSqlSafe(&*count_query))
             .bind(project_id)
             .fetch_one(pool)
             .await?;
@@ -350,7 +350,7 @@ impl IssueService {
             "SELECT * FROM issues WHERE {} ORDER BY {} LIMIT $2 OFFSET $3",
             where_clause, order_clause
         );
-        let issues = sqlx::query_as::<_, Issue>(&select_query)
+        let issues = sqlx::query_as::<_, Issue>(sqlx::AssertSqlSafe(&*select_query))
             .bind(project_id)
             .bind(per_page)
             .bind(offset)
