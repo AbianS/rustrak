@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.5.1
+
+### Patch Changes
+
+- [`ba2cff3`](https://github.com/rustrak/rustrak/commit/ba2cff31b504bd64a2202cd5898f2c5599080320) Thanks [@AbianS](https://github.com/AbianS)! - Fix transaction envelope items being accidentally processed through the error digest pipeline. Performance monitoring transactions are now correctly skipped during error ingestion, matching Sentry Relay's ErrorsProcessor behavior.
+
 ## 0.5.0
 
 ### Minor Changes
