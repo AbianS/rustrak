@@ -8,11 +8,12 @@ type PgHealthRow = (String, String, i64, i64, i64, i64, Option<f64>, Option<f64>
 pub struct SessionService;
 
 impl SessionService {
-    /// Query per-release health stats for a project over the given period (hours).
+    /// Query per-release health stats for a project.
+    /// If `period_hours` is `None`, all data is returned (no time filter).
     pub async fn release_health(
         pool: &DbPool,
         project_id: i32,
-        period_hours: i64,
+        period_hours: Option<i64>,
     ) -> AppResult<Vec<ReleaseHealthRow>> {
         let rows = query_release_health(pool, project_id, period_hours).await?;
         Ok(rows)
@@ -22,11 +23,20 @@ impl SessionService {
 async fn query_release_health(
     pool: &DbPool,
     project_id: i32,
-    period_hours: i64,
+    period_hours: Option<i64>,
 ) -> Result<Vec<ReleaseHealthRow>, sqlx::Error> {
     #[cfg(feature = "postgres")]
     {
-        let rows: Vec<PgHealthRow> = sqlx::query_as(
+        let (time_filter_sc, time_filter_su) = if let Some(hours) = period_hours {
+            (
+                format!("AND sc.bucket >= NOW() - '{} hours'::interval", hours),
+                format!("AND su.day >= (NOW() - '{} hours'::interval)::date", hours),
+            )
+        } else {
+            (String::new(), String::new())
+        };
+
+        let sql = format!(
             r#"
                 SELECT
                     sc.release,
@@ -47,17 +57,19 @@ async fn query_release_health(
                     ON su.project_id = sc.project_id
                    AND su.release    = sc.release
                    AND su.environment = sc.environment
-                   AND su.day >= (NOW() - ($2::text || ' hours')::interval)::date
+                   {}
                 WHERE sc.project_id = $1
-                  AND sc.bucket >= NOW() - ($2::text || ' hours')::interval
+                  {}
                 GROUP BY sc.release, sc.environment
                 ORDER BY SUM(sc.total) DESC
                 "#,
-        )
-        .bind(project_id)
-        .bind(period_hours)
-        .fetch_all(pool)
-        .await?;
+            time_filter_su, time_filter_sc
+        );
+
+        let rows: Vec<PgHealthRow> = sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
+            .bind(project_id)
+            .fetch_all(pool)
+            .await?;
 
         Ok(rows
             .into_iter()
@@ -82,8 +94,22 @@ async fn query_release_health(
 
     #[cfg(not(feature = "postgres"))]
     {
-        // SQLite: datetime arithmetic via strftime
-        let rows: Vec<(String, String, i64, i64, i64, i64)> = sqlx::query_as(
+        let time_filter_sc = if let Some(hours) = period_hours {
+            format!(
+                "AND bucket >= datetime('now', '-' || '{}' || ' hours')",
+                hours
+            )
+        } else {
+            String::new()
+        };
+
+        let time_filter_su = if let Some(hours) = period_hours {
+            format!("AND day >= date('now', '-' || '{}' || ' hours')", hours)
+        } else {
+            String::new()
+        };
+
+        let sql = format!(
             r#"
             SELECT
                 release,
@@ -94,20 +120,22 @@ async fn query_release_health(
                 SUM(abnormal) AS abnormal
             FROM session_counts
             WHERE project_id = ?1
-              AND bucket >= datetime('now', '-' || ?2 || ' hours')
+              {}
             GROUP BY release, environment
             ORDER BY SUM(total) DESC
             "#,
-        )
-        .bind(project_id)
-        .bind(period_hours)
-        .fetch_all(pool)
-        .await?;
+            time_filter_sc
+        );
+
+        let rows: Vec<(String, String, i64, i64, i64, i64)> =
+            sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
+                .bind(project_id)
+                .fetch_all(pool)
+                .await?;
 
         let mut result = Vec::with_capacity(rows.len());
         for (release, environment, total, errored, crashed, abnormal) in rows {
-            // For crash-free-users we need a second query per release in SQLite
-            let (total_users, crashed_users): (i64, i64) = sqlx::query_as(
+            let user_sql = format!(
                 r#"
                 SELECT
                     COUNT(DISTINCT did),
@@ -116,15 +144,18 @@ async fn query_release_health(
                 WHERE project_id = ?1
                   AND release = ?2
                   AND environment = ?3
-                  AND day >= date('now', '-' || ?4 || ' hours')
+                  {}
                 "#,
-            )
-            .bind(project_id)
-            .bind(&release)
-            .bind(&environment)
-            .bind(period_hours)
-            .fetch_one(pool)
-            .await?;
+                time_filter_su
+            );
+
+            let (total_users, crashed_users): (i64, i64) =
+                sqlx::query_as(sqlx::AssertSqlSafe(&*user_sql))
+                    .bind(project_id)
+                    .bind(&release)
+                    .bind(&environment)
+                    .fetch_one(pool)
+                    .await?;
 
             let crash_free_sessions_rate = if total > 0 {
                 Some(1.0 - crashed as f64 / total as f64)

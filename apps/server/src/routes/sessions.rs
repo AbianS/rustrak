@@ -19,9 +19,8 @@ pub struct StatsQuery {
 }
 
 impl StatsQuery {
-    pub fn period_hours(&self) -> i64 {
-        let parsed = self
-            .period
+    pub fn period_hours(&self) -> Option<i64> {
+        self.period
             .as_deref()
             .and_then(|p| {
                 // Accept "24h", "48h", "7d", or bare integers (treated as hours).
@@ -33,9 +32,8 @@ impl StatsQuery {
                     p.parse::<i64>().ok()
                 }
             })
-            .unwrap_or(24);
-        // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
-        parsed.clamp(1, 90 * 24)
+            // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
+            .map(|h| h.clamp(1, 90 * 24))
     }
 }
 

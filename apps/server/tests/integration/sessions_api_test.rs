@@ -137,7 +137,7 @@ async fn test_release_health_empty_returns_empty() {
     let db = TestDb::new().await;
     let project_id = create_project(&db.pool, "Empty Project").await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -165,7 +165,7 @@ async fn test_release_health_sums_across_buckets() {
     )
     .await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -187,7 +187,7 @@ async fn test_release_health_healthy_is_total_minus_unhealthy() {
     // total=100, errored=5, crashed=3, abnormal=2 → healthy=90
     seed_count(&db.pool, project_id, "2.0.0", "staging", 1, 100, 5, 3, 2).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -216,12 +216,47 @@ async fn test_release_health_excludes_buckets_outside_window() {
     )
     .await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].total, 50, "old bucket must not contribute to total");
+}
+
+#[actix_web::test]
+async fn test_release_health_no_period_returns_all_buckets() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "No Period Project").await;
+
+    // 1h ago
+    seed_count(&db.pool, project_id, "4.0.0", "production", 1, 10, 0, 0, 0).await;
+    // 48h ago
+    seed_count(&db.pool, project_id, "4.0.0", "production", 48, 20, 0, 0, 0).await;
+    // 240h ago (10 days)
+    seed_count(
+        &db.pool,
+        project_id,
+        "4.0.0",
+        "production",
+        240,
+        30,
+        0,
+        0,
+        0,
+    )
+    .await;
+
+    // No period filter → all buckets should be included
+    let rows = SessionService::release_health(&db.pool, project_id, None)
+        .await
+        .expect("query failed");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].total, 60,
+        "all buckets must contribute when no period is set"
+    );
 }
 
 #[actix_web::test]
@@ -233,7 +268,7 @@ async fn test_release_health_excludes_other_projects() {
     seed_count(&db.pool, project_a, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
     seed_count(&db.pool, project_b, "1.0.0", "prod", 1, 999, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_a, 24)
+    let rows = SessionService::release_health(&db.pool, project_a, Some(24))
         .await
         .expect("query failed");
 
@@ -253,7 +288,7 @@ async fn test_release_health_orders_by_total_desc() {
     seed_count(&db.pool, project_id, "large", "prod", 1, 500, 0, 0, 0).await;
     seed_count(&db.pool, project_id, "medium", "prod", 1, 100, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -271,7 +306,7 @@ async fn test_release_health_crash_free_sessions_rate() {
     // 100 total, 10 crashed → crash_free_sessions_rate = 0.90
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 10, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -290,7 +325,7 @@ async fn test_release_health_crash_free_sessions_rate_is_none_when_no_sessions()
     // 0 total → rate must be None (CASE WHEN total > 0)
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 0, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -319,7 +354,7 @@ async fn test_release_health_crash_free_users_rate() {
     seed_user(&db.pool, project_id, "1.0.0", "prod", "user-3", true).await;
     seed_user(&db.pool, project_id, "1.0.0", "prod", "user-4", true).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
@@ -338,7 +373,7 @@ async fn test_release_health_multiple_releases_independent() {
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 5, 10, 2).await;
     seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 50, 1, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, 24)
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
         .await
         .expect("query failed");
 
