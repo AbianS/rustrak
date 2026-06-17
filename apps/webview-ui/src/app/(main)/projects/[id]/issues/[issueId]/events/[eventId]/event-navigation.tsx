@@ -6,7 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { EventNavigation } from '@/actions/events';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,6 +27,8 @@ export function EventNavigationBar({
   issueId,
   navigation,
 }: EventNavigationBarProps) {
+  const router = useRouter();
+
   const {
     currentIndex,
     totalCount,
@@ -49,11 +51,11 @@ export function EventNavigationBar({
               size="icon"
               className="size-8"
               disabled={!firstEventId || currentIndex === 1}
-              render={
-                firstEventId && currentIndex !== 1 ? (
-                  <Link href={`${baseUrl}/${firstEventId}`} />
-                ) : undefined
-              }
+              onClick={() => {
+                if (firstEventId && currentIndex !== 1) {
+                  router.push(`${baseUrl}/${firstEventId}`);
+                }
+              }}
             >
               <ChevronFirst className="size-4" />
             </Button>
@@ -71,11 +73,11 @@ export function EventNavigationBar({
               size="icon"
               className="size-8"
               disabled={!prevEventId}
-              render={
-                prevEventId ? (
-                  <Link href={`${baseUrl}/${prevEventId}`} />
-                ) : undefined
-              }
+              onClick={() => {
+                if (prevEventId) {
+                  router.push(`${baseUrl}/${prevEventId}`);
+                }
+              }}
             >
               <ChevronLeft className="size-4" />
             </Button>
@@ -101,11 +103,11 @@ export function EventNavigationBar({
               size="icon"
               className="size-8"
               disabled={!nextEventId}
-              render={
-                nextEventId ? (
-                  <Link href={`${baseUrl}/${nextEventId}`} />
-                ) : undefined
-              }
+              onClick={() => {
+                if (nextEventId) {
+                  router.push(`${baseUrl}/${nextEventId}`);
+                }
+              }}
             >
               <ChevronRight className="size-4" />
             </Button>
@@ -123,11 +125,11 @@ export function EventNavigationBar({
               size="icon"
               className="size-8"
               disabled={!lastEventId || currentIndex === totalCount}
-              render={
-                lastEventId && currentIndex !== totalCount ? (
-                  <Link href={`${baseUrl}/${lastEventId}`} />
-                ) : undefined
-              }
+              onClick={() => {
+                if (lastEventId && currentIndex !== totalCount) {
+                  router.push(`${baseUrl}/${lastEventId}`);
+                }
+              }}
             >
               <ChevronLast className="size-4" />
             </Button>
