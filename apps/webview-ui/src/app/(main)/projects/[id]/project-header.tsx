@@ -52,7 +52,10 @@ export function ProjectHeader({
           </p>
         </div>
 
-        <ReleaseHealthSheet health={releaseHealth} />
+        <ReleaseHealthSheet
+          projectId={project.id}
+          initialHealth={releaseHealth}
+        />
         <ProjectAlertsDialog
           project={project}
           alertRules={alertRules}
