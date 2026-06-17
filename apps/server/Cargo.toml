@@ -22,22 +22,22 @@ tokio = { version = "1.52.3", features = ["full"] }
 
 # Serialization
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.149"
+serde_json = "1.0.150"
 
 # Logging
 env_logger = "0.11.10"
-log = "0.4.29"
+log = "0.4.32"
 
 # Environment
 dotenvy = "0.15.7"
 
 # Time
-chrono = { version = "0.4.44", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
 # Pinned: time 0.3.48 breaks cookie 0.16.2 (E0119 blanket impl conflict). Remove once actix-web upgrades cookie past 0.16.
 time = "=0.3.47"
 
 # Database
-sqlx = { version = "0.8.6", features = [
+sqlx = { version = "0.9.0", features = [
     "runtime-tokio",
     "tls-rustls",
     "uuid",
@@ -46,7 +46,7 @@ sqlx = { version = "0.8.6", features = [
 ] }
 
 # UUID generation
-uuid = { version = "1.23.1", features = ["v4", "serde"] }
+uuid = { version = "1.23.3", features = ["v4", "serde"] }
 
 # Slug generation
 slug = "0.1.6"
@@ -62,7 +62,7 @@ hex = "0.4.3"
 
 # Compression (for decompressing gzip/deflate/brotli payloads)
 flate2 = "1.1.9"
-brotli = "8.0.2"
+brotli = "8.0.4"
 
 # Async utilities
 futures-util = "0.3.32"
@@ -81,7 +81,7 @@ actix-cors = "0.7.1"
 base64 = "0.22.1"
 
 # HTTP client for notifications
-reqwest = { version = "0.13.3", default-features = false, features = ["json", "rustls"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
 
 # HMAC for webhook signatures
 hmac = "0.13.0"
@@ -109,7 +109,7 @@ utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
 [dev-dependencies]
 # Test framework & fixtures
 rstest = "0.26.1"
-serial_test = "3.4.0"
+serial_test = "3.5.0"
 
 # HTTP testing for actix-web
 actix-test = "0.1.5"

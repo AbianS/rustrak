@@ -1,7 +1,7 @@
 ARG FEATURES=sqlite
 
 # ── Stage 1: base image with cargo-chef installed ────────────────────────────
-FROM rust:1.88-slim-bookworm AS chef
+FROM rust:1.94-slim-bookworm AS chef
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
     && rm -rf /var/lib/apt/lists/* \

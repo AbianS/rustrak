@@ -124,7 +124,7 @@ async fn count_where_eq(pool: &rustrak::db::DbPool, table: &str, col: &str, val:
     let sql = format!("SELECT COUNT(*) FROM {} WHERE {} = $1", table, col);
     #[cfg(not(feature = "postgres"))]
     let sql = format!("SELECT COUNT(*) FROM {} WHERE {} = ?", table, col);
-    sqlx::query_scalar::<_, i64>(&sql)
+    sqlx::query_scalar::<_, i64>(sqlx::AssertSqlSafe(&*sql))
         .bind(val)
         .fetch_one(pool)
         .await
