@@ -2,7 +2,7 @@
 
 import type { ReleaseHealth } from '@rustrak/client';
 import { Activity } from 'lucide-react';
-import { useCallback, useState, useTransition } from 'react';
+import { useCallback, useRef, useState, useTransition } from 'react';
 import { getReleaseHealth } from '@/actions/sessions';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,13 +45,17 @@ export function ReleaseHealthSheet({
   const [health, setHealth] = useState(initialHealth);
   const [period, setPeriod] = useState<string | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
+  const latestPeriod = useRef<string | undefined>(undefined);
 
   const handlePeriodChange = useCallback(
     (newPeriod: string | undefined) => {
+      latestPeriod.current = newPeriod;
       setPeriod(newPeriod);
       startTransition(async () => {
         const data = await getReleaseHealth(projectId, newPeriod);
-        setHealth(data);
+        if (latestPeriod.current === newPeriod) {
+          setHealth(data);
+        }
       });
     },
     [projectId],
@@ -99,7 +103,9 @@ export function ReleaseHealthSheet({
             </p>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2 pt-3">
+          <div
+            className={`flex-1 overflow-y-auto px-4 pb-4 space-y-2 pt-3 transition-opacity ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+          >
             <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">
               Releases
             </p>
