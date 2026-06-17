@@ -94,6 +94,61 @@ def test_output_file():
         assert "js_deps" in data
 
 
+def test_rust_dep_extraction():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "package.json").write_text('{"name":"test","private":true}')
+        (tmp / "Cargo.toml").write_text(
+            '[package]\nname = "test"\n[workspace]\n[dependencies]\nserde = "1.0"\ntokio = { version = "1.35", features = ["full"] }\n')
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        data = json.loads(result.stdout)
+        dep_names = {d["name"] for d in data["rust_deps"]}
+        assert "serde" in dep_names, f"serde not found in {dep_names}"
+        assert "tokio" in dep_names, f"tokio not found in {dep_names}"
+
+
+def test_exclude_workspace_deps():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "package.json").write_text(
+            '{"name":"test","dependencies":{"left-pad":"1.3.0","@myapp/ui":"workspace:*","@myapp/utils":"workspace:^1.0.0"}}'
+        )
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        data = json.loads(result.stdout)
+        dep_names = {d["name"] for d in data["js_deps"]}
+        assert "left-pad" in dep_names, "external dep should be included"
+        assert "@myapp/ui" not in dep_names, "workspace:* dep should be excluded"
+        assert "@myapp/utils" not in dep_names, "workspace:^ dep should be excluded"
+
+
+def test_per_dep_workspace_paths():
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        (tmp / "package.json").write_text('{"name":"test","workspaces":["packages/*"],"private":true}')
+        pkg_dir = tmp / "packages" / "a"
+        pkg_dir.mkdir(parents=True)
+        (pkg_dir / "package.json").write_text('{"name":"pkg-a","dependencies":{"left-pad":"1.3.0"}}')
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(tmp)],
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, f"stderr: {result.stderr}"
+        data = json.loads(result.stdout)
+        assert len(data["js_deps"]) == 1
+        dep = data["js_deps"][0]
+        assert dep["name"] == "left-pad"
+        assert "workspaces" in dep, "per-dep workspaces field must be preserved"
+        assert "packages/a" in dep["workspaces"], f"expected packages/a in {dep['workspaces']}"
+
+
 if __name__ == "__main__":
     test_script_exists()
     test_parseable()
@@ -102,5 +157,8 @@ if __name__ == "__main__":
     test_single_js_dep()
     test_skip_packages()
     test_output_file()
+    test_rust_dep_extraction()
+    test_exclude_workspace_deps()
+    test_per_dep_workspace_paths()
     print("All tests passed.")
     sys.exit(0)

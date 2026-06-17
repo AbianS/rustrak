@@ -111,4 +111,4 @@ On verification failure: `"status": "blocked"` with a `"reason"` field.
 
 ## Rollback
 
-If verification fails in Stage 4, the user may ask to roll back. Restore from git: `git checkout -- <paths>` for affected files. The diff saved in Stage 2 is the source of truth for what changed.
+If verification fails in Stage 4, the user may ask to roll back. Restore from git: `git checkout -- <paths>` for affected files. The diff saved in Stage 3 is the source of truth for what changed.

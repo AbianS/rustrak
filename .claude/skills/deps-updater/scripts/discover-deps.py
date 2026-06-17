@@ -95,6 +95,9 @@ def scan_js_deps(ws_dirs, root_dir, scope_packages, skip_packages):
                         continue
                     if name in skip_packages:
                         continue
+                    # Skip workspace-protocol deps (pnpm workspace references)
+                    if isinstance(ver, str) and ver.startswith("workspace:"):
+                        continue
                     clean_ver, ranged = resolve_version(ver)
                     if name in seen:
                         idx = seen[name]
@@ -130,15 +133,19 @@ def scan_rust_deps(root_dir, ws_paths, workspace_members, scope_packages, skip_p
 
         # Simple TOML parsing for dependencies section (avoids external deps)
         in_deps = False
+        char_offset = 0
         for line in text.splitlines():
             stripped = line.strip()
             if stripped.startswith("[dependencies]") or stripped.startswith("[dev-dependencies]"):
                 in_deps = True
+                char_offset += len(line) + 1
                 continue
             if stripped.startswith("[") and in_deps:
                 in_deps = False
+                char_offset += len(line) + 1
                 continue
             if not in_deps:
+                char_offset += len(line) + 1
                 continue
             # Parse lines like: package = "1.0.0" or package = { version = "1.0.0", ... }
             match = re.match(r'^(\w[\w-]*)\s*=\s*"([^"]+)"', stripped)
@@ -149,11 +156,17 @@ def scan_rust_deps(root_dir, ws_paths, workspace_members, scope_packages, skip_p
                 match = re.match(r'^(\w[\w-]*)\s*=\s*\{', stripped)
                 if match:
                     name = match.group(1)
+                    # Skip path/workspace/git deps (not external registry deps)
+                    if re.search(r'\b(path|git|workspace)\s*=', stripped):
+                        char_offset += len(line) + 1
+                        continue
                     # Find version in inline table
-                    ver_match = re.search(r'version\s*=\s*"([^"]+)"', text[cargo_file.read_text().index(line):cargo_file.read_text().index(line)+200])
+                    ver_match = re.search(r'version\s*=\s*"([^"]+)"', text[char_offset:char_offset+200])
                     ver = ver_match.group(1) if ver_match else "unknown"
                 else:
+                    char_offset += len(line) + 1
                     continue
+            char_offset += len(line) + 1
 
             if scope_packages and name not in scope_packages:
                 continue
@@ -246,12 +259,6 @@ def main():
             ws for dep in rust_deps for ws in dep["workspaces"]
         )),
     }
-
-    # Remove workspace field from individual dep entries — redundant with ws_paths
-    for dep in js_deps:
-        del dep["workspaces"]
-    for dep in rust_deps:
-        del dep["workspaces"]
 
     manifest = {
         "js_deps": js_deps,

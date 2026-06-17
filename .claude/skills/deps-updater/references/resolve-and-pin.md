@@ -42,7 +42,7 @@ After all JS and Rust updates are written to manifest files, install the new dep
 pnpm install --no-frozen-lockfile
 ```
 
-This ensures the lockfile (`pnpm-lock.yaml`, `Cargo.lock`) reflects the new versions before proceeding to verification.
+This ensures `pnpm-lock.yaml` reflects the new versions (the `Cargo.lock` was already updated by `cargo upgrade` in the Rust step).
 
 ## Diff
 
