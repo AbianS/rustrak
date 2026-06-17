@@ -1,0 +1,21 @@
+---
+version: v0.5.2
+title: Release Health Period Selector
+description: Configurable time period for release health stats via a UI dropdown, plus dependency updates and minor fixes.
+date: 2026-06-17
+tags: [webview-ui, server, deps, bugfix]
+---
+
+## Release Health Period Selector
+
+The release health sheet now includes a period dropdown (24h, 48h, 7d) instead of being hardcoded to the last 24 hours. The server's session stats endpoint accepts an optional `period` query parameter, so you can now inspect crash-free rates and session counts across different time windows.
+
+## Dependency Updates
+
+- Updated 35 JavaScript and 11 Rust dependencies to their latest versions.
+- Removed 8 unused packages from the webview-ui workspace.
+
+## Fixes
+
+- Updated Docker base image to the latest Rust version.
+- Fixed a Base UI button prop warning in the event navigation component.
