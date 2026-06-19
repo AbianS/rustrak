@@ -67,7 +67,7 @@ pub async fn list_transactions(
     let next_cursor = if has_more {
         transactions
             .last()
-            .map(|last| TransactionCursor::new(last.ingested_at).encode())
+            .map(|last| TransactionCursor::new(last.ingested_at, last.id).encode())
             .transpose()?
     } else {
         None

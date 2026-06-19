@@ -64,17 +64,25 @@ impl IssueCursor {
     }
 }
 
-/// Cursor for paginating Transactions (keyset on ingested_at DESC)
+/// Cursor for paginating Transactions (compound keyset on (ingested_at, id) DESC).
+///
+/// `ingested_at` alone is not unique — two transactions can share the same
+/// timestamp at a page boundary. The `id` tiebreaker makes the keyset
+/// deterministic so no row is silently skipped (mirrors how Issue/Event cursors
+/// rely on the unique `digest_order`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionCursor {
-    /// Last ingested_at seen (RFC3339), used as keyset boundary
+    /// Last ingested_at seen, used as the primary keyset boundary
     pub last_ingested_at: DateTime<Utc>,
+    /// Last id seen, used as the tiebreaker for equal ingested_at values
+    pub last_id: Uuid,
 }
 
 impl TransactionCursor {
-    pub fn new(ingested_at: DateTime<Utc>) -> Self {
+    pub fn new(ingested_at: DateTime<Utc>, id: Uuid) -> Self {
         Self {
             last_ingested_at: ingested_at,
+            last_id: id,
         }
     }
 

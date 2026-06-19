@@ -150,9 +150,9 @@ async fn test_error_envelope_still_works_after_refactor() {
     assert!(body.get("id").is_some(), "response must include event id");
 }
 
-/// Transaction-only envelope must return 200 with an id.
-/// The transaction is stored asynchronously — we verify the response only (not the DB row,
-/// since the tokio::spawn may not have completed by assertion time).
+/// Transaction-only envelope must return 200 with an id, then the spawned
+/// processor stores the row. We verify the response and poll (bounded) for the
+/// asynchronously-stored `events` row.
 #[actix_web::test]
 async fn test_transaction_envelope_returns_200_with_id() {
     let db = TestDb::new().await;
@@ -201,15 +201,22 @@ async fn test_transaction_envelope_returns_200_with_id() {
     let body: serde_json::Value = test::read_body_json(resp).await;
     assert!(body.get("id").is_some(), "response must include event id");
 
-    // Give the async processor a moment to complete, then verify DB row
-    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-    let row = sqlx::query("SELECT event_type FROM events WHERE project_id = ?")
-        .bind(project_id)
-        .fetch_optional(&db.pool)
-        .await
-        .unwrap();
+    // The processor runs in a spawned task; poll (bounded) instead of a fixed
+    // sleep so the assertion isn't flaky on slower CI runners.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    let event_type: Option<String> = loop {
+        let row = sqlx::query("SELECT event_type FROM events WHERE project_id = ?")
+            .bind(project_id)
+            .fetch_optional(&db.pool)
+            .await
+            .unwrap();
+        let current: Option<String> = row.map(|r| r.get("event_type"));
+        if current.as_deref() == Some("transaction") || tokio::time::Instant::now() >= deadline {
+            break current;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    };
 
-    let event_type: Option<String> = row.map(|r| r.get("event_type"));
     assert_eq!(
         event_type.as_deref(),
         Some("transaction"),

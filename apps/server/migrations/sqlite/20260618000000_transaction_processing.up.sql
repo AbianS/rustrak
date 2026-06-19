@@ -54,6 +54,8 @@ ALTER TABLE events_new RENAME TO events;
 
 CREATE INDEX idx_events_issue_digested ON events(issue_id, digested_at DESC);
 CREATE INDEX idx_events_project_digested ON events(project_id, digested_at DESC);
-CREATE INDEX idx_events_event_type ON events(project_id, event_type);
+-- Covers the transaction list query: project_id + event_type equality, then the
+-- ingested_at range/order — a single index scan instead of a filesort.
+CREATE INDEX idx_events_event_type ON events(project_id, event_type, ingested_at DESC);
 
 PRAGMA foreign_keys = ON;

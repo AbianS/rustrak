@@ -119,6 +119,94 @@ mod level2 {
     use uuid::Uuid;
 
     #[tokio::test]
+    async fn test_transaction_malformed_json_is_rejected_not_stored() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-bad-json".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+
+        // Binary garbage some misconfigured SDKs send — not valid JSON.
+        let res = TransactionProcessor
+            .process(vec![0xff, 0x00, 0x01, b'n', b'o'], &ctx)
+            .await;
+
+        assert!(res.is_err(), "malformed transaction JSON must be rejected");
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = ?")
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0, "no row may be stored for a malformed payload");
+    }
+
+    #[tokio::test]
+    async fn test_transaction_pagination_no_skip_on_equal_timestamps() {
+        use rustrak::pagination::TransactionCursor;
+        use rustrak::services::TransactionService;
+
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-paging".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Three transactions that all share the SAME ingested_at (page boundary).
+        let ts = Utc::now();
+        for _ in 0..3 {
+            let ctx = ProcessorCtx {
+                pool: db.pool.clone(),
+                project_id: project.id,
+                event_id: Uuid::new_v4(),
+                ingested_at: ts,
+                remote_addr: None,
+            };
+            let payload = serde_json::to_vec(&json!({
+                "type": "transaction", "transaction": "/x",
+                "start_timestamp": 1.0, "timestamp": 2.0
+            }))
+            .unwrap();
+            TransactionProcessor.process(payload, &ctx).await.unwrap();
+        }
+
+        let (page1, has_more) = TransactionService::list_paginated(&db.pool, project.id, None, 2)
+            .await
+            .unwrap();
+        assert_eq!(page1.len(), 2);
+        assert!(has_more);
+
+        let last = page1.last().unwrap();
+        let cursor = TransactionCursor::new(last.ingested_at, last.id);
+        let (page2, _) = TransactionService::list_paginated(&db.pool, project.id, Some(&cursor), 2)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            page1.len() + page2.len(),
+            3,
+            "no transaction may be skipped at an equal-timestamp page boundary"
+        );
+    }
+
+    #[tokio::test]
     async fn test_transaction_stores_to_db_with_correct_fields() {
         let db = TestDb::new().await;
         let project = ProjectService::create(

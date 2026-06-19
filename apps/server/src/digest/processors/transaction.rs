@@ -1,5 +1,5 @@
 use super::{Processor, ProcessorCtx};
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
@@ -11,8 +11,10 @@ impl Processor for TransactionProcessor {
     /// Store a transaction payload into `events`.
     /// Does NOT create an issue, grouping, or source-map rewrite.
     async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
-        let data: serde_json::Value =
-            serde_json::from_slice(&work).unwrap_or(serde_json::Value::Null);
+        // Reject malformed payloads instead of persisting a null-data row.
+        // The caller (ingest spawn) logs the error and discards — envelope still 200.
+        let data: serde_json::Value = serde_json::from_slice(&work)
+            .map_err(|e| AppError::Validation(format!("Invalid transaction JSON: {}", e)))?;
 
         let timestamp = extract_timestamp(&data, "timestamp").unwrap_or(ctx.ingested_at);
         let start_timestamp = extract_timestamp(&data, "start_timestamp");

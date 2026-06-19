@@ -1,4 +1,10 @@
--- Reverse: recreate events without event_type/start_timestamp/spans and restore NOT NULL
+-- Reverse: recreate events without event_type/start_timestamp/spans and restore NOT NULL.
+--
+-- WARNING: the INSERT below filters `WHERE issue_id IS NOT NULL AND grouping_id
+-- IS NOT NULL`, so any transaction events (which have NULL issue_id/grouping_id)
+-- are dropped on rollback — they cannot satisfy the restored NOT NULL columns.
+-- Like the Postgres counterpart, this down migration is only intended for
+-- fresh-test-db rollbacks, not for reverting a database with real transaction data.
 PRAGMA foreign_keys = OFF;
 
 CREATE TABLE events_old (

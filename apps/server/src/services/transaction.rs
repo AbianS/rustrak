@@ -30,14 +30,15 @@ impl TransactionService {
                 FROM events
                 WHERE project_id = $1
                   AND event_type = 'transaction'
-                  AND ingested_at < $3
-                ORDER BY ingested_at DESC
+                  AND (ingested_at < $3 OR (ingested_at = $3 AND id < $4))
+                ORDER BY ingested_at DESC, id DESC
                 LIMIT $2
                 "#,
             )
             .bind(project_id)
             .bind(fetch_limit)
             .bind(c.last_ingested_at)
+            .bind(c.last_id)
             .fetch_all(pool)
             .await?
         } else {
@@ -49,7 +50,7 @@ impl TransactionService {
                 FROM events
                 WHERE project_id = $1
                   AND event_type = 'transaction'
-                ORDER BY ingested_at DESC
+                ORDER BY ingested_at DESC, id DESC
                 LIMIT $2
                 "#,
             )
