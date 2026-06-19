@@ -94,6 +94,14 @@ async fn test_ingest_basic_event() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -149,6 +157,14 @@ async fn test_ingest_with_query_param_auth() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -197,6 +213,14 @@ async fn test_ingest_missing_auth() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -232,6 +256,14 @@ async fn test_ingest_invalid_sentry_key() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -270,6 +302,14 @@ async fn test_ingest_wrong_project_id() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -318,6 +358,14 @@ async fn test_ingest_missing_event_id() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -372,6 +420,14 @@ async fn test_ingest_invalid_event_id_format() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -411,6 +467,14 @@ async fn test_ingest_invalid_json_payload() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -461,6 +525,14 @@ async fn test_session_only_without_event_id_accepted() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -510,6 +582,14 @@ async fn test_session_only_with_event_id_in_headers_echoes_it() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -557,6 +637,14 @@ async fn test_event_without_event_id_auto_generates_uuid() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -614,6 +702,14 @@ async fn test_mixed_session_and_event_without_event_id_auto_generates() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -672,6 +768,14 @@ async fn test_ingest_envelope_without_event_item() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -719,6 +823,14 @@ async fn test_ingest_empty_body() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -771,6 +883,14 @@ async fn test_ingest_cors_preflight() {
                 web::Data::new(provider)
             })
             .wrap(cors)
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -822,6 +942,14 @@ async fn test_ingest_response_has_cors_headers() {
                 web::Data::new(provider)
             })
             .wrap(cors)
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -872,6 +1000,14 @@ async fn test_ingest_large_payload_above_256kb_is_accepted() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -940,6 +1076,14 @@ async fn test_store_endpoint_deprecated() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;

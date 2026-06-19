@@ -129,7 +129,7 @@ pub async fn get_event(
 
     // Get event and verify it belongs to the issue
     let event = EventService::get_by_id(pool.get_ref(), event_id).await?;
-    if event.issue_id != issue_id {
+    if event.issue_id != Some(issue_id) {
         return Err(AppError::NotFound(format!("Event {} not found", event_id)));
     }
 

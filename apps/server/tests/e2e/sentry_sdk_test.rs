@@ -3,11 +3,11 @@
 //! These tests verify that Rustrak correctly receives and processes events
 //! sent by a real Sentry SDK, just like in production usage.
 
+use crate::common::process_error_event;
 use actix_web::{middleware, web, App, HttpServer};
 use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::db::DbPool;
-use rustrak::digest::worker::process_event;
 use rustrak::ingest::EventMetadata;
 use rustrak::models::CreateProject;
 use rustrak::routes;
@@ -111,6 +111,14 @@ impl TestServer {
                             .route("", web::get().to(routes::health::liveness))
                             .route("/ready", web::get().to(routes::health::readiness)),
                     )
+                    .app_data(web::Data::new(
+                        rustrak::digest::processors::Processors::new(
+                            rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                            config.rate_limit.clone(),
+                            crate::common::null_sourcemap_provider(),
+                            None,
+                        ),
+                    ))
                     .configure(routes::ingest::configure)
             })
             .bind(("127.0.0.1", port))
@@ -157,7 +165,7 @@ impl TestServer {
                         remote_addr: None,
                     };
 
-                    let _ = process_event(
+                    let _ = process_error_event(
                         &self.pool,
                         &metadata,
                         ingest_path,

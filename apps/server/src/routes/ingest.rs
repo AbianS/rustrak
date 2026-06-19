@@ -1,21 +1,17 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use chrono::Utc;
-use std::sync::Arc;
 
 use crate::auth::SentryAuth;
 use crate::config::Config;
 use crate::db::DbPool;
-use crate::digest;
+use crate::digest::processors::{Processor, ProcessorCtx, Processors, SessionItem};
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
-    decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeParser,
-    EventMetadata, MAX_COMPRESSED_SIZE,
+    decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeItemKind,
+    EnvelopeParser, EventMetadata, MAX_COMPRESSED_SIZE,
 };
-use crate::models::session::{SessionAggregates, SessionUpdate};
-use crate::services::sourcemap::SourceMapProvider;
 use crate::services::RateLimitService;
-use crate::workers::session_aggregator::SessionAggregatorHandle;
 
 /// Response for successful ingestion.
 /// `id` is absent for session-only envelopes, mirroring Relay's StoreResponse.
@@ -23,15 +19,6 @@ use crate::workers::session_aggregator::SessionAggregatorHandle;
 pub struct IngestResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-}
-
-/// Returns true for item types that require an associated event_id.
-/// Mirrors Relay's `Item::requires_event()` in relay-server/src/envelope/item.rs.
-fn item_requires_event(item_type: &str) -> bool {
-    matches!(
-        item_type,
-        "event" | "transaction" | "attachment" | "security"
-    )
 }
 
 /// POST /api/{project_id}/envelope/
@@ -42,8 +29,7 @@ pub async fn ingest_envelope(
     req: HttpRequest,
     auth: SentryAuth,
     body: Bytes,
-    sourcemap_provider: web::Data<Arc<dyn SourceMapProvider>>,
-    session_aggregator: Option<web::Data<SessionAggregatorHandle>>,
+    processors: web::Data<Processors>,
 ) -> AppResult<HttpResponse> {
     // 0. Check rate limits (fail fast before processing)
     if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
@@ -77,45 +63,49 @@ pub async fn ingest_envelope(
     let mut parser = EnvelopeParser::new(&decompressed);
     let envelope = parser.parse()?;
 
-    // 4. Partition items: sessions go to the aggregator, event items are retained for digestion.
+    // 4. Typed dispatch — exhaustive, compiler-verified.
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
-    let mut event_item = None;
+    let mut event_item: Option<Vec<u8>> = None;
+    let mut transaction_item: Option<Vec<u8>> = None;
     let mut requires_event_id = false;
-    for item in envelope.items {
-        match item.headers.item_type.as_str() {
-            "session" => {
-                if let Some(ref agg) = session_aggregator {
-                    match serde_json::from_slice::<SessionUpdate>(&item.payload) {
-                        Ok(update) => {
-                            agg.ingest_session(auth.project.id, &update).await;
-                        }
-                        Err(e) => {
-                            log::warn!("session item: invalid JSON, dropping: {}", e);
-                        }
-                    }
+    for item_kind in envelope.items {
+        if item_kind.requires_event() {
+            requires_event_id = true;
+        }
+        match item_kind {
+            EnvelopeItemKind::Event(p) => {
+                if event_item.is_none() {
+                    event_item = Some(p);
                 }
             }
-            "sessions" => {
-                if let Some(ref agg) = session_aggregator {
-                    match serde_json::from_slice::<SessionAggregates>(&item.payload) {
-                        Ok(agg_payload) => {
-                            agg.ingest_aggregates(auth.project.id, &agg_payload).await;
-                        }
-                        Err(e) => {
-                            log::warn!("sessions item: invalid JSON, dropping: {}", e);
-                        }
-                    }
+            EnvelopeItemKind::Transaction(p) => {
+                if transaction_item.is_none() {
+                    transaction_item = Some(p);
                 }
             }
-            t if item_requires_event(t) => {
-                requires_event_id = true;
-                if t == "event" && event_item.is_none() {
-                    event_item = Some(item);
+            EnvelopeItemKind::Session(s) => {
+                let ctx = session_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                if let Err(e) = processors
+                    .sessions
+                    .process(SessionItem::Update(s), &ctx)
+                    .await
+                {
+                    log::warn!("session item processing failed: {:?}", e);
                 }
             }
-            other => {
-                log::debug!("envelope item type '{}' ignored", other);
+            EnvelopeItemKind::Sessions(s) => {
+                let ctx = session_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                if let Err(e) = processors
+                    .sessions
+                    .process(SessionItem::Aggregates(s), &ctx)
+                    .await
+                {
+                    log::warn!("sessions item processing failed: {:?}", e);
+                }
+            }
+            EnvelopeItemKind::Other(t, _) => {
+                log::debug!("envelope item '{}' ignored", t);
             }
         }
     }
@@ -135,7 +125,34 @@ pub async fn ingest_envelope(
         envelope.headers.event_id.clone()
     };
 
-    // 6. Early return for session-only (and other non-event) envelopes.
+    // 6. Spawn transaction processing (direct, bypasses filesystem and digest worker).
+    //    Must happen BEFORE the early-return so transaction-only envelopes are stored.
+    if let Some(txn_payload) = transaction_item {
+        let processors = processors.clone();
+        let pool_clone = pool.get_ref().clone();
+        let event_id_txn = event_id
+            .clone()
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
+        let project_id = auth.project.id;
+        let ingested = ingested_at;
+        let remote = remote_addr.clone();
+        tokio::spawn(async move {
+            let parsed_id =
+                uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
+            let ctx = ProcessorCtx {
+                pool: pool_clone,
+                project_id,
+                event_id: parsed_id,
+                ingested_at: ingested,
+                remote_addr: remote,
+            };
+            if let Err(e) = processors.transactions.process(txn_payload, &ctx).await {
+                log::error!("Failed to store transaction {}: {:?}", event_id_txn, e);
+            }
+        });
+    }
+
+    // 7. Early return for session-only (and other non-event) envelopes.
     let event_item = match event_item {
         Some(item) => item,
         None => {
@@ -148,11 +165,11 @@ pub async fn ingest_envelope(
     let event_id = event_id.expect("event_id is Some when event_item is Some");
 
     // 6. Validate that payload is valid JSON
-    let _: serde_json::Value = serde_json::from_slice(&event_item.payload)
+    let _: serde_json::Value = serde_json::from_slice(&event_item)
         .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
 
     // 7. Store event in filesystem
-    store_event(&ingest_dir, &event_id, &event_item.payload).await?;
+    store_event(&ingest_dir, &event_id, &event_item).await?;
 
     // 8. Create metadata
     let metadata = EventMetadata {
@@ -162,27 +179,43 @@ pub async fn ingest_envelope(
         remote_addr,
     };
 
-    // 9. Spawn digest task
+    // 9. Spawn digest task — the ErrorProcessor reads the temp file and runs
+    //    grouping/issue creation. It owns ingest_dir/rate_limit/sourcemap deps.
+    let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
-    let ingest_dir_clone = ingest_dir.clone();
-    let rate_limit_config = config.rate_limit.clone();
-    let provider_clone = Arc::clone(sourcemap_provider.get_ref());
     tokio::spawn(async move {
-        if let Err(e) = digest::process_event(
-            &pool_clone,
-            &metadata,
-            &ingest_dir_clone,
-            &rate_limit_config,
-            provider_clone,
-        )
-        .await
-        {
-            log::error!("Failed to digest event {}: {:?}", metadata.event_id, e);
+        let event_id_log = metadata.event_id.clone();
+        let ctx = ProcessorCtx {
+            pool: pool_clone,
+            project_id: metadata.project_id,
+            event_id: uuid::Uuid::parse_str(&metadata.event_id)
+                .unwrap_or_else(|_| uuid::Uuid::nil()),
+            ingested_at: metadata.ingested_at,
+            remote_addr: metadata.remote_addr.clone(),
+        };
+        if let Err(e) = processors.errors.process(metadata, &ctx).await {
+            log::error!("Failed to digest event {}: {:?}", event_id_log, e);
         }
     });
 
     // 10. Return immediately (CORS handled by middleware)
     Ok(HttpResponse::Ok().json(IngestResponse { id: Some(event_id) }))
+}
+
+/// Builds a [`ProcessorCtx`] for session items, which carry no event id.
+fn session_ctx(
+    pool: &web::Data<DbPool>,
+    project_id: i32,
+    ingested_at: chrono::DateTime<Utc>,
+    remote_addr: &Option<String>,
+) -> ProcessorCtx {
+    ProcessorCtx {
+        pool: pool.get_ref().clone(),
+        project_id,
+        event_id: uuid::Uuid::nil(),
+        ingested_at,
+        remote_addr: remote_addr.clone(),
+    }
 }
 
 /// POST /api/{project_id}/store/

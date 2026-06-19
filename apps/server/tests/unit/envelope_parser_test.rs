@@ -2,7 +2,28 @@
 //!
 //! Tests the parsing of Sentry SDK envelopes including headers, items, and edge cases.
 
+use rustrak::ingest::envelope::EnvelopeItemKind;
 use rustrak::ingest::parser::EnvelopeParser;
+
+// Helper: extract the item type string from any variant
+fn item_type(kind: &EnvelopeItemKind) -> &str {
+    match kind {
+        EnvelopeItemKind::Event(_) => "event",
+        EnvelopeItemKind::Transaction(_) => "transaction",
+        EnvelopeItemKind::Session(_) => "session",
+        EnvelopeItemKind::Sessions(_) => "sessions",
+        EnvelopeItemKind::Other(t, _) => t,
+    }
+}
+
+// Helper: extract raw bytes from Event/Transaction/Other variants
+fn raw_payload(kind: &EnvelopeItemKind) -> Option<&[u8]> {
+    match kind {
+        EnvelopeItemKind::Event(p) | EnvelopeItemKind::Transaction(p) => Some(p),
+        EnvelopeItemKind::Other(_, p) => Some(p),
+        EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => None,
+    }
+}
 
 // =============================================================================
 // Basic Parsing Tests (moved from inline tests)
@@ -16,8 +37,8 @@ fn test_parse_simple_envelope() {
 
     assert_eq!(result.headers.event_id, Some("abc123".to_string()));
     assert_eq!(result.items.len(), 1);
-    assert_eq!(result.items[0].headers.item_type, "event");
-    assert_eq!(result.items[0].payload, b"{}");
+    assert_eq!(item_type(&result.items[0]), "event");
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), b"{}");
 }
 
 #[test]
@@ -27,7 +48,10 @@ fn test_parse_envelope_without_length() {
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
-    assert_eq!(result.items[0].payload, b"{\"message\":\"hello\"}");
+    assert_eq!(
+        raw_payload(&result.items[0]).unwrap(),
+        b"{\"message\":\"hello\"}"
+    );
 }
 
 #[test]
@@ -42,13 +66,13 @@ fn test_parse_empty_envelope() {
 #[test]
 fn test_parse_envelope_multiple_items() {
     let envelope =
-        b"{\"event_id\":\"abc123\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":4}\ntest\n";
+        b"{\"event_id\":\"abc123\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}\n";
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items[0].headers.item_type, "event");
-    assert_eq!(result.items[1].headers.item_type, "session");
+    assert_eq!(item_type(&result.items[0]), "event");
+    assert_eq!(item_type(&result.items[1]), "session");
 }
 
 // =============================================================================
@@ -108,15 +132,13 @@ fn test_parse_invalid_envelope_headers_json() {
 
 #[test]
 fn test_parse_item_with_content_type() {
+    // content_type is in ItemHeaders which is consumed — we only check that parsing succeeds
     let envelope =
         b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2,\"content_type\":\"application/json\"}\n{}\n";
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(
-        result.items[0].headers.content_type,
-        Some("application/json".to_string())
-    );
+    assert_eq!(item_type(&result.items[0]), "event");
 }
 
 #[test]
@@ -151,8 +173,11 @@ fn test_parse_event_item() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].headers.item_type, "event");
-    assert_eq!(result.items[0].payload, b"{\"level\":\"error\"}");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Event(_)));
+    assert_eq!(
+        raw_payload(&result.items[0]).unwrap(),
+        b"{\"level\":\"error\"}"
+    );
 }
 
 #[test]
@@ -163,7 +188,8 @@ fn test_parse_session_item() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].headers.item_type, "session");
+    // session with valid JSON parses into Session variant
+    assert!(matches!(result.items[0], EnvelopeItemKind::Session(_)));
 }
 
 #[test]
@@ -173,7 +199,7 @@ fn test_parse_transaction_item() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].headers.item_type, "transaction");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Transaction(_)));
 }
 
 #[test]
@@ -182,8 +208,8 @@ fn test_parse_attachment_item() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].headers.item_type, "attachment");
-    assert_eq!(result.items[0].payload, b"data");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Other(ref t, _) if t == "attachment"));
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), b"data");
 }
 
 // =============================================================================
@@ -196,8 +222,8 @@ fn test_parse_explicit_length() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload.len(), 10);
-    assert_eq!(result.items[0].payload, b"0123456789");
+    assert_eq!(raw_payload(&result.items[0]).unwrap().len(), 10);
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), b"0123456789");
 }
 
 #[test]
@@ -206,7 +232,7 @@ fn test_parse_length_zero() {
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload.len(), 0);
+    assert_eq!(raw_payload(&result.items[0]).unwrap().len(), 0);
 }
 
 #[test]
@@ -254,7 +280,10 @@ fn test_parse_without_length_single_item() {
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
-    assert_eq!(result.items[0].payload, b"{\"message\":\"hello\"}");
+    assert_eq!(
+        raw_payload(&result.items[0]).unwrap(),
+        b"{\"message\":\"hello\"}"
+    );
 }
 
 // =============================================================================
@@ -276,7 +305,7 @@ fn test_parse_payload_with_newlines_using_length() {
     let mut parser = EnvelopeParser::new(&envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload, payload);
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), payload);
 }
 
 #[test]
@@ -294,7 +323,7 @@ fn test_parse_json_payload_with_escaped_newlines() {
     let mut parser = EnvelopeParser::new(&envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload, payload);
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), payload);
 }
 
 // =============================================================================
@@ -303,26 +332,26 @@ fn test_parse_json_payload_with_escaped_newlines() {
 
 #[test]
 fn test_parse_three_items() {
-    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":2}\n{}\n{\"type\":\"transaction\",\"length\":2}\n{}\n";
+    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}\n{\"type\":\"transaction\",\"length\":2}\n{}\n";
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 3);
-    assert_eq!(result.items[0].headers.item_type, "event");
-    assert_eq!(result.items[1].headers.item_type, "session");
-    assert_eq!(result.items[2].headers.item_type, "transaction");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Event(_)));
+    assert!(matches!(result.items[1], EnvelopeItemKind::Session(_)));
+    assert!(matches!(result.items[2], EnvelopeItemKind::Transaction(_)));
 }
 
 #[test]
 fn test_parse_mixed_length_items() {
     // Mix of items with and without explicit length
-    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\"}\n{\"s\":1}\n";
+    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"attachment\"}\n{\"s\":1}\n";
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items[0].payload, b"{}");
-    assert_eq!(result.items[1].payload, b"{\"s\":1}");
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), b"{}");
+    assert_eq!(raw_payload(&result.items[1]).unwrap(), b"{\"s\":1}");
 }
 
 // =============================================================================
@@ -366,15 +395,15 @@ fn test_parse_empty_line_between_items() {
     // BUT in this envelope the structure is: header, item1, empty_line, item2
     // The empty line causes parse_item to return None and loop continues to next line
     // which then tries to parse "{\"type\":\"session\"}" as an item header
-    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n\n{\"type\":\"session\"}\n{}";
+    let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}";
     let mut parser = EnvelopeParser::new(envelope);
     let result = parser.parse().unwrap();
 
     // Empty line returns None, then we continue and parse the session item
     // So we get 2 items total
     assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items[0].headers.item_type, "event");
-    assert_eq!(result.items[1].headers.item_type, "session");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Event(_)));
+    assert!(matches!(result.items[1], EnvelopeItemKind::Session(_)));
 }
 
 #[test]
@@ -392,7 +421,7 @@ fn test_parse_binary_payload() {
     let mut parser = EnvelopeParser::new(&envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload, binary);
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), binary);
 }
 
 // =============================================================================
@@ -414,7 +443,7 @@ fn test_parse_unicode_in_payload() {
     let mut parser = EnvelopeParser::new(&envelope);
     let result = parser.parse().unwrap();
 
-    assert_eq!(result.items[0].payload, payload_bytes);
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), payload_bytes);
 }
 
 #[test]
@@ -489,7 +518,7 @@ fn test_parse_sentry_python_style_envelope() {
         Some("9ec79c33ec9942ab8353589fcb2e04dc".to_string())
     );
     assert_eq!(result.items.len(), 1);
-    assert_eq!(result.items[0].headers.item_type, "event");
+    assert!(matches!(result.items[0], EnvelopeItemKind::Event(_)));
 }
 
 #[test]

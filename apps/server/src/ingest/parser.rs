@@ -1,5 +1,5 @@
 use crate::error::{AppError, AppResult};
-use crate::ingest::envelope::{EnvelopeHeaders, EnvelopeItem, ItemHeaders, ParsedEnvelope};
+use crate::ingest::envelope::{EnvelopeHeaders, EnvelopeItemKind, ItemHeaders, ParsedEnvelope};
 
 /// Maximum header size (8KB)
 const MAX_HEADER_SIZE: usize = 8 * 1024;
@@ -45,7 +45,7 @@ impl<'a> EnvelopeParser<'a> {
             .map_err(|e| AppError::Validation(format!("Invalid envelope headers JSON: {}", e)))
     }
 
-    fn parse_item(&mut self) -> AppResult<Option<EnvelopeItem>> {
+    fn parse_item(&mut self) -> AppResult<Option<EnvelopeItemKind>> {
         // Read item headers
         let header_line = self.read_line(MAX_HEADER_SIZE)?;
 
@@ -76,7 +76,7 @@ impl<'a> EnvelopeParser<'a> {
             self.read_line(MAX_EVENT_SIZE)?
         };
 
-        Ok(Some(EnvelopeItem { headers, payload }))
+        Ok(Some(EnvelopeItemKind::from((headers, payload))))
     }
 
     fn read_line(&mut self, max_size: usize) -> AppResult<Vec<u8>> {

@@ -1,0 +1,89 @@
+use chrono::DateTime;
+use sqlx::Row;
+
+use crate::db::DbPool;
+use crate::error::AppResult;
+use crate::models::TransactionResponse;
+use crate::pagination::TransactionCursor;
+
+pub struct TransactionService;
+
+impl TransactionService {
+    /// Lists transactions for a project with cursor-based pagination (newest first).
+    ///
+    /// Transactions are events with event_type = 'transaction'. They have no issue_id.
+    /// Ordered by ingested_at DESC; cursor encodes the last ingested_at boundary.
+    pub async fn list_paginated(
+        pool: &DbPool,
+        project_id: i32,
+        cursor: Option<&TransactionCursor>,
+        limit: i64,
+    ) -> AppResult<(Vec<TransactionResponse>, bool)> {
+        let fetch_limit = limit + 1;
+
+        let rows = if let Some(c) = cursor {
+            sqlx::query(
+                r#"
+                SELECT id, event_id, "transaction" AS transaction_name,
+                       timestamp, start_timestamp,
+                       platform, environment, release, ingested_at
+                FROM events
+                WHERE project_id = $1
+                  AND event_type = 'transaction'
+                  AND ingested_at < $3
+                ORDER BY ingested_at DESC
+                LIMIT $2
+                "#,
+            )
+            .bind(project_id)
+            .bind(fetch_limit)
+            .bind(c.last_ingested_at)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT id, event_id, "transaction" AS transaction_name,
+                       timestamp, start_timestamp,
+                       platform, environment, release, ingested_at
+                FROM events
+                WHERE project_id = $1
+                  AND event_type = 'transaction'
+                ORDER BY ingested_at DESC
+                LIMIT $2
+                "#,
+            )
+            .bind(project_id)
+            .bind(fetch_limit)
+            .fetch_all(pool)
+            .await?
+        };
+
+        let has_more = rows.len() > limit as usize;
+        let rows: Vec<_> = rows.into_iter().take(limit as usize).collect();
+
+        let transactions: Vec<TransactionResponse> = rows
+            .iter()
+            .map(|row| {
+                let timestamp: DateTime<chrono::Utc> = row.get("timestamp");
+                let start_timestamp: Option<DateTime<chrono::Utc>> = row.get("start_timestamp");
+                let duration_ms =
+                    start_timestamp.map(|st| (timestamp - st).num_milliseconds() as f64);
+                TransactionResponse {
+                    id: row.get("id"),
+                    event_id: row.get("event_id"),
+                    transaction_name: row.get("transaction_name"),
+                    timestamp,
+                    start_timestamp,
+                    duration_ms,
+                    platform: row.get("platform"),
+                    environment: row.get("environment"),
+                    release: row.get("release"),
+                    ingested_at: row.get("ingested_at"),
+                }
+            })
+            .collect();
+
+        Ok((transactions, has_more))
+    }
+}

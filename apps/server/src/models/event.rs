@@ -3,14 +3,16 @@ use serde::Serialize;
 use sqlx::FromRow;
 use uuid::Uuid;
 
-/// Event model - a single error occurrence
+/// Event model - a single error or transaction occurrence
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct Event {
     pub id: Uuid,
     pub event_id: Uuid,
     pub project_id: i32,
-    pub issue_id: Uuid,
-    pub grouping_id: i32,
+    /// NULL for transaction events (they don't belong to an issue)
+    pub issue_id: Option<Uuid>,
+    /// NULL for transaction events (they don't have a grouping)
+    pub grouping_id: Option<i32>,
     pub data: serde_json::Value,
     pub timestamp: DateTime<Utc>,
     pub ingested_at: DateTime<Utc>,
@@ -30,6 +32,8 @@ pub struct Event {
     pub sdk_version: String,
     pub remote_addr: Option<String>,
     pub digest_order: i32,
+    /// "error" for error events, "transaction" for performance events
+    pub event_type: String,
 }
 
 /// Response for API (list view)
@@ -38,13 +42,14 @@ pub struct Event {
 pub struct EventResponse {
     pub id: Uuid,
     pub event_id: Uuid,
-    pub issue_id: Uuid,
+    pub issue_id: Option<Uuid>,
     pub title: String,
     pub timestamp: DateTime<Utc>,
     pub level: String,
     pub platform: String,
     pub release: String,
     pub environment: String,
+    pub event_type: String,
 }
 
 /// Response for API (full detail)
@@ -53,7 +58,7 @@ pub struct EventResponse {
 pub struct EventDetailResponse {
     pub id: Uuid,
     pub event_id: Uuid,
-    pub issue_id: Uuid,
+    pub issue_id: Option<Uuid>,
     pub title: String,
     pub timestamp: DateTime<Utc>,
     pub ingested_at: DateTime<Utc>,
@@ -64,6 +69,7 @@ pub struct EventDetailResponse {
     pub server_name: String,
     pub sdk_name: String,
     pub sdk_version: String,
+    pub event_type: String,
     #[cfg_attr(feature = "openapi", schema(value_type = Object))]
     pub data: serde_json::Value,
 }
@@ -91,6 +97,7 @@ impl Event {
             platform: self.platform.clone(),
             release: self.release.clone(),
             environment: self.environment.clone(),
+            event_type: self.event_type.clone(),
         }
     }
 
@@ -110,6 +117,7 @@ impl Event {
             server_name: self.server_name.clone(),
             sdk_name: self.sdk_name.clone(),
             sdk_version: self.sdk_version.clone(),
+            event_type: self.event_type.clone(),
             data: self.data.clone(),
         }
     }

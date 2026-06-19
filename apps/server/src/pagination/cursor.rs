@@ -64,6 +64,37 @@ impl IssueCursor {
     }
 }
 
+/// Cursor for paginating Transactions (keyset on ingested_at DESC)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionCursor {
+    /// Last ingested_at seen (RFC3339), used as keyset boundary
+    pub last_ingested_at: DateTime<Utc>,
+}
+
+impl TransactionCursor {
+    pub fn new(ingested_at: DateTime<Utc>) -> Self {
+        Self {
+            last_ingested_at: ingested_at,
+        }
+    }
+
+    pub fn encode(&self) -> AppResult<String> {
+        let json = serde_json::to_string(self)
+            .map_err(|e| AppError::Internal(format!("Cursor serialization failed: {}", e)))?;
+        Ok(URL_SAFE_NO_PAD.encode(json.as_bytes()))
+    }
+
+    pub fn decode(s: &str) -> AppResult<Self> {
+        let bytes = URL_SAFE_NO_PAD
+            .decode(s)
+            .map_err(|_| AppError::Validation("Invalid cursor encoding".to_string()))?;
+        let json = String::from_utf8(bytes)
+            .map_err(|_| AppError::Validation("Invalid cursor encoding".to_string()))?;
+        serde_json::from_str(&json)
+            .map_err(|_| AppError::Validation("Invalid cursor format".to_string()))
+    }
+}
+
 /// Cursor for paginating Events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventCursor {

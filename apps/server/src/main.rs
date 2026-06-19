@@ -117,6 +117,15 @@ async fn main() -> std::io::Result<()> {
 
     let session_aggregator_data = web::Data::new(session_aggregator.clone());
 
+    // Processor registry — single dispatch surface for the ingest pipeline.
+    // Built once; each processor owns the deps it needs.
+    let processors_data = web::Data::new(rustrak::digest::processors::Processors::new(
+        rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+        config.rate_limit.clone(),
+        Arc::clone(&sourcemap_provider),
+        Some(session_aggregator.clone()),
+    ));
+
     let server = HttpServer::new(move || {
         // CORS configuration - permissive for event ingestion
         // Sentry SDKs can send from any origin. CORS protects the user from
@@ -145,6 +154,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(config.clone()))
             .app_data(sourcemap_provider_data)
             .app_data(session_aggregator_data.clone())
+            .app_data(processors_data.clone())
             // Middleware
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
@@ -180,6 +190,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::members::configure)
             // Session stats routes (more specific than generic projects scope)
             .configure(routes::sessions::configure)
+            // Transactions API (more specific than generic projects scope)
+            .configure(routes::transactions::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)

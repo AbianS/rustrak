@@ -1,3 +1,4 @@
+use crate::models::session::{SessionAggregates, SessionUpdate};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -42,18 +43,61 @@ pub struct ItemHeaders {
     pub content_type: Option<String>,
 }
 
-/// A parsed item from the envelope
+/// Typed representation of a parsed envelope item.
+///
+/// Selective typing: Session/Sessions carry typed structs (small, stable schemas).
+/// Event/Transaction carry raw bytes (large/evolving schemas — deserialized in the processor).
+/// Other is the forward-compatible catch-all that never panics.
 #[derive(Debug)]
-pub struct EnvelopeItem {
-    pub headers: ItemHeaders,
-    pub payload: Vec<u8>,
+pub enum EnvelopeItemKind {
+    Event(Vec<u8>),
+    Transaction(Vec<u8>),
+    Session(SessionUpdate),
+    Sessions(SessionAggregates),
+    Other(String, Vec<u8>),
+}
+
+impl EnvelopeItemKind {
+    /// Returns true for item types that require an associated event_id.
+    /// Mirrors Relay's `Item::requires_event()`.
+    pub fn requires_event(&self) -> bool {
+        match self {
+            Self::Event(_) | Self::Transaction(_) => true,
+            Self::Other(t, _) if t == "attachment" || t == "security" => true,
+            _ => false,
+        }
+    }
+}
+
+impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
+    fn from((headers, payload): (ItemHeaders, Vec<u8>)) -> Self {
+        match headers.item_type.as_str() {
+            "event" => Self::Event(payload),
+            "transaction" => Self::Transaction(payload),
+            "session" => match serde_json::from_slice(&payload) {
+                Ok(s) => Self::Session(s),
+                Err(e) => {
+                    log::warn!("session item: bad JSON, treating as Other: {}", e);
+                    Self::Other("session".into(), payload)
+                }
+            },
+            "sessions" => match serde_json::from_slice(&payload) {
+                Ok(s) => Self::Sessions(s),
+                Err(e) => {
+                    log::warn!("sessions item: bad JSON, treating as Other: {}", e);
+                    Self::Other("sessions".into(), payload)
+                }
+            },
+            other => Self::Other(other.to_owned(), payload),
+        }
+    }
 }
 
 /// Result of parsing an envelope
 #[derive(Debug)]
 pub struct ParsedEnvelope {
     pub headers: EnvelopeHeaders,
-    pub items: Vec<EnvelopeItem>,
+    pub items: Vec<EnvelopeItemKind>,
 }
 
 /// Event metadata for the digest worker

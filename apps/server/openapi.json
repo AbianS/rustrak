@@ -2050,13 +2050,13 @@
                         "required": [
                           "id",
                           "event_id",
-                          "issue_id",
                           "title",
                           "timestamp",
                           "level",
                           "platform",
                           "release",
-                          "environment"
+                          "environment",
+                          "event_type"
                         ],
                         "properties": {
                           "environment": {
@@ -2066,12 +2066,18 @@
                             "type": "string",
                             "format": "uuid"
                           },
+                          "event_type": {
+                            "type": "string"
+                          },
                           "id": {
                             "type": "string",
                             "format": "uuid"
                           },
                           "issue_id": {
-                            "type": "string",
+                            "type": [
+                              "string",
+                              "null"
+                            ],
                             "format": "uuid"
                           },
                           "level": {
@@ -2498,6 +2504,154 @@
           },
           "403": {
             "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/transactions": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "GET /api/projects/{project_id}/transactions\nLists transactions for a project with cursor-based pagination (newest first).",
+        "operationId": "list_transactions",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Pagination cursor (opaque, from previous response)",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Paginated response wrapper (cursor-based)",
+                  "required": [
+                    "items",
+                    "has_more"
+                  ],
+                  "properties": {
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Response model for a single transaction in the list view",
+                        "required": [
+                          "id",
+                          "event_id",
+                          "transaction_name",
+                          "timestamp",
+                          "platform",
+                          "environment",
+                          "release",
+                          "ingested_at"
+                        ],
+                        "properties": {
+                          "duration_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration in milliseconds (timestamp - start_timestamp). None if start_timestamp is missing."
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "event_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "ingested_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "release": {
+                            "type": "string"
+                          },
+                          "start_timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "transaction_name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3728,7 +3882,6 @@
         "required": [
           "id",
           "event_id",
-          "issue_id",
           "title",
           "timestamp",
           "ingested_at",
@@ -3739,6 +3892,7 @@
           "server_name",
           "sdk_name",
           "sdk_version",
+          "event_type",
           "data"
         ],
         "properties": {
@@ -3752,6 +3906,9 @@
             "type": "string",
             "format": "uuid"
           },
+          "event_type": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -3761,7 +3918,10 @@
             "format": "date-time"
           },
           "issue_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid"
           },
           "level": {
@@ -3797,13 +3957,13 @@
         "required": [
           "id",
           "event_id",
-          "issue_id",
           "title",
           "timestamp",
           "level",
           "platform",
           "release",
-          "environment"
+          "environment",
+          "event_type"
         ],
         "properties": {
           "environment": {
@@ -3813,12 +3973,18 @@
             "type": "string",
             "format": "uuid"
           },
+          "event_type": {
+            "type": "string"
+          },
           "id": {
             "type": "string",
             "format": "uuid"
           },
           "issue_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid"
           },
           "level": {
@@ -4202,6 +4368,65 @@
         "description": "Request body for the test-integration endpoint.",
         "properties": {
           "routing_override": {}
+        }
+      },
+      "TransactionResponse": {
+        "type": "object",
+        "description": "Response model for a single transaction in the list view",
+        "required": [
+          "id",
+          "event_id",
+          "transaction_name",
+          "timestamp",
+          "platform",
+          "environment",
+          "release",
+          "ingested_at"
+        ],
+        "properties": {
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Duration in milliseconds (timestamp - start_timestamp). None if start_timestamp is missing."
+          },
+          "environment": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "release": {
+            "type": "string"
+          },
+          "start_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "transaction_name": {
+            "type": "string"
+          }
         }
       },
       "UpdateAlertIntegration": {
