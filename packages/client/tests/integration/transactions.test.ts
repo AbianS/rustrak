@@ -35,4 +35,24 @@ describe('TransactionsResource', () => {
       expect(result).toBeDefined();
     });
   });
+
+  describe('get()', () => {
+    it('returns a transaction detail with full payload', async () => {
+      const txn = await client.transactions.get(
+        1,
+        'a1b2c3d4-e89b-12d3-a456-426614174000',
+      );
+
+      expect(txn.transaction_name).toBe('/api/checkout');
+      expect(txn.duration_ms).toBe(1000.0);
+      expect(txn.data.spans).toHaveLength(1);
+      expect(txn.data.spans[0].op).toBe('db');
+      expect(txn.data.contexts.trace.span_id).toBe('root');
+      expect(txn.data.measurements.lcp.value).toBe(1200.0);
+    });
+
+    it('throws NotFoundError for a missing transaction', async () => {
+      await expect(client.transactions.get(1, 'missing')).rejects.toThrow();
+    });
+  });
 });

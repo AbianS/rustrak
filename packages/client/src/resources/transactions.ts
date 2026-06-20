@@ -1,11 +1,13 @@
 import {
   paginatedResponseSchema,
+  transactionDetailSchema,
   transactionSchema,
 } from '../schemas/index.js';
 import type {
   ListTransactionsOptions,
   PaginatedResponse,
   Transaction,
+  TransactionDetail,
 } from '../types/index.js';
 import { BaseResource } from './base.js';
 
@@ -33,5 +35,20 @@ export class TransactionsResource extends BaseResource {
       .json();
 
     return this.validate(data, paginatedResponseSchema(transactionSchema));
+  }
+
+  /**
+   * Get a single transaction by ID with its full Sentry payload (spans,
+   * contexts.trace, measurements, tags) for the performance detail view.
+   */
+  async get(
+    projectId: number,
+    transactionId: string,
+  ): Promise<TransactionDetail> {
+    const data = await this.http
+      .get(`api/projects/${projectId}/transactions/${transactionId}`)
+      .json();
+
+    return this.validate(data, transactionDetailSchema);
   }
 }
