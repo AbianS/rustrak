@@ -14,6 +14,7 @@ import {
   SourceMapsResource,
   TeamResource,
   TokensResource,
+  TransactionsResource,
 } from './resources/index.js';
 import { createKyInstance } from './utils/index.js';
 
@@ -101,6 +102,11 @@ export class RustrakClient {
   public readonly sessions: SessionsResource;
 
   /**
+   * Transactions API resource (performance monitoring)
+   */
+  public readonly transactions: TransactionsResource;
+
+  /**
    * Health API resource (version info)
    */
   public readonly health: HealthResource;
@@ -126,6 +132,7 @@ export class RustrakClient {
     this.invitations = new InvitationsResource(this.http);
     this.members = new MembersResource(this.http);
     this.sessions = new SessionsResource(this.http);
+    this.transactions = new TransactionsResource(this.http);
     this.health = new HealthResource(this.http);
   }
 }

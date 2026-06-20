@@ -161,6 +161,7 @@ describe('Schema Validation', () => {
         server_name: 'web-1',
         sdk_name: '@sentry/browser',
         sdk_version: '7.0.0',
+        event_type: 'error',
         data: {
           exception: {
             values: [
@@ -199,6 +200,7 @@ describe('Schema Validation', () => {
         server_name: 'web-1',
         sdk_name: '@sentry/browser',
         sdk_version: '7.0.0',
+        event_type: 'error',
         data: {},
       };
 

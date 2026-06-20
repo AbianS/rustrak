@@ -70,6 +70,7 @@ export const mockEvents = [
     platform: 'javascript',
     release: '1.0.0',
     environment: 'production',
+    event_type: 'error',
   },
 ];
 
@@ -87,6 +88,7 @@ export const mockEventDetail = {
   server_name: 'web-1',
   sdk_name: '@sentry/browser',
   sdk_version: '7.0.0',
+  event_type: 'error',
   data: {
     exception: {
       values: [
@@ -1137,6 +1139,30 @@ export const handlers = [
       ]);
     },
   ),
+
+  // Transactions — list transactions for project
+  http.get(`${BASE_URL}/api/projects/:projectId/transactions`, ({ params }) => {
+    if (params.projectId === '999') {
+      return HttpResponse.json({ error: 'not found' }, { status: 404 });
+    }
+    return HttpResponse.json({
+      items: [
+        {
+          id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
+          event_id: 'b2c3d4e5-e89b-12d3-a456-426614174000',
+          transaction_name: '/api/checkout',
+          timestamp: '2026-06-18T12:00:00.000Z',
+          start_timestamp: '2026-06-18T11:59:59.000Z',
+          duration_ms: 1000.0,
+          platform: 'javascript',
+          environment: 'production',
+          release: '1.0.0',
+          ingested_at: '2026-06-18T12:00:01.000Z',
+        },
+      ],
+      has_more: false,
+    });
+  }),
 
   // Source Maps — list source maps for project
   http.get(

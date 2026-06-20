@@ -7,13 +7,14 @@ import { dateTimeSchema, uuidSchema } from './common.js';
 export const eventSchema = z.object({
   id: uuidSchema,
   event_id: uuidSchema,
-  issue_id: uuidSchema,
+  issue_id: uuidSchema.nullable(),
   title: z.string(),
   timestamp: dateTimeSchema,
   level: z.string(),
   platform: z.string(),
   release: z.string(),
   environment: z.string(),
+  event_type: z.string(),
 });
 
 /**
@@ -22,7 +23,7 @@ export const eventSchema = z.object({
 export const eventDetailSchema = z.object({
   id: uuidSchema,
   event_id: uuidSchema,
-  issue_id: uuidSchema,
+  issue_id: uuidSchema.nullable(),
   title: z.string(),
   timestamp: dateTimeSchema,
   ingested_at: dateTimeSchema,
@@ -33,5 +34,6 @@ export const eventDetailSchema = z.object({
   server_name: z.string(),
   sdk_name: z.string(),
   sdk_version: z.string(),
+  event_type: z.string(),
   data: z.record(z.string(), z.any()), // Full Sentry event JSON
 });

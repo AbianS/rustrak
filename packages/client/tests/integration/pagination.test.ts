@@ -220,6 +220,7 @@ describe('Pagination', () => {
                     platform: 'javascript',
                     release: '1.0.0',
                     environment: 'production',
+                    event_type: 'error',
                   },
                 ],
                 next_cursor: 'next',

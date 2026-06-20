@@ -61,6 +61,7 @@ export type {
   ListIssuesOptions,
   ListProjectsOptions,
   ListSourceMapsResponse,
+  ListTransactionsOptions,
   LoginRequest,
   LoginResult,
   /** @deprecated Use AlertIntegration */
@@ -81,6 +82,7 @@ export type {
   TeamMember,
   TestChannelResponse,
   TestIntegrationBody,
+  Transaction,
   UpdateAlertIntegration,
   UpdateAlertRule,
   UpdateIssueState,
