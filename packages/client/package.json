@@ -59,7 +59,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "25.9.3",
+    "@types/node": "26.0.0",
     "@vitest/coverage-v8": "4.1.9",
     "msw": "2.14.6",
     "tsup": "8.5.1",
