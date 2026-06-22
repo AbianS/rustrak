@@ -44,19 +44,19 @@ interface ProjectOption {
 interface ProjectSidebarProps {
   projectId: number;
   projects: ProjectOption[];
-  unresolvedCount: number;
-}
-
-function formatBadge(count: number): string {
-  if (count > 99) return '99+';
-  return String(count);
 }
 
 function initialOf(name: string): string {
   return (name || '?').charAt(0).toUpperCase();
 }
 
-function ProjectAvatar({ name, className }: { name: string; className?: string }) {
+function ProjectAvatar({
+  name,
+  className,
+}: {
+  name: string;
+  className?: string;
+}) {
   return (
     <div
       className={cn(
@@ -151,11 +151,7 @@ function CollapseButton() {
   );
 }
 
-export function ProjectSidebar({
-  projectId,
-  projects,
-  unresolvedCount,
-}: ProjectSidebarProps) {
+export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
   const pathname = usePathname();
 
   const navItems = [
@@ -163,7 +159,6 @@ export function ProjectSidebar({
       href: `/projects/${projectId}/issues`,
       label: 'Issues',
       icon: AlertCircle,
-      badge: unresolvedCount,
     },
     {
       href: `/projects/${projectId}/performance`,
@@ -187,8 +182,6 @@ export function ProjectSidebar({
                 {navItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname.startsWith(item.href);
-                  const showBadge =
-                    item.badge !== undefined && item.badge > 0;
 
                   return (
                     <SidebarMenuItem key={item.href}>
@@ -208,18 +201,6 @@ export function ProjectSidebar({
                         <span className="group-data-[collapsible=icon]:hidden">
                           {item.label}
                         </span>
-                        {showBadge && (
-                          <span
-                            className={cn(
-                              'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums group-data-[collapsible=icon]:hidden',
-                              isActive
-                                ? 'bg-primary-foreground/20 text-primary-foreground'
-                                : 'bg-destructive/10 text-destructive',
-                            )}
-                          >
-                            {formatBadge(item.badge!)}
-                          </span>
-                        )}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
