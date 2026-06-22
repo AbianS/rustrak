@@ -1,5 +1,11 @@
 # @rustrak/client
 
+## 0.3.4
+
+### Patch Changes
+
+- [`bd78a7e`](https://github.com/rustrak/rustrak/commit/bd78a7e8608ef6071480ab8563eef932320601de) Thanks [@AbianS](https://github.com/AbianS)! - Transaction ingestion pipeline with processor-pattern architecture, transaction detail endpoint, new performance dashboard UI with sidebar redesign, and client/MCP API wiring to support the new transaction endpoints
+
 ## 0.3.3
 
 ### Patch Changes
