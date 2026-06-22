@@ -6,6 +6,7 @@ import { getProject } from '@/actions/projects';
 import { getTransaction } from '@/actions/transactions';
 import { Badge } from '@/components/ui/badge';
 import { MeasurementsCard } from './measurements-card';
+import type { Span, TraceContext } from './span-waterfall';
 import { SpanWaterfall } from './span-waterfall';
 
 interface TransactionDetailPageProps {
@@ -168,8 +169,8 @@ export default async function TransactionDetailPage({
               </p>
             ) : (
               <SpanWaterfall
-                spans={spans as never[]}
-                trace={trace as never}
+                spans={spans as Span[]}
+                trace={trace as TraceContext | undefined}
                 transactionStart={transactionStart}
                 transactionEnd={transactionEnd}
               />

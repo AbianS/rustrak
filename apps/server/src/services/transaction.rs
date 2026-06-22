@@ -70,7 +70,7 @@ impl TransactionService {
                 let timestamp: DateTime<chrono::Utc> = row.get("timestamp");
                 let start_timestamp: Option<DateTime<chrono::Utc>> = row.get("start_timestamp");
                 let duration_ms =
-                    start_timestamp.map(|st| (timestamp - st).num_milliseconds() as f64);
+                    start_timestamp.map(|st| (timestamp - st).num_milliseconds().max(0) as f64);
                 TransactionResponse {
                     id: row.get("id"),
                     event_id: row.get("event_id"),
@@ -119,7 +119,8 @@ impl TransactionService {
 
         let timestamp: DateTime<chrono::Utc> = row.get("timestamp");
         let start_timestamp: Option<DateTime<chrono::Utc>> = row.get("start_timestamp");
-        let duration_ms = start_timestamp.map(|st| (timestamp - st).num_milliseconds() as f64);
+        let duration_ms =
+            start_timestamp.map(|st| (timestamp - st).num_milliseconds().max(0) as f64);
 
         Ok(TransactionDetailResponse {
             id: row.get("id"),

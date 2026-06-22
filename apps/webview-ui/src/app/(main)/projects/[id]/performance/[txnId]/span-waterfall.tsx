@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
  * A single Sentry span. Every field is optional — SDKs omit most of them; a
  * minimal legal span is `{ span_id, start_timestamp, timestamp }`.
  */
-interface Span {
+export interface Span {
   span_id?: string;
   parent_span_id?: string;
   op?: string;
@@ -15,7 +15,7 @@ interface Span {
   exclusive_time?: number;
 }
 
-interface TraceContext {
+export interface TraceContext {
   span_id?: string;
   op?: string;
   status?: string;
@@ -126,8 +126,11 @@ export function SpanWaterfall({
     .map((s) => s.timestamp)
     .filter((v): v is number => v != null);
 
-  const traceStart = Math.min(...starts, transactionStart ?? Infinity);
-  const traceEnd = Math.max(...ends, transactionEnd);
+  const traceStart = starts.reduce(
+    (a, b) => Math.min(a, b),
+    transactionStart ?? Infinity,
+  );
+  const traceEnd = ends.reduce((a, b) => Math.max(a, b), transactionEnd);
   const total = traceEnd - traceStart;
 
   const order = buildOrder(spans, trace?.span_id);

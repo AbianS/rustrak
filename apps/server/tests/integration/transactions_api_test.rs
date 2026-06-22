@@ -127,7 +127,7 @@ async fn store_rich_transaction(pool: &rustrak::db::DbPool, project_id: i32, nam
         .expect("Failed to store transaction");
 
     sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM events WHERE project_id = $1 AND event_type = 'transaction' LIMIT 1",
+        "SELECT id FROM events WHERE project_id = $1 AND event_type = 'transaction' ORDER BY ingested_at DESC LIMIT 1",
     )
     .bind(project_id)
     .fetch_one(pool)
