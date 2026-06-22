@@ -73,3 +73,10 @@ export interface ListProjectsOptions {
   per_page?: number;
   order?: SortOrder;
 }
+
+/**
+ * List options for transactions endpoint (cursor-based pagination)
+ */
+export interface ListTransactionsOptions {
+  cursor?: string;
+}

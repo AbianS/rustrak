@@ -10,4 +10,5 @@ export * from './session.js';
 export * from './sourcemap.js';
 export * from './team.js';
 export * from './token.js';
+export * from './transaction.js';
 export * from './user.js';
