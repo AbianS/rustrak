@@ -107,7 +107,7 @@ roles:
       session-04-test-design: "Test design makes risk visible to stakeholders"
       session-05-atdd-automate: "ATDD reduces defect rates early"
       session-06-quality-trace: "Quality metrics: P0/P1 coverage, not vanity metrics"
-      session-07-advanced: "Governance patterns, CI orchestration, NFR assessment"
+      session-07-advanced: "Governance patterns, CI orchestration, NFR evidence audit"
 
 # Role-Based Example Types
 example_types:

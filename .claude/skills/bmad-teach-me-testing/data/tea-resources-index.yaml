@@ -51,7 +51,7 @@ documentation:
         online: "/how-to/workflows/run-trace/"
         workflow: trace
 
-      - name: "NFR Assessment"
+      - name: "NFR Evidence Audit"
         local: "/docs/how-to/workflows/run-nfr-assess.md"
         online: "/how-to/workflows/run-nfr-assess/"
         workflow: nfr-assess

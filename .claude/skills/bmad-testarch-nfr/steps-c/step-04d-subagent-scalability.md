@@ -1,15 +1,15 @@
 ---
 name: 'step-04d-subagent-scalability'
-description: 'Subagent: Scalability NFR assessment'
+description: 'Subagent: Scalability NFR evidence audit'
 subagent: true
 outputFile: '/tmp/tea-nfr-scalability-{{timestamp}}.json'
 ---
 
-# Subagent 4D: Scalability NFR Assessment
+# Subagent 4D: Scalability NFR Evidence Audit
 
 ## SUBAGENT CONTEXT
 
-This is an **isolated subagent** running in parallel with other NFR domain assessments.
+This is an **isolated subagent** running in parallel with other NFR domain evidence audits.
 
 **Your task:** Assess SCALABILITY NFR domain only.
 
@@ -17,7 +17,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
 
 ## SUBAGENT TASK
 
-### 1. Scalability Assessment Categories
+### 1. Scalability Evidence Audit Categories
 
 **A) Horizontal Scaling:**
 

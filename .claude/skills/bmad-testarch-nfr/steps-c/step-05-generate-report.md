@@ -8,7 +8,7 @@ outputFile: '{test_artifacts}/nfr-assessment.md'
 
 ## STEP GOAL
 
-Produce the NFR assessment report and validate completeness.
+Produce the NFR evidence audit report and validate completeness.
 
 ## MANDATORY EXECUTION RULES
 

@@ -118,7 +118,7 @@ Set session-07-advanced `status: 'in-progress'` (only first time).
 - test-levels-framework.md - Unit/Integration/E2E
 - test-priorities-matrix.md - P0-P3 coverage targets
 - probability-impact.md - Probability × impact scoring
-- nfr-criteria.md - NFR assessment definitions
+- nfr-criteria.md - NFR evidence audit definitions
 
 **5. Authentication & Security (3 fragments)**
 

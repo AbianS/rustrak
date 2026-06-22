@@ -6,7 +6,7 @@ workflowType: 'testarch-nfr-assess'
 inputDocuments: []
 ---
 
-# NFR Assessment - {FEATURE_NAME}
+# NFR Evidence Audit - {FEATURE_NAME}
 
 **Date:** {DATE}
 **Story:** {STORY_ID} (if applicable)
@@ -14,7 +14,7 @@ inputDocuments: []
 
 ---
 
-Note: This assessment summarizes existing evidence; it does not run tests or CI workflows.
+Note: This audit summarizes existing implementation evidence; it does not run tests or CI workflows. NFR thresholds and planned evidence should come from PRD, architecture, and `test-design` outputs where available.
 
 ## Executive Summary
 
@@ -217,7 +217,7 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ---
 
-## Custom NFR Assessments (if applicable)
+## Custom NFR Evidence Audits (if applicable)
 
 ### {CUSTOM_NFR_NAME_1}
 
@@ -446,7 +446,7 @@ nfr_assessment:
 
 ## Sign-Off
 
-**NFR Assessment:**
+**NFR Evidence Audit:**
 
 - Overall Status: {OVERALL_STATUS} {OVERALL_ICON}
 - Critical Issues: {CRITICAL_COUNT}
@@ -463,7 +463,7 @@ nfr_assessment:
 - If FAIL ❌: Resolve FAIL status NFRs, re-run `*nfr-assess`
 
 **Generated:** {DATE}
-**Workflow:** testarch-nfr v4.0
+**Workflow:** testarch-nfr v5.0
 
 ---
 

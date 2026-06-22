@@ -64,9 +64,19 @@ description = "Teach Me Testing — interactive learning companion with 7 progre
 skill = "bmad-teach-me-testing"
 
 [[agent.menu]]
+code = "TD"
+description = "Test Design — risk assessment, NFR planning, and coverage strategy for system or epic scope"
+skill = "bmad-testarch-test-design"
+
+[[agent.menu]]
 code = "TF"
 description = "Test Framework — initialize production-ready test framework architecture"
 skill = "bmad-testarch-framework"
+
+[[agent.menu]]
+code = "CI"
+description = "Continuous Integration — recommend and scaffold CI/CD quality pipeline"
+skill = "bmad-testarch-ci"
 
 [[agent.menu]]
 code = "AT"
@@ -79,26 +89,21 @@ description = "Test Automation — generate prioritized API/E2E tests, fixtures,
 skill = "bmad-testarch-automate"
 
 [[agent.menu]]
-code = "TD"
-description = "Test Design — risk assessment plus coverage strategy for system or epic scope"
-skill = "bmad-testarch-test-design"
-
-[[agent.menu]]
-code = "TR"
-description = "Trace Coverage — map requirements, specs, or inferred journeys to tests (Phase 1) and make quality gate decision (Phase 2)"
-skill = "bmad-testarch-trace"
-
-[[agent.menu]]
-code = "NR"
-description = "Non-Functional Requirements — assess NFRs and recommend actions"
-skill = "bmad-testarch-nfr"
-
-[[agent.menu]]
-code = "CI"
-description = "Continuous Integration — recommend and scaffold CI/CD quality pipeline"
-skill = "bmad-testarch-ci"
+code = "GATE"
+description = "Release Gate — route final audit, NFR evidence audit, and trace gate decision"
+prompt = "Help the user run the release gate path. First determine which evidence exists, then recommend the correct sequence: optional test-review for final test quality audit, optional nfr-assess for NFR Evidence Audit, then trace Phase 2 for PASS/CONCERNS/FAIL/WAIVED gate decision. Do not merge these workflows; route to the right one based on available evidence."
 
 [[agent.menu]]
 code = "RV"
 description = "Review Tests — perform a quality check against written tests using comprehensive knowledge base and best practices"
 skill = "bmad-testarch-test-review"
+
+[[agent.menu]]
+code = "NR"
+description = "NFR Evidence Audit — assess implemented NFR evidence and recommend actions"
+skill = "bmad-testarch-nfr"
+
+[[agent.menu]]
+code = "TR"
+description = "Trace Coverage — map requirements to tests (Phase 1) and make quality gate decision (Phase 2)"
+skill = "bmad-testarch-trace"

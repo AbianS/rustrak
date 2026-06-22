@@ -121,6 +121,23 @@ inputDocuments: []
 
 ---
 
+### NFR Testability Requirements
+
+**Purpose:** Capture what architecture must provide so NFR validation can be automated later. This is planning guidance, not final evidence assessment.
+
+| NFR Category    | Threshold / Requirement                           | Current Design Support      | Gap / Decision Needed          | Planned Evidence                        |
+| --------------- | ------------------------------------------------- | --------------------------- | ------------------------------ | --------------------------------------- |
+| Security        | {Auth/authz/data protection requirement}          | {Supported/partial/unknown} | {Architecture gap or decision} | {Security tests, scan, audit log}       |
+| Performance     | {Latency/throughput/resource requirement}         | {Supported/partial/unknown} | {Architecture gap or decision} | {k6/APM/load report}                    |
+| Reliability     | {Availability/error-rate/recovery requirement}    | {Supported/partial/unknown} | {Architecture gap or decision} | {Burn-in, monitoring, failover report}  |
+| Maintainability | {Coverage/code quality/observability requirement} | {Supported/partial/unknown} | {Architecture gap or decision} | {Coverage, static analysis, docs audit} |
+
+**Unknown thresholds:** {List any missing NFR thresholds. Unknown thresholds should become risks or clarification items, not guessed values.}
+
+**Assessment boundary:** Final PASS/CONCERNS/FAIL status belongs in `nfr-assess` after implementation evidence exists.
+
+---
+
 ### Testability Concerns and Architectural Gaps
 
 **🚨 ACTIONABLE CONCERNS - Architecture Team Must Address**

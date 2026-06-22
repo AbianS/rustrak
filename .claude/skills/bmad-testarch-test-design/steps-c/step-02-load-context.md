@@ -75,6 +75,7 @@ Extract:
 - Tech stack & dependencies
 - Integration points
 - NFRs (performance, security, reliability, compliance)
+- NFR thresholds and missing threshold questions
 
 ### Epic-Level Mode (Phase 4)
 
@@ -165,6 +166,7 @@ Use `{knowledgeIndex}` to select and load only relevant fragments.
 ### System-Level Mode (Required)
 
 - `adr-quality-readiness-checklist.md`
+- `nfr-criteria.md`
 - `test-levels-framework.md`
 - `risk-governance.md`
 - `test-quality.md`
@@ -175,6 +177,11 @@ Use `{knowledgeIndex}` to select and load only relevant fragments.
 - `probability-impact.md`
 - `test-levels-framework.md`
 - `test-priorities-matrix.md`
+
+**Epic-Level NFR Loading:**
+
+- Load `nfr-criteria.md` when the epic/story includes security, performance, reliability, scalability, compliance, maintainability, or operational requirements.
+- Use prior system-level NFR planning from `test-design-architecture.md` or `test-design-qa.md` if present.
 
 **Playwright CLI (if `tea_browser_automation` is "cli" or "auto"):**
 

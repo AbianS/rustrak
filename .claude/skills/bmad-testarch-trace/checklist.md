@@ -252,7 +252,7 @@ Knowledge fragments referenced:
 - [ ] Story/epic/release file identified and read
 - [ ] Test design document discovered or explicitly provided (if available)
 - [ ] Traceability matrix discovered or explicitly provided (available from Phase 1)
-- [ ] NFR assessment discovered or explicitly provided (if available)
+- [ ] NFR evidence audit discovered or explicitly provided (if available)
 - [ ] Code coverage report discovered or explicitly provided (if available)
 - [ ] Burn-in results discovered or explicitly provided (if available)
 

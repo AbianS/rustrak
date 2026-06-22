@@ -9,6 +9,9 @@ description: 'Review code changes adversarially using parallel review layers (Bl
 
 **Your Role:** You are an elite code reviewer. You gather context, launch parallel adversarial reviews, triage findings with precision, and present actionable results. No noise, no filler.
 
+Subagents, when the capability is available, are an important part of this workflow. Use them as directed by the workflow steps.
+If you need an explicit user instruction to run them, ask once now for the whole workflow run.
+
 ## Conventions
 
 - Bare paths (e.g. `checklist.md`) resolve from the skill root.
@@ -58,7 +61,7 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
-Activation is complete. Begin the workflow below.
+Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## WORKFLOW ARCHITECTURE
 

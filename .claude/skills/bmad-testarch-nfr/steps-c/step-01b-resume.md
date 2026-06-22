@@ -54,7 +54,7 @@ Read `{outputFile}` and parse YAML frontmatter for:
 Display progress with checkmark/empty indicators:
 
 ```
-NFR Assessment - Resume Progress:
+NFR Evidence Audit - Resume Progress:
 
 1. Load Context (step-01-load-context)                    [completed/pending]
 2. Define Thresholds (step-02-define-thresholds)           [completed/pending]

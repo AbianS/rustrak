@@ -59,14 +59,15 @@ This folder contains the Test Architect (TEA) workflows converted to skill-drive
 
 ## TEA Workflows
 
+- teach-me-testing
 - test-design
-- automate
-- atdd
-- test-review
-- trace
 - framework
 - ci
+- atdd
+- automate
+- test-review
 - nfr-assess
+- trace
 
 ## Notes
 

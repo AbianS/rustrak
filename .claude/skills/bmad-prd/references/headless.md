@@ -18,11 +18,11 @@ When ambiguous, default to interactive.
 The caller passes inputs in their first message (free-form structured payload; no fixed schema, but every field below should be present when applicable):
 
 - `intent` — `"create"`, `"update"`, or `"validate"`. If absent, infer from the artifact set.
-- For **Create**: a brief or product spec the LLM works from (plain text, file path, or URL), plus any persona/scope notes; `doc_workspace` if a specific run folder is required (otherwise the workflow binds the default).
+- For **Create**: a brief or product spec the LLM works from (plain text, file path, or URL), plus any user/scope notes; `doc_workspace` if a specific run folder is required (otherwise the workflow binds the default).
 - For **Update**: the existing `prd.md` path (or a workspace path that contains one), and a change signal (the request: what to change and why).
 - For **Validate**: the existing `prd.md` path (or workspace path), and optionally a checklist override path. Workspace defaults to the PRD's containing directory.
 
-Anything the caller does not provide is either inferred from inputs/workspace or recorded as `assumptions[]` / `open_questions[]` in the JSON status. Do not invent persona detail, success metrics, or scope decisions to fill gaps — record them.
+Anything the caller does not provide is either inferred from inputs/workspace or recorded as `assumptions[]` / `open_questions[]` in the JSON status. Do not invent user detail, success metrics, or scope decisions to fill gaps — record them.
 
 ## General
 
@@ -34,6 +34,6 @@ End with the JSON response (full schemas with examples in `assets/headless-schem
 
 ## Mode-specific overrides
 
-**Update.** Apply the change, log to `.decision-log.md` with rationale, and surface any conflict-with-prior-decision in `conflicts_with_prior_decisions[]` in the JSON status. Halt `blocked` if intent is ambiguous.
+**Update.** Apply the change, log it via `uv run {project-root}/_bmad/scripts/memlog.py append --workspace {doc_workspace} --type change --text "<change + rationale>"`, and surface any conflict-with-prior-decision in `conflicts_with_prior_decisions[]` in the JSON status. Halt `blocked` if intent is ambiguous.
 
 **Validate.** Always write both `validation-report.html` and `validation-report.md` to `{doc_workspace}` regardless of finding count. Always include `"offer_to_update": true` in the JSON status. Skip the browser-open step in `references/validate.md` — write the artifacts and return.

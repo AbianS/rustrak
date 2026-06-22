@@ -46,6 +46,7 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
 - `communication_language`, `document_output_language`
 - `implementation_artifacts`
 - `date` as system-generated current datetime
+- `project_context` = `**/project-context.md` (load if exists)
 - YOU MUST ALWAYS SPEAK OUTPUT in your Agent communication style with the config `{communication_language}`
 
 ### Step 5: Greet the User
@@ -56,7 +57,7 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
-Activation is complete. Begin the workflow below.
+Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## Paths
 
@@ -111,12 +112,14 @@ Run `/bmad:bmm:workflows:sprint-planning` to generate it, then rerun sprint-stat
   <action>Map legacy epic status "contexted" → "in-progress"</action>
   <action>Count epic statuses: backlog, in-progress, done</action>
   <action>Count retrospective statuses: optional, done</action>
+  <action>Parse action_items list if present. Set open_action_items = entries with status "open" or "in-progress"</action>
 
 <action>Validate all statuses against known values:</action>
 
 - Valid story statuses: backlog, ready-for-dev, in-progress, review, done, drafted (legacy)
 - Valid epic statuses: backlog, in-progress, done, contexted (legacy)
 - Valid retrospective statuses: optional, done
+- Valid action item statuses: open, in-progress, done
 
   <check if="any status is unrecognized">
     <output>
@@ -131,6 +134,7 @@ Run `/bmad:bmm:workflows:sprint-planning` to generate it, then rerun sprint-stat
 - Stories: backlog, ready-for-dev, in-progress, review, done
 - Epics: backlog, in-progress, done
 - Retrospectives: optional, done
+- Action items: open, in-progress, done
   </output>
   <ask>How should these be corrected?
   {{#each invalid_entries}}
@@ -179,6 +183,14 @@ Enter corrections (e.g., "1=in-progress, 2=backlog") or "skip" to continue witho
 **Epics:** backlog {{epic_backlog}}, in-progress {{epic_in_progress}}, done {{epic_done}}
 
 **Next Recommendation:** /bmad:bmm:workflows:{{next_workflow_id}} ({{next_story_id}})
+
+{{#if open_action_items}}
+**Open Action Items:**
+{{#each open_action_items}}
+
+- {{action}} — {{status}} (epic {{epic}}, owner: {{owner}})
+  {{/each}}
+  {{/if}}
 
 {{#if risks}}
 **Risks:**
@@ -242,6 +254,7 @@ If the command targets a story, set `story_key={{next_story_id}}` when prompted.
   <template-output>epic_backlog = {{epic_backlog}}</template-output>
   <template-output>epic_in_progress = {{epic_in_progress}}</template-output>
   <template-output>epic_done = {{epic_done}}</template-output>
+  <template-output>open_action_items = {{open_action_items}}</template-output>
   <template-output>risks = {{risks}}</template-output>
   <action>Return to caller</action>
 </step>
@@ -282,6 +295,7 @@ If the command targets a story, set `story_key={{next_story_id}}` when prompted.
 - Stories: backlog, ready-for-dev, in-progress, review, done (legacy: drafted)
 - Epics: backlog, in-progress, done (legacy: contexted)
 - Retrospectives: optional, done
+- Action items (if present): open, in-progress, done
   <check if="any invalid status found">
   <template-output>is_valid = false</template-output>
   <template-output>error = "Invalid status values: {{invalid_entries}}"</template-output>

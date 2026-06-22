@@ -10,7 +10,7 @@ outputFile: '{test_artifacts}/nfr-assessment.md'
 
 ## STEP GOAL
 
-Gather NFR requirements, evidence sources, and knowledge fragments needed for assessment.
+Gather NFR requirements, evidence sources, and knowledge fragments needed for the evidence audit.
 
 ## MANDATORY EXECUTION RULES
 

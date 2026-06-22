@@ -44,6 +44,7 @@ For each requirement or risk-driven scenario:
 - Select **test level** (E2E / API / Component / Unit) using `test-levels-framework.md`
 - Ensure no duplicate coverage across levels
 - Assign priorities (P0–P3) using `test-priorities-matrix.md`
+- Map NFR-derived risks to planned validation scenarios and evidence sources
 
 **Priority rules:**
 
@@ -54,7 +55,20 @@ For each requirement or risk-driven scenario:
 
 ---
 
-## 2. Execution Strategy (Keep Simple)
+## 2. NFR Coverage and Evidence Plan
+
+For each in-scope NFR category:
+
+- Map the NFR to one or more planned validation scenarios
+- Select the right validation level/tool (for example: API/UI tests for auth and resilience, k6 for load/performance, CI/static analysis for maintainability, monitoring/logs for reliability)
+- Identify the expected evidence artifact that `nfr-assess` should consume later
+- Mark missing thresholds or missing evidence sources as blockers, risks, or assumptions
+
+Keep this concise. Do not include full NFR evidence assessment tables or final PASS/CONCERNS/FAIL decisions in test design.
+
+---
+
+## 3. Execution Strategy (Keep Simple)
 
 Use a **PR / Nightly / Weekly** model:
 
@@ -64,7 +78,7 @@ Use a **PR / Nightly / Weekly** model:
 
 ---
 
-## 3. Resource Estimates (Ranges Only)
+## 4. Resource Estimates (Ranges Only)
 
 Provide intervals (no false precision):
 
@@ -76,7 +90,7 @@ Provide intervals (no false precision):
 
 ---
 
-## 4. Quality Gates
+## 5. Quality Gates
 
 Define thresholds:
 
@@ -84,10 +98,12 @@ Define thresholds:
 - P1 pass rate ≥ 95%
 - High-risk mitigations complete before release
 - Coverage target ≥ 80% (adjust if justified)
+- NFR validation evidence identified for each in-scope NFR category
+- Full NFR PASS/CONCERNS/FAIL status deferred to `nfr-assess` when evidence exists
 
 ---
 
-### 5. Save Progress
+### 6. Save Progress
 
 **Save this step's accumulated work to `{outputFile}`.**
 

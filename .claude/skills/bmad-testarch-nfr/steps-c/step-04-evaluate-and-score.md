@@ -1,14 +1,14 @@
 ---
 name: 'step-04-evaluate-and-score'
-description: 'Orchestrate adaptive NFR domain assessments (agent-team, subagent, or sequential)'
+description: 'Orchestrate adaptive NFR evidence domain audits (agent-team, subagent, or sequential)'
 nextStepFile: '{skill-root}/steps-c/step-04e-aggregate-nfr.md'
 ---
 
-# Step 4: Orchestrate Adaptive NFR Assessment
+# Step 4: Orchestrate Adaptive NFR Evidence Audit
 
 ## STEP GOAL
 
-Select execution mode deterministically, then assess NFR domains using agent-team, subagent, or sequential execution while preserving output contracts.
+Select execution mode deterministically, then audit NFR evidence domains using agent-team, subagent, or sequential execution while preserving output contracts.
 
 ## MANDATORY EXECUTION RULES
 
@@ -141,7 +141,7 @@ If probing is disabled, honor the requested mode strictly. If that mode cannot b
 
 ### 3. Dispatch 4 NFR Workers
 
-**Subagent A: Security Assessment**
+**Subagent A: Security Evidence Audit**
 
 - File: `./step-04a-subagent-security.md`
 - Output: `/tmp/tea-nfr-security-${timestamp}.json`
@@ -150,19 +150,19 @@ If probing is disabled, honor the requested mode strictly. If that mode cannot b
   - `sequential`: run blocking and wait
 - Status: Running... ⟳
 
-**Subagent B: Performance Assessment**
+**Subagent B: Performance Evidence Audit**
 
 - File: `./step-04b-subagent-performance.md`
 - Output: `/tmp/tea-nfr-performance-${timestamp}.json`
 - Status: Running... ⟳
 
-**Subagent C: Reliability Assessment**
+**Subagent C: Reliability Evidence Audit**
 
 - File: `./step-04c-subagent-reliability.md`
 - Output: `/tmp/tea-nfr-reliability-${timestamp}.json`
 - Status: Running... ⟳
 
-**Subagent D: Scalability Assessment**
+**Subagent D: Scalability Evidence Audit**
 
 - File: `./step-04d-subagent-scalability.md`
 - Output: `/tmp/tea-nfr-scalability-${timestamp}.json`

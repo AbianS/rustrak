@@ -7,5 +7,5 @@ Test Architecture Enterprise,bmad-testarch-ci,CI Setup,CI,Configure CI/CD qualit
 Test Architecture Enterprise,bmad-testarch-atdd,ATDD,AT,Generate red-phase acceptance test scaffolds before implementation.,,,4-implementation,bmad-create-story:create,bmad-dev-story,false,test_artifacts,atdd-checklist|red-phase acceptance tests
 Test Architecture Enterprise,bmad-testarch-automate,Test Automation,TA,Expand test coverage.,,,4-implementation,bmad-testarch-atdd,,false,test_artifacts,test suite
 Test Architecture Enterprise,bmad-testarch-test-review,Test Review,RV,Quality audit (0-100 scoring).,,,4-implementation,bmad-testarch-automate,,false,test_artifacts,review report
-Test Architecture Enterprise,bmad-testarch-nfr,NFR Assessment,NR,Non-functional requirements assessment.,,,4-implementation,bmad-testarch-automate,,false,test_artifacts,nfr report
+Test Architecture Enterprise,bmad-testarch-nfr,NFR Evidence Audit,NR,Audit non-functional requirement evidence.,,,4-implementation,bmad-testarch-automate,,false,test_artifacts,nfr report
 Test Architecture Enterprise,bmad-testarch-trace,Traceability,TR,Coverage traceability and gate.,,,4-implementation,bmad-testarch-test-review,,false,test_artifacts,traceability matrix|gate decision

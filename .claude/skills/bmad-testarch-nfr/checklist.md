@@ -1,11 +1,11 @@
-# Non-Functional Requirements Assessment - Validation Checklist
+# NFR Evidence Audit - Validation Checklist
 
 **Workflow:** `testarch-nfr`
-**Purpose:** Ensure comprehensive and evidence-based NFR assessment with actionable recommendations
+**Purpose:** Ensure comprehensive evidence-based NFR audit with actionable recommendations
 
 ---
 
-Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI workflows.
+Note: `nfr-assess` is the NFR Evidence Audit. It evaluates existing implementation evidence; it does not run tests or CI workflows. Use `test-design` to plan NFR thresholds and evidence before implementation.
 
 ## Prerequisites Validation
 
@@ -110,7 +110,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 ---
 
-## NFR Assessment with Deterministic Rules
+## NFR Evidence Audit with Deterministic Rules
 
 ### Performance Assessment
 
@@ -152,7 +152,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 - [ ] Status classified (PASS/CONCERNS/FAIL) with justification
 - [ ] Evidence source documented (file path, coverage report)
 
-### Custom NFR Assessment (if applicable)
+### Custom NFR Evidence Audit (if applicable)
 
 - [ ] Custom NFR 1 assessed against threshold with justification
 - [ ] Custom NFR 2 assessed against threshold with justification
@@ -225,7 +225,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 ## Deliverables Generated
 
-### NFR Assessment Report
+### NFR Evidence Audit Report
 
 - [ ] File created at `{test_artifacts}/nfr-assessment.md`
 - [ ] Template from `nfr-report-template.md` used
@@ -257,8 +257,8 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 ### Updated Story File (if enabled and requested)
 
-- [ ] "NFR Assessment" section added to story markdown
-- [ ] Link to NFR assessment report included
+- [ ] "NFR Evidence Audit" section added to story markdown
+- [ ] Link to NFR evidence audit report included
 - [ ] Overall status and critical issues included
 - [ ] Gate status included
 
@@ -358,7 +358,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 ## Documentation and Communication
 
-- [ ] NFR assessment report is readable and well-formatted
+- [ ] NFR evidence audit report is readable and well-formatted
 - [ ] Tables render correctly in markdown
 - [ ] Code blocks have proper syntax highlighting
 - [ ] Links are valid and accessible
@@ -377,7 +377,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 - [ ] Quick wins identified for all CONCERNS/FAIL
 - [ ] Recommended actions are specific and actionable
 - [ ] Evidence gaps documented with owners and deadlines
-- [ ] NFR assessment report generated and saved
+- [ ] NFR evidence audit report generated and saved
 - [ ] Gate YAML snippet generated (if enabled)
 - [ ] Evidence checklist generated (if enabled)
 - [ ] Workflow completed successfully
@@ -386,7 +386,7 @@ Note: `nfr-assess` evaluates existing evidence; it does not run tests or CI work
 
 ## Sign-Off
 
-**NFR Assessment Status:**
+**NFR Evidence Audit Status:**
 
 - [ ] ✅ PASS - All NFRs meet requirements, ready for release
 - [ ] ⚠️ CONCERNS - Some NFRs have concerns, address before next release

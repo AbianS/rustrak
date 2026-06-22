@@ -123,6 +123,21 @@ test('example test @p0', async ({ apiRequest }) => {
 
 ---
 
+## NFR Test Coverage Plan
+
+**Purpose:** Map NFR requirements to planned validation work. This section defines what evidence QA should create or collect; it does not assign final PASS/CONCERNS/FAIL status.
+
+| NFR Category    | Requirement / Threshold | Planned Validation                         | Tool / Level         | Evidence Artifact             | Priority |
+| --------------- | ----------------------- | ------------------------------------------ | -------------------- | ----------------------------- | -------- |
+| Security        | {Requirement}           | {Auth/authz/security validation}           | {API/E2E/SAST/DAST}  | {Report or test result path}  | {P0-P3}  |
+| Performance     | {Requirement}           | {Load/stress/baseline validation}          | {k6/APM/Lighthouse}  | {Report or dashboard}         | {P0-P3}  |
+| Reliability     | {Requirement}           | {Error/retry/failover validation}          | {API/E2E/monitoring} | {Burn-in/log/metric evidence} | {P0-P3}  |
+| Maintainability | {Requirement}           | {Coverage/static analysis/docs validation} | {CI/static analysis} | {Coverage or quality report}  | {P0-P3}  |
+
+**Missing thresholds or evidence sources:** {List NFRs that need stakeholder clarification or tooling before `nfr-assess`.}
+
+---
+
 ## Entry Criteria
 
 **QA testing cannot begin until ALL of the following are met:**

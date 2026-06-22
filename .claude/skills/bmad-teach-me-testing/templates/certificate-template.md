@@ -53,7 +53,7 @@ average_score: { { average_score } }
 - ✅ **Architecture Patterns:** Fixtures, network-first patterns, data factories
 - ✅ **Test Design:** Risk assessment, coverage planning, P0-P3 prioritization
 - ✅ **Test Development:** ATDD red-green approach, test automation
-- ✅ **Quality Assurance:** Test review, traceability, NFR assessment
+- ✅ **Quality Assurance:** Test review, traceability, NFR evidence audit
 - ✅ **Advanced Techniques:** 42 knowledge fragments explored
 
 ---

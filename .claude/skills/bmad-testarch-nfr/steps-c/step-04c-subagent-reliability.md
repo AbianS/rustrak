@@ -1,15 +1,15 @@
 ---
 name: 'step-04c-subagent-reliability'
-description: 'Subagent: Reliability NFR assessment'
+description: 'Subagent: Reliability NFR evidence audit'
 subagent: true
 outputFile: '/tmp/tea-nfr-reliability-{{timestamp}}.json'
 ---
 
-# Subagent 4C: Reliability NFR Assessment
+# Subagent 4C: Reliability NFR Evidence Audit
 
 ## SUBAGENT CONTEXT
 
-This is an **isolated subagent** running in parallel with other NFR domain assessments.
+This is an **isolated subagent** running in parallel with other NFR domain evidence audits.
 
 **Your task:** Assess RELIABILITY NFR domain only.
 
@@ -17,7 +17,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
 
 ## SUBAGENT TASK
 
-### 1. Reliability Assessment Categories
+### 1. Reliability Evidence Audit Categories
 
 **A) Error Handling:**
 

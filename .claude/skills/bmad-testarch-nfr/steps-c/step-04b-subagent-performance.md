@@ -1,15 +1,15 @@
 ---
 name: 'step-04b-subagent-performance'
-description: 'Subagent: Performance NFR assessment'
+description: 'Subagent: Performance NFR evidence audit'
 subagent: true
 outputFile: '/tmp/tea-nfr-performance-{{timestamp}}.json'
 ---
 
-# Subagent 4B: Performance NFR Assessment
+# Subagent 4B: Performance NFR Evidence Audit
 
 ## SUBAGENT CONTEXT
 
-This is an **isolated subagent** running in parallel with other NFR domain assessments.
+This is an **isolated subagent** running in parallel with other NFR domain evidence audits.
 
 **Your task:** Assess PERFORMANCE NFR domain only.
 
@@ -17,7 +17,7 @@ This is an **isolated subagent** running in parallel with other NFR domain asses
 
 ## SUBAGENT TASK
 
-### 1. Performance Assessment Categories
+### 1. Performance Evidence Audit Categories
 
 **A) Response Times:**
 

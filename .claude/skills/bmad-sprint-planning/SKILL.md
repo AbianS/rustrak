@@ -47,6 +47,7 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
 - `implementation_artifacts`
 - `planning_artifacts`
 - `date` as system-generated current datetime
+- `project_context` = `**/project-context.md` (load if exists)
 - YOU MUST ALWAYS SPEAK OUTPUT in your Agent communication style with the config `{communication_language}`
 - Generate all documents in `{document_output_language}`
 
@@ -58,7 +59,7 @@ Greet `{user_name}`, speaking in `{communication_language}`.
 
 Execute each entry in `{workflow.activation_steps_append}` in order.
 
-Activation is complete. Begin the workflow below.
+Activation is complete. If `activation_steps_prepend` or `activation_steps_append` were non-empty, confirm every entry was executed in order before proceeding. Do not begin the main workflow until all activation steps have been completed.
 
 ## Paths
 
@@ -150,6 +151,7 @@ development_status:
 
 - If existing `{status_file}` exists and has more advanced status, preserve it
 - Never downgrade status (e.g., don't change `done` to `ready-for-dev`)
+- If existing `{status_file}` has an `action_items` section, carry it over unchanged
 
 **Status Flow Reference:**
 
@@ -193,12 +195,18 @@ development_status:
 #   - optional: Can be completed but not required
 #   - done: Retrospective has been completed
 #
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
 # WORKFLOW NOTES:
 # ===============
 # - Epic transitions to 'in-progress' automatically when first story is created
 # - Stories can be worked in parallel if team capacity allows
 # - Developer typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: { date }
 last_updated: { date }
@@ -214,6 +222,7 @@ development_status:
 <action>Write the complete sprint status YAML to {status_file}</action>
 <action>CRITICAL: Metadata appears TWICE - once as comments (#) for documentation, once as YAML key:value fields for parsing</action>
 <action>Ensure all items are ordered: epic, its stories, its retrospective, next epic...</action>
+<action>If the existing file had an action_items section, write it back unchanged after development_status</action>
 </step>
 
 <step n="5" goal="Validate and report">
@@ -222,7 +231,8 @@ development_status:
 - [ ] Every epic in epic files appears in {status_file}
 - [ ] Every story in epic files appears in {status_file}
 - [ ] Every epic has a corresponding retrospective entry
-- [ ] No items in {status_file} that don't exist in epic files
+- [ ] No development_status items in {status_file} that don't exist in epic files
+- [ ] action_items section (if it existed) carried over unchanged
 - [ ] All status values are legal (match state machine definitions)
 - [ ] File is valid YAML syntax
 
@@ -289,6 +299,16 @@ optional ↔ done
 
 - **optional**: Ready to be conducted but not required
 - **done**: Finished
+
+**Action Item Status:**
+
+```
+open → in-progress → done
+```
+
+- **open**: Committed during a retrospective, not yet addressed
+- **in-progress**: Actively being worked on
+- **done**: Completed
 
 ### Guidelines
 
