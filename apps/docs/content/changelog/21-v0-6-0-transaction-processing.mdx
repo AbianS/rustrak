@@ -1,0 +1,28 @@
+---
+version: v0.6.0
+title: Transaction Processing & Performance Dashboard
+description: Transaction ingestion pipeline, performance UI dashboard, sidebar redesign, and client/MCP transaction API support.
+date: 2026-06-22
+tags: [server, webview-ui, client, mcp, performance]
+---
+
+## Transaction Ingestion Pipeline
+
+The server now supports ingestion of Sentry transaction events via a new processor-pipeline architecture. Events flow through a configurable chain of processors, enabling extensible event processing for both errors and transactions. This lays the groundwork for future span and performance data processing.
+
+## Performance Dashboard
+
+A new transaction detail endpoint provides access to stored transactions with full context. The webview-ui now includes a performance dashboard view with:
+
+- Transaction list and detail views
+- Performance-focused UI components with span timing visualization
+- Sidebar redesign with consolidated navigation
+
+## Client & MCP Support
+
+The TypeScript client package and MCP server now include transaction API methods, enabling programmatic access to the new transaction endpoints from external tools and AI agents.
+
+## Fixes
+
+- Removed issue count badge from project sidebar for cleaner navigation
+- Addressed review feedback across server, client, and UI packages
