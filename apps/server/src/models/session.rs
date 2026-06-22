@@ -12,7 +12,7 @@ fn de_non_negative_i64<'de, D: Deserializer<'de>>(d: D) -> Result<i64, D::Error>
 }
 
 /// Wire struct for a single `session` envelope item from a Sentry SDK.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct SessionUpdate {
     pub sid: Option<String>,
     pub did: Option<String>,

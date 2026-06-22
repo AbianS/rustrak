@@ -127,6 +127,14 @@ async fn test_rate_limit_project_exceeded_returns_429() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -181,6 +189,14 @@ async fn test_rate_limit_project_expired_allows_request() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -228,6 +244,14 @@ async fn test_rate_limit_installation_exceeded_returns_429() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -270,6 +294,14 @@ async fn test_rate_limit_response_body() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -335,6 +367,14 @@ async fn test_rate_limit_429_has_cors_headers() {
                 web::Data::new(provider)
             })
             .wrap(cors)
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -388,6 +428,14 @@ async fn test_no_rate_limit_allows_request() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;
@@ -436,6 +484,14 @@ async fn test_rate_limit_affects_only_specific_project() {
                     Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
                 web::Data::new(provider)
             })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
             .configure(routes::ingest::configure),
     )
     .await;

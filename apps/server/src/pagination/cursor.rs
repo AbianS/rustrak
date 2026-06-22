@@ -64,6 +64,45 @@ impl IssueCursor {
     }
 }
 
+/// Cursor for paginating Transactions (compound keyset on (ingested_at, id) DESC).
+///
+/// `ingested_at` alone is not unique — two transactions can share the same
+/// timestamp at a page boundary. The `id` tiebreaker makes the keyset
+/// deterministic so no row is silently skipped (mirrors how Issue/Event cursors
+/// rely on the unique `digest_order`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionCursor {
+    /// Last ingested_at seen, used as the primary keyset boundary
+    pub last_ingested_at: DateTime<Utc>,
+    /// Last id seen, used as the tiebreaker for equal ingested_at values
+    pub last_id: Uuid,
+}
+
+impl TransactionCursor {
+    pub fn new(ingested_at: DateTime<Utc>, id: Uuid) -> Self {
+        Self {
+            last_ingested_at: ingested_at,
+            last_id: id,
+        }
+    }
+
+    pub fn encode(&self) -> AppResult<String> {
+        let json = serde_json::to_string(self)
+            .map_err(|e| AppError::Internal(format!("Cursor serialization failed: {}", e)))?;
+        Ok(URL_SAFE_NO_PAD.encode(json.as_bytes()))
+    }
+
+    pub fn decode(s: &str) -> AppResult<Self> {
+        let bytes = URL_SAFE_NO_PAD
+            .decode(s)
+            .map_err(|_| AppError::Validation("Invalid cursor encoding".to_string()))?;
+        let json = String::from_utf8(bytes)
+            .map_err(|_| AppError::Validation("Invalid cursor encoding".to_string()))?;
+        serde_json::from_str(&json)
+            .map_err(|_| AppError::Validation("Invalid cursor format".to_string()))
+    }
+}
+
 /// Cursor for paginating Events
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventCursor {

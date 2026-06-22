@@ -9,6 +9,7 @@ pub mod project;
 pub mod project_member;
 pub mod session;
 pub mod source_file;
+pub mod transaction;
 pub mod user;
 
 pub use alert::{
@@ -53,4 +54,5 @@ pub use invitation::{
 pub use issue::{Issue, IssueResponse, UpdateIssueState};
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
+pub use transaction::TransactionResponse;
 pub use user::{CreateUserRequest, LoginRequest, User, UserRole};

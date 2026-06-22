@@ -2,10 +2,10 @@
 //!
 //! Tests the complete event digest workflow: ingest -> grouping -> issue creation.
 
+use crate::common::process_error_event;
 use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
-use rustrak::digest::worker::process_event;
 use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
 use rustrak::services::{EventService, IssueService, ProjectService};
@@ -87,7 +87,7 @@ async fn test_digest_creates_issue_and_event() {
     };
 
     // Process the event
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,
@@ -121,6 +121,77 @@ async fn test_digest_creates_issue_and_event() {
         .await
         .expect("Failed to check event existence");
     assert!(exists);
+}
+
+#[actix_web::test]
+async fn test_error_processor_impl_creates_issue_and_event() {
+    // Parity proof: ErrorProcessor::process (the trait API) must produce the
+    // exact same outcome as the legacy process_error_event() free function.
+    use rustrak::digest::processors::{ErrorProcessor, Processor, ProcessorCtx};
+
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "ErrorProcessor Trait Test").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let event_json = create_event_json(&event_id);
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+
+    let metadata = EventMetadata {
+        event_id: event_id.clone(),
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    let processor = ErrorProcessor::new(
+        ingest_dir.to_path_buf(),
+        rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    );
+    let ctx = ProcessorCtx {
+        pool: db.pool.clone(),
+        project_id: project.id,
+        event_id: Uuid::parse_str(&event_id).expect("Invalid event_id"),
+        ingested_at: metadata.ingested_at,
+        remote_addr: None,
+    };
+
+    processor
+        .process(metadata, &ctx)
+        .await
+        .expect("ErrorProcessor failed to process event");
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(
+        issues.len(),
+        1,
+        "ErrorProcessor must create exactly one issue"
+    );
+    assert_eq!(issues[0].calculated_type, "TypeError");
+    assert!(issues[0].calculated_value.contains("Cannot read property"));
+
+    let event_uuid = Uuid::parse_str(&event_id).expect("Invalid event_id");
+    let exists = EventService::exists(&db.pool, project.id, event_uuid)
+        .await
+        .expect("Failed to check event existence");
+    assert!(exists, "ErrorProcessor must store the event");
 }
 
 #[actix_web::test]
@@ -160,7 +231,7 @@ async fn test_digest_groups_similar_events() {
             remote_addr: None,
         };
 
-        process_event(
+        process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -230,7 +301,7 @@ async fn test_digest_creates_separate_issues_for_different_errors() {
             remote_addr: None,
         };
 
-        process_event(
+        process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -294,7 +365,7 @@ async fn test_digest_handles_custom_fingerprint() {
             remote_addr: None,
         };
 
-        process_event(
+        process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -358,7 +429,7 @@ async fn test_digest_handles_default_fingerprint_placeholder() {
         remote_addr: None,
     };
 
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,
@@ -414,7 +485,7 @@ async fn test_digest_ignores_duplicate_event_id() {
         };
 
         // Second processing should silently ignore the duplicate
-        let _ = process_event(
+        let _ = process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -479,7 +550,7 @@ async fn test_digest_groups_log_messages() {
             remote_addr: None,
         };
 
-        process_event(
+        process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -547,7 +618,7 @@ async fn test_digest_updates_issue_last_seen() {
         remote_addr: None,
     };
 
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata1,
         ingest_dir,
@@ -602,7 +673,7 @@ async fn test_digest_updates_issue_last_seen() {
         remote_addr: None,
     };
 
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata2,
         ingest_dir,
@@ -661,7 +732,7 @@ async fn test_digest_updates_project_counters() {
             remote_addr: None,
         };
 
-        process_event(
+        process_error_event(
             &db.pool,
             &metadata,
             ingest_dir,
@@ -713,7 +784,7 @@ async fn test_process_event_cleans_up_temp_file_on_failure() {
         remote_addr: None,
     };
 
-    let result = process_event(
+    let result = process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,
@@ -766,7 +837,7 @@ async fn test_digest_handles_missing_exception() {
     };
 
     // Should still process successfully with fallback grouping
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,
@@ -825,7 +896,7 @@ async fn test_digest_handles_multiline_error_value() {
         remote_addr: None,
     };
 
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,
@@ -879,7 +950,7 @@ async fn test_digest_cleans_up_temp_file() {
         remote_addr: None,
     };
 
-    process_event(
+    process_error_event(
         &db.pool,
         &metadata,
         ingest_dir,

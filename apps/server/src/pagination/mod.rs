@@ -1,6 +1,6 @@
 pub mod cursor;
 
-pub use cursor::{EventCursor, IssueCursor};
+pub use cursor::{EventCursor, IssueCursor, TransactionCursor};
 
 use serde::{Deserialize, Serialize};
 

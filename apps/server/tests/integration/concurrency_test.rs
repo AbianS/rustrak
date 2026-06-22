@@ -3,10 +3,10 @@
 //! Tests that verify the advisory lock mechanism properly handles concurrent
 //! event processing without race conditions.
 
+use crate::common::process_error_event;
 use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
-use rustrak::digest::worker::process_event;
 use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
 use rustrak::pagination::{IssueSort, SortOrder};
@@ -96,7 +96,7 @@ async fn test_concurrent_different_errors_same_project_creates_sequential_issues
                 remote_addr: None,
             };
 
-            process_event(
+            process_error_event(
                 &pool_clone,
                 &metadata,
                 &ingest_dir_clone,
@@ -187,7 +187,7 @@ async fn test_concurrent_same_errors_same_project_groups_into_one_issue() {
                 remote_addr: None,
             };
 
-            process_event(
+            process_error_event(
                 &pool_clone,
                 &metadata,
                 &ingest_dir_clone,
@@ -278,7 +278,7 @@ async fn test_concurrent_different_projects_process_in_parallel() {
                     remote_addr: None,
                 };
 
-                process_event(
+                process_error_event(
                     &pool_clone,
                     &metadata,
                     &ingest_dir_clone,
@@ -375,7 +375,7 @@ async fn test_high_concurrency_stress_test() {
                 remote_addr: None,
             };
 
-            process_event(
+            process_error_event(
                 &pool_clone,
                 &metadata,
                 &ingest_dir_clone,
@@ -480,7 +480,7 @@ async fn test_concurrent_mixed_create_and_update() {
                     remote_addr: None,
                 };
 
-                process_event(
+                process_error_event(
                     &pool_clone,
                     &metadata,
                     &ingest_dir_clone,
