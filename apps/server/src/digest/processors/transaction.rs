@@ -18,12 +18,32 @@ impl Processor for TransactionProcessor {
 
         let timestamp = extract_timestamp(&data, "timestamp").unwrap_or(ctx.ingested_at);
         let start_timestamp = extract_timestamp(&data, "start_timestamp");
-        let transaction_name = data
-            .get("transaction")
+        let transaction_name = extract_str(&data, "transaction");
+        let spans: Option<serde_json::Value> = data.get("spans").cloned();
+
+        // Denormalize the fields the list/detail views surface so they don't
+        // have to parse the JSONB payload on every read.
+        let platform = extract_str(&data, "platform");
+        let release = extract_str(&data, "release");
+        let environment = extract_str(&data, "environment");
+        let server_name = extract_str(&data, "server_name");
+        let level = data
+            .get("level")
+            .and_then(|v| v.as_str())
+            .unwrap_or("info")
+            .to_string();
+        let sdk_name = data
+            .get("sdk")
+            .and_then(|s| s.get("name"))
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let spans: Option<serde_json::Value> = data.get("spans").cloned();
+        let sdk_version = data
+            .get("sdk")
+            .and_then(|s| s.get("version"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
 
         let id = Uuid::new_v4();
 
@@ -45,8 +65,8 @@ impl Processor for TransactionProcessor {
                 'transaction', $7, $8,
                 '', '', $9,
                 '', '', '',
-                'info', '', '', '', '',
-                '', '', $10, 1
+                $10, $11, $12, $13, $14,
+                $15, $16, $17, 1
             )
             "#,
         )
@@ -59,12 +79,27 @@ impl Processor for TransactionProcessor {
         .bind(start_timestamp)
         .bind(spans)
         .bind(transaction_name)
+        .bind(level)
+        .bind(platform)
+        .bind(release)
+        .bind(environment)
+        .bind(server_name)
+        .bind(sdk_name)
+        .bind(sdk_version)
         .bind(ctx.remote_addr.as_deref())
         .execute(&ctx.pool)
         .await?;
 
         Ok(())
     }
+}
+
+/// Extracts a top-level string field from the payload, defaulting to empty.
+fn extract_str(data: &serde_json::Value, key: &str) -> String {
+    data.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
 }
 
 fn extract_timestamp(data: &serde_json::Value, key: &str) -> Option<DateTime<Utc>> {

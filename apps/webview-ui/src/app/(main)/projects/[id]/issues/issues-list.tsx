@@ -68,11 +68,13 @@ export function IssuesList({
   const { items: issues, total_count, total_pages, per_page } = initialIssues;
 
   const handleFilterChange = (filter: string) => {
-    router.push(`/projects/${projectId}?filter=${filter}&page=1`);
+    router.push(`/projects/${projectId}/issues?filter=${filter}&page=1`);
   };
 
   const handlePageChange = (page: number) => {
-    router.push(`/projects/${projectId}?filter=${currentFilter}&page=${page}`);
+    router.push(
+      `/projects/${projectId}/issues?filter=${currentFilter}&page=${page}`,
+    );
   };
 
   const toggleSelectAll = () => {

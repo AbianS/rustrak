@@ -77,6 +77,7 @@ impl Modify for SecurityAddon {
         crate::routes::sourcemaps::list_source_maps,
         crate::routes::sessions::get_stats,
         crate::routes::transactions::list_transactions,
+        crate::routes::transactions::get_transaction,
     ),
     components(schemas(
         crate::models::ProjectResponse,
@@ -87,6 +88,7 @@ impl Modify for SecurityAddon {
         crate::models::EventResponse,
         crate::models::EventDetailResponse,
         crate::models::TransactionResponse,
+        crate::models::TransactionDetailResponse,
         crate::models::AuthTokenResponse,
         crate::models::AuthTokenCreatedResponse,
         crate::models::CreateAuthToken,

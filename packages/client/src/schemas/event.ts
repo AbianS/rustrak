@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { dateTimeSchema, uuidSchema } from './common.js';
+import { dateTimeSchema, eventIdSchema, uuidSchema } from './common.js';
 
 /**
  * Event response schema from list endpoint
  */
 export const eventSchema = z.object({
   id: uuidSchema,
-  event_id: uuidSchema,
+  event_id: eventIdSchema,
   issue_id: uuidSchema.nullable(),
   title: z.string(),
   timestamp: dateTimeSchema,
@@ -22,7 +22,7 @@ export const eventSchema = z.object({
  */
 export const eventDetailSchema = z.object({
   id: uuidSchema,
-  event_id: uuidSchema,
+  event_id: eventIdSchema,
   issue_id: uuidSchema.nullable(),
   title: z.string(),
   timestamp: dateTimeSchema,

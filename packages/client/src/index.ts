@@ -83,6 +83,7 @@ export type {
   TestChannelResponse,
   TestIntegrationBody,
   Transaction,
+  TransactionDetail,
   UpdateAlertIntegration,
   UpdateAlertRule,
   UpdateIssueState,

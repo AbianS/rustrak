@@ -7,6 +7,7 @@ import {
   issueSchema,
   paginatedResponseSchema,
   projectSchema,
+  transactionSchema,
 } from '../../src/schemas/index.js';
 
 describe('Schema Validation', () => {
@@ -205,6 +206,49 @@ describe('Schema Validation', () => {
       };
 
       const result = eventDetailSchema.safeParse(event);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('transactionSchema', () => {
+    const base = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      event_id: '550e8400-e29b-41d4-a716-446655440000',
+      transaction_name: '/api/checkout',
+      timestamp: '2026-06-18T12:00:00.000Z',
+      start_timestamp: '2026-06-18T11:59:59.000Z',
+      duration_ms: 1000,
+      platform: 'node',
+      environment: 'production',
+      release: '1.0.0',
+      ingested_at: '2026-06-18T12:00:01.000Z',
+    };
+
+    it('accepts a Sentry event_id whose version nibble is not RFC 1-8', () => {
+      // Sentry event ids are 32 random hex chars; once formatted as a UUID the
+      // version nibble (here `9`) and variant are arbitrary. The list must not
+      // be rejected wholesale because of this. Regression for empty Performance.
+      const result = transactionSchema.safeParse({
+        ...base,
+        event_id: '5bda3e1e-66be-9c41-bf8a-1c97848e1092',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('still rejects a malformed event_id', () => {
+      const result = transactionSchema.safeParse({
+        ...base,
+        event_id: 'not-a-uuid',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('accepts a null start_timestamp and duration', () => {
+      const result = transactionSchema.safeParse({
+        ...base,
+        start_timestamp: null,
+        duration_ms: null,
+      });
       expect(result.success).toBe(true);
     });
   });

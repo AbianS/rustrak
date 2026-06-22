@@ -94,6 +94,145 @@ async fn store_test_transaction(pool: &rustrak::db::DbPool, project_id: i32, nam
         .expect("Failed to store transaction");
 }
 
+/// Stores a transaction carrying a full payload (spans + contexts.trace) and
+/// returns the stored events row primary key (`id`) for detail lookups.
+async fn store_rich_transaction(pool: &rustrak::db::DbPool, project_id: i32, name: &str) -> Uuid {
+    let ctx = ProcessorCtx {
+        pool: pool.clone(),
+        project_id,
+        event_id: Uuid::new_v4(),
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+    let payload = serde_json::to_vec(&json!({
+        "event_id": Uuid::new_v4().to_string(),
+        "type": "transaction",
+        "transaction": name,
+        "timestamp": Utc::now().timestamp(),
+        "start_timestamp": (Utc::now().timestamp() - 1),
+        "platform": "javascript",
+        "environment": "production",
+        "release": "1.0.0",
+        "contexts": { "trace": { "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "span_id": "bbbbbbbbbbbbbbbb", "op": "http.server" } },
+        "spans": [
+            { "span_id": "cccccccccccccccc", "parent_span_id": "bbbbbbbbbbbbbbbb", "op": "db", "description": "SELECT 1", "start_timestamp": 1.0, "timestamp": 1.5 }
+        ],
+        "measurements": { "lcp": { "value": 1200.0, "unit": "millisecond" } },
+        "tags": { "browser": "Chrome" }
+    }))
+    .unwrap();
+    TransactionProcessor
+        .process(payload, &ctx)
+        .await
+        .expect("Failed to store transaction");
+
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM events WHERE project_id = $1 AND event_type = 'transaction' ORDER BY ingested_at DESC LIMIT 1",
+    )
+    .bind(project_id)
+    .fetch_one(pool)
+    .await
+    .expect("stored transaction id")
+}
+
+#[actix_web::test]
+async fn test_get_transaction_returns_full_detail_with_data() {
+    let db = TestDb::new().await;
+    let pool = db.pool.clone();
+    let config = create_test_config();
+    let token = create_test_token(&pool).await;
+    let project = create_test_project(&pool, "Transaction Detail Test").await;
+
+    let txn_id = store_rich_transaction(&pool, project.id, "/api/checkout").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .configure(routes::transactions::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/transactions/{}",
+            project.id, txn_id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], txn_id.to_string());
+    assert_eq!(body["transaction_name"], "/api/checkout");
+    assert_eq!(body["platform"], "javascript");
+    // The full Sentry payload must be returned under `data`.
+    assert_eq!(body["data"]["spans"][0]["op"], "db");
+    assert_eq!(
+        body["data"]["contexts"]["trace"]["span_id"],
+        "bbbbbbbbbbbbbbbb"
+    );
+    assert_eq!(body["data"]["measurements"]["lcp"]["value"], 1200.0);
+}
+
+#[actix_web::test]
+async fn test_get_transaction_404_for_unknown_id() {
+    let db = TestDb::new().await;
+    let pool = db.pool.clone();
+    let config = create_test_config();
+    let token = create_test_token(&pool).await;
+    let project = create_test_project(&pool, "Transaction Detail 404 Test").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .configure(routes::transactions::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/transactions/{}",
+            project.id,
+            Uuid::new_v4()
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
+async fn test_get_transaction_401_without_token() {
+    let db = TestDb::new().await;
+    let pool = db.pool.clone();
+    let config = create_test_config();
+    let project = create_test_project(&pool, "Transaction Detail Auth Test").await;
+    let txn_id = store_rich_transaction(&pool, project.id, "/api/x").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .configure(routes::transactions::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/transactions/{}",
+            project.id, txn_id
+        ))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}
+
 #[actix_web::test]
 async fn test_list_transactions_returns_empty_when_none_exist() {
     let db = TestDb::new().await;

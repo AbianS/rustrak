@@ -1164,6 +1164,46 @@ export const handlers = [
     });
   }),
 
+  // Transactions — get single transaction detail
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/transactions/:transactionId`,
+    ({ params }) => {
+      if (params.transactionId === 'missing') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json({
+        id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
+        event_id: 'b2c3d4e5-e89b-12d3-a456-426614174000',
+        transaction_name: '/api/checkout',
+        timestamp: '2026-06-18T12:00:00.000Z',
+        start_timestamp: '2026-06-18T11:59:59.000Z',
+        duration_ms: 1000.0,
+        platform: 'javascript',
+        environment: 'production',
+        release: '1.0.0',
+        ingested_at: '2026-06-18T12:00:01.000Z',
+        data: {
+          transaction: '/api/checkout',
+          contexts: {
+            trace: { trace_id: 'abc', span_id: 'root', op: 'http.server' },
+          },
+          spans: [
+            {
+              span_id: 'child1',
+              parent_span_id: 'root',
+              op: 'db',
+              description: 'SELECT 1',
+              start_timestamp: 1.0,
+              timestamp: 1.5,
+            },
+          ],
+          measurements: { lcp: { value: 1200.0, unit: 'millisecond' } },
+          tags: { browser: 'Chrome' },
+        },
+      });
+    },
+  ),
+
   // Source Maps — list source maps for project
   http.get(
     `${BASE_URL}/api/0/projects/:orgSlug/:projectSlug/files/source-maps/`,
