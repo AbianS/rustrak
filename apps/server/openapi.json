@@ -2518,7 +2518,7 @@
         "tags": [
           "Transactions"
         ],
-        "summary": "GET /api/projects/{project_id}/transactions\nLists transactions for a project with cursor-based pagination (newest first).",
+        "summary": "GET /api/projects/{project_id}/transactions\nLists transactions for a project with offset-based pagination (newest first).",
         "operationId": "list_transactions",
         "parameters": [
           {
@@ -2532,15 +2532,26 @@
             }
           },
           {
-            "name": "cursor",
+            "name": "page",
             "in": "query",
-            "description": "Pagination cursor (opaque, from previous response)",
+            "description": "Page number (1-indexed, default: 1)",
             "required": false,
             "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],
@@ -2551,15 +2562,15 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "description": "Paginated response wrapper (cursor-based)",
+                  "description": "Offset-based paginated response wrapper",
                   "required": [
                     "items",
-                    "has_more"
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
                   ],
                   "properties": {
-                    "has_more": {
-                      "type": "boolean"
-                    },
                     "items": {
                       "type": "array",
                       "items": {
@@ -2622,11 +2633,21 @@
                         }
                       }
                     },
-                    "next_cursor": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
                     }
                   }
                 }

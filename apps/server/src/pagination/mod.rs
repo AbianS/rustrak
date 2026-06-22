@@ -162,6 +162,21 @@ pub enum IssueFilter {
     All,
 }
 
+/// Query parameters for listing transactions (offset-based)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct ListTransactionsQuery {
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
+}
+
 /// Query parameters for listing events
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]

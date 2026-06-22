@@ -2,7 +2,7 @@
 
 import type {
   ListTransactionsOptions,
-  PaginatedResponse,
+  OffsetPaginatedResponse,
   Transaction,
   TransactionDetail,
 } from '@rustrak/client';
@@ -11,7 +11,7 @@ import { createClient } from '@/lib/rustrak';
 export async function listTransactions(
   projectId: number,
   options?: ListTransactionsOptions,
-): Promise<PaginatedResponse<Transaction>> {
+): Promise<OffsetPaginatedResponse<Transaction>> {
   const client = await createClient();
   return client.transactions.list(projectId, options);
 }

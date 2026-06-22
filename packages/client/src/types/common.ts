@@ -75,8 +75,9 @@ export interface ListProjectsOptions {
 }
 
 /**
- * List options for transactions endpoint (cursor-based pagination)
+ * List options for transactions endpoint (offset-based pagination)
  */
 export interface ListTransactionsOptions {
-  cursor?: string;
+  page?: number;
+  per_page?: number;
 }

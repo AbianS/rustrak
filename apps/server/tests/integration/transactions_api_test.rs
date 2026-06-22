@@ -259,7 +259,9 @@ async fn test_list_transactions_returns_empty_when_none_exist() {
 
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["items"], json!([]));
-    assert_eq!(body["has_more"], false);
+    assert_eq!(body["total_count"], 0);
+    assert_eq!(body["page"], 1);
+    assert_eq!(body["total_pages"], 0);
 }
 
 #[actix_web::test]
@@ -290,7 +292,8 @@ async fn test_list_transactions_returns_stored_transactions() {
     assert_eq!(resp.status(), 200);
 
     let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["has_more"], false);
+    assert_eq!(body["total_count"], 2);
+    assert_eq!(body["total_pages"], 1);
     let items = body["items"].as_array().expect("items is array");
     assert_eq!(items.len(), 2);
     // Newest first

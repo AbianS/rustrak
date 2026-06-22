@@ -1,11 +1,11 @@
 import {
-  paginatedResponseSchema,
+  offsetPaginatedResponseSchema,
   transactionDetailSchema,
   transactionSchema,
 } from '../schemas/index.js';
 import type {
   ListTransactionsOptions,
-  PaginatedResponse,
+  OffsetPaginatedResponse,
   Transaction,
   TransactionDetail,
 } from '../types/index.js';
@@ -16,16 +16,19 @@ import { BaseResource } from './base.js';
  */
 export class TransactionsResource extends BaseResource {
   /**
-   * List transactions for a project with cursor-based pagination (newest first)
+   * List transactions for a project with offset-based pagination (newest first)
    */
   async list(
     projectId: number,
     options?: ListTransactionsOptions,
-  ): Promise<PaginatedResponse<Transaction>> {
+  ): Promise<OffsetPaginatedResponse<Transaction>> {
     const searchParams: Record<string, string> = {};
 
-    if (options?.cursor) {
-      searchParams.cursor = options.cursor;
+    if (options?.page) {
+      searchParams.page = String(options.page);
+    }
+    if (options?.per_page) {
+      searchParams.per_page = String(options.per_page);
     }
 
     const data = await this.http
@@ -34,7 +37,10 @@ export class TransactionsResource extends BaseResource {
       })
       .json();
 
-    return this.validate(data, paginatedResponseSchema(transactionSchema));
+    return this.validate(
+      data,
+      offsetPaginatedResponseSchema(transactionSchema),
+    );
   }
 
   /**
