@@ -1,5 +1,14 @@
 # @rustrak/mcp
 
+## 0.2.5
+
+### Patch Changes
+
+- [`d0aa064`](https://github.com/rustrak/rustrak/commit/d0aa064b9d84d4ab86209e0d200cea51bf089ee3) Thanks [@AbianS](https://github.com/AbianS)! - Replace cursor-based pagination with offset-based pagination for the transactions API. Fix MCP package declaration output to ensure proper type exports (@jamilahmadzai). Update quinn-proto dependency and address various review feedback across the server, client, and UI packages.
+
+- Updated dependencies [[`d0aa064`](https://github.com/rustrak/rustrak/commit/d0aa064b9d84d4ab86209e0d200cea51bf089ee3)]:
+  - @rustrak/client@0.3.5
+
 ## 0.2.4
 
 ### Patch Changes
