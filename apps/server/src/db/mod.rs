@@ -10,9 +10,11 @@ use crate::config::DatabaseConfig;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 #[cfg(feature = "sqlite")]
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 #[cfg(feature = "sqlite")]
 use std::str::FromStr;
+#[cfg(feature = "sqlite")]
+use std::time::Duration;
 
 /// The active SQLx database backend (selected by feature flag).
 #[cfg(feature = "postgres")]
@@ -55,7 +57,9 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         let is_in_memory = config.url.ends_with(":memory:") || config.url.contains("mode=memory");
         let opts = SqliteConnectOptions::from_str(&config.url)
             .map_err(|e| sqlx::Error::Configuration(e.into()))?
-            .create_if_missing(true);
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
         let max_connections = if is_in_memory {
             1
         } else {
