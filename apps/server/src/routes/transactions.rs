@@ -6,20 +6,12 @@ use crate::db::DbPool;
 use crate::error::AppResult;
 #[cfg(feature = "openapi")]
 use crate::models::{TransactionDetailResponse, TransactionResponse};
-use crate::pagination::{PaginatedResponse, TransactionCursor, PAGE_SIZE};
+use crate::pagination::{ListTransactionsQuery, OffsetPaginatedResponse};
 use crate::services::access::{self, Action};
 use crate::services::TransactionService;
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
-
-/// Query parameters for listing transactions
-#[derive(Debug, serde::Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
-pub struct ListTransactionsQuery {
-    /// Pagination cursor (opaque, from previous response)
-    pub cursor: Option<String>,
-}
 
 #[cfg_attr(feature = "openapi", utoipa::path(
     get,
@@ -30,14 +22,14 @@ pub struct ListTransactionsQuery {
         ListTransactionsQuery,
     ),
     responses(
-        (status = 200, description = "Paginated transaction list", body = inline(crate::pagination::PaginatedResponse<TransactionResponse>)),
+        (status = 200, description = "Paginated transaction list", body = inline(crate::pagination::OffsetPaginatedResponse<TransactionResponse>)),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/projects/{project_id}/transactions
-/// Lists transactions for a project with cursor-based pagination (newest first).
+/// Lists transactions for a project with offset-based pagination (newest first).
 pub async fn list_transactions(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
@@ -55,26 +47,18 @@ pub async fn list_transactions(
     )
     .await?;
 
-    let cursor = query
-        .cursor
-        .as_ref()
-        .map(|c| TransactionCursor::decode(c))
-        .transpose()?;
+    let page = query.page.max(1);
+    let per_page = query.per_page.clamp(1, 100);
 
-    let (transactions, has_more) =
-        TransactionService::list_paginated(pool.get_ref(), project_id, cursor.as_ref(), PAGE_SIZE)
-            .await?;
+    let (transactions, total_count) =
+        TransactionService::list_offset(pool.get_ref(), project_id, page, per_page).await?;
 
-    let next_cursor = if has_more {
-        transactions
-            .last()
-            .map(|last| TransactionCursor::new(last.ingested_at, last.id).encode())
-            .transpose()?
-    } else {
-        None
-    };
-
-    Ok(HttpResponse::Ok().json(PaginatedResponse::new(transactions, next_cursor, has_more)))
+    Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
+        transactions,
+        total_count,
+        page,
+        per_page,
+    )))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(

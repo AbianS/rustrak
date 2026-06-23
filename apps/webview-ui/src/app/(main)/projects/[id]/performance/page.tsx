@@ -6,6 +6,7 @@ import { TransactionsList } from './transactions-list';
 
 interface PerformancePageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
 export async function generateMetadata({
@@ -26,9 +27,12 @@ export async function generateMetadata({
 
 export default async function PerformancePage({
   params,
+  searchParams,
 }: PerformancePageProps) {
   const { id } = await params;
+  const { page = '1' } = await searchParams;
   const projectId = parseInt(id, 10);
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
   const project = await getProject(projectId);
 
@@ -36,9 +40,15 @@ export default async function PerformancePage({
     notFound();
   }
 
-  const transactions = await listTransactions(projectId).catch(() => ({
+  const transactions = await listTransactions(projectId, {
+    page: currentPage,
+    per_page: 20,
+  }).catch(() => ({
     items: [],
-    has_more: false,
+    total_count: 0,
+    page: 1,
+    per_page: 20,
+    total_pages: 0,
   }));
 
   return (
@@ -49,10 +59,11 @@ export default async function PerformancePage({
           Transaction traces for {project.name}
         </p>
       </div>
-      <div className="flex-1 overflow-auto max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
         <TransactionsList
           projectId={projectId}
           initialTransactions={transactions}
+          currentPage={currentPage}
         />
       </div>
     </div>

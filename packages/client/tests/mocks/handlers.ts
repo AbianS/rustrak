@@ -1160,7 +1160,10 @@ export const handlers = [
           ingested_at: '2026-06-18T12:00:01.000Z',
         },
       ],
-      has_more: false,
+      total_count: 1,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
     });
   }),
 

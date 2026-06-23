@@ -1,18 +1,19 @@
 'use client';
 
-import type { PaginatedResponse, Transaction } from '@rustrak/client';
+import type { OffsetPaginatedResponse, Transaction } from '@rustrak/client';
 import { formatDistanceToNow } from 'date-fns';
-import { Loader2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
-import { listTransactions } from '@/actions/transactions';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface TransactionsListProps {
   projectId: number;
-  initialTransactions: PaginatedResponse<Transaction>;
+  initialTransactions: OffsetPaginatedResponse<Transaction>;
+  currentPage: number;
 }
 
 function formatDuration(ms: number | null): string {
@@ -21,7 +22,6 @@ function formatDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-// Severity thresholds mirror Sentry's apdex-ish buckets: <1s good, <3s warn.
 function durationTone(ms: number | null): {
   text: string;
   bar: string;
@@ -47,25 +47,28 @@ function durationTone(ms: number | null): {
 export function TransactionsList({
   projectId,
   initialTransactions,
+  currentPage,
 }: TransactionsListProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [items, setItems] = useState<Transaction[]>(initialTransactions.items);
-  const [cursor, setCursor] = useState<string | undefined>(
-    initialTransactions.next_cursor,
-  );
-  const [hasMore, setHasMore] = useState<boolean>(initialTransactions.has_more);
 
-  function loadMore() {
-    if (!cursor) return;
-    startTransition(async () => {
-      const next = await listTransactions(projectId, { cursor });
-      setItems((prev) => [...prev, ...next.items]);
-      setCursor(next.next_cursor);
-      setHasMore(next.has_more);
+  const {
+    items: transactions,
+    total_count,
+    total_pages,
+    per_page,
+  } = initialTransactions;
+
+  const handlePageChange = (page: number) => {
+    startTransition(() => {
+      router.push(`/projects/${projectId}/performance?page=${page}`);
     });
-  }
+  };
 
-  if (items.length === 0) {
+  const startIndex = (currentPage - 1) * per_page + 1;
+  const endIndex = Math.min(currentPage * per_page, total_count);
+
+  if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-100 text-center">
         <Zap className="size-12 text-muted-foreground/30 mb-4" />
@@ -81,7 +84,6 @@ export function TransactionsList({
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
-        {/* Header */}
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
             Transaction
@@ -94,9 +96,8 @@ export function TransactionsList({
           </span>
         </div>
 
-        {/* Scrollable rows */}
         <div className="flex-1 overflow-auto">
-          {items.map((txn) => {
+          {transactions.map((txn) => {
             const tone = durationTone(txn.duration_ms);
             return (
               <Link
@@ -124,14 +125,12 @@ export function TransactionsList({
                         {txn.release}
                       </span>
                     )}
-                    {/* Mobile-only duration + time */}
                     <span className={cn('sm:hidden font-medium', tone.text)}>
                       {formatDuration(txn.duration_ms)}
                     </span>
                   </div>
                 </div>
 
-                {/* Duration with bar */}
                 <div className="hidden sm:flex flex-col items-end w-40 gap-1">
                   <span
                     className={cn('font-mono text-sm font-medium', tone.text)}
@@ -159,29 +158,41 @@ export function TransactionsList({
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="shrink-0 flex items-center justify-between gap-2 pt-4">
-        <span className="text-sm text-muted-foreground">
-          {items.length} transaction{items.length === 1 ? '' : 's'} loaded
-        </span>
-        {hasMore && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadMore}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Loading…
-              </>
-            ) : (
-              'Load more'
-            )}
-          </Button>
-        )}
-      </div>
+      {total_pages > 0 && (
+        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
+          <span className="text-sm text-muted-foreground">
+            {total_count > 0
+              ? `Showing ${startIndex}-${endIndex} of ${total_count}`
+              : 'No results'}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Go to previous page"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage <= 1 || isPending}
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </Button>
+
+            <span className="text-sm px-2">
+              Page {currentPage} of {total_pages}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Go to next page"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage >= total_pages || isPending}
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

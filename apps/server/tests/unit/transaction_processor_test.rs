@@ -155,7 +155,6 @@ mod level2 {
 
     #[tokio::test]
     async fn test_transaction_pagination_no_skip_on_equal_timestamps() {
-        use rustrak::pagination::TransactionCursor;
         use rustrak::services::TransactionService;
 
         let db = TestDb::new().await;
@@ -187,15 +186,12 @@ mod level2 {
             TransactionProcessor.process(payload, &ctx).await.unwrap();
         }
 
-        let (page1, has_more) = TransactionService::list_paginated(&db.pool, project.id, None, 2)
+        let (page1, _) = TransactionService::list_offset(&db.pool, project.id, 1, 2)
             .await
             .unwrap();
         assert_eq!(page1.len(), 2);
-        assert!(has_more);
 
-        let last = page1.last().unwrap();
-        let cursor = TransactionCursor::new(last.ingested_at, last.id);
-        let (page2, _) = TransactionService::list_paginated(&db.pool, project.id, Some(&cursor), 2)
+        let (page2, _) = TransactionService::list_offset(&db.pool, project.id, 2, 2)
             .await
             .unwrap();
 

@@ -5,64 +5,52 @@ use uuid::Uuid;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{TransactionDetailResponse, TransactionResponse};
-use crate::pagination::TransactionCursor;
 
 pub struct TransactionService;
 
 impl TransactionService {
-    /// Lists transactions for a project with cursor-based pagination (newest first).
+    /// Lists transactions for a project with offset-based pagination (newest first).
     ///
     /// Transactions are events with event_type = 'transaction'. They have no issue_id.
-    /// Ordered by ingested_at DESC; cursor encodes the last ingested_at boundary.
-    pub async fn list_paginated(
+    /// Ordered by ingested_at DESC.
+    /// Returns (transactions, total_count).
+    pub async fn list_offset(
         pool: &DbPool,
         project_id: i32,
-        cursor: Option<&TransactionCursor>,
-        limit: i64,
-    ) -> AppResult<(Vec<TransactionResponse>, bool)> {
-        let fetch_limit = limit + 1;
+        page: i64,
+        per_page: i64,
+    ) -> AppResult<(Vec<TransactionResponse>, i64)> {
+        let per_page = per_page.clamp(1, 100);
+        let offset = (page - 1) * per_page;
 
-        let rows = if let Some(c) = cursor {
-            sqlx::query(
-                r#"
-                SELECT id, event_id, "transaction" AS transaction_name,
-                       timestamp, start_timestamp,
-                       platform, environment, release, ingested_at
-                FROM events
-                WHERE project_id = $1
-                  AND event_type = 'transaction'
-                  AND (ingested_at < $3 OR (ingested_at = $3 AND id < $4))
-                ORDER BY ingested_at DESC, id DESC
-                LIMIT $2
-                "#,
-            )
-            .bind(project_id)
-            .bind(fetch_limit)
-            .bind(c.last_ingested_at)
-            .bind(c.last_id)
-            .fetch_all(pool)
-            .await?
-        } else {
-            sqlx::query(
-                r#"
-                SELECT id, event_id, "transaction" AS transaction_name,
-                       timestamp, start_timestamp,
-                       platform, environment, release, ingested_at
-                FROM events
-                WHERE project_id = $1
-                  AND event_type = 'transaction'
-                ORDER BY ingested_at DESC, id DESC
-                LIMIT $2
-                "#,
-            )
-            .bind(project_id)
-            .bind(fetch_limit)
-            .fetch_all(pool)
-            .await?
-        };
+        let total_count: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM events
+            WHERE project_id = $1
+              AND event_type = 'transaction'
+            "#,
+        )
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
 
-        let has_more = rows.len() > limit as usize;
-        let rows: Vec<_> = rows.into_iter().take(limit as usize).collect();
+        let rows = sqlx::query(
+            r#"
+            SELECT id, event_id, "transaction" AS transaction_name,
+                   timestamp, start_timestamp,
+                   platform, environment, release, ingested_at
+            FROM events
+            WHERE project_id = $1
+              AND event_type = 'transaction'
+            ORDER BY ingested_at DESC, id DESC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(project_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
 
         let transactions: Vec<TransactionResponse> = rows
             .iter()
@@ -86,7 +74,7 @@ impl TransactionService {
             })
             .collect();
 
-        Ok((transactions, has_more))
+        Ok((transactions, total_count.0))
     }
 
     /// Fetches a single transaction by its primary key, scoped to a project.

@@ -11,8 +11,9 @@ describe('TransactionsResource', () => {
     it('returns paginated transaction list', async () => {
       const result = await client.transactions.list(1);
 
-      expect(result.has_more).toBe(false);
+      expect(result.total_count).toBe(1);
       expect(result.items).toHaveLength(1);
+      expect(result.total_pages).toBe(1);
     });
 
     it('returns transaction with correct shape', async () => {
@@ -28,9 +29,10 @@ describe('TransactionsResource', () => {
       expect(txn.start_timestamp).toBe('2026-06-18T11:59:59.000Z');
     });
 
-    it('accepts cursor option', async () => {
+    it('accepts pagination options', async () => {
       const result = await client.transactions.list(1, {
-        cursor: 'some-cursor',
+        page: 1,
+        per_page: 10,
       });
       expect(result).toBeDefined();
     });
