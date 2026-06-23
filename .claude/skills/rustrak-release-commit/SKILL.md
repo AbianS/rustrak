@@ -26,23 +26,28 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
 
 1. List all git tags sorted by date (newest first): `git tag --sort=-v:refname`
 2. Identify the most recent tag across all packages.
-3. Run `git log <latest_tag>..HEAD --oneline` and group commits by conventional commit type (feat, fix, docs, chore, refactor, test).
-4. Present a summary to the user:
+3. Run `git log <latest_tag>..HEAD --format="%H %an <%ae> %s"` and group commits by conventional commit type (feat, fix, docs, chore, refactor, test).
+4. For each commit, extract the contributor's GitHub username:
+   - For direct commits (non-merge), use the author name if it looks like a GitHub handle or the local part of their email before `@`.
+   - For merge commits with format "Merge pull request #N from <user>/<branch>", extract `<user>` as the GitHub username.
+   - Skip `github-actions[bot]` — no attribution needed.
+   - The repo owner's commits (Abian, AbianS) don't need attribution — only external contributors.
+5. Present a summary to the user:
    - Latest tag and date
    - Commit count since then
    - Breakdown by type
    - Notable changes (features, fixes, breaking changes)
-5. **Suggest a bump level** based on the analysis:
+6. **Suggest a bump level** based on the analysis:
    - `major` if any commit message contains `BREAKING CHANGE` or `!:` after the type
    - `minor` if there are `feat:` commits
    - `patch` if only `fix:`, `docs:`, `chore:`, `refactor:`, `test:` commits
-6. **Interactive:** Ask the user to confirm or override the bump for each package. Present the list of packages that had changes:
+7. **Interactive:** Ask the user to confirm or override the bump for each package. Present the list of packages that had changes:
    - `@rustrak/server` (apps/server)
    - `webview-ui` (apps/webview-ui)
    - `@rustrak/client` (packages/client)
    - `@rustrak/mcp` (packages/mcp)
-    - `docs` (apps/docs) — always `patch` since a changelog entry is created in docs
- 7. **Headless:** Use the suggested bump for all packages, skip confirmation.
+   - `docs` (apps/docs) — always `patch` since a changelog entry is created in docs
+8. **Headless:** Use the suggested bump for all packages, skip confirmation.
 
 ## Stage 2: Create Changeset
 
@@ -57,7 +62,7 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    <description of changes>
    ```
 
-   Only include packages that are being bumped (docs is always included as `patch` since a changelog entry is created). The description should be a concise bullet-free summary of what changed, written for the changelog audience.
+   Only include packages that are being bumped (docs is always included as `patch` since a changelog entry is created). The description should be a concise bullet-free summary of what changed, written for the changelog audience. For changes made by external contributors, append `(@github_username)` after the relevant change description.
 
 3. **Interactive:** Show the generated changeset to the user and ask for approval before writing.
 4. **Headless:** Write directly without confirmation.
@@ -91,7 +96,7 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    - <improvement>
    ```
 
-   Structure the content based on the actual commits analyzed in Stage 1. Group related changes into sections. Use the same style as existing changelog files.
+   Structure the content based on the actual commits analyzed in Stage 1. Group related changes into sections. Use the same style as existing changelog files. For changes by external contributors, append `([@username](https://github.com/username))` to the relevant bullet point.
 
 5. **Interactive:** Show the generated changelog path and ask for approval.
 6. **Headless:** Write directly.

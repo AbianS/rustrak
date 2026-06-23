@@ -1,0 +1,17 @@
+---
+version: v0.6.1
+title: Offset Pagination & MCP Fixes
+description: Offset-based pagination for transactions, MCP declaration fixes, and dependency updates.
+date: 2026-06-23
+tags: [server, webview-ui, client, mcp]
+---
+
+## Offset Pagination
+
+Transaction list endpoints now use offset-based pagination instead of cursor-based pagination, simplifying integration and supporting more standard pagination patterns. The server, client API, and webview-ui performance views have all been updated to use the new offset-based approach.
+
+## Fixes
+
+- Fixed MCP package declaration output to properly export TypeScript types ([@jamilahmadzai](https://github.com/jamilahmadzai))
+- Updated quinn-proto dependency to 0.11.15 for security fixes
+- Addressed review feedback across server, client, and UI packages
