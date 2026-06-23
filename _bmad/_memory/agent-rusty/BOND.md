@@ -33,10 +33,59 @@ _What the owner has told me about Rustrak's current Sentry compatibility._
 ### Known Missing
 - `X-Sentry-Rate-Limits` header on 429 responses
 - `/store/` endpoint functional implementation (currently returns 400)
-- `event_id` auto-generation when absent from envelope headers (currently rejects with 400)
-- Session items (`session`, `sessions` types) — silently ignored
-- Transaction/performance items — silently ignored
+- Transaction items — silently ignored
 - Attachment items — silently ignored
+
+### Transaction/Performance Implementation Status (verified 2026-06-23)
+**State**: Basic MVP exists. Envelope parsing → TransactionProcessor → events table (event_type='transaction') → read-only GET endpoints. Missing significant Relay-level processing.
+
+**Implemented:**
+- `EnvelopeItemKind::Transaction(Vec<u8>)` in envelope enum and parser
+- `TransactionProcessor` in `digest/processors/transaction.rs` — direct INSERT into `events`
+- DB columns: `events.event_type`, `events.start_timestamp`, `events.spans` (JSONB)
+- `TransactionService` — list_offset + get_by_id
+- `GET /api/projects/{id}/transactions` + `GET /api/projects/{id}/transactions/{id}`
+- `TransactionResponse` + `TransactionDetailResponse` models
+
+**Missing (Transaction-specific vs Relay pipeline):**
+| Gap | Relay Ref | Impact |
+|-----|-----------|--------|
+| No normalization (TransactionSource, TransactionInfo) | relay-event-normalization/src/transactions/ | SDK sends `source: "custom"`, Relay normalizes to `"route"`, `"url"`, etc. Rustrak stores raw. |
+| No span extraction (spans stored raw JSONB, not indexed) | relay-server/src/processing/transactions/spans.rs | Spans are not searchable. No standalone span items created. |
+| No metrics extraction from transactions | relay-server/src/processing/transactions/extraction.rs | Relay extracts latency, count, etc. metrics per transaction name+op. |
+| No dynamic sampling | relay-sampling + relay-server DSC | All transactions stored, no sampling decision support. |
+| No PII scrubbing | relay-event-normalization/src/transactions/processor.rs | PII in transaction names/payloads goes raw to DB. |
+| No quota enforcement per DataCategory | relay-server/src/utils/rate_limits.rs | Transaction rate limiting uses same pool as error events. |
+| No split Indexed/Total billing | relay-server/src/processing/transactions/mod.rs | Relay splits into 2 categories for billing. |
+| No trace_id / DSC in envelope headers | relay-server/src/envelope/ | Rustrak ignores `trace` field in envelope headers entirely. |
+
+### Performance Item Types NOT Implemented (beyond transactions)
+Every one of these has its own `Processor` pipeline in Relay with dedicated Kafka topics:
+
+| ItemType | Relay Pipeline | Description |
+|----------|---------------|-------------|
+| `Span` (standalone) | `SpansProcessor` — validate, DSC, normalize, filter, rate limit, store | OTel-style spans not attached to transactions. Different schema (`SpanV2`). |
+| `Profile` | `ProfilesProcessor` — expand, validate, rate limit. Linked to transactions. | Continuous profiling. Arrives in same envelope as its transaction. |
+| `ProfileChunk` | `ProfileChunksProcessor` — platform check, rate limit | Standalone profile chunks (Android continuous profiling). |
+| `CheckIn` | `CheckInsProcessor` — normalize, rate limit | Cron monitoring. Kafka topic `Monitors`. |
+| `ReplayEvent` + `ReplayRecording` + `ReplayVideo` | `ReplaysProcessor` — expand, validate, filter, PII scrub, rate limit | Session replay. Three item types share one `DataCategory::Replay`. |
+| `Statsd` / `MetricBuckets` | Inline in processor.rs → internal metrics aggregator → Kafka `MetricsGeneric` | Custom metrics. Not rate limited by category. |
+| `Log` | `LogsProcessor` — validate, DSC, filter, expand, normalize, rate limit | Standalone logs. Schema `OurLog` with trace_id + span_id. |
+| `Integration` | Routes by content_type (OTel logs → LogsProcessor, OTel spans → SpansProcessor) | Integration items must be converted before forwarding. |
+| `TraceMetric` | Inline in processor.rs | Trace-level metrics with trace_id + span_id. |
+
+### Envelope Item Types Rustrak Handles
+Current `EnvelopeItemKind` enum:
+- `Event` ✓
+- `Transaction` ✓ (basic)
+- `Session` ✓
+- `Sessions` ✓
+- `Other` ✓ (catch-all, silently ignored)
+
+Relay has 21+ `ItemType` variants. Rustrak handles 4 with dedicated types. The remaining 17 land in `Other` and are silently dropped.
+
+### DynamicSamplingContext (DSC)
+Relay parses `trace` field from envelope headers as `DynamicSamplingContext`. Used for: sampling decisions, span validation, metrics extraction. Contains `trace_id`, `public_key`, `release`, `environment`, `transaction`, `replay_id`, `sample_rate`, `user`. Rustrak does not parse or use this at all.
 
 ## Local Repo State
 - **relay-repo SHA:** 4222d43e090dc7215411ad2dbacd6cc8efb12ba7
