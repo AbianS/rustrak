@@ -32,7 +32,7 @@ export default async function PerformancePage({
   const { id } = await params;
   const { page = '1' } = await searchParams;
   const projectId = parseInt(id, 10);
-  const currentPage = parseInt(page, 10) || 1;
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
   const project = await getProject(projectId);
 

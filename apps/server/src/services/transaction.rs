@@ -20,6 +20,7 @@ impl TransactionService {
         page: i64,
         per_page: i64,
     ) -> AppResult<(Vec<TransactionResponse>, i64)> {
+        let per_page = per_page.clamp(1, 100);
         let offset = (page - 1) * per_page;
 
         let total_count: (i64,) = sqlx::query_as(

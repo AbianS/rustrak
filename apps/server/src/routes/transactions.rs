@@ -47,15 +47,17 @@ pub async fn list_transactions(
     )
     .await?;
 
+    let page = query.page.max(1);
+    let per_page = query.per_page.clamp(1, 100);
+
     let (transactions, total_count) =
-        TransactionService::list_offset(pool.get_ref(), project_id, query.page, query.per_page)
-            .await?;
+        TransactionService::list_offset(pool.get_ref(), project_id, page, per_page).await?;
 
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         transactions,
         total_count,
-        query.page,
-        query.per_page,
+        page,
+        per_page,
     )))
 }
 

@@ -60,7 +60,9 @@ export function TransactionsList({
   } = initialTransactions;
 
   const handlePageChange = (page: number) => {
-    router.push(`/projects/${projectId}/performance?page=${page}`);
+    startTransition(() => {
+      router.push(`/projects/${projectId}/performance?page=${page}`);
+    });
   };
 
   const startIndex = (currentPage - 1) * per_page + 1;
@@ -168,10 +170,11 @@ export function TransactionsList({
             <Button
               variant="outline"
               size="sm"
+              aria-label="Go to previous page"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isPending}
             >
-              <ChevronLeft className="size-4" />
+              <ChevronLeft className="size-4" aria-hidden="true" />
             </Button>
 
             <span className="text-sm px-2">
@@ -181,10 +184,11 @@ export function TransactionsList({
             <Button
               variant="outline"
               size="sm"
+              aria-label="Go to next page"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= total_pages || isPending}
             >
-              <ChevronRight className="size-4" />
+              <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
         </div>
