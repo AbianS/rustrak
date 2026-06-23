@@ -157,7 +157,9 @@ def scan_rust_deps(root_dir, ws_paths, workspace_members, scope_packages, skip_p
                         continue
                     # Find version in inline table (always on same line as `=`)
                     ver_match = re.search(r'version\s*=\s*"([^"]+)"', line)
-                    ver = ver_match.group(1) if ver_match else "unknown"
+                    if not ver_match:
+                        continue
+                    ver = ver_match.group(1)
                 else:
                     continue
 
