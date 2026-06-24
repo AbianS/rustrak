@@ -207,6 +207,16 @@ pub struct TransactionStatsQuery {
     pub per_page: i64,
 }
 
+/// Query parameters for a single transaction group's aggregate stats.
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct TransactionStatGroupQuery {
+    /// Exact transaction name of the group.
+    pub name: String,
+    /// Trace operation of the group (omit for groups with no op).
+    pub op: Option<String>,
+}
+
 /// Query parameters for listing events
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]

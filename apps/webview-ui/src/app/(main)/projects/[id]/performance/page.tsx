@@ -26,14 +26,6 @@ export async function generateMetadata({
   };
 }
 
-const EMPTY = {
-  items: [],
-  total_count: 0,
-  page: 1,
-  per_page: 20,
-  total_pages: 0,
-};
-
 export default async function PerformancePage({
   params,
   searchParams,
@@ -49,10 +41,12 @@ export default async function PerformancePage({
     notFound();
   }
 
+  // No catch: a fetch/auth failure must surface to the error boundary, not be
+  // disguised as the "no transactions yet" onboarding state.
   const stats = await getTransactionStats(projectId, {
     page: currentPage,
     per_page: 20,
-  }).catch(() => EMPTY);
+  });
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">

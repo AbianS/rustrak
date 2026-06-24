@@ -1189,6 +1189,26 @@ export const handlers = [
     });
   }),
 
+  // Transactions — single group's aggregate stats
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/transactions/stats/group`,
+    ({ request }) => {
+      const url = new URL(request.url);
+      if (url.searchParams.get('name') === '/missing') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json({
+        transaction_name: '/api/checkout',
+        op: 'http.server',
+        count: 3,
+        p50_ms: 200.0,
+        p95_ms: 290.0,
+        p99_ms: 298.0,
+        failure_rate: 0.3333333333333333,
+      });
+    },
+  ),
+
   // Transactions — indexed spans for a transaction
   http.get(
     `${BASE_URL}/api/projects/:projectId/transactions/:transactionId/spans`,

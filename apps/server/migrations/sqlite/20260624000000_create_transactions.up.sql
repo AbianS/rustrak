@@ -39,6 +39,8 @@ CREATE TABLE transactions (
 
 CREATE INDEX idx_transactions_project_ingested ON transactions(project_id, ingested_at DESC);
 CREATE INDEX idx_transactions_project_name     ON transactions(project_id, transaction_name);
-CREATE INDEX idx_transactions_project_op       ON transactions(project_id, op);
-CREATE INDEX idx_transactions_project_status   ON transactions(project_id, status);
-CREATE INDEX idx_transactions_trace            ON transactions(trace_id);
+CREATE INDEX idx_transactions_project_op          ON transactions(project_id, op);
+CREATE INDEX idx_transactions_project_status      ON transactions(project_id, status);
+CREATE INDEX idx_transactions_project_environment ON transactions(project_id, environment);
+CREATE INDEX idx_transactions_project_release     ON transactions(project_id, release);
+CREATE INDEX idx_transactions_trace               ON transactions(trace_id);

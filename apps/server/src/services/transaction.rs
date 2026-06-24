@@ -4,8 +4,6 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use std::collections::HashMap;
-
 use crate::models::{
     SpanResponse, TransactionDetailResponse, TransactionResponse, TransactionStatsResponse,
 };
@@ -175,6 +173,21 @@ impl TransactionService {
         project_id: i32,
         transaction_id: Uuid,
     ) -> AppResult<Vec<SpanResponse>> {
+        // A missing/cross-project id is NotFound, not an empty list — keeps the
+        // endpoint's documented 404 honest and matches get_by_id.
+        let exists: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM transactions WHERE id = $1 AND project_id = $2")
+                .bind(transaction_id)
+                .bind(project_id)
+                .fetch_optional(pool)
+                .await?;
+        if exists.is_none() {
+            return Err(AppError::NotFound(format!(
+                "Transaction {} not found",
+                transaction_id
+            )));
+        }
+
         let rows = sqlx::query(
             r#"
             SELECT id, span_id, trace_id, parent_span_id,
@@ -226,84 +239,147 @@ impl TransactionService {
         page: i64,
         per_page: i64,
     ) -> AppResult<(Vec<TransactionStatsResponse>, i64)> {
-        let rows = sqlx::query(
+        let per_page = per_page.clamp(1, 100);
+        let offset = (page.max(1) - 1) * per_page;
+
+        // Count + sort + paginate the (name, op) groups in SQL — only the page's
+        // groups are then materialized in Rust. ORDER BY includes op so the tie
+        // order is deterministic across requests (stable offset pagination).
+        let total: (i64,) = sqlx::query_as(
             r#"
-            SELECT transaction_name, op, duration_ms, status
+            SELECT COUNT(*) FROM (
+                SELECT 1 FROM transactions
+                WHERE project_id = $1 AND duration_ms IS NOT NULL
+                GROUP BY transaction_name, op
+            ) g
+            "#,
+        )
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+        let group_rows = sqlx::query(
+            r#"
+            SELECT transaction_name, op,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN status IS NOT NULL AND status <> 'ok' THEN 1 ELSE 0 END) AS fails
             FROM transactions
-            WHERE project_id = $1
+            WHERE project_id = $1 AND duration_ms IS NOT NULL
+            GROUP BY transaction_name, op
+            ORDER BY cnt DESC, transaction_name ASC, op ASC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(project_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
+        .await?;
+
+        let mut stats = Vec::with_capacity(group_rows.len());
+        for row in &group_rows {
+            let name: String = row.get("transaction_name");
+            let op: Option<String> = row.get("op");
+            let count: i64 = row.get("cnt");
+            let fails: i64 = row.get("fails");
+            let durations = Self::group_durations(pool, project_id, &name, op.as_deref()).await?;
+            stats.push(build_group_stats(name, op, count, fails, durations));
+        }
+
+        Ok((stats, total.0))
+    }
+
+    /// Aggregate stats for a single (transaction_name, op) group — a direct
+    /// lookup so the summary header works regardless of how many groups exist.
+    /// Returns `None` when the group has no transactions.
+    pub async fn stats_for_group(
+        pool: &DbPool,
+        project_id: i32,
+        name: &str,
+        op: Option<&str>,
+    ) -> AppResult<Option<TransactionStatsResponse>> {
+        let durations = Self::group_durations(pool, project_id, name, op).await?;
+        if durations.is_empty() {
+            return Ok(None);
+        }
+
+        let fails: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(SUM(CASE WHEN status IS NOT NULL AND status <> 'ok' THEN 1 ELSE 0 END), 0)
+            FROM transactions
+            WHERE project_id = $1 AND transaction_name = $2
+              AND (op = $3 OR (op IS NULL AND $4 IS NULL))
               AND duration_ms IS NOT NULL
             "#,
         )
         .bind(project_id)
+        .bind(name)
+        .bind(op)
+        .bind(op)
+        .fetch_one(pool)
+        .await?;
+
+        let count = durations.len() as i64;
+        Ok(Some(build_group_stats(
+            name.to_string(),
+            op.map(str::to_string),
+            count,
+            fails.0,
+            durations,
+        )))
+    }
+
+    /// Fetches the durations of one (name, op) group. The NULL-safe op match
+    /// avoids reusing a placeholder, keeping the SQL portable across dialects.
+    async fn group_durations(
+        pool: &DbPool,
+        project_id: i32,
+        name: &str,
+        op: Option<&str>,
+    ) -> AppResult<Vec<f64>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT duration_ms FROM transactions
+            WHERE project_id = $1 AND transaction_name = $2
+              AND (op = $3 OR (op IS NULL AND $4 IS NULL))
+              AND duration_ms IS NOT NULL
+            "#,
+        )
+        .bind(project_id)
+        .bind(name)
+        .bind(op)
+        .bind(op)
         .fetch_all(pool)
         .await?;
 
-        // Accumulate durations + failure counts per (name, op) group.
-        struct Acc {
-            durations: Vec<f64>,
-            failures: i64,
-        }
-        let mut groups: HashMap<(String, Option<String>), Acc> = HashMap::new();
+        Ok(rows
+            .iter()
+            .map(|r| r.get::<f64, _>("duration_ms"))
+            .collect())
+    }
+}
 
-        for row in &rows {
-            let name: String = row.get("transaction_name");
-            let op: Option<String> = row.get("op");
-            let duration_ms: f64 = row.get("duration_ms");
-            let status: Option<String> = row.get("status");
-
-            let acc = groups.entry((name, op)).or_insert_with(|| Acc {
-                durations: Vec::new(),
-                failures: 0,
-            });
-            acc.durations.push(duration_ms);
-            // A transaction "failed" when it carries a status other than "ok".
-            if status.as_deref().is_some_and(|s| s != "ok") {
-                acc.failures += 1;
-            }
-        }
-
-        let mut stats: Vec<TransactionStatsResponse> = groups
-            .into_iter()
-            .map(|((transaction_name, op), mut acc)| {
-                acc.durations
-                    .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                let count = acc.durations.len() as i64;
-                TransactionStatsResponse {
-                    transaction_name,
-                    op,
-                    count,
-                    p50_ms: percentile_cont(&acc.durations, 0.50),
-                    p95_ms: percentile_cont(&acc.durations, 0.95),
-                    p99_ms: percentile_cont(&acc.durations, 0.99),
-                    failure_rate: if count > 0 {
-                        acc.failures as f64 / count as f64
-                    } else {
-                        0.0
-                    },
-                }
-            })
-            .collect();
-
-        // Most frequent transactions first; tie-break by name for a stable
-        // order across pages.
-        stats.sort_by(|a, b| {
-            b.count
-                .cmp(&a.count)
-                .then_with(|| a.transaction_name.cmp(&b.transaction_name))
-        });
-
-        // Paginate the grouped result (the aggregation itself scans all rows —
-        // a known cost; pagination here bounds the payload, not the scan).
-        let total = stats.len() as i64;
-        let per_page = per_page.clamp(1, 100);
-        let offset = ((page.max(1) - 1) * per_page).max(0) as usize;
-        let page_items = stats
-            .into_iter()
-            .skip(offset)
-            .take(per_page as usize)
-            .collect();
-
-        Ok((page_items, total))
+/// Builds one group's response from its durations + failure count.
+fn build_group_stats(
+    transaction_name: String,
+    op: Option<String>,
+    count: i64,
+    failures: i64,
+    mut durations: Vec<f64>,
+) -> TransactionStatsResponse {
+    durations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    TransactionStatsResponse {
+        transaction_name,
+        op,
+        count,
+        p50_ms: percentile_cont(&durations, 0.50),
+        p95_ms: percentile_cont(&durations, 0.95),
+        p99_ms: percentile_cont(&durations, 0.99),
+        failure_rate: if count > 0 {
+            failures as f64 / count as f64
+        } else {
+            0.0
+        },
     }
 }
 

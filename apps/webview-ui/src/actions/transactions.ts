@@ -41,3 +41,13 @@ export async function getTransactionSpans(
   const client = await createClient();
   return client.transactions.getSpans(projectId, transactionId);
 }
+
+export async function getTransactionStatForGroup(
+  projectId: number,
+  name: string,
+  op?: string,
+): Promise<TransactionStats | null> {
+  const client = await createClient();
+  // A group with no transactions returns 404 — treat as "no metrics".
+  return client.transactions.getStatForGroup(projectId, name, op).catch(() => null);
+}

@@ -102,6 +102,30 @@ export class TransactionsResource extends BaseResource {
   }
 
   /**
+   * Get aggregate stats for a single (transaction name, op) group — a direct
+   * lookup that works regardless of how many groups the project has. Throws
+   * NotFoundError when the group has no transactions.
+   */
+  async getStatForGroup(
+    projectId: number,
+    name: string,
+    op?: string,
+  ): Promise<TransactionStats> {
+    const searchParams: Record<string, string> = { name };
+    if (op) {
+      searchParams.op = op;
+    }
+
+    const data = await this.http
+      .get(`api/projects/${projectId}/transactions/stats/group`, {
+        searchParams,
+      })
+      .json();
+
+    return this.validate(data, transactionStatsSchema);
+  }
+
+  /**
    * Get a single transaction by ID with its full Sentry payload (spans,
    * contexts.trace, measurements, tags) for the performance detail view.
    */

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { type KeyboardEvent, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -124,8 +124,13 @@ function buildTree(spans: Span[], rootSpanId?: string): TreeNode[] {
   return roots;
 }
 
-/** Self time = own duration minus the sum of direct children durations (≥ 0). */
+/**
+ * Self (exclusive) time in ms. Prefers the SDK-provided `exclusive_time` (the
+ * source of truth, correct even when children overlap or extend past the
+ * parent); falls back to own duration minus direct children when absent.
+ */
 function selfTime(node: TreeNode): number | null {
+  if (node.span.exclusive_time != null) return node.span.exclusive_time;
   const own = spanDuration(node.span);
   if (own == null) return null;
   const childSum = node.children.reduce(
@@ -159,10 +164,7 @@ function flatten(nodes: TreeNode[], collapsed: Set<string>): FlatRow[] {
 }
 
 /** Aggregates self-time per op color for the breakdown bar. */
-function opBreakdown(
-  spans: Span[],
-  tree: TreeNode[],
-): { color: string; ms: number }[] {
+function opBreakdown(tree: TreeNode[]): { color: string; ms: number }[] {
   const byColor = new Map<string, number>();
   const walk = (nodes: TreeNode[]) => {
     for (const node of nodes) {
@@ -193,7 +195,7 @@ export function SpanWaterfall({
     [spans, trace?.span_id],
   );
   const rows = useMemo(() => flatten(tree, collapsed), [tree, collapsed]);
-  const breakdown = useMemo(() => opBreakdown(spans, tree), [spans, tree]);
+  const breakdown = useMemo(() => opBreakdown(tree), [tree]);
 
   const starts = spans
     .map((s) => s.start_timestamp)
@@ -278,15 +280,26 @@ export function SpanWaterfall({
             const isSelected =
               span.span_id != null && selected === span.span_id;
 
+            const selectKey = (e: KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelected(isSelected ? null : (span.span_id ?? null));
+              }
+            };
+
             return (
               <div key={span.span_id ?? `span-${i}`}>
-                <button
-                  type="button"
+                {/* Row is a div (not a button) so the collapse button can nest
+                    as a valid interactive child. */}
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     setSelected(isSelected ? null : (span.span_id ?? null))
                   }
+                  onKeyDown={selectKey}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-muted/40',
+                    'flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-muted/40',
                     isSelected && 'bg-muted/50',
                   )}
                 >
@@ -296,7 +309,7 @@ export function SpanWaterfall({
                   >
                     {hasChildren ? (
                       <button
-                        tabIndex={-1}
+                        type="button"
                         aria-label={isCol ? 'Expand' : 'Collapse'}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -345,7 +358,7 @@ export function SpanWaterfall({
                   <span className="w-16 text-right tabular-nums text-muted-foreground">
                     {formatDuration(dur)}
                   </span>
-                </button>
+                </div>
 
                 {isSelected && (
                   <SpanDetail span={span} dur={dur} selfMs={selfMs} />

@@ -193,6 +193,55 @@ pub async fn get_transaction_stats(
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(stats, total, page, per_page)))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/transactions/stats/group",
+    tag = "Transactions",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        crate::pagination::TransactionStatGroupQuery,
+    ),
+    responses(
+        (status = 200, description = "Aggregate stats for one (transaction, op) group", body = crate::models::TransactionStatsResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Group not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/transactions/stats/group?name=&op=
+/// Returns the aggregate stats for a single transaction group — a direct lookup
+/// so the summary header works regardless of how many groups the project has.
+pub async fn get_transaction_stat_group(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<crate::pagination::TransactionStatGroupQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
+
+    let stat = TransactionService::stats_for_group(
+        pool.get_ref(),
+        project_id,
+        &query.name,
+        query.op.as_deref(),
+    )
+    .await?
+    .ok_or_else(|| {
+        crate::error::AppError::NotFound(format!("No stats for transaction '{}'", query.name))
+    })?;
+
+    Ok(HttpResponse::Ok().json(stat))
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
@@ -200,7 +249,8 @@ pub async fn get_transaction_stats(
         list_transactions,
         get_transaction,
         get_transaction_spans,
-        get_transaction_stats
+        get_transaction_stats,
+        get_transaction_stat_group
     ),
     components(schemas(
         TransactionResponse,
@@ -216,8 +266,9 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/projects/{project_id}/transactions")
             .route("", web::get().to(list_transactions))
-            // `/stats` must precede `/{transaction_id}` so it isn't captured as an id.
+            // `/stats*` must precede `/{transaction_id}` so they aren't captured as ids.
             .route("/stats", web::get().to(get_transaction_stats))
+            .route("/stats/group", web::get().to(get_transaction_stat_group))
             .route("/{transaction_id}", web::get().to(get_transaction))
             .route(
                 "/{transaction_id}/spans",

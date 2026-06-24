@@ -72,6 +72,12 @@ impl Processor for TransactionProcessor {
 
         let id = Uuid::new_v4();
 
+        // Parent transaction + its extracted spans are written in one DB
+        // transaction: a failed span insert must not leave a committed parent
+        // row behind (a retry would then collide on UNIQUE(project_id, event_id)
+        // and the spans could never be recovered).
+        let mut tx = ctx.pool.begin().await?;
+
         sqlx::query(
             r#"
             INSERT INTO transactions (
@@ -116,7 +122,7 @@ impl Processor for TransactionProcessor {
         .bind(serde_json::json!(data))
         .bind(ctx.remote_addr.as_deref())
         .bind(ctx.ingested_at)
-        .execute(&ctx.pool)
+        .execute(&mut *tx)
         .await?;
 
         // Extract each span into the indexed `spans` table. Mirrors Relay's span
@@ -125,22 +131,34 @@ impl Processor for TransactionProcessor {
         // trace_id when it doesn't carry its own.
         if let Some(spans) = data.get("spans").and_then(|s| s.as_array()) {
             for span in spans {
-                insert_span(span, id, ctx.project_id, trace_id.as_deref(), &ctx.pool).await?;
+                insert_span(span, id, ctx.project_id, trace_id.as_deref(), &mut *tx).await?;
             }
         }
+
+        tx.commit().await?;
 
         Ok(())
     }
 }
 
+/// The concrete SQLx database backend, selected by Cargo feature.
+#[cfg(feature = "postgres")]
+type Db = sqlx::Postgres;
+#[cfg(feature = "sqlite")]
+type Db = sqlx::Sqlite;
+
 /// Inserts a single extracted span row linked to its parent transaction.
-async fn insert_span(
+/// Generic over the executor so it can run inside the parent's DB transaction.
+async fn insert_span<'e, E>(
     span: &serde_json::Value,
     transaction_id: Uuid,
     project_id: i32,
     txn_trace_id: Option<&str>,
-    pool: &crate::db::DbPool,
-) -> AppResult<()> {
+    executor: E,
+) -> AppResult<()>
+where
+    E: sqlx::Executor<'e, Database = Db>,
+{
     let span_id = span.get("span_id").and_then(|v| v.as_str());
     let parent_span_id = span.get("parent_span_id").and_then(|v| v.as_str());
     let op = span.get("op").and_then(|v| v.as_str());
@@ -205,7 +223,7 @@ async fn insert_span(
     .bind(segment_id)
     .bind(tags)
     .bind(serde_json::json!(span))
-    .execute(pool)
+    .execute(executor)
     .await?;
 
     Ok(())

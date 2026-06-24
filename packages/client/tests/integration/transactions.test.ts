@@ -64,6 +64,27 @@ describe('TransactionsResource', () => {
     });
   });
 
+  describe('getStatForGroup()', () => {
+    it('returns the aggregate for a single group', async () => {
+      const stat = await client.transactions.getStatForGroup(
+        1,
+        '/api/checkout',
+        'http.server',
+      );
+
+      expect(stat.transaction_name).toBe('/api/checkout');
+      expect(stat.op).toBe('http.server');
+      expect(stat.count).toBe(3);
+      expect(stat.p50_ms).toBe(200.0);
+    });
+
+    it('throws for an unknown group', async () => {
+      await expect(
+        client.transactions.getStatForGroup(1, '/missing'),
+      ).rejects.toThrow();
+    });
+  });
+
   describe('getStats()', () => {
     it('returns paginated aggregate stats per transaction group', async () => {
       const result = await client.transactions.getStats(1);

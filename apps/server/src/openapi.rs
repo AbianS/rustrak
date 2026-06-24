@@ -80,6 +80,7 @@ impl Modify for SecurityAddon {
         crate::routes::transactions::get_transaction,
         crate::routes::transactions::get_transaction_spans,
         crate::routes::transactions::get_transaction_stats,
+        crate::routes::transactions::get_transaction_stat_group,
     ),
     components(schemas(
         crate::models::ProjectResponse,

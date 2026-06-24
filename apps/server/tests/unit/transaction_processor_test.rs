@@ -884,6 +884,123 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_list_spans_unknown_transaction_is_not_found() {
+        use rustrak::services::TransactionService;
+
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-spans-404".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let res = TransactionService::list_spans(&db.pool, project.id, Uuid::new_v4()).await;
+        assert!(
+            matches!(res, Err(rustrak::error::AppError::NotFound(_))),
+            "unknown transaction id must be NotFound, not an empty list"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_stats_for_group_returns_single_aggregate() {
+        // Powers the summary header regardless of how many groups exist — a
+        // direct (name, op) lookup, not "fetch page 1 and find".
+        use rustrak::services::TransactionService;
+
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-stats-group".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        for (name, end) in [("/a", 0.1), ("/a", 0.3), ("/b", 0.05)] {
+            let ctx = ProcessorCtx {
+                pool: db.pool.clone(),
+                project_id: project.id,
+                event_id: Uuid::new_v4(),
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+            let payload = serde_json::to_vec(&json!({
+                "type": "transaction", "transaction": name,
+                "start_timestamp": 0.0, "timestamp": end,
+                "contexts": { "trace": { "op": "http.server" } }
+            }))
+            .unwrap();
+            TransactionProcessor.process(payload, &ctx).await.unwrap();
+        }
+
+        let group =
+            TransactionService::stats_for_group(&db.pool, project.id, "/a", Some("http.server"))
+                .await
+                .unwrap()
+                .expect("group /a present");
+        assert_eq!(group.transaction_name, "/a");
+        assert_eq!(group.op.as_deref(), Some("http.server"));
+        assert_eq!(group.count, 2);
+
+        let missing = TransactionService::stats_for_group(&db.pool, project.id, "/nope", None)
+            .await
+            .unwrap();
+        assert!(missing.is_none(), "unknown group yields None");
+    }
+
+    #[tokio::test]
+    async fn test_stats_ordering_is_stable_on_count_ties() {
+        // Same name, two ops, same count → order must be deterministic across
+        // requests so offset pagination doesn't reshuffle groups.
+        use rustrak::services::TransactionService;
+
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-stats-tie".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        for op in ["db.query", "http.client", "db.query", "http.client"] {
+            let ctx = ProcessorCtx {
+                pool: db.pool.clone(),
+                project_id: project.id,
+                event_id: Uuid::new_v4(),
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+            let payload = serde_json::to_vec(&json!({
+                "type": "transaction", "transaction": "/x",
+                "start_timestamp": 0.0, "timestamp": 0.1,
+                "contexts": { "trace": { "op": op } }
+            }))
+            .unwrap();
+            TransactionProcessor.process(payload, &ctx).await.unwrap();
+        }
+
+        let (first, _) = TransactionService::stats(&db.pool, project.id, 1, 20)
+            .await
+            .unwrap();
+        let (second, _) = TransactionService::stats(&db.pool, project.id, 1, 20)
+            .await
+            .unwrap();
+
+        let order1: Vec<_> = first.iter().map(|s| s.op.clone()).collect();
+        let order2: Vec<_> = second.iter().map(|s| s.op.clone()).collect();
+        assert_eq!(order1, order2, "tie order must be stable across requests");
+    }
+
+    #[tokio::test]
     async fn test_transaction_does_not_create_grouping() {
         let db = TestDb::new().await;
         let project = ProjectService::create(

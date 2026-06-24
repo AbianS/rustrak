@@ -254,6 +254,51 @@ async fn test_transaction_stats_endpoint_returns_aggregates() {
 }
 
 #[actix_web::test]
+async fn test_transaction_stat_group_returns_single_group_or_404() {
+    let db = TestDb::new().await;
+    let pool = db.pool.clone();
+    let config = create_test_config();
+    let token = create_test_token(&pool).await;
+    let project = create_test_project(&pool, "Transaction Stat Group Test").await;
+
+    store_rich_transaction(&pool, project.id, "/api/checkout").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .configure(routes::transactions::configure),
+    )
+    .await;
+
+    // Known group → 200 with its aggregate.
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/transactions/stats/group?name=/api/checkout&op=http.server",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["transaction_name"], "/api/checkout");
+    assert_eq!(body["op"], "http.server");
+    assert_eq!(body["count"], 1);
+
+    // Unknown group → 404 (not an empty body).
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/transactions/stats/group?name=/nope",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[actix_web::test]
 async fn test_get_transaction_404_for_unknown_id() {
     let db = TestDb::new().await;
     let pool = db.pool.clone();

@@ -2897,6 +2897,85 @@
         ]
       }
     },
+    "/api/projects/{project_id}/transactions/stats/group": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "GET /api/projects/{project_id}/transactions/stats/group?name=&op=\nReturns the aggregate stats for a single transaction group — a direct lookup\nso the summary header works regardless of how many groups the project has.",
+        "operationId": "get_transaction_stat_group",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Exact transaction name of the group.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "Trace operation of the group (omit for groups with no op).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregate stats for one (transaction, op) group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionStatsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/transactions/{transaction_id}": {
       "get": {
         "tags": [

@@ -3,7 +3,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
-import { getTransactionStats, listTransactions } from '@/actions/transactions';
+import {
+  getTransactionStatForGroup,
+  listTransactions,
+} from '@/actions/transactions';
 import { Badge } from '@/components/ui/badge';
 import { TransactionsList } from '../transactions-list';
 
@@ -44,7 +47,9 @@ export default async function TransactionSummaryPage({
 
   const filters = { name, op };
 
-  const [samples, stats] = await Promise.all([
+  // Direct group lookup — correct regardless of how many groups exist (no
+  // "fetch page 1 and hope the group is on it").
+  const [samples, group] = await Promise.all([
     listTransactions(projectId, {
       page: currentPage,
       per_page: 20,
@@ -56,18 +61,8 @@ export default async function TransactionSummaryPage({
       per_page: 20,
       total_pages: 0,
     })),
-    getTransactionStats(projectId, { per_page: 100 }).catch(() => ({
-      items: [],
-      total_count: 0,
-      page: 1,
-      per_page: 100,
-      total_pages: 0,
-    })),
+    getTransactionStatForGroup(projectId, name, op),
   ]);
-
-  const group = stats.items.find(
-    (s) => s.transaction_name === name && (op ? s.op === op : true),
-  );
 
   const metrics: { label: string; value: string }[] = group
     ? [
