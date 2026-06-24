@@ -2,7 +2,9 @@
 
 import { AlertCircle, Check, Copy } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface EventTagsProps {
   tags: Record<string, string> | undefined;
@@ -17,7 +19,14 @@ function TagRow({ tagKey, tagValue }: TagRowProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(`${tagKey}:${tagValue}`);
+    if (!(await copyToClipboard(`${tagKey}:${tagValue}`))) {
+      toast.info('Clipboard unavailable', {
+        description:
+          'Select the value and copy it manually, or access Rustrak over HTTPS.',
+      });
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

@@ -8,6 +8,7 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { createToken, deleteToken } from '@/actions/tokens';
 import { Button } from '@/components/ui/button';
+import { copyToClipboard } from '@/lib/clipboard';
 
 const TOKEN_DESCRIPTION_MAX_LENGTH = 200;
 
@@ -96,11 +97,18 @@ export function TokensList({ initialTokens }: TokensListProps) {
   };
 
   const copyToken = async () => {
-    if (newToken) {
-      await navigator.clipboard.writeText(newToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    if (!newToken) return;
+
+    if (!(await copyToClipboard(newToken))) {
+      toast.info('Clipboard unavailable', {
+        description:
+          'Select the token and copy it manually, or access Rustrak over HTTPS.',
+      });
+      return;
     }
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
