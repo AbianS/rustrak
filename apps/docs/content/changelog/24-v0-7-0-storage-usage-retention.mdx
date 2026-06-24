@@ -1,0 +1,38 @@
+---
+version: v0.7.0
+title: Storage Usage & Data Retention
+description: Storage usage reporting, configurable data retention, manual cleanup, and source-map garbage collection, plus SQLite durability fixes.
+date: 2026-06-24
+tags: [server, webview-ui, client, mcp]
+---
+
+## Storage Usage & Data Retention
+
+Rustrak now tracks how much storage your instance is using and lets you keep it under control. The server reports storage usage and supports configurable data retention, so older data can be cleaned up automatically instead of growing unbounded.
+
+- Storage usage reporting exposed via the API
+- Configurable data retention for stored events
+- Manual storage cleanup to reclaim space on demand
+- Source-map garbage collection to remove orphaned artifacts
+
+## Storage Settings UI
+
+A new storage settings page in the dashboard surfaces current usage and gives you direct control over cleanup.
+
+- Storage settings page with usage overview
+- Manual cleanup controls
+- Source-map garbage collection controls
+
+## Client & MCP Updates
+
+- Added a storage resource to the TypeScript client for usage and cleanup
+- Added a storage tool to the MCP package for programmatic access
+
+## Reliability Fixes
+
+- SQLite now runs in WAL mode and uses `BEGIN IMMEDIATE` for digest writes, preventing dropped events under concurrent writes ([#131](https://github.com/rustrak/rustrak/issues/131), [#141](https://github.com/rustrak/rustrak/pull/141))
+- Clipboard copy now works over plain HTTP, with improved fallback positioning ([@WahidinAji](https://github.com/WahidinAji), [#146](https://github.com/rustrak/rustrak/pull/146))
+
+## Documentation
+
+- Corrected local PostgreSQL development setup instructions ([@WahidinAji](https://github.com/WahidinAji), [#147](https://github.com/rustrak/rustrak/pull/147))
