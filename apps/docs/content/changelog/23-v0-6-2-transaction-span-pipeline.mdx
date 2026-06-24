@@ -1,0 +1,24 @@
+---
+version: v0.6.2
+title: Transaction & Span Pipeline
+description: Dedicated transaction and span processing pipeline with grouped performance UI and protocol compatibility documentation.
+date: 2026-06-24
+tags: [server, webview-ui, client, mcp]
+---
+
+## Transaction & Span Pipeline
+
+The server now includes a dedicated ingestion pipeline for transactions and spans, with its own processor that runs after the main event pipeline. New database tables for transactions and spans enable efficient querying and grouping of performance data.
+
+## Grouped Performance UI
+
+The webview-ui performance section has been reorganized with a grouped summary view, transaction detail page with span waterfall chart, and a transaction stats table showing key metrics like duration and event count.
+
+## Client & MCP Updates
+
+- Added transaction resource with list and detail methods to the TypeScript client
+- Added transactions tool to the MCP package for programmatic access
+
+## Documentation
+
+- Documented performance protocol compatibility gaps vs the Sentry Relay pipeline in the bonding documentation
