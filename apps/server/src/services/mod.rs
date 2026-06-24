@@ -12,6 +12,7 @@ pub mod rate_limit;
 pub mod session;
 pub mod sourcemap;
 pub mod sourcemap_store;
+pub mod storage;
 pub mod transaction;
 pub mod users;
 
@@ -29,5 +30,6 @@ pub use project_member::ProjectMemberService;
 pub use rate_limit::RateLimitService;
 pub use sourcemap::{rewrite_frames, DbSourceMapProvider, SourceMapEntry, SourceMapProvider};
 pub use sourcemap_store::{LocalSourceMapStore, SourceMapStore, StoreError};
+pub use storage::StorageService;
 pub use transaction::{TransactionFilters, TransactionService};
 pub use users::UsersService;

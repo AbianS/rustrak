@@ -16,6 +16,7 @@ mod projects_api_test;
 mod rate_limit_test;
 mod sessions_api_test;
 mod sourcemaps_api_test;
+mod storage_api_test;
 mod team_rbac_test;
 mod tokens_api_test;
 mod transactions_api_test;

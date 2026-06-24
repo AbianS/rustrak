@@ -10,6 +10,7 @@ export { MembersResource } from './members.js';
 export { ProjectsResource } from './projects.js';
 export { SessionsResource } from './sessions.js';
 export { SourceMapsResource } from './sourcemaps.js';
+export { StorageResource } from './storage.js';
 export { TeamResource } from './team.js';
 export { TokensResource } from './tokens.js';
 export { TransactionsResource } from './transactions.js';

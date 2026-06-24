@@ -43,6 +43,12 @@ const EXPECTED_TOOLS = [
   'get_transaction',
   'get_transaction_stats',
   'get_transaction_spans',
+  // Storage (5)
+  'get_storage_summary',
+  'get_storage_by_project',
+  'preview_storage_cleanup',
+  'execute_storage_cleanup',
+  'gc_storage_source_maps',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -72,6 +78,13 @@ describe('MCP server integration', () => {
         get: vi.fn(),
         getStats: vi.fn(),
         getSpans: vi.fn(),
+      },
+      storage: {
+        getSummary: vi.fn(),
+        getProjects: vi.fn(),
+        previewCleanup: vi.fn(),
+        executeCleanup: vi.fn(),
+        gcSourceMaps: vi.fn(),
       },
     };
     testEnv = await createTestEnv(mockClient);
@@ -117,6 +130,8 @@ describe('MCP server integration', () => {
     'remove_team_member',
     'revoke_invitation',
     'remove_project_member',
+    'execute_storage_cleanup',
+    'gc_storage_source_maps',
   ])('%s has destructiveHint: true', async (name) => {
     const { tools } = await testEnv.mcpClient.listTools();
     const tool = tools.find((t: { name: string }) => t.name === name);

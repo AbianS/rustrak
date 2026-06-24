@@ -1,6 +1,6 @@
 'use client';
 
-import { Info, Key, Palette, Plug, User, Users } from 'lucide-react';
+import { Database, Info, Key, Palette, Plug, User, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,12 @@ const navItems = [
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
   { href: '/settings/team', label: 'Team', icon: Users, adminOnly: true },
+  {
+    href: '/settings/storage',
+    label: 'Storage',
+    icon: Database,
+    adminOnly: true,
+  },
   { href: '/settings/account', label: 'Account', icon: User },
   { href: '/settings/appearance', label: 'Appearance', icon: Palette },
   { href: '/settings/about', label: 'About', icon: Info },
