@@ -42,14 +42,30 @@ Before you begin, ensure you have the following installed:
    docker-compose -f docker-compose.dev.yml up -d postgres
    ```
 
-4. **Run the Server (in a new terminal)**
+4. **Configure the Server**
 
    ```bash
    cd apps/server
-   cargo run
+   cp .env.example .env
    ```
 
-5. **Run the UI (in another terminal)**
+   The example configuration connects to the PostgreSQL container through
+   `localhost:5432`. Review `.env` and adjust its values if your local setup is
+   different. Without this file, the server may fail with a missing or invalid
+   database configuration.
+
+5. **Run the Server (in a new terminal)**
+
+   ```bash
+   cd apps/server
+   cargo run --no-default-features --features postgres --bin rustrak
+   ```
+
+   The server defaults to the `sqlite` feature. Because this development setup
+   starts PostgreSQL, disable the default feature and explicitly enable
+   `postgres`.
+
+6. **Run the UI (in another terminal)**
 
    ```bash
    cd apps/webview-ui
