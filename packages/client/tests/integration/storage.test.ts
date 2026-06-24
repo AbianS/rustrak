@@ -51,6 +51,15 @@ describe('StorageResource', () => {
       });
       expect(counts).toBeDefined();
     });
+
+    it('rejects a non-positive retention window before sending a request', async () => {
+      await expect(
+        client.storage.previewCleanup({ older_than_days: 0 }),
+      ).rejects.toThrow();
+      await expect(
+        client.storage.executeCleanup({ older_than_days: -1 }),
+      ).rejects.toThrow();
+    });
   });
 
   describe('executeCleanup()', () => {

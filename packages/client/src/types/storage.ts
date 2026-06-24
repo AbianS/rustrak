@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type {
   cleanupCountsSchema,
+  cleanupOptionsSchema,
   projectStorageSchema,
   sourceMapGcResultSchema,
   sourceMapStorageSchema,
@@ -24,7 +25,4 @@ export type SourceMapGcResult = z.infer<typeof sourceMapGcResultSchema>;
 
 /** Request body for a cleanup: remove data older than `older_than_days`,
  * optionally scoped to one project (omit for all projects). */
-export interface CleanupOptions {
-  older_than_days: number;
-  project_id?: number;
-}
+export type CleanupOptions = z.infer<typeof cleanupOptionsSchema>;

@@ -124,14 +124,45 @@ export function registerStorageTools(
   );
 
   server.registerTool(
+    'preview_storage_source_maps_gc',
+    {
+      description:
+        'Dry-run a Rustrak source-map garbage collection (admin only): report how many orphaned source-map files would be removed and how many bytes reclaimed, without deleting anything. Mutates nothing — always run this before gc_storage_source_maps.',
+      inputSchema: {},
+    },
+    async () => {
+      try {
+        const result = await client.storage.previewGcSourceMaps();
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (err) {
+        return toMcpError(err);
+      }
+    },
+  );
+
+  server.registerTool(
     'gc_storage_source_maps',
     {
       description:
-        'Garbage-collect orphaned Rustrak source maps (admin only): permanently remove source-map files no longer referenced by any upload (e.g. left behind by deleted projects), from the database and disk. Safe — it never touches referenced files. Returns how many files were removed and bytes freed.',
-      inputSchema: {},
+        'DESTRUCTIVE (admin only): permanently remove orphaned Rustrak source-map files no longer referenced by any upload (e.g. left behind by deleted projects), from the database and disk. This cannot be undone. You MUST set confirm=true to proceed; without it the tool refuses and returns an error. Always run preview_storage_source_maps_gc first and show the user the counts before confirming.',
+      inputSchema: {
+        confirm: z
+          .boolean()
+          .optional()
+          .describe('Must be true to run this destructive cleanup'),
+      },
       annotations: { destructiveHint: true },
     },
-    async () => {
+    async ({ confirm }) => {
+      if (confirm !== true) {
+        return toMcpError(
+          new Error(
+            'gc_storage_source_maps is destructive and was not confirmed. Run preview_storage_source_maps_gc first, then call again with confirm=true to proceed.',
+          ),
+        );
+      }
       try {
         const result = await client.storage.gcSourceMaps();
         return {

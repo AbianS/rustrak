@@ -4584,14 +4584,15 @@
       },
       "CleanupRequest": {
         "type": "object",
-        "description": "Request body for a cleanup (preview or execute): remove data older than\n`older_than_days`, optionally scoped to a single project (omit for all).",
+        "description": "Request body for a cleanup (preview or execute): remove data older than\n`older_than_days`, optionally scoped to a single project (omit for all).\n\n`older_than_days` must be at least 1 — the service rejects smaller values,\nsince a window of 0 (or negative) would move the cutoff to now/the future and\npurge the entire dataset.",
         "required": [
           "older_than_days"
         ],
         "properties": {
           "older_than_days": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "minimum": 1
           },
           "project_id": {
             "type": [

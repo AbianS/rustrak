@@ -56,3 +56,14 @@ export const sourceMapGcResultSchema = z.object({
   files_removed: z.number(),
   bytes_freed: z.number(),
 });
+
+/**
+ * Request body for a cleanup (preview or execute): remove data older than
+ * `older_than_days`, optionally scoped to one project (omit for all). The
+ * minimum of 1 mirrors the server contract — a smaller window would wipe the
+ * whole dataset.
+ */
+export const cleanupOptionsSchema = z.object({
+  older_than_days: z.number().int().min(1),
+  project_id: z.number().int().optional(),
+});

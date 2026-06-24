@@ -45,6 +45,7 @@ describe('storage tools', () => {
         getProjects: vi.fn(),
         previewCleanup: vi.fn(),
         executeCleanup: vi.fn(),
+        previewGcSourceMaps: vi.fn(),
         gcSourceMaps: vi.fn(),
       },
     };
@@ -136,8 +137,38 @@ describe('storage tools', () => {
     });
   });
 
+  describe('preview_storage_source_maps_gc', () => {
+    it('returns the orphaned files and bytes a GC would reclaim without deleting', async () => {
+      mockClient.storage.previewGcSourceMaps.mockResolvedValue({
+        files_removed: 4,
+        bytes_freed: 81920,
+      });
+
+      const result = await callTool({
+        name: 'preview_storage_source_maps_gc',
+        arguments: {},
+      });
+
+      expect(result.isError).toBeFalsy();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.files_removed).toBe(4);
+      expect(mockClient.storage.previewGcSourceMaps).toHaveBeenCalled();
+      expect(mockClient.storage.gcSourceMaps).not.toHaveBeenCalled();
+    });
+  });
+
   describe('gc_storage_source_maps', () => {
-    it('returns the orphaned files removed and bytes freed', async () => {
+    it('refuses to run without confirm:true and does not call the client', async () => {
+      const result = await callTool({
+        name: 'gc_storage_source_maps',
+        arguments: {},
+      });
+
+      expect(result.isError).toBe(true);
+      expect(mockClient.storage.gcSourceMaps).not.toHaveBeenCalled();
+    });
+
+    it('returns the orphaned files removed and bytes freed when confirm is true', async () => {
       mockClient.storage.gcSourceMaps.mockResolvedValue({
         files_removed: 4,
         bytes_freed: 81920,
@@ -145,7 +176,7 @@ describe('storage tools', () => {
 
       const result = await callTool({
         name: 'gc_storage_source_maps',
-        arguments: {},
+        arguments: { confirm: true },
       });
 
       expect(result.isError).toBeFalsy();

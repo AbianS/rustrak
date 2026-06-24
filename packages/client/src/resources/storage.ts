@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   cleanupCountsSchema,
+  cleanupOptionsSchema,
   projectStorageSchema,
   sourceMapGcResultSchema,
   storageSummarySchema,
@@ -43,8 +44,9 @@ export class StorageResource extends BaseResource {
    * confirm impact before {@link executeCleanup}.
    */
   async previewCleanup(options: CleanupOptions): Promise<CleanupCounts> {
+    const json = cleanupOptionsSchema.parse(options);
     const data = await this.http
-      .post('api/storage/cleanup/preview', { json: options })
+      .post('api/storage/cleanup/preview', { json })
       .json();
     return this.validate(data, cleanupCountsSchema);
   }
@@ -54,9 +56,8 @@ export class StorageResource extends BaseResource {
    * scoped to one project) and remove any issue left with zero events.
    */
   async executeCleanup(options: CleanupOptions): Promise<CleanupCounts> {
-    const data = await this.http
-      .post('api/storage/cleanup', { json: options })
-      .json();
+    const json = cleanupOptionsSchema.parse(options);
+    const data = await this.http.post('api/storage/cleanup', { json }).json();
     return this.validate(data, cleanupCountsSchema);
   }
 

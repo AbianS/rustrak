@@ -221,6 +221,87 @@ async fn test_preview_cleanup_counts_old_rows_without_mutating() {
 }
 
 #[tokio::test]
+async fn test_cleanup_rejects_nonpositive_retention_window() {
+    // A window of 0 puts the cutoff at "now" and a negative one in the future —
+    // either turns the cleanup into a full data wipe. Both preview and execute
+    // must reject anything below 1 day before computing a cutoff, so a direct API
+    // caller can't bypass the client-side `min(1)` and lose everything.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "retention-guard".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_event(&db.pool, project.id).await;
+
+    for bad in [0_i64, -1, -365] {
+        assert!(
+            StorageService::preview_cleanup(&db.pool, bad, None)
+                .await
+                .is_err(),
+            "preview must reject older_than_days = {bad}"
+        );
+        assert!(
+            StorageService::execute_cleanup(&db.pool, bad, None)
+                .await
+                .is_err(),
+            "execute must reject older_than_days = {bad}"
+        );
+    }
+
+    // The rejected execute calls deleted nothing.
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.events_count, 1, "no data was purged");
+}
+
+#[tokio::test]
+async fn test_gc_source_maps_keeps_file_that_is_referenced_at_delete_time() {
+    // The orphan list is a point-in-time snapshot, but the delete re-checks
+    // `NOT EXISTS(metadata)` atomically. A source_file that has a metadata row is
+    // never removed — guarding the window where a concurrent upload re-references
+    // a row the snapshot saw as an orphan.
+    let db = TestDb::new().await;
+    let tmp = tempdir().unwrap();
+    let store = LocalSourceMapStore::new(tmp.path());
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gc-recheck".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let referenced = "d".repeat(40);
+    seed_project_source_map(&db.pool, project.id, &referenced).await;
+    store
+        .put(&referenced, Bytes::from_static(b"ref"))
+        .await
+        .unwrap();
+
+    let result = StorageService::gc_source_maps(&db.pool, &store)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        result.files_removed, 0,
+        "referenced file is never collected"
+    );
+    assert_eq!(result.bytes_freed, 0);
+    assert!(
+        store.exists(&referenced).await.unwrap(),
+        "referenced file kept on disk"
+    );
+}
+
+#[tokio::test]
 async fn test_execute_cleanup_deletes_old_cascades_spans_and_removes_empty_issues() {
     // Execute is the destructive twin of preview: old rows gone, spans cascade
     // away with their transaction, recent data untouched, and the issue left with

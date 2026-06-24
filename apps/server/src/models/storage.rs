@@ -2,9 +2,14 @@ use serde::{Deserialize, Serialize};
 
 /// Request body for a cleanup (preview or execute): remove data older than
 /// `older_than_days`, optionally scoped to a single project (omit for all).
+///
+/// `older_than_days` must be at least 1 — the service rejects smaller values,
+/// since a window of 0 (or negative) would move the cutoff to now/the future and
+/// purge the entire dataset.
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CleanupRequest {
+    #[cfg_attr(feature = "openapi", schema(minimum = 1))]
     pub older_than_days: i64,
     #[serde(default)]
     pub project_id: Option<i32>,

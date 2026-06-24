@@ -43,11 +43,12 @@ const EXPECTED_TOOLS = [
   'get_transaction',
   'get_transaction_stats',
   'get_transaction_spans',
-  // Storage (5)
+  // Storage (6)
   'get_storage_summary',
   'get_storage_by_project',
   'preview_storage_cleanup',
   'execute_storage_cleanup',
+  'preview_storage_source_maps_gc',
   'gc_storage_source_maps',
 ] as const;
 
@@ -84,6 +85,7 @@ describe('MCP server integration', () => {
         getProjects: vi.fn(),
         previewCleanup: vi.fn(),
         executeCleanup: vi.fn(),
+        previewGcSourceMaps: vi.fn(),
         gcSourceMaps: vi.fn(),
       },
     };

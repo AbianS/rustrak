@@ -7,13 +7,30 @@
 use chrono::Utc;
 
 use crate::db::DbPool;
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::models::{
     CleanupCounts, ProjectStorage, SourceMapGcResult, SourceMapStorage, StorageSummary,
 };
 use crate::services::sourcemap_store::SourceMapStore;
 
 pub struct StorageService;
+
+/// Smallest accepted retention window. A value below this would push the cutoff
+/// to "now" or into the future, turning the cleanup into a full data wipe — so
+/// it's rejected before any cutoff is computed. Mirrors the `min(1)` the MCP and
+/// UI already enforce on the client side.
+const MIN_RETENTION_DAYS: i64 = 1;
+
+/// Rejects retention windows that would delete current/future data. Shared by the
+/// preview and execute paths so both fail fast on the same contract.
+fn validate_retention(older_than_days: i64) -> AppResult<()> {
+    if older_than_days < MIN_RETENTION_DAYS {
+        return Err(AppError::Validation(format!(
+            "older_than_days must be at least {MIN_RETENTION_DAYS}"
+        )));
+    }
+    Ok(())
+}
 
 impl StorageService {
     /// Dry-run for [`Self::gc_source_maps`]: counts the orphaned `source_file`
@@ -49,10 +66,12 @@ impl StorageService {
         pool: &DbPool,
         store: &dyn SourceMapStore,
     ) -> AppResult<SourceMapGcResult> {
-        // Orphans: source_file rows with no metadata pointing at them.
-        let orphans: Vec<(String, String, i64)> = sqlx::query_as(
+        // Orphans: source_file rows with no metadata pointing at them. This is a
+        // point-in-time snapshot — uploads dedup on `checksum`, so a concurrent
+        // upload can re-reference one of these rows before we reach it below.
+        let orphans: Vec<(String,)> = sqlx::query_as(
             r#"
-            SELECT sf.checksum, sf.storage_path, CAST(sf.size AS BIGINT) AS size
+            SELECT sf.checksum
             FROM source_file sf
             WHERE NOT EXISTS (
                 SELECT 1 FROM source_file_metadata m WHERE m.file_id = sf.id
@@ -65,18 +84,34 @@ impl StorageService {
         let mut files_removed = 0_i64;
         let mut bytes_freed = 0_i64;
 
-        for (checksum, storage_path, size) in orphans {
-            // Unlink from disk first; the store's delete is idempotent (a missing
-            // file is not an error), so a half-cleaned state self-heals on rerun.
-            let _ = store.delete(&storage_path).await;
+        for (checksum,) in orphans {
+            // Re-check orphan status atomically at delete time: the row is only
+            // removed if it's STILL unreferenced, closing the window where a
+            // concurrent upload re-attached metadata to it. `RETURNING` hands back
+            // the path/size of the row we actually deleted (None if it's no longer
+            // an orphan), so we never unlink a file that's back in use.
+            let deleted: Option<(String, i64)> = sqlx::query_as(
+                r#"
+                DELETE FROM source_file
+                WHERE checksum = $1
+                  AND NOT EXISTS (
+                      SELECT 1 FROM source_file_metadata m WHERE m.file_id = source_file.id
+                  )
+                RETURNING storage_path, CAST(size AS BIGINT)
+                "#,
+            )
+            .bind(&checksum)
+            .fetch_optional(pool)
+            .await?;
 
-            sqlx::query("DELETE FROM source_file WHERE checksum = $1")
-                .bind(&checksum)
-                .execute(pool)
-                .await?;
-
-            files_removed += 1;
-            bytes_freed += size;
+            if let Some((storage_path, size)) = deleted {
+                // The DB row is gone; now unlink the file. The store's delete is
+                // idempotent (a missing file is not an error), so a crash here just
+                // leaves a stray file that a rerun re-reaps.
+                let _ = store.delete(&storage_path).await;
+                files_removed += 1;
+                bytes_freed += size;
+            }
         }
 
         Ok(SourceMapGcResult {
@@ -92,6 +127,7 @@ impl StorageService {
         older_than_days: i64,
         project_id: Option<i32>,
     ) -> AppResult<CleanupCounts> {
+        validate_retention(older_than_days)?;
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
         Self::count_cleanup(pool, cutoff, project_id).await
     }
@@ -105,6 +141,7 @@ impl StorageService {
         older_than_days: i64,
         project_id: Option<i32>,
     ) -> AppResult<CleanupCounts> {
+        validate_retention(older_than_days)?;
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
         let counts = Self::count_cleanup(pool, cutoff, project_id).await?;
 
