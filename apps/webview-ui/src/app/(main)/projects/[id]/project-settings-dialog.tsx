@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface ProjectSettingsDialogProps {
   project: Project;
@@ -74,7 +75,14 @@ export function ProjectSettingsDialog({ project }: ProjectSettingsDialogProps) {
   }, [isDark, Highlighter]);
 
   const copyDsn = async () => {
-    await navigator.clipboard.writeText(project.dsn);
+    if (!(await copyToClipboard(project.dsn))) {
+      toast.info('Clipboard unavailable', {
+        description:
+          'Select the DSN and copy it manually, or access Rustrak over HTTPS.',
+      });
+      return;
+    }
+
     setCopiedDsn(true);
     setTimeout(() => setCopiedDsn(false), 2000);
   };
@@ -86,7 +94,14 @@ Sentry.init({
 });`;
 
   const copyCode = async () => {
-    await navigator.clipboard.writeText(codeExample);
+    if (!(await copyToClipboard(codeExample))) {
+      toast.info('Clipboard unavailable', {
+        description:
+          'Select the example and copy it manually, or access Rustrak over HTTPS.',
+      });
+      return;
+    }
+
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };

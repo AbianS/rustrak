@@ -2,7 +2,9 @@
 
 import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { copyToClipboard } from '@/lib/clipboard';
 
 interface RawJsonProps {
   data: Record<string, unknown>;
@@ -13,7 +15,14 @@ export function RawJson({ data }: RawJsonProps) {
   const jsonString = JSON.stringify(data, null, 2);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(jsonString);
+    if (!(await copyToClipboard(jsonString))) {
+      toast.info('Clipboard unavailable', {
+        description:
+          'Select the JSON and copy it manually, or access Rustrak over HTTPS.',
+      });
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
