@@ -2553,6 +2553,66 @@
               "maximum": 100,
               "minimum": 1
             }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filter by exact transaction name (lists one group's samples).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "Filter by trace operation (contexts.trace.op), e.g. `http.server`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by trace status (contexts.trace.status), e.g. `ok`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Filter by environment.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "release",
+            "in": "query",
+            "description": "Filter by release.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -2682,6 +2742,240 @@
         ]
       }
     },
+    "/api/projects/{project_id}/transactions/stats": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "GET /api/projects/{project_id}/transactions/stats\nReturns paginated aggregate performance stats (count, p50/p95/p99 latency,\nfailure rate) grouped by transaction name + op, most frequent first.",
+        "operationId": "get_transaction_stats",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated aggregate latency/throughput/failure stats per (transaction, op)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Aggregate performance stats for one (transaction_name, op) group.\nPowers the performance overview: throughput + latency percentiles +\nfailure rate per transaction. Percentiles are continuous (linear\ninterpolation, matching Postgres `percentile_cont`).",
+                        "required": [
+                          "transaction_name",
+                          "count",
+                          "p50_ms",
+                          "p95_ms",
+                          "p99_ms",
+                          "failure_rate"
+                        ],
+                        "properties": {
+                          "count": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "Number of transactions in this group."
+                          },
+                          "failure_rate": {
+                            "type": "number",
+                            "format": "double",
+                            "description": "Fraction (0.0–1.0) of transactions whose trace status is set and not \"ok\"."
+                          },
+                          "op": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "p50_ms": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "p95_ms": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "p99_ms": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "transaction_name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/transactions/stats/group": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "GET /api/projects/{project_id}/transactions/stats/group?name=&op=\nReturns the aggregate stats for a single transaction group — a direct lookup\nso the summary header works regardless of how many groups the project has.",
+        "operationId": "get_transaction_stat_group",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Exact transaction name of the group.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "Trace operation of the group (omit for groups with no op).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregate stats for one (transaction, op) group",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionStatsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Group not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/transactions/{transaction_id}": {
       "get": {
         "tags": [
@@ -2718,6 +3012,163 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TransactionDetailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/transactions/{transaction_id}/spans": {
+      "get": {
+        "tags": [
+          "Transactions"
+        ],
+        "summary": "GET /api/projects/{project_id}/transactions/{transaction_id}/spans\nReturns the indexed spans extracted from a transaction, ordered for the\nwaterfall view (by start_timestamp ascending).",
+        "operationId": "get_transaction_spans",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "transaction_id",
+            "in": "path",
+            "description": "Transaction ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Indexed spans for the transaction (waterfall order)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "A single indexed span extracted from a transaction.",
+                    "required": [
+                      "id",
+                      "is_segment"
+                    ],
+                    "properties": {
+                      "description": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "duration_ms": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double",
+                        "description": "Duration in milliseconds (timestamp - start_timestamp)."
+                      },
+                      "exclusive_time_ms": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double",
+                        "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "is_segment": {
+                        "type": "boolean"
+                      },
+                      "op": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "parent_span_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "segment_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "span_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "start_timestamp": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "timestamp": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "trace_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -4410,6 +4861,95 @@
           }
         }
       },
+      "SpanResponse": {
+        "type": "object",
+        "description": "A single indexed span extracted from a transaction.",
+        "required": [
+          "id",
+          "is_segment"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Duration in milliseconds (timestamp - start_timestamp)."
+          },
+          "exclusive_time_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "is_segment": {
+            "type": "boolean"
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "segment_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "TeamMemberResponse": {
         "type": "object",
         "description": "A user as exposed on the team roster.",
@@ -4575,6 +5115,51 @@
           "timestamp": {
             "type": "string",
             "format": "date-time"
+          },
+          "transaction_name": {
+            "type": "string"
+          }
+        }
+      },
+      "TransactionStatsResponse": {
+        "type": "object",
+        "description": "Aggregate performance stats for one (transaction_name, op) group.\nPowers the performance overview: throughput + latency percentiles +\nfailure rate per transaction. Percentiles are continuous (linear\ninterpolation, matching Postgres `percentile_cont`).",
+        "required": [
+          "transaction_name",
+          "count",
+          "p50_ms",
+          "p95_ms",
+          "p99_ms",
+          "failure_rate"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of transactions in this group."
+          },
+          "failure_rate": {
+            "type": "number",
+            "format": "double",
+            "description": "Fraction (0.0–1.0) of transactions whose trace status is set and not \"ok\"."
+          },
+          "op": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "p50_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "p95_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "p99_ms": {
+            "type": "number",
+            "format": "double"
           },
           "transaction_name": {
             "type": "string"

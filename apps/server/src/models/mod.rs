@@ -54,5 +54,7 @@ pub use invitation::{
 pub use issue::{Issue, IssueResponse, UpdateIssueState};
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
-pub use transaction::{TransactionDetailResponse, TransactionResponse};
+pub use transaction::{
+    SpanResponse, TransactionDetailResponse, TransactionResponse, TransactionStatsResponse,
+};
 pub use user::{CreateUserRequest, LoginRequest, User, UserRole};

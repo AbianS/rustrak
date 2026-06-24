@@ -38,9 +38,11 @@ const EXPECTED_TOOLS = [
   'get_server_version',
   // Sessions (1)
   'get_release_health',
-  // Transactions (2)
+  // Transactions (4)
   'list_transactions',
   'get_transaction',
+  'get_transaction_stats',
+  'get_transaction_spans',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -65,7 +67,12 @@ describe('MCP server integration', () => {
       members: { list: vi.fn(), upsert: vi.fn(), remove: vi.fn() },
       health: { getVersion: vi.fn() },
       sessions: { stats: vi.fn() },
-      transactions: { list: vi.fn(), get: vi.fn() },
+      transactions: {
+        list: vi.fn(),
+        get: vi.fn(),
+        getStats: vi.fn(),
+        getSpans: vi.fn(),
+      },
     };
     testEnv = await createTestEnv(mockClient);
   });

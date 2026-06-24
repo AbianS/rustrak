@@ -75,9 +75,19 @@ export interface ListProjectsOptions {
 }
 
 /**
- * List options for transactions endpoint (offset-based pagination)
+ * List options for transactions endpoint (offset-based pagination + filters)
  */
 export interface ListTransactionsOptions {
   page?: number;
   per_page?: number;
+  /** Filter by exact transaction name (lists one group's samples). */
+  name?: string;
+  /** Filter by trace operation (contexts.trace.op), e.g. `http.server`. */
+  op?: string;
+  /** Filter by trace status (contexts.trace.status), e.g. `ok`. */
+  status?: string;
+  /** Filter by environment. */
+  environment?: string;
+  /** Filter by release. */
+  release?: string;
 }

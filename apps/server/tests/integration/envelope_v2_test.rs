@@ -8,7 +8,6 @@ use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
 use rustrak::services::{DbSourceMapProvider, LocalSourceMapStore, ProjectService};
 use serde_json::json;
-use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -204,22 +203,21 @@ async fn test_transaction_envelope_returns_200_with_id() {
     // The processor runs in a spawned task; poll (bounded) instead of a fixed
     // sleep so the assertion isn't flaky on slower CI runners.
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
-    let event_type: Option<String> = loop {
-        let row = sqlx::query("SELECT event_type FROM events WHERE project_id = ?")
-            .bind(project_id)
-            .fetch_optional(&db.pool)
-            .await
-            .unwrap();
-        let current: Option<String> = row.map(|r| r.get("event_type"));
-        if current.as_deref() == Some("transaction") || tokio::time::Instant::now() >= deadline {
-            break current;
+    let stored: i64 = loop {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM transactions WHERE project_id = ?")
+                .bind(project_id)
+                .fetch_one(&db.pool)
+                .await
+                .unwrap();
+        if count > 0 || tokio::time::Instant::now() >= deadline {
+            break count;
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     };
 
     assert_eq!(
-        event_type.as_deref(),
-        Some("transaction"),
-        "transaction must be stored with event_type='transaction'"
+        stored, 1,
+        "transaction must be stored in the dedicated transactions table"
     );
 }
