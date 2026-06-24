@@ -18,6 +18,8 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   textarea.value = text;
   textarea.readOnly = true;
   textarea.style.position = 'fixed';
+  textarea.style.top = '0';
+  textarea.style.left = '0';
   textarea.style.opacity = '0';
   textarea.style.pointerEvents = 'none';
 
@@ -26,6 +28,8 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   textarea.setSelectionRange(0, textarea.value.length);
 
   try {
+    // execCommand's boolean result varies by browser, but it is the best
+    // available signal when the Clipboard API is unavailable over HTTP.
     return document.execCommand('copy');
   } catch {
     return false;
