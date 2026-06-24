@@ -207,8 +207,10 @@ async fn find_or_create_issue_and_grouping_with_lock(
     level: Option<&str>,
     platform: Option<&str>,
 ) -> AppResult<(Issue, Grouping, bool)> {
-    // Start a transaction
-    let mut tx = pool.begin().await?;
+    // Start a write transaction. On SQLite this is `BEGIN IMMEDIATE` so the
+    // read-then-write below (SELECT MAX(digest_order) → INSERT) takes the write
+    // lock up front instead of failing with "database is locked" on upgrade.
+    let mut tx = crate::db::begin_write(pool).await?;
 
     // Acquire advisory lock for this project (Postgres only).
     // SQLite serializes all writes, so no advisory lock needed.

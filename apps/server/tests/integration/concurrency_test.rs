@@ -435,6 +435,131 @@ async fn test_high_concurrency_stress_test() {
 }
 
 // =============================================================================
+// Regression: SQLite file-mode under concurrent digest writes (#131)
+// =============================================================================
+
+/// Reproduces #131: with SQLite in **file mode** and `max_connections > 1`
+/// (the self-hosted production config), concurrent digest tasks must not fail
+/// with "database is locked" nor drop events. The in-memory test pool
+/// (`max_connections = 1`) hides this because it serializes all writes.
+///
+/// This drives the REAL production pool (`db::create_pool`, which already
+/// enables WAL + busy_timeout) so the test proves whether those alone are
+/// enough — they are not: the read-then-write digest transaction needs
+/// `BEGIN IMMEDIATE` to take the write lock upfront.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_concurrent_digests_sqlite_file_mode_no_lock_errors_or_loss() {
+    use rustrak::config::DatabaseConfig;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let db_path = temp_dir.path().join("rustrak_concurrency.db");
+    let config = DatabaseConfig {
+        url: format!("sqlite://{}?mode=rwc", db_path.display()),
+        max_connections: 5,
+        min_connections: 1,
+        acquire_timeout: Duration::from_secs(10),
+        idle_timeout: Duration::from_secs(60),
+        max_lifetime: Duration::from_secs(300),
+    };
+    let pool = rustrak::db::create_pool(&config)
+        .await
+        .expect("Failed to create file-mode SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let project = create_test_project(&pool, "Concurrent File Mode").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+    let rate_limit_config = Arc::new(create_rate_limit_config());
+    let pool = Arc::new(pool);
+
+    // 50 concurrent events with distinct error types (50 new issues).
+    let num_events = 50;
+    let mut handles = Vec::new();
+    for i in 0..num_events {
+        let pool_clone = Arc::clone(&pool);
+        let ingest_dir_clone = ingest_dir.clone();
+        let rate_limit_config_clone = Arc::clone(&rate_limit_config);
+        let project_id = project.id;
+
+        let handle = tokio::spawn(async move {
+            let (event_id, event_json) =
+                create_unique_event_json(&format!("FileError{}", i), &format!("Msg {}", i));
+            let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+            store_event(&ingest_dir_clone, &event_id, &event_bytes)
+                .await
+                .expect("Failed to store event");
+
+            let metadata = EventMetadata {
+                event_id,
+                project_id,
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+
+            // Return the Result instead of unwrapping so we can assert no loss.
+            process_error_event(
+                &pool_clone,
+                &metadata,
+                &ingest_dir_clone,
+                &rate_limit_config_clone,
+                crate::common::null_sourcemap_provider(),
+            )
+            .await
+        });
+        handles.push(handle);
+    }
+
+    let mut failures = Vec::new();
+    for handle in handles {
+        if let Err(e) = handle.await.expect("Task panicked") {
+            failures.push(format!("{:?}", e));
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "Concurrent digests must not fail under SQLite file mode (events would be \
+         dropped). {} of {} failed: {:#?}",
+        failures.len(),
+        num_events,
+        failures
+    );
+
+    // No event loss: all 50 issues exist with sequential digest_order 1..=50.
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(
+        issues.len(),
+        num_events,
+        "Expected {} issues, got {} (events were dropped)",
+        num_events,
+        issues.len()
+    );
+
+    let digest_orders: HashSet<i32> = issues.iter().map(|i| i.digest_order).collect();
+    let expected: HashSet<i32> = (1..=num_events as i32).collect();
+    assert_eq!(
+        digest_orders, expected,
+        "digest_order must be 1-{} with no gaps/duplicates",
+        num_events
+    );
+}
+
+// =============================================================================
 // Edge Case: Mixed Concurrent Operations
 // =============================================================================
 
