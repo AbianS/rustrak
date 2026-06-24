@@ -14,6 +14,15 @@ interface TransactionsListProps {
   projectId: number;
   initialTransactions: OffsetPaginatedResponse<Transaction>;
   currentPage: number;
+  /** Base path for pagination links (defaults to the performance landing). */
+  basePath?: string;
+  filters?: {
+    name?: string;
+    op?: string;
+    status?: string;
+    environment?: string;
+    release?: string;
+  };
 }
 
 function formatDuration(ms: number | null): string {
@@ -48,9 +57,13 @@ export function TransactionsList({
   projectId,
   initialTransactions,
   currentPage,
+  basePath,
+  filters,
 }: TransactionsListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const path = basePath ?? `/projects/${projectId}/performance`;
 
   const {
     items: transactions,
@@ -60,8 +73,16 @@ export function TransactionsList({
   } = initialTransactions;
 
   const handlePageChange = (page: number) => {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    // Preserve active filters across pagination so the page stays in context.
+    if (filters?.name) params.set('name', filters.name);
+    if (filters?.op) params.set('op', filters.op);
+    if (filters?.status) params.set('status', filters.status);
+    if (filters?.environment) params.set('environment', filters.environment);
+    if (filters?.release) params.set('release', filters.release);
     startTransition(() => {
-      router.push(`/projects/${projectId}/performance?page=${page}`);
+      router.push(`${path}?${params.toString()}`);
     });
   };
 
@@ -82,8 +103,8 @@ export function TransactionsList({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
+    <div className="flex flex-col">
+      <div className="flex flex-col border rounded-lg overflow-hidden">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
             Transaction
@@ -96,7 +117,7 @@ export function TransactionsList({
           </span>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div>
           {transactions.map((txn) => {
             const tone = durationTone(txn.duration_ms);
             return (

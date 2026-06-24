@@ -1167,6 +1167,52 @@ export const handlers = [
     });
   }),
 
+  // Transactions — aggregate stats (must precede the :transactionId handler,
+  // otherwise "stats" is captured as a transaction id).
+  http.get(`${BASE_URL}/api/projects/:projectId/transactions/stats`, () => {
+    return HttpResponse.json({
+      items: [
+        {
+          transaction_name: '/api/checkout',
+          op: 'http.server',
+          count: 3,
+          p50_ms: 200.0,
+          p95_ms: 290.0,
+          p99_ms: 298.0,
+          failure_rate: 0.3333333333333333,
+        },
+      ],
+      total_count: 1,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
+    });
+  }),
+
+  // Transactions — indexed spans for a transaction
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/transactions/:transactionId/spans`,
+    () => {
+      return HttpResponse.json([
+        {
+          id: 'c3d4e5f6-e89b-12d3-a456-426614174000',
+          span_id: 'cccccccccccccccc',
+          trace_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          parent_span_id: 'bbbbbbbbbbbbbbbb',
+          op: 'db.query',
+          description: 'SELECT 1',
+          status: 'ok',
+          start_timestamp: '2026-06-18T11:59:59.000Z',
+          timestamp: '2026-06-18T11:59:59.500Z',
+          duration_ms: 500.0,
+          exclusive_time_ms: 500.0,
+          is_segment: false,
+          segment_id: null,
+        },
+      ]);
+    },
+  ),
+
   // Transactions — get single transaction detail
   http.get(
     `${BASE_URL}/api/projects/:projectId/transactions/:transactionId`,

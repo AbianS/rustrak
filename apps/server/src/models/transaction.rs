@@ -42,3 +42,42 @@ pub struct TransactionDetailResponse {
     /// Full Sentry transaction payload (spans, contexts, measurements, tags, request, user).
     pub data: serde_json::Value,
 }
+
+/// A single indexed span extracted from a transaction.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct SpanResponse {
+    pub id: Uuid,
+    pub span_id: Option<String>,
+    pub trace_id: Option<String>,
+    pub parent_span_id: Option<String>,
+    pub op: Option<String>,
+    pub description: Option<String>,
+    pub status: Option<String>,
+    pub start_timestamp: Option<DateTime<Utc>>,
+    pub timestamp: Option<DateTime<Utc>>,
+    /// Duration in milliseconds (timestamp - start_timestamp).
+    pub duration_ms: Option<f64>,
+    /// Relay's exclusive (self) time in milliseconds, if provided by the SDK.
+    pub exclusive_time_ms: Option<f64>,
+    pub is_segment: bool,
+    pub segment_id: Option<String>,
+}
+
+/// Aggregate performance stats for one (transaction_name, op) group.
+/// Powers the performance overview: throughput + latency percentiles +
+/// failure rate per transaction. Percentiles are continuous (linear
+/// interpolation, matching Postgres `percentile_cont`).
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct TransactionStatsResponse {
+    pub transaction_name: String,
+    pub op: Option<String>,
+    /// Number of transactions in this group.
+    pub count: i64,
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub p99_ms: f64,
+    /// Fraction (0.0–1.0) of transactions whose trace status is set and not "ok".
+    pub failure_rate: f64,
+}

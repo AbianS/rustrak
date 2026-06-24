@@ -36,6 +36,46 @@ describe('TransactionsResource', () => {
       });
       expect(result).toBeDefined();
     });
+
+    it('accepts filter options', async () => {
+      const result = await client.transactions.list(1, {
+        name: '/api/checkout',
+        op: 'http.server',
+        status: 'ok',
+        environment: 'production',
+        release: '1.0.0',
+      });
+      expect(result).toBeDefined();
+    });
+  });
+
+  describe('getSpans()', () => {
+    it('returns the indexed spans for a transaction', async () => {
+      const spans = await client.transactions.getSpans(
+        1,
+        'a1b2c3d4-e89b-12d3-a456-426614174000',
+      );
+
+      expect(spans).toHaveLength(1);
+      expect(spans[0].op).toBe('db.query');
+      expect(spans[0].description).toBe('SELECT 1');
+      expect(spans[0].duration_ms).toBe(500.0);
+      expect(spans[0].is_segment).toBe(false);
+    });
+  });
+
+  describe('getStats()', () => {
+    it('returns paginated aggregate stats per transaction group', async () => {
+      const result = await client.transactions.getStats(1);
+
+      expect(result.total_count).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].transaction_name).toBe('/api/checkout');
+      expect(result.items[0].op).toBe('http.server');
+      expect(result.items[0].count).toBe(3);
+      expect(result.items[0].p50_ms).toBe(200.0);
+      expect(result.items[0].failure_rate).toBeCloseTo(0.3333, 3);
+    });
   });
 
   describe('get()', () => {

@@ -37,3 +37,35 @@ export const transactionDetailSchema = z.object({
   ingested_at: dateTimeSchema,
   data: z.record(z.string(), z.any()), // Full Sentry transaction payload
 });
+
+/**
+ * A single indexed span extracted from a transaction (waterfall row).
+ */
+export const spanSchema = z.object({
+  id: uuidSchema,
+  span_id: z.string().nullable(),
+  trace_id: z.string().nullable(),
+  parent_span_id: z.string().nullable(),
+  op: z.string().nullable(),
+  description: z.string().nullable(),
+  status: z.string().nullable(),
+  start_timestamp: dateTimeSchema.nullable(),
+  timestamp: dateTimeSchema.nullable(),
+  duration_ms: z.number().nullable(),
+  exclusive_time_ms: z.number().nullable(),
+  is_segment: z.boolean(),
+  segment_id: z.string().nullable(),
+});
+
+/**
+ * Aggregate performance stats for one (transaction_name, op) group.
+ */
+export const transactionStatsSchema = z.object({
+  transaction_name: z.string(),
+  op: z.string().nullable(),
+  count: z.number().int(),
+  p50_ms: z.number(),
+  p95_ms: z.number(),
+  p99_ms: z.number(),
+  failure_rate: z.number(),
+});

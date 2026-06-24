@@ -175,6 +175,36 @@ pub struct ListTransactionsQuery {
     #[serde(default = "default_per_page")]
     #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
     pub per_page: i64,
+
+    /// Filter by exact transaction name (lists one group's samples).
+    pub name: Option<String>,
+
+    /// Filter by trace operation (contexts.trace.op), e.g. `http.server`.
+    pub op: Option<String>,
+
+    /// Filter by trace status (contexts.trace.status), e.g. `ok`.
+    pub status: Option<String>,
+
+    /// Filter by environment.
+    pub environment: Option<String>,
+
+    /// Filter by release.
+    pub release: Option<String>,
+}
+
+/// Query parameters for the transaction stats overview (offset-based)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct TransactionStatsQuery {
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
 }
 
 /// Query parameters for listing events
