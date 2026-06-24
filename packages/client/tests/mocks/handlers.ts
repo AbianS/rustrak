@@ -1296,4 +1296,74 @@ export const handlers = [
       });
     },
   ),
+
+  // Storage — instance-wide summary
+  http.get(`${BASE_URL}/api/storage/summary`, () => {
+    return HttpResponse.json({
+      total_db_size_bytes: 1048576,
+      events_count: 120,
+      transactions_count: 80,
+      spans_count: 640,
+      source_maps: {
+        chunk_bytes: 350,
+        source_file_bytes: 300,
+        total_bytes: 650,
+        file_count: 2,
+      },
+    });
+  }),
+
+  // Storage — per-project breakdown
+  http.get(`${BASE_URL}/api/storage/projects`, () => {
+    return HttpResponse.json([
+      {
+        project_id: 1,
+        project_name: 'Test Project',
+        events_count: 100,
+        transactions_count: 80,
+        spans_count: 640,
+        source_maps_count: 2,
+        estimated_bytes: 524288,
+      },
+      {
+        project_id: 2,
+        project_name: 'Another Project',
+        events_count: 0,
+        transactions_count: 0,
+        spans_count: 0,
+        source_maps_count: 0,
+        estimated_bytes: 0,
+      },
+    ]);
+  }),
+
+  // Storage — cleanup dry-run preview
+  http.post(`${BASE_URL}/api/storage/cleanup/preview`, () => {
+    return HttpResponse.json({
+      events: 20,
+      transactions: 10,
+      spans: 80,
+      issues_removed: 3,
+    });
+  }),
+
+  // Storage — execute cleanup
+  http.post(`${BASE_URL}/api/storage/cleanup`, () => {
+    return HttpResponse.json({
+      events: 20,
+      transactions: 10,
+      spans: 80,
+      issues_removed: 3,
+    });
+  }),
+
+  // Storage — dry-run orphaned source-map GC
+  http.post(`${BASE_URL}/api/storage/source-maps/gc/preview`, () => {
+    return HttpResponse.json({ files_removed: 4, bytes_freed: 81920 });
+  }),
+
+  // Storage — garbage-collect orphaned source maps
+  http.post(`${BASE_URL}/api/storage/source-maps/gc`, () => {
+    return HttpResponse.json({ files_removed: 4, bytes_freed: 81920 });
+  }),
 ];

@@ -3201,6 +3201,284 @@
         ]
       }
     },
+    "/api/storage/cleanup": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "POST /api/storage/cleanup — deletes old data and removes emptied issues.",
+        "operationId": "execute_cleanup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Cleanup executed; rows removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupCounts"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/storage/cleanup/preview": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "POST /api/storage/cleanup/preview — dry-run count, mutates nothing.",
+        "operationId": "preview_cleanup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dry-run: rows a cleanup would remove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupCounts"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/storage/projects": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "GET /api/storage/projects — per-project counts and estimated weight.",
+        "operationId": "get_projects",
+        "responses": {
+          "200": {
+            "description": "Per-project storage breakdown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "Per-project storage breakdown, one row per project (including empty ones).\n\nCounts are exact. `estimated_bytes` is the summed length of the JSON payloads\nthis project owns across events/transactions/spans — a real per-project weight,\nnot an apportioned guess.",
+                    "required": [
+                      "project_id",
+                      "project_name",
+                      "events_count",
+                      "transactions_count",
+                      "spans_count",
+                      "source_maps_count",
+                      "estimated_bytes"
+                    ],
+                    "properties": {
+                      "estimated_bytes": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "events_count": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "project_id": {
+                        "type": "integer",
+                        "format": "int32"
+                      },
+                      "project_name": {
+                        "type": "string"
+                      },
+                      "source_maps_count": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "spans_count": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "transactions_count": {
+                        "type": "integer",
+                        "format": "int64"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/storage/source-maps/gc": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "POST /api/storage/source-maps/gc — delete orphaned source maps (DB + disk).",
+        "operationId": "gc_source_maps",
+        "responses": {
+          "200": {
+            "description": "Orphaned source maps removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMapGcResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/storage/source-maps/gc/preview": {
+      "post": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "POST /api/storage/source-maps/gc/preview — dry-run orphan count, deletes nothing.",
+        "operationId": "preview_source_map_gc",
+        "responses": {
+          "200": {
+            "description": "Dry-run: orphaned source maps a GC would remove",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceMapGcResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/storage/summary": {
+      "get": {
+        "tags": [
+          "Storage"
+        ],
+        "summary": "GET /api/storage/summary — row counts, DB size, and source-map weight.",
+        "operationId": "get_summary",
+        "responses": {
+          "200": {
+            "description": "Instance-wide storage summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageSummary"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/team": {
       "get": {
         "tags": [
@@ -4276,6 +4554,55 @@
         "type": "object",
         "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
       },
+      "CleanupCounts": {
+        "type": "object",
+        "description": "Rows affected by a cleanup, used symmetrically for the dry-run preview (\"what\nwould be removed\") and the executed result (\"what was removed\"). `spans` are\ncounted directly even though they cascade from `transactions`, so the UI can\nshow the true row impact. `issues_removed` is the number of issues that would\nbe left with zero events and therefore deleted.",
+        "required": [
+          "events",
+          "transactions",
+          "spans",
+          "issues_removed"
+        ],
+        "properties": {
+          "events": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "issues_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spans": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "transactions": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "CleanupRequest": {
+        "type": "object",
+        "description": "Request body for a cleanup (preview or execute): remove data older than\n`older_than_days`, optionally scoped to a single project (omit for all).\n\n`older_than_days` must be at least 1 — the service rejects smaller values,\nsince a window of 0 (or negative) would move the cutoff to now/the future and\npurge the entire dataset.",
+        "required": [
+          "older_than_days"
+        ],
+        "properties": {
+          "older_than_days": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "project_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "CreateAlertIntegration": {
         "type": "object",
         "description": "DTO for creating an alert integration",
@@ -4771,6 +5098,48 @@
           }
         }
       },
+      "ProjectStorage": {
+        "type": "object",
+        "description": "Per-project storage breakdown, one row per project (including empty ones).\n\nCounts are exact. `estimated_bytes` is the summed length of the JSON payloads\nthis project owns across events/transactions/spans — a real per-project weight,\nnot an apportioned guess.",
+        "required": [
+          "project_id",
+          "project_name",
+          "events_count",
+          "transactions_count",
+          "spans_count",
+          "source_maps_count",
+          "estimated_bytes"
+        ],
+        "properties": {
+          "estimated_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "events_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "project_id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "project_name": {
+            "type": "string"
+          },
+          "source_maps_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spans_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "transactions_count": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ProviderType": {
         "type": "string",
         "description": "Type of notification provider (replaces ChannelType)",
@@ -4861,6 +5230,56 @@
           }
         }
       },
+      "SourceMapGcResult": {
+        "type": "object",
+        "description": "Outcome of a source-map garbage collection: orphaned `source_file` rows\n(no `source_file_metadata` referencing them) removed from the DB and unlinked\nfrom disk. `bytes_freed` is the exact summed `size` of the removed files.",
+        "required": [
+          "files_removed",
+          "bytes_freed"
+        ],
+        "properties": {
+          "bytes_freed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "files_removed": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SourceMapStorage": {
+        "type": "object",
+        "description": "Exact source-map storage weight, summed from the `size` columns.\n\nSource maps live in two places: `chunk` holds the raw upload bytes as in-DB\nBYTEA, `source_file` holds the assembled artifact on the filesystem CAS. Both\ncarry a `size` column, so the weight is an exact SUM — no filesystem walk.",
+        "required": [
+          "chunk_bytes",
+          "source_file_bytes",
+          "total_bytes",
+          "file_count"
+        ],
+        "properties": {
+          "chunk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes held in the in-DB `chunk` table (raw upload chunks)."
+          },
+          "file_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of `source_file` rows."
+          },
+          "source_file_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes held on disk via `source_file` (assembled artifacts)."
+          },
+          "total_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`chunk_bytes + source_file_bytes`."
+          }
+        }
+      },
       "SpanResponse": {
         "type": "object",
         "description": "A single indexed span extracted from a transaction.",
@@ -4947,6 +5366,40 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "StorageSummary": {
+        "type": "object",
+        "description": "Instance-wide storage summary: what Rustrak is holding right now.\n\nRow counts are exact (indexed `COUNT(*)`). `total_db_size_bytes` is a\nbest-effort figure from the backend (`pg_database_size` / SQLite page count),\nwhile `source_maps` is exact (summed `size` columns).",
+        "required": [
+          "total_db_size_bytes",
+          "events_count",
+          "transactions_count",
+          "spans_count",
+          "source_maps"
+        ],
+        "properties": {
+          "events_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_maps": {
+            "$ref": "#/components/schemas/SourceMapStorage",
+            "description": "Exact source-map weight + file count."
+          },
+          "spans_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_db_size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Whole-database size in bytes (best-effort, backend-reported)."
+          },
+          "transactions_count": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

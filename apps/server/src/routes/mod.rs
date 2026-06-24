@@ -9,6 +9,7 @@ pub mod members;
 pub mod projects;
 pub mod sessions;
 pub mod sourcemaps;
+pub mod storage;
 pub mod team;
 pub mod tokens;
 pub mod transactions;

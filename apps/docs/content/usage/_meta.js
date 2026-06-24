@@ -5,4 +5,5 @@ export default {
   alerts: 'Alerts',
   team: 'Team & Access',
   tokens: 'API Tokens',
+  storage: 'Storage',
 };

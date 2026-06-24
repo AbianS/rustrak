@@ -147,12 +147,14 @@ async fn main() -> std::io::Result<()> {
             .max_age(3600);
 
         let sourcemap_provider_data = web::Data::new(Arc::clone(&sourcemap_provider));
+        let sourcemap_store_data = web::Data::new(Arc::clone(&sourcemap_store));
 
         let app = App::new()
             // Share database pool and config with all handlers
             .app_data(web::Data::new(db_pool.clone()))
             .app_data(web::Data::new(config.clone()))
             .app_data(sourcemap_provider_data)
+            .app_data(sourcemap_store_data)
             .app_data(session_aggregator_data.clone())
             .app_data(processors_data.clone())
             // Middleware
@@ -202,6 +204,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::alerts::configure_channels)
             // Source map upload routes (Bearer auth, Sentry-cli compatible)
             .configure(routes::sourcemaps::configure)
+            // Storage usage + retention/cleanup (admin only)
+            .configure(routes::storage::configure)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure);
 
