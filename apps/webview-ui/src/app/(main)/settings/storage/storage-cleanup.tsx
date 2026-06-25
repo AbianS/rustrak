@@ -41,6 +41,7 @@ interface StorageCleanupProps {
 }
 
 const PERIODS = [
+  { value: '1', label: 'Older than 1 day' },
   { value: '7', label: 'Older than 7 days' },
   { value: '30', label: 'Older than 30 days' },
   { value: '60', label: 'Older than 60 days' },
