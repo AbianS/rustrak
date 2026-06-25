@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.31
+
+### Patch Changes
+
+- [`37062b0`](https://github.com/rustrak/rustrak/commit/37062b0186f8d38efd310df986ef157cc57f2675) Thanks [@AbianS](https://github.com/AbianS)! - fix: correct storage counts, robust cleanup, and streamed storage page
+
 ## 0.1.30
 
 ### Patch Changes
