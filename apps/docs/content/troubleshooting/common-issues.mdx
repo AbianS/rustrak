@@ -190,6 +190,30 @@ Events go through two phases:
 
 If events appear delayed, the digest phase might be backed up. Check server logs for errors.
 
+## Stack traces still show minified code
+
+If errors show minified file names instead of your real source files, the source maps
+aren't reaching Rustrak. Source map upload is a **separate** channel from error
+reporting: your DSN sends **events** to Rustrak, but the build plugin decides where
+**source maps** go. The two most common causes:
+
+1. **The upload URL isn't set** → the Sentry build tooling defaults to its hosted
+   service (`sentry.io`). You must set the plugin's `url` option to your Rustrak
+   server. Pointing the DSN at Rustrak is not enough.
+2. **No auth token** → without `authToken`, the upload is **silently skipped** and
+   the build still succeeds.
+
+Verify whether anything was actually uploaded for your project:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8080/api/0/projects/x/your-project/files/source-maps/
+```
+
+An empty `data` array means no source maps exist for that project yet.
+
+See [Source Maps](/usage/source-maps) for full setup.
+
 ## Still stuck?
 
 - Check server logs: `docker logs rustrak`

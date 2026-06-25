@@ -89,6 +89,14 @@ module.exports = {
 
 The `authToken` is a Rustrak API token created under **Settings → API Tokens**. The `org` and `project` values are not used by Rustrak but are required fields by the SDK plugin.
 
+> **The `url` must point to Rustrak.** Source map upload is a separate channel from
+> error reporting: your DSN controls where **events** go, but the build plugin
+> decides where **source maps** go. If you leave `url` unset, the plugin uploads to
+> Sentry's hosted service (`sentry.io`) by default — pointing the DSN at Rustrak does
+> not change this. And if `authToken` is missing, the upload is **silently skipped**
+> and the build still succeeds. Other SDKs use the same two options under different
+> names (e.g. `sentryUrl` for `@sentry/nextjs`, `--url` for `sentry-cli`).
+
 ## How the upload works
 
 The SDK uploads source maps in three steps during your build:
@@ -98,6 +106,11 @@ The SDK uploads source maps in three steps during your build:
 3. **Assembly** — The SDK tells the server which chunks form a complete artifact bundle. The server assembles the ZIP and confirms.
 
 From your perspective: run `vite build` (or `webpack`) and it happens automatically.
+
+Because the upload runs **during the build**, the credentials (`authToken` / `url`)
+have to be available at build time. If you build in Docker or CI, pass the token to
+the build itself — a variable set only on the running container comes too late, and
+the upload is silently skipped.
 
 ## Storage
 
@@ -149,7 +162,20 @@ The plugin logs upload progress. Look for output like:
 [sentry] Artifact bundle assembled successfully
 ```
 
-If you see errors, check that the `authToken` is valid and the `url` points to your Rustrak instance.
+- **No upload output at all** → the upload was skipped, almost always because
+  `authToken` is missing. The build still succeeds, so this is easy to miss.
+- **It uploaded, but errors are still minified** → check `url`. If it isn't set,
+  source maps go to `sentry.io` by default, not to Rustrak. The DSN does not control
+  this.
+
+Confirm what actually landed on the server:
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+  http://localhost:8080/api/0/projects/x/your-project/files/source-maps/
+```
+
+An empty `data` array means no source maps were ever uploaded for that project.
 
 **3. Is `SOURCEMAP_STORAGE_PATH` writable and persistent?**
 
