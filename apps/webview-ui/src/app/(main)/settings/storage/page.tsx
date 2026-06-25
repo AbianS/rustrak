@@ -179,7 +179,9 @@ async function ProjectsTable() {
  * it can stream in early.
  */
 async function CleanupPanel() {
-  const { items } = await getProjects({ per_page: 100 });
+  // Fetch every project in one shot (the API applies no hard page-size cap) so
+  // the scope selector never silently drops projects.
+  const { items } = await getProjects({ per_page: 10000 });
 
   return (
     <StorageCleanup projects={items.map((p) => ({ id: p.id, name: p.name }))} />
