@@ -1,5 +1,11 @@
 # docs
 
+## 0.1.32
+
+### Patch Changes
+
+- [`0f91a6e`](https://github.com/rustrak/rustrak/commit/0f91a6ef6ba96bc2c6bd4b71c1d41efb1b0dbf12) Thanks [@AbianS](https://github.com/AbianS)! - Clarify in the source maps and troubleshooting docs that source map upload goes to `sentry.io` by default and must be pointed at the Rustrak server via the plugin's `url`/`authToken`.
+
 ## 0.1.31
 
 ### Patch Changes
