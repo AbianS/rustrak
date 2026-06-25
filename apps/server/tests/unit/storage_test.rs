@@ -129,6 +129,46 @@ async fn seed_event_at(
     .unwrap();
 }
 
+/// Seeds an issue-less event row of an arbitrary `event_type` directly into the
+/// `events` table (NULL `issue_id`/`grouping_id`) stamped at `ingested_at`. This
+/// is the shape of non-error rows: legacy `transaction` rows stranded from before
+/// the dedicated table, or future types like `log`. None of them ever
+/// incremented a counter.
+async fn seed_issueless_event_at(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    event_type: &str,
+    ingested_at: chrono::DateTime<Utc>,
+) {
+    let now = ingested_at;
+    sqlx::query(
+        "INSERT INTO events \
+         (id, event_id, project_id, data, timestamp, ingested_at, digested_at, digest_order, event_type) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(Uuid::new_v4())
+    .bind(project_id)
+    .bind(serde_json::json!({ "event_type": event_type }))
+    .bind(now)
+    .bind(now)
+    .bind(now)
+    .bind(1_i32)
+    .bind(event_type)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// Convenience: the legacy `transaction`-in-`events` shape.
+async fn seed_legacy_transaction_event_at(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    ingested_at: chrono::DateTime<Utc>,
+) {
+    seed_issueless_event_at(pool, project_id, "transaction", ingested_at).await;
+}
+
 /// Seeds one transaction (stamped at `ingested_at`) plus `span_count` spans
 /// cascaded under it.
 async fn seed_transaction_with_spans_at(
@@ -394,6 +434,127 @@ async fn test_execute_cleanup_decrements_project_event_counters() {
 }
 
 #[tokio::test]
+async fn test_execute_cleanup_purges_legacy_transaction_events_without_underflowing_counters() {
+    // Legacy `event_type='transaction'` rows never incremented the project
+    // counters. A cleanup that catches them must still physically purge the rows
+    // while leaving the project's error-event counters correct (the counters are
+    // rebuilt from the surviving issues, so deleting issue-less rows can't drive
+    // them negative).
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "tx-underflow".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    seed_event(&db.pool, project.id).await; // one recent error event, survives
+    seed_legacy_transaction_event_at(&db.pool, project.id, old).await;
+    seed_legacy_transaction_event_at(&db.pool, project.id, old).await;
+
+    // Counter reflects the single error event the digest path would have counted.
+    sqlx::query(
+        "UPDATE projects SET stored_event_count = 1, digested_event_count = 1 WHERE id = $1",
+    )
+    .bind(project.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+
+    StorageService::execute_cleanup(&db.pool, 30, None)
+        .await
+        .unwrap();
+
+    let (stored, digested): (i32, i32) = sqlx::query_as(
+        "SELECT stored_event_count, digested_event_count FROM projects WHERE id = $1",
+    )
+    .bind(project.id)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        stored, 1,
+        "error-event counter untouched by transaction purge"
+    );
+    assert_eq!(digested, 1);
+
+    // The legacy transaction rows are gone; the error event remains.
+    let tx_left: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE event_type = 'transaction'")
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        tx_left, 0,
+        "old legacy transaction events physically purged"
+    );
+
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.events_count, 1, "the error event survives");
+}
+
+#[tokio::test]
+async fn test_execute_cleanup_deletes_every_old_row_regardless_of_type() {
+    // The user-facing contract: a cleanup deletes EVERYTHING older than the cutoff
+    // with no exceptions — errors and legacy transaction rows alike — and the
+    // surviving project counter still equals the surviving error events.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "delete-all".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    let now = Utc::now();
+    seed_event_at(&db.pool, project.id, old).await; // old error → deleted
+    seed_event_at(&db.pool, project.id, now).await; // recent error → survives
+    seed_legacy_transaction_event_at(&db.pool, project.id, old).await; // deleted
+    seed_legacy_transaction_event_at(&db.pool, project.id, old).await; // deleted
+
+    // Two error events were counted by the digest path.
+    sqlx::query(
+        "UPDATE projects SET stored_event_count = 2, digested_event_count = 2 WHERE id = $1",
+    )
+    .bind(project.id)
+    .execute(&db.pool)
+    .await
+    .unwrap();
+
+    StorageService::execute_cleanup(&db.pool, 30, None)
+        .await
+        .unwrap();
+
+    // Every old row gone (1 error + 2 transactions); only the recent error remains.
+    let total_events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events")
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        total_events, 1,
+        "all old rows deleted, recent error survives"
+    );
+
+    let (stored, digested): (i32, i32) = sqlx::query_as(
+        "SELECT stored_event_count, digested_event_count FROM projects WHERE id = $1",
+    )
+    .bind(project.id)
+    .fetch_one(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(stored, 1, "counter tracks the one surviving error event");
+    assert_eq!(digested, 1);
+}
+
+#[tokio::test]
 async fn test_execute_cleanup_scoped_to_project_spares_other_projects() {
     // Safety guard: a project-scoped purge must never reach into a sibling
     // project's data, no matter how old that data is.
@@ -436,6 +597,42 @@ async fn test_execute_cleanup_scoped_to_project_spares_other_projects() {
     assert_eq!(b.events_count, 1, "sibling project untouched");
     assert_eq!(b.transactions_count, 1);
     assert_eq!(b.spans_count, 1);
+}
+
+#[tokio::test]
+async fn test_storage_event_count_reflects_every_stored_event_row() {
+    // The storage page shows the truth of what's on disk: every `events` row
+    // counts, no exceptions — errors, future types (e.g. `log`), and legacy
+    // `transaction` rows alike. Admins must see the real total so they know
+    // there's data to reclaim; a cleanup then deletes it all by date.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "mixed-types".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_event(&db.pool, project.id).await; // error event (has an issue)
+    seed_issueless_event_at(&db.pool, project.id, "log", Utc::now()).await;
+    seed_legacy_transaction_event_at(&db.pool, project.id, Utc::now()).await;
+    seed_legacy_transaction_event_at(&db.pool, project.id, Utc::now()).await;
+
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(
+        summary.events_count, 4,
+        "every stored event row counts: error + log + 2 transactions"
+    );
+
+    let rows = StorageService::by_project(&db.pool).await.unwrap();
+    let p = rows.iter().find(|r| r.project_id == project.id).unwrap();
+    assert_eq!(
+        p.events_count, 4,
+        "per-project count reflects all stored event rows"
+    );
 }
 
 #[tokio::test]

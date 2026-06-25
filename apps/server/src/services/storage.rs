@@ -157,10 +157,11 @@ impl StorageService {
         .execute(&mut *tx)
         .await?;
 
-        // Keep the denormalized event counters in sync BEFORE deleting the rows —
-        // same contract as IssueService::delete. We subtract the exact number of
-        // events being removed (correlated COUNT), so the counters can't underflow
-        // in a consistent DB. Correlated subqueries keep this dialect-portable.
+        // Keep the per-issue event counters in sync BEFORE deleting the rows. The
+        // `e.issue_id = issues.id` join means only events that belong to an issue
+        // (errors) are ever subtracted — transaction/log rows carry a NULL
+        // issue_id and never touched these counters, so they can't underflow them.
+        // Correlated subqueries keep this dialect-portable.
         sqlx::query(
             r#"
             UPDATE issues SET
@@ -193,33 +194,26 @@ impl StorageService {
         .execute(&mut *tx)
         .await?;
 
+        // Rebuild each in-scope project's counters from the (now-updated) issue
+        // counters instead of subtracting an event delta. The project counter is
+        // by definition the sum of its issues' counts, so this is always correct
+        // and can never underflow — no event_type/issue_id predicate needed, and
+        // it heals any pre-existing drift. The DELETE below still removes every
+        // old row (transactions included); those rows simply never had a counter.
         sqlx::query(
             r#"
             UPDATE projects SET
-                stored_event_count = stored_event_count - (
-                    SELECT COUNT(*) FROM events e
-                    WHERE e.project_id = projects.id AND e.ingested_at < $1
-                      AND ($2 IS NULL OR e.project_id = $3)
+                stored_event_count = (
+                    SELECT COALESCE(SUM(i.stored_event_count), 0)
+                    FROM issues i WHERE i.project_id = projects.id
                 ),
-                digested_event_count = digested_event_count - (
-                    SELECT COUNT(*) FROM events e
-                    WHERE e.project_id = projects.id AND e.ingested_at < $4
-                      AND ($5 IS NULL OR e.project_id = $6)
+                digested_event_count = (
+                    SELECT COALESCE(SUM(i.digested_event_count), 0)
+                    FROM issues i WHERE i.project_id = projects.id
                 )
-            WHERE EXISTS (
-                SELECT 1 FROM events e
-                WHERE e.project_id = projects.id AND e.ingested_at < $7
-                  AND ($8 IS NULL OR e.project_id = $9)
-            )
+            WHERE ($1 IS NULL OR projects.id = $2)
             "#,
         )
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
         .bind(project_id)
         .bind(project_id)
         .execute(&mut *tx)

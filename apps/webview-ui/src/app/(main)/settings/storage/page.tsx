@@ -1,6 +1,8 @@
 import { Database, FileCode2, Layers, ListTree, ShieldX } from 'lucide-react';
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
+import { getProjects } from '@/actions/projects';
 import { getStorageProjects, getStorageSummary } from '@/actions/storage';
 import {
   Card,
@@ -20,6 +22,11 @@ import {
 import { formatBytes } from '@/lib/utils';
 import { SourceMapGc } from './source-map-gc';
 import { StorageCleanup } from './storage-cleanup';
+import {
+  CleanupSkeleton,
+  ProjectsTableSkeleton,
+  SummaryCardsSkeleton,
+} from './storage-skeletons';
 
 export const metadata: Metadata = {
   title: 'Storage | Rustrak',
@@ -39,32 +46,12 @@ function PageHeader() {
   );
 }
 
-export default async function StoragePage() {
-  const user = await getCurrentUser();
-
-  // Guard: storage usage and cleanup are instance-admin only.
-  if (user?.role !== 'admin') {
-    return (
-      <>
-        <PageHeader />
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <ShieldX className="size-12 text-muted-foreground/50 mb-4" />
-            <p className="font-semibold">Not authorized</p>
-            <p className="text-muted-foreground mt-1 text-sm max-w-sm">
-              Only instance administrators can view storage usage and run
-              cleanups. Contact an admin if you need access.
-            </p>
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
-
-  const [summary, projects] = await Promise.all([
-    getStorageSummary(),
-    getStorageProjects(),
-  ]);
+/**
+ * Overview cards. Owns its own (heavy) summary query so it can stream in behind
+ * a skeleton without blocking the rest of the page.
+ */
+async function SummaryCards() {
+  const summary = await getStorageSummary();
 
   const cards = [
     {
@@ -94,101 +81,152 @@ export default async function StoragePage() {
   ];
 
   return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {cards.map((card) => {
+        const Icon = card.icon;
+        return (
+          <Card key={card.label} size="sm">
+            <CardContent>
+              <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                <Icon className="size-3.5" />
+                <span className="text-[11px] font-semibold uppercase tracking-wide">
+                  {card.label}
+                </span>
+              </div>
+              <p className="text-xl font-extrabold tracking-tight leading-tight">
+                {card.value}
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs">{card.sub}</p>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Per-project breakdown table. Owns the heavy per-project aggregation query and
+ * streams in independently of the cards above.
+ */
+async function ProjectsTable() {
+  const projects = await getStorageProjects();
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>By project</CardTitle>
+        <CardDescription>
+          Counts and estimated weight of the data each project holds
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Project</TableHead>
+              <TableHead className="text-right">Events</TableHead>
+              <TableHead className="text-right">Transactions</TableHead>
+              <TableHead className="text-right">Spans</TableHead>
+              <TableHead className="text-right">Source maps</TableHead>
+              <TableHead className="text-right">Est. size</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {projects.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={6}
+                  className="text-center text-muted-foreground py-8"
+                >
+                  No projects yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              projects.map((p) => (
+                <TableRow key={p.project_id}>
+                  <TableCell className="font-medium">
+                    {p.project_name}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.events_count.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.transactions_count.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.spans_count.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.source_maps_count.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatBytes(p.estimated_bytes)}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Cleanup panel. Uses the lightweight projects list (id + name) for its scope
+ * selector instead of waiting on the heavy per-project storage aggregation, so
+ * it can stream in early.
+ */
+async function CleanupPanel() {
+  const { items } = await getProjects({ per_page: 100 });
+
+  return (
+    <StorageCleanup projects={items.map((p) => ({ id: p.id, name: p.name }))} />
+  );
+}
+
+export default async function StoragePage() {
+  const user = await getCurrentUser();
+
+  // Guard: storage usage and cleanup are instance-admin only.
+  if (user?.role !== 'admin') {
+    return (
+      <>
+        <PageHeader />
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <ShieldX className="size-12 text-muted-foreground/50 mb-4" />
+            <p className="font-semibold">Not authorized</p>
+            <p className="text-muted-foreground mt-1 text-sm max-w-sm">
+              Only instance administrators can view storage usage and run
+              cleanups. Contact an admin if you need access.
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
+
+  // The page shell + header render immediately. Each data-heavy section owns its
+  // own query inside a Suspense boundary, so they stream in independently behind
+  // skeletons instead of the whole page blocking on a single await.
+  return (
     <>
       <PageHeader />
 
-      {/* Overview cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {cards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <Card key={card.label} size="sm">
-              <CardContent>
-                <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                  <Icon className="size-3.5" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wide">
-                    {card.label}
-                  </span>
-                </div>
-                <p className="text-xl font-extrabold tracking-tight leading-tight">
-                  {card.value}
-                </p>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {card.sub}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <Suspense fallback={<SummaryCardsSkeleton />}>
+        <SummaryCards />
+      </Suspense>
 
-      {/* Per-project breakdown */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>By project</CardTitle>
-          <CardDescription>
-            Counts and estimated weight of the data each project holds
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Project</TableHead>
-                <TableHead className="text-right">Events</TableHead>
-                <TableHead className="text-right">Transactions</TableHead>
-                <TableHead className="text-right">Spans</TableHead>
-                <TableHead className="text-right">Source maps</TableHead>
-                <TableHead className="text-right">Est. size</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {projects.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    No projects yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                projects.map((p) => (
-                  <TableRow key={p.project_id}>
-                    <TableCell className="font-medium">
-                      {p.project_name}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.events_count.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.transactions_count.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.spans_count.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {p.source_maps_count.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatBytes(p.estimated_bytes)}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<ProjectsTableSkeleton />}>
+        <ProjectsTable />
+      </Suspense>
 
-      {/* Cleanup panels */}
       <div className="space-y-6">
-        <StorageCleanup
-          projects={projects.map((p) => ({
-            id: p.project_id,
-            name: p.project_name,
-          }))}
-        />
+        <Suspense fallback={<CleanupSkeleton />}>
+          <CleanupPanel />
+        </Suspense>
         <SourceMapGc />
       </div>
     </>
