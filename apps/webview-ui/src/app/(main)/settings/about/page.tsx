@@ -70,7 +70,7 @@ export default async function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <a
-              href="https://github.com/AbianS/rustrak"
+              href="https://github.com/rustrak/rustrak"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline block"
@@ -78,7 +78,7 @@ export default async function AboutPage() {
               GitHub Repository
             </a>
             <a
-              href="https://github.com/AbianS/rustrak/issues"
+              href="https://github.com/rustrak/rustrak/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline block"
