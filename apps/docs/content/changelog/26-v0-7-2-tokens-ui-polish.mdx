@@ -1,0 +1,28 @@
+---
+version: v0.7.2
+title: Token Reveal & UI Polish
+description: New endpoint to reveal full token values, password visibility toggle, performance page table scroll, and mobile storage layout improvements.
+date: 2026-06-26
+tags: [server, webview-ui, client, mcp, tokens, ui]
+---
+
+## Token Reveal Endpoint
+
+A new `GET /api/tokens/{id}` endpoint lets you retrieve the full token value after creation, making it easier to copy tokens before they're hidden in the UI.
+
+- New reveal endpoint for retrieving full token values
+- Only available immediately after token creation for security
+
+## UI Improvements
+
+Several quality-of-life fixes in the dashboard:
+
+- Password visibility toggle on the login form
+- Performance pages now use internal table scroll, matching the issues page behavior
+- Storage settings layout adapted for mobile viewports
+- GitHub links updated from personal to rustrak organization
+
+## Client & MCP Updates
+
+- Client SDK tokens resource updated with new reveal endpoint support
+- MCP server tokens tool added for programmatic token management
