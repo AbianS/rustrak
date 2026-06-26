@@ -108,6 +108,7 @@ pub async fn delete_token(
     responses(
         (status = 200, description = "Token details (full token value)", body = AuthTokenCreatedResponse),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 403, description = "Forbidden", body = crate::error::ErrorResponse),
         (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),

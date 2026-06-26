@@ -594,7 +594,6 @@ async fn test_empty_bearer_token() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_token_returns_full_token() {
     let db = TestDb::new().await;
     let auth_token = create_test_token(&db.pool).await;
@@ -633,7 +632,6 @@ async fn test_get_token_returns_full_token() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_token_not_found() {
     let db = TestDb::new().await;
     let auth_token = create_test_token(&db.pool).await;
@@ -657,7 +655,6 @@ async fn test_get_token_not_found() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_token_unauthorized() {
     let db = TestDb::new().await;
     let config = create_test_config();

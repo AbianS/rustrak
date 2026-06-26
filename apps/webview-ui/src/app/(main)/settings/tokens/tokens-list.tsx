@@ -50,6 +50,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
   const [description, setDescription] = useState('');
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [copyingId, setCopyingId] = useState<number | null>(null);
 
   const trimmedDescription = description.trim();
   const isDescriptionValid =
@@ -83,6 +85,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
   };
 
   const handleDelete = (id: number) => {
+    setDeletingId(id);
     startTransition(async () => {
       try {
         await deleteToken(id);
@@ -92,11 +95,14 @@ export function TokensList({ initialTokens }: TokensListProps) {
         const message =
           err instanceof Error ? err.message : 'Failed to delete token';
         toast.error('Failed to delete token', { description: message });
+      } finally {
+        setDeletingId(null);
       }
     });
   };
 
   const handleCopy = (token: AuthToken) => {
+    setCopyingId(token.id);
     startTransition(async () => {
       try {
         const result = await getToken(token.id);
@@ -110,6 +116,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
         const message =
           err instanceof Error ? err.message : 'Failed to get token';
         toast.error('Failed to get token', { description: message });
+      } finally {
+        setCopyingId(null);
       }
     });
   };
@@ -199,7 +207,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
               <DialogHeader>
                 <DialogTitle>Token Created</DialogTitle>
                 <DialogDescription>
-                  Copy your token now. You won&apos;t be able to see it again!
+                  Copy your token now. You can also retrieve it later from the
+                  list.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4">
@@ -220,8 +229,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     )}
                   </Button>
                 </div>
-                <p className="text-xs text-destructive mt-2">
-                  Make sure to copy your token now. It will not be shown again.
+                <p className="text-xs text-muted-foreground mt-2">
+                  You can copy this token again anytime from the token list.
                 </p>
               </div>
               <DialogFooter>
@@ -277,11 +286,11 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button
+                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleCopy(token)}
-                      disabled={isPending}
+                      disabled={isPending || deletingId === token.id || copyingId === token.id}
                       aria-label={`Copy token ${token.description || token.token_prefix}`}
                     >
                       <Copy className="size-4" />
@@ -290,7 +299,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
                       variant="destructive"
                       size="icon"
                       onClick={() => handleDelete(token.id)}
-                      disabled={isPending}
+                      disabled={isPending || deletingId === token.id || copyingId === token.id}
                       aria-label={`Delete token ${token.description || token.token_prefix}`}
                     >
                       <Trash2 className="size-4" />
@@ -348,7 +357,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleCopy(token)}
-                          disabled={isPending}
+                          disabled={isPending || deletingId === token.id || copyingId === token.id}
                           aria-label={`Copy token ${token.description || token.token_prefix}`}
                         >
                           <Copy className="size-4" />
@@ -357,7 +366,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
                           variant="destructive"
                           size="icon"
                           onClick={() => handleDelete(token.id)}
-                          disabled={isPending}
+                          disabled={isPending || deletingId === token.id || copyingId === token.id}
                           aria-label={`Delete token ${token.description || token.token_prefix}`}
                         >
                           <Trash2 className="size-4" />
