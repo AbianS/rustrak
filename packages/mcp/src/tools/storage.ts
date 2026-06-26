@@ -49,7 +49,7 @@ export function registerStorageTools(
     'preview_storage_cleanup',
     {
       description:
-        'Dry-run a Rustrak retention cleanup (admin only): report how many events, transactions, spans, logs and issues would be removed if data older than `older_than_days` were deleted, optionally scoped to one project. Mutates nothing — always run this before execute_storage_cleanup.',
+        'Dry-run a Rustrak retention cleanup (admin only): report how many events, transactions, spans, logs and issues would be removed if data older than `older_than_days` were deleted, optionally scoped to one project and to specific data categories. Mutates nothing — always run this before execute_storage_cleanup.',
       inputSchema: {
         older_than_days: z
           .number()
@@ -61,13 +61,38 @@ export function registerStorageTools(
           .int()
           .optional()
           .describe('Scope to one project (omit for all projects)'),
+        include_events: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include error events (and the issues they empty). Defaults to true.',
+          ),
+        include_transactions: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include transactions and their cascaded spans. Defaults to true.',
+          ),
+        include_logs: z
+          .boolean()
+          .optional()
+          .describe('Include logs. Defaults to true.'),
       },
     },
-    async ({ older_than_days, project_id }) => {
+    async ({
+      older_than_days,
+      project_id,
+      include_events,
+      include_transactions,
+      include_logs,
+    }) => {
       try {
         const result = await client.storage.previewCleanup({
           older_than_days,
           project_id,
+          include_events,
+          include_transactions,
+          include_logs,
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -82,7 +107,7 @@ export function registerStorageTools(
     'execute_storage_cleanup',
     {
       description:
-        'DESTRUCTIVE (admin only): permanently delete Rustrak data older than `older_than_days` (optionally scoped to one project) and remove any issue left with zero events. This cannot be undone. You MUST set confirm=true to proceed; without it the tool refuses and returns an error. Always run preview_storage_cleanup first and show the user the counts before confirming.',
+        'DESTRUCTIVE (admin only): permanently delete Rustrak data older than `older_than_days` (optionally scoped to one project and to specific data categories) and remove any issue left with zero events. This cannot be undone. You MUST set confirm=true to proceed; without it the tool refuses and returns an error. Always run preview_storage_cleanup first and show the user the counts before confirming.',
       inputSchema: {
         older_than_days: z
           .number()
@@ -94,6 +119,22 @@ export function registerStorageTools(
           .int()
           .optional()
           .describe('Scope to one project (omit for all projects)'),
+        include_events: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include error events (and the issues they empty). Defaults to true.',
+          ),
+        include_transactions: z
+          .boolean()
+          .optional()
+          .describe(
+            'Include transactions and their cascaded spans. Defaults to true.',
+          ),
+        include_logs: z
+          .boolean()
+          .optional()
+          .describe('Include logs. Defaults to true.'),
         confirm: z
           .boolean()
           .optional()
@@ -101,7 +142,14 @@ export function registerStorageTools(
       },
       annotations: { destructiveHint: true },
     },
-    async ({ older_than_days, project_id, confirm }) => {
+    async ({
+      older_than_days,
+      project_id,
+      include_events,
+      include_transactions,
+      include_logs,
+      confirm,
+    }) => {
       if (confirm !== true) {
         return toMcpError(
           new Error(
@@ -113,6 +161,9 @@ export function registerStorageTools(
         const result = await client.storage.executeCleanup({
           older_than_days,
           project_id,
+          include_events,
+          include_transactions,
+          include_logs,
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
