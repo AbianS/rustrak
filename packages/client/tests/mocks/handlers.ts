@@ -111,6 +111,13 @@ export const mockTokens = [
   },
 ];
 
+export const mockTokenFull = {
+  id: 1,
+  token: 'abc123456789def0123456789abcdef01234567',
+  description: 'Test Token',
+  created_at: '2026-01-20T10:00:00.000Z',
+};
+
 export const mockUser = {
   id: 1,
   email: 'test@example.com',
@@ -458,7 +465,13 @@ export const handlers = [
       return HttpResponse.json({ error: 'Token not found' }, { status: 404 });
     }
 
-    return HttpResponse.json(token);
+    // Get by ID now returns the full token (not masked)
+    return HttpResponse.json({
+      id: token.id,
+      token: 'abc123456789def0123456789abcdef01234567',
+      description: token.description,
+      created_at: token.created_at,
+    });
   }),
 
   http.post(`${BASE_URL}/api/tokens`, async ({ request }) => {

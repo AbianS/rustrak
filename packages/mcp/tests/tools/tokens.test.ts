@@ -10,6 +10,7 @@ describe('token tools', () => {
     mockClient = {
       tokens: {
         list: vi.fn(),
+        get: vi.fn(),
         create: vi.fn(),
         delete: vi.fn(),
       },
@@ -46,6 +47,29 @@ describe('token tools', () => {
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed).toHaveLength(2);
       expect(parsed[0].description).toBe('CI token');
+    });
+  });
+
+  describe('get_token', () => {
+    it('retrieves the full token value by ID', async () => {
+      const mockToken = {
+        id: 1,
+        token: 'abc123456789def0123456789abcdef01234567',
+        description: 'CI token',
+        created_at: '2024-01-01T00:00:00Z',
+      };
+      mockClient.tokens.get.mockResolvedValue(mockToken);
+
+      const result = await callTool({
+        name: 'get_token',
+        arguments: { token_id: 1 },
+      });
+
+      expect(result.isError).toBeFalsy();
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.token).toBe('abc123456789def0123456789abcdef01234567');
+      expect(parsed.id).toBe(1);
+      expect(mockClient.tokens.get).toHaveBeenCalledWith(1);
     });
   });
 

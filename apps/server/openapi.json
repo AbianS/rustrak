@@ -3775,6 +3775,73 @@
       }
     },
     "/api/tokens/{id}": {
+      "get": {
+        "tags": [
+          "Tokens"
+        ],
+        "summary": "GET /api/tokens/{id} - Reveal full token value",
+        "description": "Returns the complete token string. Admins may view any token;\nnon-admins may only view their own.",
+        "operationId": "get_token",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Token ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Token details (full token value)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthTokenCreatedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
       "delete": {
         "tags": [
           "Tokens"
