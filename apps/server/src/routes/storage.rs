@@ -82,9 +82,13 @@ pub async fn preview_cleanup(
     body: web::Json<CleanupRequest>,
 ) -> AppResult<HttpResponse> {
     require_admin(&actor)?;
-    let counts =
-        StorageService::preview_cleanup(pool.get_ref(), body.older_than_days, body.project_id)
-            .await?;
+    let counts = StorageService::preview_cleanup(
+        pool.get_ref(),
+        body.older_than_days,
+        body.project_id,
+        body.filter(),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(counts))
 }
 
@@ -106,9 +110,13 @@ pub async fn execute_cleanup(
     body: web::Json<CleanupRequest>,
 ) -> AppResult<HttpResponse> {
     require_admin(&actor)?;
-    let counts =
-        StorageService::execute_cleanup(pool.get_ref(), body.older_than_days, body.project_id)
-            .await?;
+    let counts = StorageService::execute_cleanup(
+        pool.get_ref(),
+        body.older_than_days,
+        body.project_id,
+        body.filter(),
+    )
+    .await?;
     Ok(HttpResponse::Ok().json(counts))
 }
 

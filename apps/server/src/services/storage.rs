@@ -9,7 +9,8 @@ use chrono::Utc;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::models::{
-    CleanupCounts, ProjectStorage, SourceMapGcResult, SourceMapStorage, StorageSummary,
+    CleanupCounts, CleanupFilter, ProjectStorage, SourceMapGcResult, SourceMapStorage,
+    StorageSummary,
 };
 use crate::services::sourcemap_store::SourceMapStore;
 
@@ -126,10 +127,11 @@ impl StorageService {
         pool: &DbPool,
         older_than_days: i64,
         project_id: Option<i32>,
+        filter: CleanupFilter,
     ) -> AppResult<CleanupCounts> {
         validate_retention(older_than_days)?;
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
-        Self::count_cleanup(pool, cutoff, project_id).await
+        Self::count_cleanup(pool, cutoff, project_id, filter).await
     }
 
     /// Executes a cleanup: deletes data older than `older_than_days` (optionally
@@ -140,39 +142,50 @@ impl StorageService {
         pool: &DbPool,
         older_than_days: i64,
         project_id: Option<i32>,
+        filter: CleanupFilter,
     ) -> AppResult<CleanupCounts> {
         validate_retention(older_than_days)?;
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
-        let counts = Self::count_cleanup(pool, cutoff, project_id).await?;
+        let counts = Self::count_cleanup(pool, cutoff, project_id, filter).await?;
 
         let mut tx = pool.begin().await?;
 
         // Transactions first — their spans cascade away via ON DELETE CASCADE.
-        sqlx::query(
-            "DELETE FROM transactions WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)",
-        )
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .execute(&mut *tx)
-        .await?;
-
-        // Logs carry no issue_id and never touch the issue/project counters, so
-        // this is a plain delete — same shape as transactions.
-        sqlx::query("DELETE FROM logs WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)")
+        if filter.include_transactions {
+            sqlx::query(
+                "DELETE FROM transactions WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)",
+            )
             .bind(cutoff)
             .bind(project_id)
             .bind(project_id)
             .execute(&mut *tx)
             .await?;
+        }
 
-        // Keep the per-issue event counters in sync BEFORE deleting the rows. The
-        // `e.issue_id = issues.id` join means only events that belong to an issue
-        // (errors) are ever subtracted — transaction/log rows carry a NULL
-        // issue_id and never touched these counters, so they can't underflow them.
-        // Correlated subqueries keep this dialect-portable.
-        sqlx::query(
-            r#"
+        // Logs carry no issue_id and never touch the issue/project counters, so
+        // this is a plain delete — same shape as transactions.
+        if filter.include_logs {
+            sqlx::query(
+                "DELETE FROM logs WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)",
+            )
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // Events (and the issue/project bookkeeping they drive) are deleted only
+        // when in scope — a transaction- or log-only purge leaves error history,
+        // its issues, and the denormalized counters completely untouched.
+        if filter.include_events {
+            // Keep the per-issue event counters in sync BEFORE deleting the rows. The
+            // `e.issue_id = issues.id` join means only events that belong to an issue
+            // (errors) are ever subtracted — transaction/log rows carry a NULL
+            // issue_id and never touched these counters, so they can't underflow them.
+            // Correlated subqueries keep this dialect-portable.
+            sqlx::query(
+                r#"
             UPDATE issues SET
                 stored_event_count = stored_event_count - (
                     SELECT COUNT(*) FROM events e
@@ -190,27 +203,27 @@ impl StorageService {
                   AND ($8 IS NULL OR e.project_id = $9)
             )
             "#,
-        )
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .execute(&mut *tx)
-        .await?;
+            )
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
 
-        // Rebuild each in-scope project's counters from the (now-updated) issue
-        // counters instead of subtracting an event delta. The project counter is
-        // by definition the sum of its issues' counts, so this is always correct
-        // and can never underflow — no event_type/issue_id predicate needed, and
-        // it heals any pre-existing drift. The DELETE below still removes every
-        // old row (transactions included); those rows simply never had a counter.
-        sqlx::query(
-            r#"
+            // Rebuild each in-scope project's counters from the (now-updated) issue
+            // counters instead of subtracting an event delta. The project counter is
+            // by definition the sum of its issues' counts, so this is always correct
+            // and can never underflow — no event_type/issue_id predicate needed, and
+            // it heals any pre-existing drift. The DELETE below still removes every
+            // old row (transactions included); those rows simply never had a counter.
+            sqlx::query(
+                r#"
             UPDATE projects SET
                 stored_event_count = (
                     SELECT COALESCE(SUM(i.stored_event_count), 0)
@@ -222,30 +235,31 @@ impl StorageService {
                 )
             WHERE ($1 IS NULL OR projects.id = $2)
             "#,
-        )
-        .bind(project_id)
-        .bind(project_id)
-        .execute(&mut *tx)
-        .await?;
+            )
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
 
-        sqlx::query(
-            "DELETE FROM events WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)",
-        )
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .execute(&mut *tx)
-        .await?;
+            sqlx::query(
+                "DELETE FROM events WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)",
+            )
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
 
-        // Drop issues left with no events — no ghost shells (in-scope only).
-        sqlx::query(
-            "DELETE FROM issues WHERE ($1 IS NULL OR project_id = $2) \
+            // Drop issues left with no events — no ghost shells (in-scope only).
+            sqlx::query(
+                "DELETE FROM issues WHERE ($1 IS NULL OR project_id = $2) \
              AND NOT EXISTS (SELECT 1 FROM events e WHERE e.issue_id = issues.id)",
-        )
-        .bind(project_id)
-        .bind(project_id)
-        .execute(&mut *tx)
-        .await?;
+            )
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+        }
 
         tx.commit().await?;
 
@@ -260,6 +274,7 @@ impl StorageService {
         pool: &DbPool,
         cutoff: chrono::DateTime<Utc>,
         project_id: Option<i32>,
+        filter: CleanupFilter,
     ) -> AppResult<CleanupCounts> {
         let (events, transactions, spans, issues_removed, logs): (i64, i64, i64, i64, i64) =
             sqlx::query_as(
@@ -300,12 +315,27 @@ impl StorageService {
             .fetch_one(pool)
             .await?;
 
+        // Mask out categories the filter excludes. `spans` follow their parent
+        // transaction, and an issue can only be emptied when its events are in
+        // scope — so both track their governing flag, not a separate one.
         Ok(CleanupCounts {
-            events,
-            transactions,
-            spans,
-            logs,
-            issues_removed,
+            events: if filter.include_events { events } else { 0 },
+            transactions: if filter.include_transactions {
+                transactions
+            } else {
+                0
+            },
+            spans: if filter.include_transactions {
+                spans
+            } else {
+                0
+            },
+            logs: if filter.include_logs { logs } else { 0 },
+            issues_removed: if filter.include_events {
+                issues_removed
+            } else {
+                0
+            },
         })
     }
 

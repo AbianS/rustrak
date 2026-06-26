@@ -13,6 +13,57 @@ pub struct CleanupRequest {
     pub older_than_days: i64,
     #[serde(default)]
     pub project_id: Option<i32>,
+    /// Whether to purge error events (and the issues they empty). Defaults to
+    /// `true` so an older client that omits it keeps the "delete everything"
+    /// behaviour.
+    #[serde(default = "default_true")]
+    pub include_events: bool,
+    /// Whether to purge transactions (and their cascaded spans). Defaults to `true`.
+    #[serde(default = "default_true")]
+    pub include_transactions: bool,
+    /// Whether to purge logs. Defaults to `true`.
+    #[serde(default = "default_true")]
+    pub include_logs: bool,
+}
+
+/// serde default for the `include_*` flags: an omitted flag means "yes, include
+/// this category", preserving the pre-filter contract for older callers.
+fn default_true() -> bool {
+    true
+}
+
+impl CleanupRequest {
+    /// The data-category selection this request describes.
+    pub fn filter(&self) -> CleanupFilter {
+        CleanupFilter {
+            include_events: self.include_events,
+            include_transactions: self.include_transactions,
+            include_logs: self.include_logs,
+        }
+    }
+}
+
+/// Which data categories a cleanup acts on. Lets an admin reclaim one kind of
+/// data (e.g. logs) without touching the others. `spans` are governed by
+/// `include_transactions` (they cascade from their parent transaction) and
+/// `issues_removed` only happens when `include_events` is set — a transaction- or
+/// log-only purge never empties an issue.
+#[derive(Debug, Clone, Copy)]
+pub struct CleanupFilter {
+    pub include_events: bool,
+    pub include_transactions: bool,
+    pub include_logs: bool,
+}
+
+impl CleanupFilter {
+    /// Every category — the historical "delete everything older than the cutoff".
+    pub fn all() -> Self {
+        Self {
+            include_events: true,
+            include_transactions: true,
+            include_logs: true,
+        }
+    }
 }
 
 /// Instance-wide storage summary: what Rustrak is holding right now.

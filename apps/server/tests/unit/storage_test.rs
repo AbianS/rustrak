@@ -6,7 +6,7 @@
 use crate::common::TestDb;
 use bytes::Bytes;
 use chrono::Utc;
-use rustrak::models::CreateProject;
+use rustrak::models::{CleanupFilter, CreateProject};
 use rustrak::services::sourcemap_store::{LocalSourceMapStore, SourceMapStore};
 use rustrak::services::{ProjectService, StorageService};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -241,7 +241,7 @@ async fn test_preview_cleanup_counts_old_rows_without_mutating() {
     seed_transaction_with_spans_at(&db.pool, project.id, 2, old).await;
     seed_transaction_with_spans_at(&db.pool, project.id, 1, now).await;
 
-    let preview = StorageService::preview_cleanup(&db.pool, 30, None)
+    let preview = StorageService::preview_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -307,12 +307,12 @@ async fn test_cleanup_counts_and_deletes_old_logs() {
     seed_log_at(&db.pool, project.id, old).await;
     seed_log_at(&db.pool, project.id, now).await;
 
-    let preview = StorageService::preview_cleanup(&db.pool, 30, None)
+    let preview = StorageService::preview_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
     assert_eq!(preview.logs, 1, "one log older than 30d");
 
-    StorageService::execute_cleanup(&db.pool, 30, None)
+    StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -374,13 +374,13 @@ async fn test_cleanup_rejects_nonpositive_retention_window() {
 
     for bad in [0_i64, -1, -365] {
         assert!(
-            StorageService::preview_cleanup(&db.pool, bad, None)
+            StorageService::preview_cleanup(&db.pool, bad, None, CleanupFilter::all())
                 .await
                 .is_err(),
             "preview must reject older_than_days = {bad}"
         );
         assert!(
-            StorageService::execute_cleanup(&db.pool, bad, None)
+            StorageService::execute_cleanup(&db.pool, bad, None, CleanupFilter::all())
                 .await
                 .is_err(),
             "execute must reject older_than_days = {bad}"
@@ -457,7 +457,7 @@ async fn test_execute_cleanup_deletes_old_cascades_spans_and_removes_empty_issue
     seed_transaction_with_spans_at(&db.pool, project.id, 2, old).await;
     seed_transaction_with_spans_at(&db.pool, project.id, 1, now).await;
 
-    let result = StorageService::execute_cleanup(&db.pool, 30, None)
+    let result = StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -510,7 +510,7 @@ async fn test_execute_cleanup_decrements_project_event_counters() {
     .await
     .unwrap();
 
-    StorageService::execute_cleanup(&db.pool, 30, None)
+    StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -558,7 +558,7 @@ async fn test_execute_cleanup_purges_legacy_transaction_events_without_underflow
     .await
     .unwrap();
 
-    StorageService::execute_cleanup(&db.pool, 30, None)
+    StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -622,7 +622,7 @@ async fn test_execute_cleanup_deletes_every_old_row_regardless_of_type() {
     .await
     .unwrap();
 
-    StorageService::execute_cleanup(&db.pool, 30, None)
+    StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
         .await
         .unwrap();
 
@@ -645,6 +645,156 @@ async fn test_execute_cleanup_deletes_every_old_row_regardless_of_type() {
     .unwrap();
     assert_eq!(stored, 1, "counter tracks the one surviving error event");
     assert_eq!(digested, 1);
+}
+
+#[tokio::test]
+async fn test_execute_cleanup_with_only_events_selected_spares_transactions_and_logs() {
+    // The mirror case: selecting events only must purge old error events and the
+    // issue they emptied, while every transaction, span and log — of any age —
+    // survives untouched. Guards the issue-removal/counter path under a filter.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "filter-events-only".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    seed_event_at(&db.pool, project.id, old).await; // its issue empties out
+    seed_transaction_with_spans_at(&db.pool, project.id, 2, old).await;
+    seed_log_at(&db.pool, project.id, old).await;
+
+    let counts = StorageService::execute_cleanup(
+        &db.pool,
+        30,
+        None,
+        CleanupFilter {
+            include_events: true,
+            include_transactions: false,
+            include_logs: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(counts.events, 1, "the old error event is deleted");
+    assert_eq!(counts.issues_removed, 1, "its emptied issue is removed");
+    assert_eq!(counts.transactions, 0, "transactions out of scope → zero");
+    assert_eq!(counts.spans, 0);
+    assert_eq!(counts.logs, 0, "logs out of scope → zero");
+
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.events_count, 0, "old event purged");
+    assert_eq!(summary.transactions_count, 1, "transaction survives");
+    assert_eq!(summary.spans_count, 2, "spans survive");
+    assert_eq!(summary.logs_count, 1, "log survives");
+}
+
+#[tokio::test]
+async fn test_preview_cleanup_respects_filter_without_mutating() {
+    // Preview must honour the same filter as execute: a transactions-only dry-run
+    // reports transactions+spans, zeroes events and logs, and changes nothing.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "preview-filter".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    seed_event_at(&db.pool, project.id, old).await;
+    seed_transaction_with_spans_at(&db.pool, project.id, 3, old).await;
+    seed_log_at(&db.pool, project.id, old).await;
+
+    let preview = StorageService::preview_cleanup(
+        &db.pool,
+        30,
+        None,
+        CleanupFilter {
+            include_events: false,
+            include_transactions: true,
+            include_logs: false,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(preview.transactions, 1);
+    assert_eq!(preview.spans, 3, "spans under the old transaction");
+    assert_eq!(preview.events, 0, "events excluded → not reported");
+    assert_eq!(preview.logs, 0, "logs excluded → not reported");
+    assert_eq!(
+        preview.issues_removed, 0,
+        "no issue emptied without event scope"
+    );
+
+    // Nothing was deleted.
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.events_count, 1);
+    assert_eq!(summary.transactions_count, 1);
+    assert_eq!(summary.logs_count, 1);
+}
+
+#[tokio::test]
+async fn test_execute_cleanup_with_only_logs_selected_spares_events_and_transactions() {
+    // Granular selection: an admin who wants to reclaim log volume without losing
+    // error history picks logs only. Execute must delete the old logs and leave
+    // every event, transaction and span — of any age — untouched, and report the
+    // skipped categories as zero so the UI never claims it removed them.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "filter-logs-only".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    seed_event_at(&db.pool, project.id, old).await; // would be deleted if events were in scope
+    seed_transaction_with_spans_at(&db.pool, project.id, 2, old).await;
+    seed_log_at(&db.pool, project.id, old).await;
+
+    let counts = StorageService::execute_cleanup(
+        &db.pool,
+        30,
+        None,
+        CleanupFilter {
+            include_events: false,
+            include_transactions: false,
+            include_logs: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(counts.logs, 1, "the one old log is deleted");
+    assert_eq!(counts.events, 0, "events out of scope → reported zero");
+    assert_eq!(counts.transactions, 0, "transactions out of scope → zero");
+    assert_eq!(counts.spans, 0, "spans follow their transaction → zero");
+    assert_eq!(
+        counts.issues_removed, 0,
+        "no issue emptied when events are spared"
+    );
+
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.events_count, 1, "event survives");
+    assert_eq!(summary.transactions_count, 1, "transaction survives");
+    assert_eq!(
+        summary.spans_count, 2,
+        "spans survive with their transaction"
+    );
+    assert_eq!(summary.logs_count, 0, "old log purged");
 }
 
 #[tokio::test]
@@ -677,7 +827,7 @@ async fn test_execute_cleanup_scoped_to_project_spares_other_projects() {
     seed_event_at(&db.pool, proj_b.id, old).await;
     seed_transaction_with_spans_at(&db.pool, proj_b.id, 1, old).await;
 
-    StorageService::execute_cleanup(&db.pool, 30, Some(proj_a.id))
+    StorageService::execute_cleanup(&db.pool, 30, Some(proj_a.id), CleanupFilter::all())
         .await
         .unwrap();
 

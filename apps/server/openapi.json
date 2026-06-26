@@ -4855,6 +4855,18 @@
           "older_than_days"
         ],
         "properties": {
+          "include_events": {
+            "type": "boolean",
+            "description": "Whether to purge error events (and the issues they empty). Defaults to\n`true` so an older client that omits it keeps the \"delete everything\"\nbehaviour."
+          },
+          "include_logs": {
+            "type": "boolean",
+            "description": "Whether to purge logs. Defaults to `true`."
+          },
+          "include_transactions": {
+            "type": "boolean",
+            "description": "Whether to purge transactions (and their cascaded spans). Defaults to `true`."
+          },
           "older_than_days": {
             "type": "integer",
             "format": "int64",
