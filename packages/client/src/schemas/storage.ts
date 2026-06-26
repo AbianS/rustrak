@@ -62,11 +62,20 @@ export const sourceMapGcResultSchema = z.object({
 
 /**
  * Request body for a cleanup (preview or execute): remove data older than
- * `older_than_days`, optionally scoped to one project (omit for all). The
- * minimum of 1 mirrors the server contract — a smaller window would wipe the
- * whole dataset.
+ * `older_than_days`, optionally scoped to one project (omit for all) and to
+ * specific data categories. The minimum of 1 mirrors the server contract — a
+ * smaller window would wipe the whole dataset.
+ *
+ * The `include_*` flags select which data categories the cleanup acts on. Each
+ * is optional and defaults to `true` server-side, so omitting all of them keeps
+ * the "delete everything older than the cutoff" behaviour. `include_transactions`
+ * also governs the cascaded spans, and `include_events` governs the emptied
+ * issues that get removed alongside their events.
  */
 export const cleanupOptionsSchema = z.object({
   older_than_days: z.number().int().min(1),
   project_id: z.number().int().optional(),
+  include_events: z.boolean().optional(),
+  include_transactions: z.boolean().optional(),
+  include_logs: z.boolean().optional(),
 });
