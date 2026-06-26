@@ -41,3 +41,14 @@ export async function deleteToken(id: number): Promise<void> {
   const client = await createClient();
   await client.tokens.delete(id);
 }
+
+/**
+ * Get the full token value by ID.
+ *
+ * @param id - The token ID to retrieve
+ * @returns The full token value (40-char hex string)
+ */
+export async function getToken(id: number): Promise<AuthTokenCreated> {
+  const client = await createClient();
+  return client.tokens.get(id);
+}

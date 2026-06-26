@@ -23,11 +23,14 @@ export class TokensResource extends BaseResource {
   }
 
   /**
-   * Get a single auth token by ID (masked)
+   * Get a single auth token by ID (full token value).
+   *
+   * Previously returned a masked version, but the server now returns the
+   * complete token for GET /api/tokens/{id}.
    */
-  async get(id: number): Promise<AuthToken> {
+  async get(id: number): Promise<AuthTokenCreated> {
     const data = await this.http.get(`api/tokens/${id}`).json();
-    return this.validate(data, authTokenSchema);
+    return this.validate(data, authTokenCreatedSchema);
   }
 
   /**

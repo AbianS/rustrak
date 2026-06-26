@@ -40,12 +40,13 @@ describe('TokensResource Integration', () => {
   });
 
   describe('get()', () => {
-    it('should fetch single token (masked)', async () => {
+    it('should fetch single token (full value)', async () => {
       const token = await client.tokens.get(1);
 
       expect(token.id).toBe(1);
-      expect(token.token_prefix).toBe('abc12345...');
+      expect(token.token).toBe('abc123456789def0123456789abcdef01234567');
       expect(token.description).toBe('Test Token');
+      expect(token.created_at).toBeDefined();
     });
 
     it('should throw NotFoundError for non-existent token', async () => {

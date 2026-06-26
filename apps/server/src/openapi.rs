@@ -39,6 +39,7 @@ impl Modify for SecurityAddon {
         crate::routes::events::get_event,
         crate::routes::tokens::list_tokens,
         crate::routes::tokens::create_token,
+        crate::routes::tokens::get_token,
         crate::routes::tokens::delete_token,
         crate::routes::auth::register,
         crate::routes::auth::accept_invitation,

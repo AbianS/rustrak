@@ -6,7 +6,7 @@ import { Check, Copy, Key, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { createToken, deleteToken } from '@/actions/tokens';
+import { createToken, deleteToken, getToken } from '@/actions/tokens';
 import { Button } from '@/components/ui/button';
 import { copyToClipboard } from '@/lib/clipboard';
 
@@ -92,6 +92,24 @@ export function TokensList({ initialTokens }: TokensListProps) {
         const message =
           err instanceof Error ? err.message : 'Failed to delete token';
         toast.error('Failed to delete token', { description: message });
+      }
+    });
+  };
+
+  const handleCopy = (token: AuthToken) => {
+    startTransition(async () => {
+      try {
+        const result = await getToken(token.id);
+        const copied = await copyToClipboard(result.token);
+        if (copied) {
+          toast.success('Token copied to clipboard');
+        } else {
+          toast.info('Copy the token', { description: result.token });
+        }
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to get token';
+        toast.error('Failed to get token', { description: message });
       }
     });
   };
@@ -258,15 +276,26 @@ export function TokensList({ initialTokens }: TokensListProps) {
                         : 'Never used'}
                     </p>
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    onClick={() => handleDelete(token.id)}
-                    disabled={isPending}
-                    aria-label={`Delete token ${token.description || token.token_prefix}`}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCopy(token)}
+                      disabled={isPending}
+                      aria-label={`Copy token ${token.description || token.token_prefix}`}
+                    >
+                      <Copy className="size-4" />
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      onClick={() => handleDelete(token.id)}
+                      disabled={isPending}
+                      aria-label={`Delete token ${token.description || token.token_prefix}`}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -279,7 +308,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
                   <TableHead>Description</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Last Used</TableHead>
-                  <TableHead className="w-12.5" />
+                  <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -314,15 +343,26 @@ export function TokensList({ initialTokens }: TokensListProps) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => handleDelete(token.id)}
-                        disabled={isPending}
-                        aria-label={`Delete token ${token.description || token.token_prefix}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleCopy(token)}
+                          disabled={isPending}
+                          aria-label={`Copy token ${token.description || token.token_prefix}`}
+                        >
+                          <Copy className="size-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => handleDelete(token.id)}
+                          disabled={isPending}
+                          aria-label={`Delete token ${token.description || token.token_prefix}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

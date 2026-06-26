@@ -27,6 +27,27 @@ export function registerTokenTools(
   );
 
   server.registerTool(
+    'get_token',
+    {
+      description:
+        'Get the full token value by ID. Returns the complete 40-character hex token — useful for copying or verifying credentials.',
+      inputSchema: {
+        token_id: z.number().int().describe('Token ID to retrieve'),
+      },
+    },
+    async ({ token_id }) => {
+      try {
+        const result = await client.tokens.get(token_id);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (err) {
+        return toMcpError(err);
+      }
+    },
+  );
+
+  server.registerTool(
     'create_token',
     {
       description:

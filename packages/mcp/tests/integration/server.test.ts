@@ -16,8 +16,9 @@ const EXPECTED_TOOLS = [
   // Events (2)
   'list_events',
   'get_event',
-  // Tokens (3)
+  // Tokens (4)
   'list_tokens',
+  'get_token',
   'create_token',
   'revoke_token',
   // Alerts (3)
@@ -66,7 +67,7 @@ describe('MCP server integration', () => {
         delete: vi.fn(),
       },
       events: { list: vi.fn(), get: vi.fn() },
-      tokens: { list: vi.fn(), create: vi.fn(), delete: vi.fn() },
+      tokens: { list: vi.fn(), get: vi.fn(), create: vi.fn(), delete: vi.fn() },
       alertIntegrations: { list: vi.fn(), test: vi.fn() },
       alertRules: { list: vi.fn() },
       team: { list: vi.fn(), updateRole: vi.fn(), remove: vi.fn() },

@@ -100,10 +100,43 @@ pub async fn delete_token(
     Ok(HttpResponse::NoContent().finish())
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/tokens/{id}",
+    tag = "Tokens",
+    params(("id" = i32, Path, description = "Token ID")),
+    responses(
+        (status = 200, description = "Token details (full token value)", body = AuthTokenCreatedResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/tokens/{id} - Reveal full token value
+///
+/// Returns the complete token string. Admins may view any token;
+/// non-admins may only view their own.
+pub async fn get_token(
+    pool: web::Data<DbPool>,
+    actor: ApiActor,
+    path: web::Path<i32>,
+) -> AppResult<HttpResponse> {
+    let id = path.into_inner();
+    let token = AuthTokenService::get_by_id(pool.get_ref(), id).await?;
+
+    if !actor.is_admin() && token.user_id != actor.user_id() {
+        return Err(AppError::Forbidden(
+            "You can only view your own tokens".to_string(),
+        ));
+    }
+
+    Ok(HttpResponse::Ok().json(token.to_created_response()))
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(list_tokens, create_token, delete_token),
+    paths(list_tokens, create_token, get_token, delete_token),
     components(schemas(
         crate::models::AuthTokenResponse,
         crate::models::AuthTokenCreatedResponse,
@@ -118,6 +151,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
         web::scope("/api/tokens")
             .route("", web::get().to(list_tokens))
             .route("", web::post().to(create_token))
+            .route("/{id}", web::get().to(get_token))
             .route("/{id}", web::delete().to(delete_token)),
     );
 }
