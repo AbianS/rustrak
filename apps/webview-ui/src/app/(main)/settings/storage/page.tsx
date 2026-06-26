@@ -81,7 +81,7 @@ async function SummaryCards() {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       {cards.map((card) => {
         const Icon = card.icon;
         return (
@@ -121,7 +121,48 @@ async function ProjectsTable() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
+        {/* Mobile: card list */}
+        <div className="md:hidden space-y-3">
+          {projects.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              No projects yet.
+            </p>
+          ) : (
+            projects.map((p) => (
+              <div
+                key={p.project_id}
+                className="rounded-lg border p-3 space-y-2"
+              >
+                <p className="text-sm font-medium">{p.project_name}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <span className="text-muted-foreground">Events</span>
+                  <span className="tabular-nums text-right">
+                    {p.events_count.toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">Transactions</span>
+                  <span className="tabular-nums text-right">
+                    {p.transactions_count.toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">Spans</span>
+                  <span className="tabular-nums text-right">
+                    {p.spans_count.toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">Source maps</span>
+                  <span className="tabular-nums text-right">
+                    {p.source_maps_count.toLocaleString()}
+                  </span>
+                  <span className="text-muted-foreground">Est. size</span>
+                  <span className="tabular-nums text-right">
+                    {formatBytes(p.estimated_bytes)}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop: table */}
+        <Table className="hidden md:table">
           <TableHeader>
             <TableRow>
               <TableHead>Project</TableHead>
