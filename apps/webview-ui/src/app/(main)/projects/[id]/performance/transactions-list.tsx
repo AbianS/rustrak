@@ -91,7 +91,7 @@ export function TransactionsList({
 
   if (transactions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-100 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center text-center">
         <Zap className="size-12 text-muted-foreground/30 mb-4" />
         <h2 className="text-lg font-semibold mb-1">No transactions yet</h2>
         <p className="text-sm text-muted-foreground max-w-md">
@@ -103,8 +103,8 @@ export function TransactionsList({
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-col border rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
             Transaction
@@ -117,7 +117,7 @@ export function TransactionsList({
           </span>
         </div>
 
-        <div>
+        <div className="flex-1 overflow-auto divide-y">
           {transactions.map((txn) => {
             const tone = durationTone(txn.duration_ms);
             return (

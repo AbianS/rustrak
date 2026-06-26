@@ -108,19 +108,17 @@ export default async function TransactionSummaryPage({
         )}
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Samples
-          </h2>
-          <TransactionsList
-            projectId={projectId}
-            initialTransactions={samples}
-            currentPage={currentPage}
-            basePath={`/projects/${projectId}/performance/summary`}
-            filters={filters}
-          />
-        </div>
+      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 flex flex-col gap-3">
+        <h2 className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          Samples
+        </h2>
+        <TransactionsList
+          projectId={projectId}
+          initialTransactions={samples}
+          currentPage={currentPage}
+          basePath={`/projects/${projectId}/performance/summary`}
+          filters={filters}
+        />
       </div>
     </div>
   );

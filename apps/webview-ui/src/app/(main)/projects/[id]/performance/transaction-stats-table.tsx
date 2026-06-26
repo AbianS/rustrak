@@ -70,9 +70,9 @@ export function TransactionStatsTable({
   const endIndex = Math.min(currentPage * perPage, totalCount);
 
   return (
-    <div className="flex flex-col">
-      <div className="border rounded-lg overflow-hidden">
-        <div className="flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
+        <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
           <span className="flex-1">Transaction</span>
           <span className="hidden sm:block w-20 text-right">Count</span>
           <span className="w-16 text-right">p50</span>
@@ -80,7 +80,7 @@ export function TransactionStatsTable({
           <span className="hidden md:block w-16 text-right">p99</span>
           <span className="w-20 text-right">Failures</span>
         </div>
-        <div className="divide-y">
+        <div className="flex-1 overflow-auto divide-y">
           {stats.map((s) => {
             const key = `${s.transaction_name}⋄${s.op ?? ''}`;
             return (
