@@ -1,5 +1,7 @@
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/index.js';
+import { server } from '../setup.js';
 
 const client = new RustrakClient({
   baseUrl: 'http://localhost:8080',
@@ -73,6 +75,39 @@ describe('StorageResource', () => {
 
       expect(counts.events).toBe(20);
       expect(counts.issues_removed).toBe(3);
+    });
+
+    it('forwards the data-type selection flags in the request body', async () => {
+      let sentBody: Record<string, unknown> | undefined;
+      server.use(
+        http.post(
+          'http://localhost:8080/api/storage/cleanup',
+          async ({ request }) => {
+            sentBody = (await request.json()) as Record<string, unknown>;
+            return HttpResponse.json({
+              events: 0,
+              transactions: 0,
+              spans: 0,
+              logs: 50,
+              issues_removed: 0,
+            });
+          },
+        ),
+      );
+
+      await client.storage.executeCleanup({
+        older_than_days: 30,
+        include_events: false,
+        include_transactions: false,
+        include_logs: true,
+      });
+
+      expect(sentBody).toMatchObject({
+        older_than_days: 30,
+        include_events: false,
+        include_transactions: false,
+        include_logs: true,
+      });
     });
   });
 

@@ -58,8 +58,8 @@ pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
 pub use storage::{
-    CleanupCounts, CleanupRequest, ProjectStorage, SourceMapGcResult, SourceMapStorage,
-    StorageSummary,
+    CleanupCounts, CleanupFilter, CleanupRequest, ProjectStorage, SourceMapGcResult,
+    SourceMapStorage, StorageSummary,
 };
 pub use transaction::{
     SpanResponse, TransactionDetailResponse, TransactionResponse, TransactionStatsResponse,

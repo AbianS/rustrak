@@ -106,6 +106,29 @@ describe('storage tools', () => {
         project_id: 1,
       });
     });
+
+    it('forwards the data-type selection flags', async () => {
+      mockClient.storage.previewCleanup.mockResolvedValue(mockCounts);
+
+      await callTool({
+        name: 'preview_storage_cleanup',
+        arguments: {
+          older_than_days: 30,
+          include_events: false,
+          include_transactions: false,
+          include_logs: true,
+        },
+      });
+
+      expect(mockClient.storage.previewCleanup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          older_than_days: 30,
+          include_events: false,
+          include_transactions: false,
+          include_logs: true,
+        }),
+      );
+    });
   });
 
   describe('execute_storage_cleanup', () => {
@@ -134,6 +157,30 @@ describe('storage tools', () => {
         older_than_days: 30,
         project_id: undefined,
       });
+    });
+
+    it('forwards the data-type selection flags when confirmed', async () => {
+      mockClient.storage.executeCleanup.mockResolvedValue(mockCounts);
+
+      await callTool({
+        name: 'execute_storage_cleanup',
+        arguments: {
+          older_than_days: 30,
+          confirm: true,
+          include_events: false,
+          include_transactions: true,
+          include_logs: false,
+        },
+      });
+
+      expect(mockClient.storage.executeCleanup).toHaveBeenCalledWith(
+        expect.objectContaining({
+          older_than_days: 30,
+          include_events: false,
+          include_transactions: true,
+          include_logs: false,
+        }),
+      );
     });
   });
 

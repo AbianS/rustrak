@@ -8,15 +8,17 @@
 use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
+use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig, SecurityConfig};
 use rustrak::db::DbPool;
-use rustrak::models::{CreateAuthToken, CreateUserRequest, User, UserRole};
+use rustrak::models::{CreateAuthToken, CreateProject, CreateUserRequest, User, UserRole};
 use rustrak::routes;
 use rustrak::services::sourcemap_store::{LocalSourceMapStore, SourceMapStore};
-use rustrak::services::{AuthTokenService, UsersService};
+use rustrak::services::{AuthTokenService, ProjectService, UsersService};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 fn create_test_config() -> Config {
     Config {
@@ -197,6 +199,91 @@ async fn execute_cleanup_is_admin_only() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200, "admin can execute cleanup");
+}
+
+#[actix_web::test]
+async fn execute_cleanup_honors_data_type_filter_from_request_body() {
+    // The cleanup request can scope itself to specific data categories. A
+    // logs-only purge sent over HTTP must delete the old log and spare the old
+    // transaction — proving the request-body flags actually reach the service
+    // instead of the route always wiping everything.
+    let db = TestDb::new().await;
+    let admin = seed_user(&db.pool, "admin@x.com", UserRole::Admin).await;
+    let admin_token = token_for(&db.pool, admin.id).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "filter-http".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create project");
+
+    let old = Utc::now() - chrono::Duration::days(60);
+
+    sqlx::query(
+        "INSERT INTO transactions (id, event_id, project_id, timestamp, ingested_at, data) \
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(Uuid::new_v4())
+    .bind(project.id)
+    .bind(old)
+    .bind(old)
+    .bind(json!({}))
+    .execute(&db.pool)
+    .await
+    .expect("seed transaction");
+
+    sqlx::query(
+        "INSERT INTO logs (id, project_id, trace_id, span_id, level, severity_number, \
+         body, attributes, timestamp, ingested_at) \
+         VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(project.id)
+    .bind("trace")
+    .bind("info")
+    .bind(9_i16)
+    .bind("hello")
+    .bind(json!({}))
+    .bind(old)
+    .bind(old)
+    .execute(&db.pool)
+    .await
+    .expect("seed log");
+
+    let app = build_app!(db.pool.clone(), create_test_config());
+
+    let (k, v) = bearer(&admin_token);
+    let req = test::TestRequest::post()
+        .uri("/api/storage/cleanup")
+        .insert_header((k, v))
+        .set_json(json!({
+            "older_than_days": 30,
+            "include_events": false,
+            "include_transactions": false,
+            "include_logs": true,
+        }))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["logs"], 1, "the old log is removed");
+    assert_eq!(
+        body["transactions"], 0,
+        "transactions out of scope → untouched"
+    );
+
+    // The transaction really survived.
+    let txns: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(txns, 1, "logs-only purge left the transaction in place");
 }
 
 #[actix_web::test]
