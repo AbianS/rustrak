@@ -85,7 +85,7 @@ pub async fn ingest_envelope(
                 }
             }
             EnvelopeItemKind::Session(s) => {
-                let ctx = session_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
                 if let Err(e) = processors
                     .sessions
                     .process(SessionItem::Update(s), &ctx)
@@ -95,13 +95,22 @@ pub async fn ingest_envelope(
                 }
             }
             EnvelopeItemKind::Sessions(s) => {
-                let ctx = session_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
                 if let Err(e) = processors
                     .sessions
                     .process(SessionItem::Aggregates(s), &ctx)
                     .await
                 {
                     log::warn!("sessions item processing failed: {:?}", e);
+                }
+            }
+            EnvelopeItemKind::Log(payload) => {
+                // Logs are processed inline (parse container + store): the work is
+                // bounded and storing before responding keeps the batch durable —
+                // a spawned task could lose logs on shutdown. Mirrors sessions.
+                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                if let Err(e) = processors.logs.process(payload, &ctx).await {
+                    log::warn!("log item processing failed: {:?}", e);
                 }
             }
             EnvelopeItemKind::Other(t, _) => {
@@ -203,7 +212,7 @@ pub async fn ingest_envelope(
 }
 
 /// Builds a [`ProcessorCtx`] for session items, which carry no event id.
-fn session_ctx(
+fn direct_store_ctx(
     pool: &web::Data<DbPool>,
     project_id: i32,
     ingested_at: chrono::DateTime<Utc>,

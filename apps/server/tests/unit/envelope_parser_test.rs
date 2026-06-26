@@ -12,6 +12,7 @@ fn item_type(kind: &EnvelopeItemKind) -> &str {
         EnvelopeItemKind::Transaction(_) => "transaction",
         EnvelopeItemKind::Session(_) => "session",
         EnvelopeItemKind::Sessions(_) => "sessions",
+        EnvelopeItemKind::Log(_) => "log",
         EnvelopeItemKind::Other(t, _) => t,
     }
 }
@@ -19,10 +20,47 @@ fn item_type(kind: &EnvelopeItemKind) -> &str {
 // Helper: extract raw bytes from Event/Transaction/Other variants
 fn raw_payload(kind: &EnvelopeItemKind) -> Option<&[u8]> {
     match kind {
-        EnvelopeItemKind::Event(p) | EnvelopeItemKind::Transaction(p) => Some(p),
+        EnvelopeItemKind::Event(p)
+        | EnvelopeItemKind::Transaction(p)
+        | EnvelopeItemKind::Log(p) => Some(p),
         EnvelopeItemKind::Other(_, p) => Some(p),
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => None,
     }
+}
+
+// Helper: build a single-item envelope with an explicit-length payload.
+fn envelope_with_item(item_type: &str, content_type: &str, body: &[u8]) -> Vec<u8> {
+    let header = format!(
+        "{{\"type\":\"{}\",\"content_type\":\"{}\",\"length\":{}}}",
+        item_type,
+        content_type,
+        body.len()
+    );
+    let mut data = format!("{{\"event_id\":\"abc123\"}}\n{}\n", header).into_bytes();
+    data.extend_from_slice(body);
+    data.push(b'\n');
+    data
+}
+
+// =============================================================================
+// Log item tests (Sentry "log" item type — OurLog container)
+// =============================================================================
+
+#[test]
+fn test_parse_log_item_maps_to_log_variant() {
+    let body = br#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"hello"}]}"#;
+    let data = envelope_with_item("log", "application/vnd.sentry.items.log+json", body);
+
+    let mut parser = EnvelopeParser::new(&data);
+    let result = parser.parse().unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert!(
+        matches!(result.items[0], EnvelopeItemKind::Log(_)),
+        "expected Log variant, got {:?}",
+        item_type(&result.items[0])
+    );
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), body);
 }
 
 // =============================================================================

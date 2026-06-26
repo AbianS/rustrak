@@ -1,8 +1,10 @@
 pub mod event;
+pub mod logs;
 pub mod session;
 pub mod transaction;
 
 pub use event::ErrorProcessor;
+pub use logs::LogsProcessor;
 pub use session::{SessionItem, SessionProcessor};
 pub use transaction::TransactionProcessor;
 
@@ -29,6 +31,7 @@ pub struct Processors {
     pub errors: ErrorProcessor,
     pub transactions: TransactionProcessor,
     pub sessions: SessionProcessor,
+    pub logs: LogsProcessor,
 }
 
 impl Processors {
@@ -42,6 +45,7 @@ impl Processors {
             errors: ErrorProcessor::new(ingest_dir, rate_limit_config, sourcemap_provider),
             transactions: TransactionProcessor,
             sessions: SessionProcessor::new(session_aggregator),
+            logs: LogsProcessor,
         }
     }
 }
@@ -80,6 +84,8 @@ pub enum Route {
     Transaction,
     /// Session health updates and aggregates.
     Session,
+    /// Standalone logs — direct store, no grouping.
+    Log,
     /// Forward-compatible catch-all: logged and dropped, never processed.
     Ignored,
 }
@@ -93,6 +99,7 @@ pub fn route(item: &EnvelopeItemKind) -> Route {
         EnvelopeItemKind::Event(_) => Route::Error,
         EnvelopeItemKind::Transaction(_) => Route::Transaction,
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => Route::Session,
+        EnvelopeItemKind::Log(_) => Route::Log,
         EnvelopeItemKind::Other(_, _) => Route::Ignored,
     }
 }

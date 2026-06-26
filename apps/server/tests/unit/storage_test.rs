@@ -260,6 +260,99 @@ async fn test_preview_cleanup_counts_old_rows_without_mutating() {
     assert_eq!(summary.spans_count, 3);
 }
 
+/// Inserts a log row with an explicit `ingested_at` (the retention key).
+async fn seed_log_at(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    ingested_at: chrono::DateTime<Utc>,
+) {
+    sqlx::query(
+        r#"
+        INSERT INTO logs (id, project_id, trace_id, span_id, level, severity_number,
+                          body, attributes, timestamp, ingested_at)
+        VALUES ($1, $2, $3, NULL, $4, $5, $6, $7, $8, $9)
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(project_id)
+    .bind("aaaa")
+    .bind("info")
+    .bind(9_i16)
+    .bind("hello")
+    .bind(serde_json::json!({}))
+    .bind(ingested_at)
+    .bind(ingested_at)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn test_cleanup_counts_and_deletes_old_logs() {
+    // Logs must participate in retention: preview reports old log rows and
+    // execute deletes them, leaving recent logs untouched.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "logs-cleanup".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let old = Utc::now() - chrono::Duration::days(60);
+    let now = Utc::now();
+    seed_log_at(&db.pool, project.id, old).await;
+    seed_log_at(&db.pool, project.id, now).await;
+
+    let preview = StorageService::preview_cleanup(&db.pool, 30, None)
+        .await
+        .unwrap();
+    assert_eq!(preview.logs, 1, "one log older than 30d");
+
+    StorageService::execute_cleanup(&db.pool, 30, None)
+        .await
+        .unwrap();
+
+    let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(remaining, 1, "only the recent log survives");
+}
+
+#[tokio::test]
+async fn test_storage_summary_and_by_project_include_logs() {
+    // The Storage page surfaces a per-category row count; logs must appear in
+    // both the global summary and the per-project breakdown.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "logs-storage-count".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    seed_log_at(&db.pool, project.id, Utc::now()).await;
+    seed_log_at(&db.pool, project.id, Utc::now()).await;
+
+    let summary = StorageService::global_summary(&db.pool).await.unwrap();
+    assert_eq!(summary.logs_count, 2);
+
+    let rows = StorageService::by_project(&db.pool).await.unwrap();
+    let p = rows
+        .iter()
+        .find(|r| r.project_id == project.id)
+        .expect("project in breakdown");
+    assert_eq!(p.logs_count, 2);
+}
+
 #[tokio::test]
 async fn test_cleanup_rejects_nonpositive_retention_window() {
     // A window of 0 puts the cutoff at "now" and a negative one in the future —

@@ -28,6 +28,7 @@ pub struct StorageSummary {
     pub events_count: i64,
     pub transactions_count: i64,
     pub spans_count: i64,
+    pub logs_count: i64,
     /// Exact source-map weight + file count.
     pub source_maps: SourceMapStorage,
 }
@@ -43,6 +44,7 @@ pub struct CleanupCounts {
     pub events: i64,
     pub transactions: i64,
     pub spans: i64,
+    pub logs: i64,
     pub issues_removed: i64,
 }
 
@@ -69,6 +71,7 @@ pub struct ProjectStorage {
     pub events_count: i64,
     pub transactions_count: i64,
     pub spans_count: i64,
+    pub logs_count: i64,
     pub source_maps_count: i64,
     pub estimated_bytes: i64,
 }
