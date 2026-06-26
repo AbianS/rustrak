@@ -333,6 +333,8 @@ function summarizeRemoved(counts: CleanupCounts): string {
     parts.push(`${counts.transactions.toLocaleString()} transactions`);
   if (counts.spans) parts.push(`${counts.spans.toLocaleString()} spans`);
   if (counts.logs) parts.push(`${counts.logs.toLocaleString()} logs`);
+  if (counts.issues_removed)
+    parts.push(`${counts.issues_removed.toLocaleString()} empty issues`);
   return parts.length > 0
     ? `Removed ${parts.join(', ')}`
     : 'Nothing matched — no data removed';
