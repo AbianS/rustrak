@@ -3,15 +3,24 @@
 import type { Log, OffsetPaginatedResponse } from '@rustrak/client';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronRight as ChevronRightSmall,
   ScrollText,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 interface LogsListProps {
@@ -29,12 +38,15 @@ const LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'] as const;
 function levelTone(level: string): string {
   switch (level) {
     case 'fatal':
+      return 'border-destructive/40 bg-destructive/15 text-destructive';
     case 'error':
       return 'border-destructive/30 bg-destructive/10 text-destructive';
     case 'warn':
       return 'border-yellow-500/30 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500';
     case 'info':
       return 'border-primary/30 bg-primary/10 text-primary';
+    case 'debug':
+      return 'border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400';
     default:
       return 'border-muted-foreground/20 bg-muted text-muted-foreground';
   }
@@ -63,12 +75,7 @@ export function LogsList({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const path = `/projects/${projectId}/logs`;
-  const {
-    items: logs,
-    total_count,
-    total_pages,
-    per_page,
-  } = initialLogs;
+  const { items: logs, total_count, total_pages, per_page } = initialLogs;
 
   const navigate = (page: number, level?: string) => {
     const params = new URLSearchParams();
@@ -82,11 +89,7 @@ export function LogsList({
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
@@ -96,167 +99,217 @@ export function LogsList({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Level filter bar */}
-      <div className="shrink-0 flex items-center gap-1.5 pb-3 flex-wrap">
-        <Button
-          variant={!activeLevel ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => navigate(1)}
-          disabled={isPending}
-        >
-          All
-        </Button>
-        {LEVELS.map((lvl) => (
-          <Button
-            key={lvl}
-            variant={activeLevel === lvl ? 'default' : 'outline'}
-            size="sm"
-            className="capitalize"
-            onClick={() => navigate(1, lvl)}
-            disabled={isPending}
-          >
-            {lvl}
-          </Button>
-        ))}
-      </div>
-
-      {logs.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <ScrollText className="size-12 text-muted-foreground/30 mb-4" />
-          <h2 className="text-lg font-semibold mb-1">No logs match this filter</h2>
-          <p className="text-sm text-muted-foreground max-w-md">
-            Try a different level or clear the filter.
-          </p>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
-          <div className="flex-1 overflow-auto divide-y">
-            {logs.map((log) => {
-              const isOpen = expanded.has(log.id);
-              const attributes = Object.entries(log.attributes ?? {});
-              return (
-                <div key={log.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(log.id)}
-                    aria-expanded={isOpen}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/30 transition-colors group"
-                  >
-                    <ChevronDown
-                      className={cn(
-                        'size-4 shrink-0 text-muted-foreground transition-transform',
-                        isOpen ? 'rotate-0' : '-rotate-90',
-                      )}
-                      aria-hidden="true"
-                    />
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'shrink-0 w-14 justify-center text-[10px] uppercase tracking-wide',
-                        levelTone(log.level),
-                      )}
-                    >
-                      {log.level}
-                    </Badge>
-                    <span className="flex-1 min-w-0 truncate font-mono text-sm">
-                      {log.body || '(empty)'}
-                    </span>
-                    {log.trace_id && (
-                      <span className="hidden md:block shrink-0 font-mono text-xs text-muted-foreground truncate max-w-32">
-                        {log.trace_id}
-                      </span>
-                    )}
-                    <span className="hidden sm:block shrink-0 text-xs text-muted-foreground whitespace-nowrap w-28 text-right">
-                      {formatDistanceToNow(new Date(log.timestamp), {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  </button>
-
-                  {isOpen && (
-                    <div className="px-4 pb-4 pt-1 bg-muted/20 border-t text-sm">
-                      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 max-w-3xl">
-                        <dt className="text-muted-foreground">timestamp</dt>
-                        <dd className="font-mono text-xs">
-                          {format(new Date(log.timestamp), 'PPpp')}
-                        </dd>
-                        {log.trace_id && (
-                          <>
-                            <dt className="text-muted-foreground">trace_id</dt>
-                            <dd className="font-mono text-xs break-all">
-                              {log.trace_id}
-                            </dd>
-                          </>
-                        )}
-                        {log.span_id && (
-                          <>
-                            <dt className="text-muted-foreground">span_id</dt>
-                            <dd className="font-mono text-xs break-all">
-                              {log.span_id}
-                            </dd>
-                          </>
-                        )}
-                        {log.severity_number !== null && (
-                          <>
-                            <dt className="text-muted-foreground">severity</dt>
-                            <dd className="font-mono text-xs">
-                              {log.severity_number}
-                            </dd>
-                          </>
-                        )}
-                      </dl>
-
-                      {attributes.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
-                            Attributes
-                          </p>
-                          <div className="rounded-md border divide-y bg-background">
-                            {attributes.map(([key, raw]) => {
-                              const { value, type } = attributeDisplay(raw);
-                              return (
-                                <div
-                                  key={key}
-                                  className="flex items-start gap-3 px-3 py-1.5"
-                                >
-                                  <span className="font-mono text-xs text-muted-foreground w-48 shrink-0 truncate">
-                                    {key}
-                                  </span>
-                                  <span className="font-mono text-xs flex-1 break-all">
-                                    {value}
-                                  </span>
-                                  {type && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px] shrink-0"
-                                    >
-                                      {type}
-                                    </Badge>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+        {/* Filter bar */}
+        <div className="shrink-0 flex items-center justify-between gap-3 pb-3 flex-wrap">
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+            <Button
+              variant={!activeLevel ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 px-3"
+              onClick={() => navigate(1)}
+              disabled={isPending}
+            >
+              All
+            </Button>
+            {LEVELS.map((lvl) => (
+              <Button
+                key={lvl}
+                variant={activeLevel === lvl ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 px-3 capitalize"
+                onClick={() => navigate(1, lvl)}
+                disabled={isPending}
+              >
+                {lvl}
+              </Button>
+            ))}
           </div>
+          {total_count > 0 && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {startIndex}–{endIndex} of {total_count.toLocaleString()}
+            </span>
+          )}
         </div>
-      )}
 
-      {total_pages > 0 && (
-        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
-          <span className="text-sm text-muted-foreground">
-            {total_count > 0
-              ? `Showing ${startIndex}-${endIndex} of ${total_count}`
-              : 'No results'}
-          </span>
+        {logs.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center rounded-lg border border-dashed">
+            <ScrollText className="size-12 text-muted-foreground/30 mb-4" />
+            <h2 className="text-lg font-semibold mb-1">
+              No logs match this filter
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Try a different level or clear the filter.
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 rounded-lg border overflow-hidden *:data-[slot=table-container]:h-full">
+            {/* The table's own wrapper (data-slot=table-container) is the
+                scroll container; the *:data-[slot=table-container]:h-full
+                variant bounds its height so the sticky header anchors to it,
+                leaving table.tsx untouched. */}
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-background">
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead className="w-8" />
+                  <TableHead className="w-20">Level</TableHead>
+                  <TableHead>Message</TableHead>
+                  <TableHead className="hidden md:table-cell w-36">
+                    Trace
+                  </TableHead>
+                  <TableHead className="w-32 text-right">Time</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => {
+                  const isOpen = expanded.has(log.id);
+                  const attributes = Object.entries(log.attributes ?? {});
+                  return (
+                    <Fragment key={log.id}>
+                      <TableRow
+                        onClick={() => toggleExpanded(log.id)}
+                        aria-expanded={isOpen}
+                        className={cn(
+                          'cursor-pointer',
+                          isOpen && 'bg-muted/40 hover:bg-muted/40',
+                        )}
+                      >
+                        <TableCell className="py-2 text-muted-foreground">
+                          <ChevronRightSmall
+                            className={cn(
+                              'size-4 transition-transform',
+                              isOpen && 'rotate-90',
+                            )}
+                            aria-hidden="true"
+                          />
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-center text-[10px] uppercase tracking-wide',
+                              levelTone(log.level),
+                            )}
+                          >
+                            {log.level}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-2 max-w-0">
+                          <span className="block truncate font-mono text-sm">
+                            {log.body || '(empty)'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell py-2">
+                          {log.trace_id ? (
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {log.trace_id.slice(0, 8)}…
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDistanceToNow(new Date(log.timestamp), {
+                              addSuffix: true,
+                            })}
+                          </span>
+                        </TableCell>
+                      </TableRow>
 
-          <div className="flex items-center gap-2">
+                      {isOpen && (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={5} className="bg-muted/20 p-0">
+                            <div className="px-5 py-4 space-y-4">
+                              <dl className="grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-1.5 text-sm">
+                                <dt className="text-muted-foreground">
+                                  timestamp
+                                </dt>
+                                <dd className="font-mono text-xs">
+                                  {format(new Date(log.timestamp), 'PPpp')}
+                                </dd>
+                                {log.trace_id && (
+                                  <>
+                                    <dt className="text-muted-foreground">
+                                      trace_id
+                                    </dt>
+                                    <dd className="font-mono text-xs break-all">
+                                      {log.trace_id}
+                                    </dd>
+                                  </>
+                                )}
+                                {log.span_id && (
+                                  <>
+                                    <dt className="text-muted-foreground">
+                                      span_id
+                                    </dt>
+                                    <dd className="font-mono text-xs break-all">
+                                      {log.span_id}
+                                    </dd>
+                                  </>
+                                )}
+                                {log.severity_number !== null && (
+                                  <>
+                                    <dt className="text-muted-foreground">
+                                      severity
+                                    </dt>
+                                    <dd className="font-mono text-xs">
+                                      {log.severity_number}
+                                    </dd>
+                                  </>
+                                )}
+                              </dl>
+
+                              {attributes.length > 0 && (
+                                <div>
+                                  <Separator className="mb-3" />
+                                  <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+                                    Attributes
+                                  </p>
+                                  <div className="grid gap-px overflow-hidden rounded-md border bg-border">
+                                    {attributes.map(([key, raw]) => {
+                                      const { value, type } =
+                                        attributeDisplay(raw);
+                                      return (
+                                        <div
+                                          key={key}
+                                          className="grid grid-cols-[12rem_1fr_auto] items-start gap-3 bg-background px-3 py-1.5"
+                                        >
+                                          <span className="font-mono text-xs text-muted-foreground truncate">
+                                            {key}
+                                          </span>
+                                          <span className="font-mono text-xs break-all">
+                                            {value}
+                                          </span>
+                                          {type && (
+                                            <Badge
+                                              variant="secondary"
+                                              className="text-[10px]"
+                                            >
+                                              {type}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {total_pages > 0 && (
+          <div className="shrink-0 flex items-center justify-end gap-2 pt-4">
             <Button
               variant="outline"
               size="sm"
@@ -266,11 +319,9 @@ export function LogsList({
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
             </Button>
-
-            <span className="text-sm px-2">
+            <span className="text-sm px-1 tabular-nums">
               Page {currentPage} of {total_pages}
             </span>
-
             <Button
               variant="outline"
               size="sm"
@@ -281,8 +332,7 @@ export function LogsList({
               <ChevronRight className="size-4" aria-hidden="true" />
             </Button>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
