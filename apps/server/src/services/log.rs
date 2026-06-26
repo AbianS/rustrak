@@ -28,6 +28,9 @@ impl LogService {
         per_page: i64,
         filters: &LogFilters,
     ) -> AppResult<(Vec<LogResponse>, i64)> {
+        // Clamp at the service boundary so a direct caller passing page <= 0
+        // can't produce a negative SQL OFFSET (the HTTP route already guards it).
+        let page = page.max(1);
         let per_page = per_page.clamp(1, 100);
         let offset = (page - 1) * per_page;
 

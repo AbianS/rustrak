@@ -66,7 +66,10 @@ impl Processor for LogsProcessor {
 
 /// Converts an epoch-seconds float (with sub-second precision) to a UTC instant.
 fn epoch_to_datetime(epoch: f64) -> Option<DateTime<Utc>> {
-    if epoch <= 0.0 {
+    // NaN/inf must fall through to the ingested_at fallback: `epoch <= 0.0` is
+    // false for NaN (IEEE 754), and a saturating NaN-to-int cast would otherwise
+    // store 1970-01-01 instead.
+    if !epoch.is_finite() || epoch <= 0.0 {
         return None;
     }
     let secs = epoch.floor() as i64;
@@ -98,13 +101,15 @@ fn severity_number(level: &str) -> Option<i16> {
     }
 }
 
-/// The OTel attribute map, stored verbatim. Null attributes become an empty
-/// object so the column is always valid JSON.
+/// The OTel attribute map, stored verbatim. Only JSON objects are kept; a
+/// non-conforming SDK that sends an array or primitive is coerced to an empty
+/// object so the column always holds the `{key: value}` shape the read API and
+/// client schema expect (otherwise one bad row would break the Logs page).
 fn attributes_json(log: &LogItem) -> serde_json::Value {
-    if log.attributes.is_null() {
-        serde_json::json!({})
-    } else {
+    if log.attributes.is_object() {
         log.attributes.clone()
+    } else {
+        serde_json::json!({})
     }
 }
 

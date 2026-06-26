@@ -119,6 +119,47 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_non_object_attributes_coerced_to_empty_object() {
+        // A non-conforming SDK may send `attributes` as an array/primitive.
+        // The stored column must always hold a JSON object so the read API and
+        // client schema (z.record) never choke on one bad row.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "logs-bad-attrs".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let body = br#"{"items":[
+            {"timestamp":1704801600.0,"trace_id":"aaaa","level":"info","body":"x","attributes":[1,2,3]}
+        ]}"#
+        .to_vec();
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        LogsProcessor.process(body, &ctx).await.unwrap();
+
+        let stored: serde_json::Value =
+            sqlx::query_scalar("SELECT attributes FROM logs WHERE project_id = ?")
+                .bind(project.id)
+                .fetch_one(&db.pool)
+                .await
+                .unwrap();
+        assert!(
+            stored.is_object(),
+            "non-object attributes must be coerced to an object, got {stored}"
+        );
+    }
+
+    #[tokio::test]
     async fn test_list_logs_returns_stored_newest_first() {
         use rustrak::services::log::{LogFilters, LogService};
         let db = TestDb::new().await;

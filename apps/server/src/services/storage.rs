@@ -331,7 +331,10 @@ impl StorageService {
                     (SELECT COALESCE(SUM(length(CAST(e.data AS TEXT))), 0) FROM events e       WHERE e.project_id = p.id)
                   + (SELECT COALESCE(SUM(length(CAST(t.data AS TEXT))), 0) FROM transactions t WHERE t.project_id = p.id)
                   + (SELECT COALESCE(SUM(length(CAST(s.data AS TEXT))), 0) FROM spans s         WHERE s.project_id = p.id)
-                  + (SELECT COALESCE(SUM(length(CAST(lg.body AS TEXT)) + length(CAST(lg.attributes AS TEXT))), 0) FROM logs lg WHERE lg.project_id = p.id)
+                  + (SELECT COALESCE(SUM(
+                        COALESCE(length(CAST(lg.body AS TEXT)), 0)
+                      + COALESCE(length(CAST(lg.attributes AS TEXT)), 0)
+                    ), 0) FROM logs lg WHERE lg.project_id = p.id)
                 ) AS estimated_bytes
             FROM projects p
             ORDER BY p.id
