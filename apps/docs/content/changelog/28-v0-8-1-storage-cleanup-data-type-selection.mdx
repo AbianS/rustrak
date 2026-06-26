@@ -1,0 +1,24 @@
+---
+version: v0.8.1
+title: Storage Cleanup Data-Type Selection
+description: Storage cleanup now supports filtering by data type — choose which event types to purge with new server, client, MCP, and UI controls
+date: 2026-06-26
+tags: [server, webview-ui, client, mcp, storage, cleanup]
+---
+
+## Data-Type Scoped Cleanup
+
+Storage cleanup operations can now be scoped to specific data types, giving you fine-grained control over which event categories to purge.
+
+- Server endpoint accepts optional `data_types` filter parameter (events, transactions, logs, sessions)
+- MCP storage cleanup tools include `--events`, `--transactions`, `--logs`, and `--sessions` flags
+- Client `StorageResource.cleanup()` forwards `dataTypes` filter options
+- WebView UI cleanup dialog includes data-type checkboxes for visual selection
+
+## Bug Fixes
+
+- Cleanup success toast now correctly reports when no issues matched the filter instead of showing an empty count
+
+## Improvements
+
+- Consistent data-type filtering across all layers — server, client, MCP, and UI
