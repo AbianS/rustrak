@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-/** Fallback for the four overview cards while the storage summary loads. */
+/** Fallback for the overview cards while the storage summary loads. */
 export function SummaryCardsSkeleton() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: 5 }).map((_, i) => (
         <Card key={i} size="sm">
           <CardContent>
             <div className="flex items-center gap-1.5 mb-1">
@@ -46,6 +46,8 @@ export function ProjectsTableSkeleton() {
                 <Skeleton className="h-3 w-12 ml-auto" />
                 <Skeleton className="h-3 w-14" />
                 <Skeleton className="h-3 w-12 ml-auto" />
+                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-3 w-12 ml-auto" />
               </div>
             </div>
           ))}
@@ -57,6 +59,7 @@ export function ProjectsTableSkeleton() {
             <div key={i} className="flex items-center gap-4">
               <Skeleton className="h-4 w-40" />
               <Skeleton className="h-4 w-12 ml-auto" />
+              <Skeleton className="h-4 w-12" />
               <Skeleton className="h-4 w-12" />
               <Skeleton className="h-4 w-12" />
               <Skeleton className="h-4 w-12" />

@@ -20,6 +20,7 @@ export const storageSummarySchema = z.object({
   events_count: z.number(),
   transactions_count: z.number(),
   spans_count: z.number(),
+  logs_count: z.number(),
   source_maps: sourceMapStorageSchema,
 });
 
@@ -33,6 +34,7 @@ export const projectStorageSchema = z.object({
   events_count: z.number(),
   transactions_count: z.number(),
   spans_count: z.number(),
+  logs_count: z.number(),
   source_maps_count: z.number(),
   estimated_bytes: z.number(),
 });
@@ -45,6 +47,7 @@ export const cleanupCountsSchema = z.object({
   events: z.number(),
   transactions: z.number(),
   spans: z.number(),
+  logs: z.number(),
   issues_removed: z.number(),
 });
 

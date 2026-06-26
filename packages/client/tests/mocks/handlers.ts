@@ -1354,6 +1354,7 @@ export const handlers = [
       events_count: 120,
       transactions_count: 80,
       spans_count: 640,
+      logs_count: 200,
       source_maps: {
         chunk_bytes: 350,
         source_file_bytes: 300,
@@ -1372,6 +1373,7 @@ export const handlers = [
         events_count: 100,
         transactions_count: 80,
         spans_count: 640,
+        logs_count: 200,
         source_maps_count: 2,
         estimated_bytes: 524288,
       },
@@ -1381,6 +1383,7 @@ export const handlers = [
         events_count: 0,
         transactions_count: 0,
         spans_count: 0,
+        logs_count: 0,
         source_maps_count: 0,
         estimated_bytes: 0,
       },
@@ -1393,6 +1396,7 @@ export const handlers = [
       events: 20,
       transactions: 10,
       spans: 80,
+      logs: 50,
       issues_removed: 3,
     });
   }),
@@ -1403,6 +1407,7 @@ export const handlers = [
       events: 20,
       transactions: 10,
       spans: 80,
+      logs: 50,
       issues_removed: 3,
     });
   }),

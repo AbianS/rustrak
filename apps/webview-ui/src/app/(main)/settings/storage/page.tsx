@@ -1,4 +1,11 @@
-import { Database, FileCode2, Layers, ListTree, ShieldX } from 'lucide-react';
+import {
+  Database,
+  FileCode2,
+  Layers,
+  ListTree,
+  ScrollText,
+  ShieldX,
+} from 'lucide-react';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
@@ -71,6 +78,12 @@ async function SummaryCards() {
       value: summary.spans_count.toLocaleString(),
       sub: 'indexed from transactions',
       icon: Layers,
+    },
+    {
+      label: 'Logs',
+      value: summary.logs_count.toLocaleString(),
+      sub: 'structured log records',
+      icon: ScrollText,
     },
     {
       label: 'Source maps',
@@ -147,6 +160,10 @@ async function ProjectsTable() {
                   <span className="tabular-nums text-right">
                     {p.spans_count.toLocaleString()}
                   </span>
+                  <span className="text-muted-foreground">Logs</span>
+                  <span className="tabular-nums text-right">
+                    {p.logs_count.toLocaleString()}
+                  </span>
                   <span className="text-muted-foreground">Source maps</span>
                   <span className="tabular-nums text-right">
                     {p.source_maps_count.toLocaleString()}
@@ -169,6 +186,7 @@ async function ProjectsTable() {
               <TableHead className="text-right">Events</TableHead>
               <TableHead className="text-right">Transactions</TableHead>
               <TableHead className="text-right">Spans</TableHead>
+              <TableHead className="text-right">Logs</TableHead>
               <TableHead className="text-right">Source maps</TableHead>
               <TableHead className="text-right">Est. size</TableHead>
             </TableRow>
@@ -177,7 +195,7 @@ async function ProjectsTable() {
             {projects.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center text-muted-foreground py-8"
                 >
                   No projects yet.
@@ -197,6 +215,9 @@ async function ProjectsTable() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {p.spans_count.toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.logs_count.toLocaleString()}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {p.source_maps_count.toLocaleString()}
