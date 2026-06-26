@@ -15,6 +15,7 @@ describe('StorageResource', () => {
       expect(summary.events_count).toBe(120);
       expect(summary.transactions_count).toBe(80);
       expect(summary.spans_count).toBe(640);
+      expect(summary.logs_count).toBe(200);
       expect(summary.source_maps.total_bytes).toBe(650);
       expect(summary.source_maps.file_count).toBe(2);
     });
@@ -27,6 +28,7 @@ describe('StorageResource', () => {
       expect(rows).toHaveLength(2);
       expect(rows[0].project_name).toBe('Test Project');
       expect(rows[0].events_count).toBe(100);
+      expect(rows[0].logs_count).toBe(200);
       expect(rows[0].source_maps_count).toBe(2);
       expect(rows[1].events_count).toBe(0);
     });
@@ -41,6 +43,7 @@ describe('StorageResource', () => {
       expect(counts.events).toBe(20);
       expect(counts.transactions).toBe(10);
       expect(counts.spans).toBe(80);
+      expect(counts.logs).toBe(50);
       expect(counts.issues_removed).toBe(3);
     });
 

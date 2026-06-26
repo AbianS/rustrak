@@ -5,6 +5,7 @@ pub mod grouping;
 pub mod installation;
 pub mod invitation;
 pub mod issue;
+pub mod log;
 pub mod project;
 pub mod project_member;
 pub mod session;
@@ -53,6 +54,7 @@ pub use invitation::{
     AcceptInvitation, CreateInvitation, Invitation, InvitationResponse, InvitationStatus,
 };
 pub use issue::{Issue, IssueResponse, UpdateIssueState};
+pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
 pub use storage::{

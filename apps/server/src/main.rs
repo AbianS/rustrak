@@ -194,6 +194,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::sessions::configure)
             // Transactions API (more specific than generic projects scope)
             .configure(routes::transactions::configure)
+            // Logs API (more specific than generic projects scope)
+            .configure(routes::logs::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)

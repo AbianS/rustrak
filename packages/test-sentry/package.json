@@ -25,7 +25,8 @@
     "check-types": "tsc --noEmit",
     "demo:build": "node demo/build.mjs",
     "demo:run": "node demo/dist/app.js",
-    "demo:sessions": "tsx demo/src/sessions.ts"
+    "demo:sessions": "tsx demo/src/sessions.ts",
+    "demo:logs": "tsx demo/src/logs.ts"
   },
   "dependencies": {
     "@sentry/node": "10.59.0"

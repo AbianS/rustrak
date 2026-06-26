@@ -192,6 +192,27 @@ pub struct ListTransactionsQuery {
     pub release: Option<String>,
 }
 
+/// Query parameters for listing logs (offset-based)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct ListLogsQuery {
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
+
+    /// Filter by log level (trace/debug/info/warn/error/fatal).
+    pub level: Option<String>,
+
+    /// Filter by trace id.
+    pub trace_id: Option<String>,
+}
+
 /// Query parameters for the transaction stats overview (offset-based)
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]

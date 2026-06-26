@@ -2216,6 +2216,195 @@
         ]
       }
     },
+    "/api/projects/{project_id}/logs": {
+      "get": {
+        "tags": [
+          "Logs"
+        ],
+        "summary": "GET /api/projects/{project_id}/logs\nLists logs for a project with offset-based pagination (newest first by\nlog timestamp), optionally filtered by level/trace_id.",
+        "operationId": "list_logs",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Filter by log level (trace/debug/info/warn/error/fatal).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "query",
+            "description": "Filter by trace id.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated log list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Response model for a single stored log in the list view.",
+                        "required": [
+                          "id",
+                          "level",
+                          "body",
+                          "attributes",
+                          "timestamp",
+                          "ingested_at"
+                        ],
+                        "properties": {
+                          "attributes": {
+                            "description": "Typed attribute map, as received."
+                          },
+                          "body": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "ingested_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "level": {
+                            "type": "string"
+                          },
+                          "severity_number": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int32",
+                            "description": "OTel severity number (1=trace … 21=fatal). None for unknown levels."
+                          },
+                          "span_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "trace_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/members": {
       "get": {
         "tags": [
@@ -3316,6 +3505,7 @@
                       "events_count",
                       "transactions_count",
                       "spans_count",
+                      "logs_count",
                       "source_maps_count",
                       "estimated_bytes"
                     ],
@@ -3325,6 +3515,10 @@
                         "format": "int64"
                       },
                       "events_count": {
+                        "type": "integer",
+                        "format": "int64"
+                      },
+                      "logs_count": {
                         "type": "integer",
                         "format": "int64"
                       },
@@ -4628,6 +4822,7 @@
           "events",
           "transactions",
           "spans",
+          "logs",
           "issues_removed"
         ],
         "properties": {
@@ -4636,6 +4831,10 @@
             "format": "int64"
           },
           "issues_removed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logs": {
             "type": "integer",
             "format": "int64"
           },
@@ -5074,6 +5273,61 @@
           }
         }
       },
+      "LogResponse": {
+        "type": "object",
+        "description": "Response model for a single stored log in the list view.",
+        "required": [
+          "id",
+          "level",
+          "body",
+          "attributes",
+          "timestamp",
+          "ingested_at"
+        ],
+        "properties": {
+          "attributes": {
+            "description": "Typed attribute map, as received."
+          },
+          "body": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "level": {
+            "type": "string"
+          },
+          "severity_number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "OTel severity number (1=trace … 21=fatal). None for unknown levels."
+          },
+          "span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "LoginRequest": {
         "type": "object",
         "required": [
@@ -5174,6 +5428,7 @@
           "events_count",
           "transactions_count",
           "spans_count",
+          "logs_count",
           "source_maps_count",
           "estimated_bytes"
         ],
@@ -5183,6 +5438,10 @@
             "format": "int64"
           },
           "events_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logs_count": {
             "type": "integer",
             "format": "int64"
           },
@@ -5444,10 +5703,15 @@
           "events_count",
           "transactions_count",
           "spans_count",
+          "logs_count",
           "source_maps"
         ],
         "properties": {
           "events_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "logs_count": {
             "type": "integer",
             "format": "int64"
           },

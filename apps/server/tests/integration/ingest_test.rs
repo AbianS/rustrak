@@ -74,6 +74,69 @@ fn create_envelope(event_id: &str, event_json: &str) -> Vec<u8> {
 }
 
 // =============================================================================
+// Log item ingestion (Sentry "log" item type — OurLog container)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_ingest_log_envelope_stores_rows() {
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Logs Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    // A log-only envelope: no event item, no event_id required. The single log
+    // item carries a container with two OurLog records.
+    let container = r#"{"items":[{"timestamp":1704801600.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"error","body":"boom"},{"timestamp":1704801601.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"ok"}]}"#;
+    let envelope = format!(
+        "{{}}\n{{\"type\":\"log\",\"content_type\":\"application/vnd.sentry.items.log+json\",\"length\":{}}}\n{}",
+        container.len(),
+        container
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success(), "log envelope should return 200");
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE project_id = ?")
+        .bind(project_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 2, "two-item log container → two stored rows");
+}
+
+// =============================================================================
 // Basic Ingestion Tests
 // =============================================================================
 

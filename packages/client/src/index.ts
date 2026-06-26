@@ -61,9 +61,11 @@ export type {
   ListAlertHistoryOptions,
   ListEventsOptions,
   ListIssuesOptions,
+  ListLogsOptions,
   ListProjectsOptions,
   ListSourceMapsResponse,
   ListTransactionsOptions,
+  Log,
   LoginRequest,
   LoginResult,
   /** @deprecated Use AlertIntegration */

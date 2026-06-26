@@ -157,6 +157,15 @@ impl StorageService {
         .execute(&mut *tx)
         .await?;
 
+        // Logs carry no issue_id and never touch the issue/project counters, so
+        // this is a plain delete — same shape as transactions.
+        sqlx::query("DELETE FROM logs WHERE ingested_at < $1 AND ($2 IS NULL OR project_id = $3)")
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+
         // Keep the per-issue event counters in sync BEFORE deleting the rows. The
         // `e.issue_id = issues.id` join means only events that belong to an issue
         // (errors) are ever subtracted — transaction/log rows carry a NULL
@@ -252,8 +261,9 @@ impl StorageService {
         cutoff: chrono::DateTime<Utc>,
         project_id: Option<i32>,
     ) -> AppResult<CleanupCounts> {
-        let (events, transactions, spans, issues_removed): (i64, i64, i64, i64) = sqlx::query_as(
-            r#"
+        let (events, transactions, spans, issues_removed, logs): (i64, i64, i64, i64, i64) =
+            sqlx::query_as(
+                r#"
             SELECT
                 (SELECT COUNT(*) FROM events e
                     WHERE e.ingested_at < $1 AND ($2 IS NULL OR e.project_id = $3)),
@@ -267,28 +277,34 @@ impl StorageService {
                       AND EXISTS (SELECT 1 FROM events e2 WHERE e2.issue_id = i.id)
                       AND NOT EXISTS (
                           SELECT 1 FROM events e3 WHERE e3.issue_id = i.id AND e3.ingested_at >= $12
-                      ))
+                      )),
+                (SELECT COUNT(*) FROM logs l
+                    WHERE l.ingested_at < $13 AND ($14 IS NULL OR l.project_id = $15))
             "#,
-        )
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(project_id)
-        .bind(cutoff)
-        .fetch_one(pool)
-        .await?;
+            )
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(project_id)
+            .bind(cutoff)
+            .bind(cutoff)
+            .bind(project_id)
+            .bind(project_id)
+            .fetch_one(pool)
+            .await?;
 
         Ok(CleanupCounts {
             events,
             transactions,
             spans,
+            logs,
             issues_removed,
         })
     }
@@ -299,7 +315,9 @@ impl StorageService {
     /// sums the JSON payload lengths the project owns across events/transactions/spans
     /// (`length(CAST(data AS TEXT))` — char length, a stable cross-backend estimate).
     pub async fn by_project(pool: &DbPool) -> AppResult<Vec<ProjectStorage>> {
-        let rows: Vec<(i32, String, i64, i64, i64, i64, i64)> = sqlx::query_as(
+        // (id, name, events, transactions, spans, logs, source_maps, estimated_bytes)
+        type ProjectStorageRow = (i32, String, i64, i64, i64, i64, i64, i64);
+        let rows: Vec<ProjectStorageRow> = sqlx::query_as(
             r#"
             SELECT
                 p.id,
@@ -307,11 +325,16 @@ impl StorageService {
                 (SELECT COUNT(*) FROM events e        WHERE e.project_id = p.id) AS events_count,
                 (SELECT COUNT(*) FROM transactions t  WHERE t.project_id = p.id) AS transactions_count,
                 (SELECT COUNT(*) FROM spans s         WHERE s.project_id = p.id) AS spans_count,
+                (SELECT COUNT(*) FROM logs lg         WHERE lg.project_id = p.id) AS logs_count,
                 (SELECT COUNT(*) FROM source_file_metadata m WHERE m.project_id = p.id) AS source_maps_count,
                 (
                     (SELECT COALESCE(SUM(length(CAST(e.data AS TEXT))), 0) FROM events e       WHERE e.project_id = p.id)
                   + (SELECT COALESCE(SUM(length(CAST(t.data AS TEXT))), 0) FROM transactions t WHERE t.project_id = p.id)
                   + (SELECT COALESCE(SUM(length(CAST(s.data AS TEXT))), 0) FROM spans s         WHERE s.project_id = p.id)
+                  + (SELECT COALESCE(SUM(
+                        COALESCE(length(CAST(lg.body AS TEXT)), 0)
+                      + COALESCE(length(CAST(lg.attributes AS TEXT)), 0)
+                    ), 0) FROM logs lg WHERE lg.project_id = p.id)
                 ) AS estimated_bytes
             FROM projects p
             ORDER BY p.id
@@ -329,6 +352,7 @@ impl StorageService {
                     events_count,
                     transactions_count,
                     spans_count,
+                    logs_count,
                     source_maps_count,
                     estimated_bytes,
                 )| {
@@ -338,6 +362,7 @@ impl StorageService {
                         events_count,
                         transactions_count,
                         spans_count,
+                        logs_count,
                         source_maps_count,
                         estimated_bytes,
                     }
@@ -348,22 +373,25 @@ impl StorageService {
 
     /// Instance-wide storage summary (row counts + DB size + source-map weight).
     pub async fn global_summary(pool: &DbPool) -> AppResult<StorageSummary> {
-        let (events_count, transactions_count, spans_count): (i64, i64, i64) = sqlx::query_as(
-            r#"
+        let (events_count, transactions_count, spans_count, logs_count): (i64, i64, i64, i64) =
+            sqlx::query_as(
+                r#"
             SELECT
                 (SELECT COUNT(*) FROM events)       AS events_count,
                 (SELECT COUNT(*) FROM transactions) AS transactions_count,
-                (SELECT COUNT(*) FROM spans)        AS spans_count
+                (SELECT COUNT(*) FROM spans)        AS spans_count,
+                (SELECT COUNT(*) FROM logs)         AS logs_count
             "#,
-        )
-        .fetch_one(pool)
-        .await?;
+            )
+            .fetch_one(pool)
+            .await?;
 
         Ok(StorageSummary {
             total_db_size_bytes: Self::db_size_bytes(pool).await?,
             events_count,
             transactions_count,
             spans_count,
+            logs_count,
             source_maps: Self::source_map_storage(pool).await?,
         })
     }

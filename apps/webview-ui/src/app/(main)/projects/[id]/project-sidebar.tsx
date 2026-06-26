@@ -5,6 +5,7 @@ import {
   Check,
   ChevronsLeft,
   ChevronsUpDown,
+  ScrollText,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -164,6 +165,11 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
       href: `/projects/${projectId}/performance`,
       label: 'Performance',
       icon: Zap,
+    },
+    {
+      href: `/projects/${projectId}/logs`,
+      label: 'Logs',
+      icon: ScrollText,
     },
   ];
 

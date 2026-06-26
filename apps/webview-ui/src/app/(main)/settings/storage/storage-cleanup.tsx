@@ -85,7 +85,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
           project_id: projectId,
         });
         toast.success(
-          `Removed ${counts.events.toLocaleString()} events, ${counts.transactions.toLocaleString()} transactions, ${counts.spans.toLocaleString()} spans`,
+          `Removed ${counts.events.toLocaleString()} events, ${counts.transactions.toLocaleString()} transactions, ${counts.spans.toLocaleString()} spans, ${counts.logs.toLocaleString()} logs`,
         );
         setPreview(null);
         router.refresh();
@@ -106,7 +106,8 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
     preview !== null &&
     preview.events === 0 &&
     preview.transactions === 0 &&
-    preview.spans === 0;
+    preview.spans === 0 &&
+    preview.logs === 0;
 
   return (
     <Card className="border-destructive/30">
@@ -116,7 +117,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
           Clean up old data
         </CardTitle>
         <CardDescription>
-          Permanently delete events, transactions and spans older than the
+          Permanently delete events, transactions, spans and logs older than the
           selected period. Always preview first — this cannot be undone.
         </CardDescription>
       </CardHeader>
@@ -184,6 +185,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
               <li>{preview.events.toLocaleString()} events</li>
               <li>{preview.transactions.toLocaleString()} transactions</li>
               <li>{preview.spans.toLocaleString()} spans</li>
+              <li>{preview.logs.toLocaleString()} logs</li>
               <li>{preview.issues_removed.toLocaleString()} empty issues</li>
             </ul>
 
@@ -216,6 +218,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
                       {scopeLabel(scope)} (
                       {preview.transactions.toLocaleString()} transactions,{' '}
                       {preview.spans.toLocaleString()} spans,{' '}
+                      {preview.logs.toLocaleString()} logs,{' '}
                       {preview.issues_removed.toLocaleString()} empty issues).
                       This action cannot be undone.
                     </AlertDialogDescription>

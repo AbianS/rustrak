@@ -5,6 +5,7 @@ pub mod health;
 pub mod ingest;
 pub mod invitations;
 pub mod issues;
+pub mod logs;
 pub mod members;
 pub mod projects;
 pub mod sessions;

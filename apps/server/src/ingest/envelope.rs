@@ -54,6 +54,10 @@ pub enum EnvelopeItemKind {
     Transaction(Vec<u8>),
     Session(SessionUpdate),
     Sessions(SessionAggregates),
+    /// Standalone logs (Sentry "log" item type). Carries the raw item-container
+    /// body (`{"items":[OurLog, ...]}`) — expanded into individual logs in the
+    /// processor, mirroring Relay's `LogsProcessor`.
+    Log(Vec<u8>),
     Other(String, Vec<u8>),
 }
 
@@ -74,6 +78,7 @@ impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
         match headers.item_type.as_str() {
             "event" => Self::Event(payload),
             "transaction" => Self::Transaction(payload),
+            "log" => Self::Log(payload),
             "session" => match serde_json::from_slice(&payload) {
                 Ok(s) => Self::Session(s),
                 Err(e) => {

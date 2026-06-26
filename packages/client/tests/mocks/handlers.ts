@@ -1153,6 +1153,43 @@ export const handlers = [
     },
   ),
 
+  // Logs — list logs for project
+  http.get(`${BASE_URL}/api/projects/:projectId/logs`, ({ params }) => {
+    if (params.projectId === '999') {
+      return HttpResponse.json({ error: 'not found' }, { status: 404 });
+    }
+    return HttpResponse.json({
+      items: [
+        {
+          id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
+          trace_id: 'bbbb',
+          span_id: null,
+          level: 'info',
+          severity_number: 9,
+          body: 'ok',
+          attributes: {},
+          timestamp: '2026-06-18T12:00:01.000Z',
+          ingested_at: '2026-06-18T12:00:02.000Z',
+        },
+        {
+          id: 'b2c3d4e5-e89b-12d3-a456-426614174000',
+          trace_id: 'aaaa',
+          span_id: 'eee19b7ec3c1b174',
+          level: 'error',
+          severity_number: 17,
+          body: 'boom',
+          attributes: { 'string.attribute': { value: 'v', type: 'string' } },
+          timestamp: '2026-06-18T12:00:00.000Z',
+          ingested_at: '2026-06-18T12:00:02.000Z',
+        },
+      ],
+      total_count: 2,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
+    });
+  }),
+
   // Transactions — list transactions for project
   http.get(`${BASE_URL}/api/projects/:projectId/transactions`, ({ params }) => {
     if (params.projectId === '999') {
@@ -1317,6 +1354,7 @@ export const handlers = [
       events_count: 120,
       transactions_count: 80,
       spans_count: 640,
+      logs_count: 200,
       source_maps: {
         chunk_bytes: 350,
         source_file_bytes: 300,
@@ -1335,6 +1373,7 @@ export const handlers = [
         events_count: 100,
         transactions_count: 80,
         spans_count: 640,
+        logs_count: 200,
         source_maps_count: 2,
         estimated_bytes: 524288,
       },
@@ -1344,6 +1383,7 @@ export const handlers = [
         events_count: 0,
         transactions_count: 0,
         spans_count: 0,
+        logs_count: 0,
         source_maps_count: 0,
         estimated_bytes: 0,
       },
@@ -1356,6 +1396,7 @@ export const handlers = [
       events: 20,
       transactions: 10,
       spans: 80,
+      logs: 50,
       issues_removed: 3,
     });
   }),
@@ -1366,6 +1407,7 @@ export const handlers = [
       events: 20,
       transactions: 10,
       spans: 80,
+      logs: 50,
       issues_removed: 3,
     });
   }),

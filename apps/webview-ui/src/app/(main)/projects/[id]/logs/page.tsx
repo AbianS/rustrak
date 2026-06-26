@@ -1,0 +1,83 @@
+import { ScrollText } from 'lucide-react';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { listLogs } from '@/actions/logs';
+import { getProject } from '@/actions/projects';
+import { LogsList } from './logs-list';
+
+interface LogsPageProps {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string; level?: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: LogsPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const project = await getProject(parseInt(id, 10));
+
+  if (!project) {
+    return { title: 'Project Not Found | Rustrak' };
+  }
+
+  return {
+    title: `Logs | ${project.name} | Rustrak`,
+    description: `Structured logs for ${project.name}`,
+  };
+}
+
+export default async function LogsPage({
+  params,
+  searchParams,
+}: LogsPageProps) {
+  const { id } = await params;
+  const { page = '1', level } = await searchParams;
+  const projectId = parseInt(id, 10);
+  const currentPage = Math.max(1, parseInt(page, 10) || 1);
+
+  const project = await getProject(projectId);
+
+  if (!project) {
+    notFound();
+  }
+
+  // No catch: a fetch/auth failure must surface to the error boundary, not be
+  // disguised as the "no logs yet" onboarding state.
+  const logs = await listLogs(projectId, {
+    page: currentPage,
+    per_page: 50,
+    level: level || undefined,
+  });
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
+        <h1 className="text-lg font-semibold">Logs</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Structured logs for {project.name}, newest first
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+        {logs.total_count === 0 && !level ? (
+          <div className="flex flex-col items-center justify-center min-h-full text-center">
+            <ScrollText className="size-12 text-muted-foreground/30 mb-4" />
+            <h2 className="text-lg font-semibold mb-1">No logs yet</h2>
+            <p className="text-sm text-muted-foreground max-w-md">
+              Send structured logs from your SDK (e.g.{' '}
+              <code>Sentry.logger.info(...)</code>) to start collecting them
+              here.
+            </p>
+          </div>
+        ) : (
+          <LogsList
+            projectId={projectId}
+            initialLogs={logs}
+            currentPage={currentPage}
+            activeLevel={level}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

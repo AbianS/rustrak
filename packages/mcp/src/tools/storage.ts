@@ -11,7 +11,7 @@ export function registerStorageTools(
     'get_storage_summary',
     {
       description:
-        'Get the instance-wide Rustrak storage summary (admin only): total database size, row counts for events, transactions and spans, and the exact source-map weight. Use this to see what is consuming storage before cleaning up.',
+        'Get the instance-wide Rustrak storage summary (admin only): total database size, row counts for events, transactions, spans and logs, and the exact source-map weight. Use this to see what is consuming storage before cleaning up.',
       inputSchema: {},
     },
     async () => {
@@ -49,7 +49,7 @@ export function registerStorageTools(
     'preview_storage_cleanup',
     {
       description:
-        'Dry-run a Rustrak retention cleanup (admin only): report how many events, transactions, spans and issues would be removed if data older than `older_than_days` were deleted, optionally scoped to one project. Mutates nothing — always run this before execute_storage_cleanup.',
+        'Dry-run a Rustrak retention cleanup (admin only): report how many events, transactions, spans, logs and issues would be removed if data older than `older_than_days` were deleted, optionally scoped to one project. Mutates nothing — always run this before execute_storage_cleanup.',
       inputSchema: {
         older_than_days: z
           .number()

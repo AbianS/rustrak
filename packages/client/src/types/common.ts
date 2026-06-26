@@ -91,3 +91,15 @@ export interface ListTransactionsOptions {
   /** Filter by release. */
   release?: string;
 }
+
+/**
+ * List options for logs endpoint (offset-based pagination + filters)
+ */
+export interface ListLogsOptions {
+  page?: number;
+  per_page?: number;
+  /** Filter by log level (trace/debug/info/warn/error/fatal). */
+  level?: string;
+  /** Filter by trace id. */
+  trace_id?: string;
+}
