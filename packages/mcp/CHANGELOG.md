@@ -1,5 +1,14 @@
 # @rustrak/mcp
 
+## 0.2.9
+
+### Patch Changes
+
+- [`edad7dc`](https://github.com/rustrak/rustrak/commit/edad7dc0548ab184f708d878c4f8ae5963bbb9f5) Thanks [@AbianS](https://github.com/AbianS)! - Logs ingestion, storage, and retrieval pipeline with full SDK compatibility, including standalone log breadcrumb types. New webview-ui logs page with shadcn Table, sticky header, and dedicated sidebar entry. Client SDK logs resource and MCP list_logs tool added. Docs updated with logs usage guide.
+
+- Updated dependencies [[`edad7dc`](https://github.com/rustrak/rustrak/commit/edad7dc0548ab184f708d878c4f8ae5963bbb9f5)]:
+  - @rustrak/client@0.3.9
+
 ## 0.2.8
 
 ### Patch Changes
