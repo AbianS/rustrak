@@ -1,0 +1,34 @@
+---
+version: v0.8.0
+title: Logs Ingestion Pipeline
+description: Complete standalone logs pipeline — ingest, store, read, and visualize log breadcrumbs alongside errors. New web UI logs page, client SDK resource, and MCP tool.
+date: 2026-06-26
+tags: [server, webview-ui, client, mcp, logs]
+---
+
+## Logs Ingestion & Storage
+
+Standalone logs are now fully supported as a first-class event type alongside errors. The server ingests, validates, and stores log breadcrumb payloads sent by any Sentry-compatible SDK, using the same envelope protocol.
+
+- New `/api/{project_id}/envelope/` endpoint accepts standalone log events
+- Log events stored in a dedicated `logs` table with proper indexing
+- Full Sentry log breadcrumb type compatibility
+
+## Web UI Logs Page
+
+A dedicated logs viewer in the dashboard helps you browse and search through captured log entries.
+
+- New logs page with sticky header and shadcn Table component
+- Sidebar entry for easy navigation
+- Responsive table layout matching the issues page pattern
+
+## Client & MCP Updates
+
+- Client SDK adds `logs` resource for fetching log entries via the API
+- MCP server adds `list_logs` tool for programmatic log access
+- Test Sentry package includes SDK logs demo
+
+## Improvements
+
+- Surface logs consistently across client, web UI, and MCP
+- Review feedback addressed for server ingestion pipeline

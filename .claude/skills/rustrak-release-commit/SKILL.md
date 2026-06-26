@@ -103,12 +103,18 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
 
 ## Finalize
 
-1. Summarize what was created:
+1. Suggest the release commit message. Derive it from the release version and title:
+   - Format: `release: v<version> — <Release Title>`
+   - Example: `release: v0.8.0 — Logs Ingestion Pipeline`
+   - Include the changeset, changelog, and any files modified during the release workflow (including this skill) in the commit.
+2. Summarize what was created:
    - Changeset file path
    - Changelog file path
    - Version bumps applied per package
-2. Remind the user of next steps:
+   - Suggested commit message
+3. Remind the user of next steps:
    - Review the changeset and changelog
    - Run `pnpm changeset version` to apply versions
    - Run `pnpm run build` to verify
-   - Commit and push
+   - Commit with: `git add .changeset/ apps/docs/content/changelog/ .claude/skills/rustrak-release-commit/ && git commit -m "release: v<version> — <Release Title>"`
+   - Push
