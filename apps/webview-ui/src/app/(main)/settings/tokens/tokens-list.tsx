@@ -13,6 +13,16 @@ import { copyToClipboard } from '@/lib/clipboard';
 const TOKEN_DESCRIPTION_MAX_LENGTH = 200;
 
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -51,6 +61,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tokenToDeleteId, setTokenToDeleteId] = useState<number | null>(null);
   const [copyingId, setCopyingId] = useState<number | null>(null);
 
   const trimmedDescription = description.trim();
@@ -84,11 +96,13 @@ export function TokensList({ initialTokens }: TokensListProps) {
     router.refresh();
   };
 
-  const handleDelete = (id: number) => {
-    setDeletingId(id);
+  const handleConfirmDelete = () => {
+    if (tokenToDeleteId === null) return;
+    setDeletingId(tokenToDeleteId);
+    setDeleteDialogOpen(false);
     startTransition(async () => {
       try {
-        await deleteToken(id);
+        await deleteToken(tokenToDeleteId);
         toast.success('Token deleted');
         router.refresh();
       } catch (err) {
@@ -97,6 +111,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
         toast.error('Failed to delete token', { description: message });
       } finally {
         setDeletingId(null);
+        setTokenToDeleteId(null);
       }
     });
   };
@@ -286,11 +301,15 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                     <Button
+                    <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleCopy(token)}
-                      disabled={isPending || deletingId === token.id || copyingId === token.id}
+                      disabled={
+                        isPending ||
+                        deletingId === token.id ||
+                        copyingId === token.id
+                      }
                       aria-label={`Copy token ${token.description || token.token_prefix}`}
                     >
                       <Copy className="size-4" />
@@ -298,8 +317,15 @@ export function TokensList({ initialTokens }: TokensListProps) {
                     <Button
                       variant="destructive"
                       size="icon"
-                      onClick={() => handleDelete(token.id)}
-                      disabled={isPending || deletingId === token.id || copyingId === token.id}
+                      onClick={() => {
+                        setTokenToDeleteId(token.id);
+                        setDeleteDialogOpen(true);
+                      }}
+                      disabled={
+                        isPending ||
+                        deletingId === token.id ||
+                        copyingId === token.id
+                      }
                       aria-label={`Delete token ${token.description || token.token_prefix}`}
                     >
                       <Trash2 className="size-4" />
@@ -357,7 +383,11 @@ export function TokensList({ initialTokens }: TokensListProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleCopy(token)}
-                          disabled={isPending || deletingId === token.id || copyingId === token.id}
+                          disabled={
+                            isPending ||
+                            deletingId === token.id ||
+                            copyingId === token.id
+                          }
                           aria-label={`Copy token ${token.description || token.token_prefix}`}
                         >
                           <Copy className="size-4" />
@@ -365,8 +395,15 @@ export function TokensList({ initialTokens }: TokensListProps) {
                         <Button
                           variant="destructive"
                           size="icon"
-                          onClick={() => handleDelete(token.id)}
-                          disabled={isPending || deletingId === token.id || copyingId === token.id}
+                          onClick={() => {
+                            setTokenToDeleteId(token.id);
+                            setDeleteDialogOpen(true);
+                          }}
+                          disabled={
+                            isPending ||
+                            deletingId === token.id ||
+                            copyingId === token.id
+                          }
                           aria-label={`Delete token ${token.description || token.token_prefix}`}
                         >
                           <Trash2 className="size-4" />
@@ -380,6 +417,29 @@ export function TokensList({ initialTokens }: TokensListProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Token?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this token. Any services using it
+              will lose access immediately. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
