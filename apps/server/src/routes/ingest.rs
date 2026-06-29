@@ -113,6 +113,15 @@ pub async fn ingest_envelope(
                     log::warn!("log item processing failed: {:?}", e);
                 }
             }
+            EnvelopeItemKind::CheckIn(payload) => {
+                // Monitor check-ins store inline (parse + upsert monitor + insert
+                // check-in): the work is bounded and storing before responding keeps
+                // the check-in durable. Mirrors logs/sessions.
+                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                if let Err(e) = processors.check_ins.process(payload, &ctx).await {
+                    log::warn!("check_in item processing failed: {:?}", e);
+                }
+            }
             EnvelopeItemKind::Other(t, _) => {
                 log::debug!("envelope item '{}' ignored", t);
             }

@@ -13,6 +13,7 @@ use rustrak::routes;
 use rustrak::services::sourcemap::{DbSourceMapProvider, SourceMapProvider};
 use rustrak::services::sourcemap_store::LocalSourceMapStore;
 use rustrak::services::AuthTokenService;
+use rustrak::workers::monitor_worker::MonitorWorker;
 use rustrak::workers::session_aggregator::SessionAggregator;
 use rustrak::workers::sourcemap_assembly::AssemblyWorker;
 
@@ -76,6 +77,12 @@ async fn main() -> std::io::Result<()> {
     {
         let handle = session_aggregator.clone();
         tokio::spawn(SessionAggregator::run(handle));
+    }
+
+    // Spawn monitor worker (Crons missed/timeout detection)
+    {
+        let worker = MonitorWorker::new(db_pool.clone(), config.monitor_tick_interval_secs);
+        tokio::spawn(worker.run());
     }
 
     // Bootstrap: create initial token if none exist
@@ -196,6 +203,7 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::transactions::configure)
             // Logs API (more specific than generic projects scope)
             .configure(routes::logs::configure)
+            .configure(routes::monitors::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)

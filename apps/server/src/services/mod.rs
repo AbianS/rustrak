@@ -6,6 +6,7 @@ pub mod grouping;
 pub mod invitation;
 pub mod issue;
 pub mod log;
+pub mod monitor;
 pub mod notification;
 pub mod project;
 pub mod project_member;

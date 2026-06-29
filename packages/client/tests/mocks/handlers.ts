@@ -1190,6 +1190,66 @@ export const handlers = [
     });
   }),
 
+  // Monitors — list monitors for project (Sentry Crons)
+  http.get(`${BASE_URL}/api/projects/:projectId/monitors`, ({ params }) => {
+    if (params.projectId === '999') {
+      return HttpResponse.json({ error: 'not found' }, { status: 404 });
+    }
+    return HttpResponse.json({
+      monitors: [
+        {
+          id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
+          slug: 'nightly-backup',
+          status: 'ok',
+          schedule_type: 'crontab',
+          schedule_value: '0 0 * * *',
+          schedule_unit: null,
+          timezone: 'UTC',
+          checkin_margin: 5,
+          max_runtime: 30,
+          last_check_in_at: '2026-06-18T00:00:01.000Z',
+          last_check_in_status: 'ok',
+          next_expected_at: '2026-06-19T00:00:00.000Z',
+          created_at: '2026-06-01T00:00:00.000Z',
+        },
+      ],
+    });
+  }),
+
+  // Monitors — list check-ins for a monitor
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/monitors/:slug/checkins`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json({
+        items: [
+          {
+            id: 'c1c2c3c4-e89b-12d3-a456-426614174000',
+            status: 'ok',
+            duration: 12.5,
+            environment: 'production',
+            trace_id: null,
+            timestamp: '2026-06-18T00:00:01.000Z',
+          },
+          {
+            id: 'd1d2d3d4-e89b-12d3-a456-426614174000',
+            status: 'error',
+            duration: null,
+            environment: null,
+            trace_id: null,
+            timestamp: '2026-06-17T00:00:01.000Z',
+          },
+        ],
+        total_count: 2,
+        page: 1,
+        per_page: 20,
+        total_pages: 1,
+      });
+    },
+  ),
+
   // Transactions — list transactions for project
   http.get(`${BASE_URL}/api/projects/:projectId/transactions`, ({ params }) => {
     if (params.projectId === '999') {

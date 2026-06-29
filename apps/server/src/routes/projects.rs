@@ -258,6 +258,7 @@ mod tests {
             max_chunk_size_bytes: 10 * 1024 * 1024,
             session_flush_interval_secs: 30,
             session_cardinality_cap: 10_000,
+            monitor_tick_interval_secs: 60,
         }
     }
 

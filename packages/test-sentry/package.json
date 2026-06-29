@@ -26,7 +26,8 @@
     "demo:build": "node demo/build.mjs",
     "demo:run": "node demo/dist/app.js",
     "demo:sessions": "tsx demo/src/sessions.ts",
-    "demo:logs": "tsx demo/src/logs.ts"
+    "demo:logs": "tsx demo/src/logs.ts",
+    "demo:crons": "tsx demo/src/crons.ts"
   },
   "dependencies": {
     "@sentry/node": "10.59.0"

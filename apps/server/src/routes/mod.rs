@@ -7,6 +7,7 @@ pub mod invitations;
 pub mod issues;
 pub mod logs;
 pub mod members;
+pub mod monitors;
 pub mod projects;
 pub mod sessions;
 pub mod sourcemaps;

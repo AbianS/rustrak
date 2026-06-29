@@ -1,5 +1,6 @@
 pub mod alert;
 pub mod auth_token;
+pub mod check_in;
 pub mod event;
 pub mod grouping;
 pub mod installation;
@@ -47,6 +48,7 @@ pub use alert::{
     WebhookRoutingOverride,
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
+pub use check_in::{CheckInResponse, MonitorResponse};
 pub use event::{Event, EventDetailResponse, EventResponse};
 pub use grouping::Grouping;
 pub use installation::Installation;
