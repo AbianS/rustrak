@@ -46,6 +46,9 @@ const EXPECTED_TOOLS = [
   'get_transaction_spans',
   // Logs (1)
   'list_logs',
+  // Monitors (2)
+  'list_monitors',
+  'list_monitor_check_ins',
   // Storage (6)
   'get_storage_summary',
   'get_storage_by_project',
