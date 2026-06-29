@@ -13,8 +13,8 @@ CREATE TABLE monitors (
     schedule_type        VARCHAR(16),   -- 'crontab' | 'interval'
     schedule_value       TEXT,          -- crontab string, or interval count as text
     schedule_unit        VARCHAR(8),    -- interval unit: year/month/week/day/hour/minute
-    checkin_margin       INTEGER,       -- minutes after expected time before "missed"
-    max_runtime          INTEGER,       -- minutes an in_progress run may last before "timeout"
+    checkin_margin       BIGINT,        -- minutes after expected time before "missed"
+    max_runtime          BIGINT,        -- minutes an in_progress run may last before "timeout"
     timezone             VARCHAR(64),
     owner                VARCHAR(255),
 

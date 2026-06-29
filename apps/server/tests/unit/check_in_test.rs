@@ -122,21 +122,21 @@ mod level2 {
             .await
             .unwrap();
 
-        let slug: String = sqlx::query_scalar("SELECT slug FROM monitors WHERE project_id = ?")
+        let slug: String = sqlx::query_scalar("SELECT slug FROM monitors WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
             .unwrap();
         assert_eq!(slug, "nightly");
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = ?")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
             .unwrap();
         assert_eq!(count, 1, "one check-in row recorded");
 
-        let status: String = sqlx::query("SELECT status FROM check_ins WHERE project_id = ?")
+        let status: String = sqlx::query("SELECT status FROM check_ins WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
@@ -169,7 +169,7 @@ mod level2 {
             .unwrap();
 
         let row = sqlx::query(
-            "SELECT schedule_type, schedule_value, checkin_margin, max_runtime, timezone, owner FROM monitors WHERE project_id = ?",
+            "SELECT schedule_type, schedule_value, checkin_margin, max_runtime, timezone, owner FROM monitors WHERE project_id = $1",
         )
         .bind(project_id)
         .fetch_one(&db.pool)
@@ -207,7 +207,7 @@ mod level2 {
             .unwrap();
 
         let row = sqlx::query(
-            "SELECT schedule_type, schedule_value, schedule_unit FROM monitors WHERE project_id = ?",
+            "SELECT schedule_type, schedule_value, schedule_unit FROM monitors WHERE project_id = $1",
         )
         .bind(project_id)
         .fetch_one(&db.pool)
@@ -244,14 +244,14 @@ mod level2 {
             .await
             .unwrap();
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = ?")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
             .unwrap();
         assert_eq!(count, 1, "lifecycle updates the open row, not a new one");
 
-        let row = sqlx::query("SELECT status, duration FROM check_ins WHERE project_id = ?")
+        let row = sqlx::query("SELECT status, duration FROM check_ins WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
@@ -276,7 +276,7 @@ mod level2 {
                 .unwrap();
         }
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = ?")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM check_ins WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
@@ -300,7 +300,7 @@ mod level2 {
             .unwrap();
 
         let row = sqlx::query(
-            "SELECT status, last_check_in_status, last_check_in_at FROM monitors WHERE project_id = ?",
+            "SELECT status, last_check_in_status, last_check_in_at FROM monitors WHERE project_id = $1",
         )
         .bind(project_id)
         .fetch_one(&db.pool)
@@ -320,11 +320,12 @@ mod level2 {
             )
             .await
             .unwrap();
-        let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = ?")
-            .bind(project_id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
+        let status: String =
+            sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = $1")
+                .bind(project_id)
+                .fetch_one(&db.pool)
+                .await
+                .unwrap();
         assert_eq!(
             status, "error",
             "a failing check-in flips the monitor to error"
@@ -346,7 +347,7 @@ mod level2 {
             .unwrap();
 
         let next: Option<chrono::DateTime<chrono::Utc>> =
-            sqlx::query_scalar("SELECT next_expected_at FROM monitors WHERE project_id = ?")
+            sqlx::query_scalar("SELECT next_expected_at FROM monitors WHERE project_id = $1")
                 .bind(project_id)
                 .fetch_one(&db.pool)
                 .await

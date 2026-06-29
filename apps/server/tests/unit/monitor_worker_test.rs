@@ -51,7 +51,7 @@ async fn test_overdue_monitor_marked_missed() {
         .await
         .unwrap();
 
-    let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = ?")
+    let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = $1")
         .bind(project_id)
         .fetch_one(&db.pool)
         .await
@@ -59,7 +59,7 @@ async fn test_overdue_monitor_marked_missed() {
     assert_eq!(status, "missed");
 
     let missed_rows: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM check_ins WHERE project_id = ? AND status = 'missed'",
+        "SELECT COUNT(*) FROM check_ins WHERE project_id = $1 AND status = 'missed'",
     )
     .bind(project_id)
     .fetch_one(&db.pool)
@@ -69,7 +69,7 @@ async fn test_overdue_monitor_marked_missed() {
 
     // The deadline advances past `future` so it doesn't fire again next tick.
     let next: chrono::DateTime<chrono::Utc> =
-        sqlx::query_scalar("SELECT next_expected_at FROM monitors WHERE project_id = ?")
+        sqlx::query_scalar("SELECT next_expected_at FROM monitors WHERE project_id = $1")
             .bind(project_id)
             .fetch_one(&db.pool)
             .await
@@ -94,7 +94,7 @@ async fn test_not_yet_due_monitor_stays_ok() {
         .await
         .unwrap();
 
-    let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = ?")
+    let status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = $1")
         .bind(project_id)
         .fetch_one(&db.pool)
         .await
@@ -120,20 +120,22 @@ async fn test_in_progress_exceeding_max_runtime_marked_timeout() {
         .await
         .unwrap();
 
-    let ci_status: String = sqlx::query_scalar("SELECT status FROM check_ins WHERE project_id = ?")
-        .bind(project_id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+    let ci_status: String =
+        sqlx::query_scalar("SELECT status FROM check_ins WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
     assert_eq!(
         ci_status, "timeout",
         "an overrunning in_progress run times out"
     );
 
-    let mon_status: String = sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = ?")
-        .bind(project_id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+    let mon_status: String =
+        sqlx::query_scalar("SELECT status FROM monitors WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
     assert_eq!(mon_status, "timeout");
 }
