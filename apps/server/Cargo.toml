@@ -105,6 +105,8 @@ lettre = { version = "0.11.22", default-features = false, features = ["tokio1", 
 # OpenAPI spec generation (optional, behind `openapi` feature flag)
 utoipa = { version = "5.5.0", features = ["actix_extras", "uuid", "chrono"], optional = true }
 utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
+cron = "0.17.0"
+chrono-tz = "0.10.4"
 
 [dev-dependencies]
 # Test framework & fixtures

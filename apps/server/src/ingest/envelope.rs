@@ -58,6 +58,10 @@ pub enum EnvelopeItemKind {
     /// body (`{"items":[OurLog, ...]}`) — expanded into individual logs in the
     /// processor, mirroring Relay's `LogsProcessor`.
     Log(Vec<u8>),
+    /// Monitor check-in (Sentry Crons "check_in" item type). Carries the raw
+    /// JSON payload — parsed and normalized in the processor, mirroring Relay's
+    /// `CheckInsProcessor`.
+    CheckIn(Vec<u8>),
     Other(String, Vec<u8>),
 }
 
@@ -79,6 +83,7 @@ impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
             "event" => Self::Event(payload),
             "transaction" => Self::Transaction(payload),
             "log" => Self::Log(payload),
+            "check_in" => Self::CheckIn(payload),
             "session" => match serde_json::from_slice(&payload) {
                 Ok(s) => Self::Session(s),
                 Err(e) => {

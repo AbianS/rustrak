@@ -1,8 +1,10 @@
+pub mod check_in;
 pub mod event;
 pub mod logs;
 pub mod session;
 pub mod transaction;
 
+pub use check_in::CheckInProcessor;
 pub use event::ErrorProcessor;
 pub use logs::LogsProcessor;
 pub use session::{SessionItem, SessionProcessor};
@@ -32,6 +34,7 @@ pub struct Processors {
     pub transactions: TransactionProcessor,
     pub sessions: SessionProcessor,
     pub logs: LogsProcessor,
+    pub check_ins: CheckInProcessor,
 }
 
 impl Processors {
@@ -46,6 +49,7 @@ impl Processors {
             transactions: TransactionProcessor,
             sessions: SessionProcessor::new(session_aggregator),
             logs: LogsProcessor,
+            check_ins: CheckInProcessor,
         }
     }
 }
@@ -86,6 +90,8 @@ pub enum Route {
     Session,
     /// Standalone logs — direct store, no grouping.
     Log,
+    /// Monitor check-ins (Sentry Crons) — direct store, upserts the monitor.
+    CheckIn,
     /// Forward-compatible catch-all: logged and dropped, never processed.
     Ignored,
 }
@@ -100,6 +106,7 @@ pub fn route(item: &EnvelopeItemKind) -> Route {
         EnvelopeItemKind::Transaction(_) => Route::Transaction,
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => Route::Session,
         EnvelopeItemKind::Log(_) => Route::Log,
+        EnvelopeItemKind::CheckIn(_) => Route::CheckIn,
         EnvelopeItemKind::Other(_, _) => Route::Ignored,
     }
 }

@@ -3,11 +3,14 @@
 //! Contains tests for individual components in isolation.
 
 mod auth_test;
+mod check_in_test;
 mod config_test;
 mod decompression_test;
 mod envelope_parser_test;
 mod grouping_test;
 mod log_test;
+mod monitor_schedule_test;
+mod monitor_worker_test;
 mod notification_test;
 mod sourcemap_store_test;
 mod sourcemap_test;
