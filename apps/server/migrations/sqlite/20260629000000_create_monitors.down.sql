@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS check_ins;
+DROP TABLE IF EXISTS monitors;
