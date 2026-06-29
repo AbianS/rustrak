@@ -33,8 +33,23 @@ _What the owner has told me about Rustrak's current Sentry compatibility._
 ### Known Missing
 - `X-Sentry-Rate-Limits` header on 429 responses
 - `/store/` endpoint functional implementation (currently returns 400)
-- Transaction items — silently ignored
-- Attachment items — silently ignored
+- Attachment items — silently ignored (HIGH SDK reach; #143 does NOT cover this)
+
+### NOTE: Log is now IMPLEMENTED (v0.8.0, verified 2026-06-29)
+`EnvelopeItemKind::Log(Vec<u8>)` in envelope.rs:60, `digest/processors/logs.rs`.
+Mirrors Relay LogsProcessor (expands `{"items":[OurLog,...]}`). Item #7 of issue #143 is DONE.
+
+### NOTE: Crons / CheckIn IMPLEMENTED (branch feat/crons-monitors, 2026-06-29)
+Item #4 of #143 done end-to-end. `EnvelopeItemKind::CheckIn` + `CheckInProcessor`
+(upsert monitor by project+slug, schedule config via COALESCE, in_progress→ok
+lifecycle, next_expected_at from cron/interval+timezone). `monitors` + `check_ins`
+tables (dual PG/SQLite). `MonitorWorker` computes missed/timeout server-side
+(mirrors Relay: `missed` cannot be ingested → coerced to unknown). Read API
+`GET /monitors` + `/monitors/{slug}/checkins`. Client + MCP + webview-ui "Crons"
+tab + test-sentry `demo:crons` (real @sentry/node `withMonitor`). Verified live
+against the Postgres dev server. Schema ground truth: relay-monitors/src/lib.rs.
+**Dialect bug caught live:** minute columns must be BIGINT in PG (read as i64);
+SQLite tests miss it — see auto-memory project_sqlite_postgres_dialect_testing.
 
 ### Transaction/Performance Implementation Status (verified 2026-06-23)
 **State**: Basic MVP exists. Envelope parsing → TransactionProcessor → events table (event_type='transaction') → read-only GET endpoints. Missing significant Relay-level processing.
@@ -88,8 +103,8 @@ Relay has 21+ `ItemType` variants. Rustrak handles 4 with dedicated types. The r
 Relay parses `trace` field from envelope headers as `DynamicSamplingContext`. Used for: sampling decisions, span validation, metrics extraction. Contains `trace_id`, `public_key`, `release`, `environment`, `transaction`, `replay_id`, `sample_rate`, `user`. Rustrak does not parse or use this at all.
 
 ## Local Repo State
-- **relay-repo SHA:** 4222d43e090dc7215411ad2dbacd6cc8efb12ba7
-- **relay-repo last updated:** 2026-05-22
+- **relay-repo SHA:** 97f9c4beab78baaa2d2be1f05dacaba0a987821d (changed externally from 4222d43; observed 2026-06-29)
+- **relay-repo last updated:** 2026-06-29 (SHA refreshed by external pull, not by me)
 - **sentry-data-schemas SHA:** 6d2c435b8ce3a67e2065f38374bb437f274d0a6c
 - **sentry-data-schemas last updated:** 2026-05-22
 
