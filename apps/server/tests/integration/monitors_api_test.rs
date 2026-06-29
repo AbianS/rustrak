@@ -1,12 +1,13 @@
-//! Integration tests for the Logs API
+//! Integration tests for the Monitors (Crons) API
 //!
-//! Tests GET /api/projects/{id}/logs with a real database.
+//! Tests GET /api/projects/{id}/monitors and
+//! GET /api/projects/{id}/monitors/{slug}/checkins with a real database.
 
 use crate::common::TestDb;
 use actix_web::{test, web, App};
 use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
-use rustrak::digest::processors::{LogsProcessor, Processor, ProcessorCtx};
+use rustrak::digest::processors::{CheckInProcessor, Processor, ProcessorCtx};
 use rustrak::models::CreateProject;
 use rustrak::routes;
 use rustrak::services::{AuthTokenService, ProjectService};
@@ -58,12 +59,7 @@ async fn create_test_token(pool: &rustrak::db::DbPool) -> String {
     .token
 }
 
-async fn store_sample_logs(pool: &rustrak::db::DbPool, project_id: i32) {
-    let body = br#"{"items":[
-        {"timestamp":1704801600.0,"trace_id":"aaaa","level":"error","body":"boom"},
-        {"timestamp":1704801601.0,"trace_id":"bbbb","level":"info","body":"ok"}
-    ]}"#
-    .to_vec();
+async fn store_check_in(pool: &rustrak::db::DbPool, project_id: i32, body: &[u8]) {
     let ctx = ProcessorCtx {
         pool: pool.clone(),
         project_id,
@@ -71,11 +67,11 @@ async fn store_sample_logs(pool: &rustrak::db::DbPool, project_id: i32) {
         ingested_at: Utc::now(),
         remote_addr: None,
     };
-    LogsProcessor.process(body, &ctx).await.unwrap();
+    CheckInProcessor.process(body.to_vec(), &ctx).await.unwrap();
 }
 
 #[actix_web::test]
-async fn test_list_logs_returns_stored_logs() {
+async fn test_list_monitors_returns_stored_monitors() {
     let db = TestDb::new().await;
     let pool = db.pool.clone();
     let config = create_test_config();
@@ -83,25 +79,85 @@ async fn test_list_logs_returns_stored_logs() {
     let project = ProjectService::create(
         &pool,
         CreateProject {
-            name: "Logs List Test".to_string(),
+            name: "Monitors List Test".to_string(),
             slug: None,
         },
     )
     .await
     .unwrap();
 
-    store_sample_logs(&pool, project.id).await;
+    store_check_in(
+        &pool,
+        project.id,
+        br#"{"monitor_slug":"nightly","status":"ok","monitor_config":{"schedule":{"type":"crontab","value":"0 0 * * *"}}}"#,
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .app_data(web::Data::new(config.clone()))
-            .configure(routes::logs::configure),
+            .configure(routes::monitors::configure),
     )
     .await;
 
     let req = test::TestRequest::get()
-        .uri(&format!("/api/projects/{}/logs", project.id))
+        .uri(&format!("/api/projects/{}/monitors", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["monitors"].as_array().expect("monitors is array");
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["slug"], "nightly");
+    assert_eq!(items[0]["status"], "ok");
+}
+
+#[actix_web::test]
+async fn test_list_check_ins_for_monitor() {
+    let db = TestDb::new().await;
+    let pool = db.pool.clone();
+    let config = create_test_config();
+    let token = create_test_token(&pool).await;
+    let project = ProjectService::create(
+        &pool,
+        CreateProject {
+            name: "CheckIns List Test".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    store_check_in(
+        &pool,
+        project.id,
+        br#"{"monitor_slug":"job","status":"ok"}"#,
+    )
+    .await;
+    store_check_in(
+        &pool,
+        project.id,
+        br#"{"monitor_slug":"job","status":"error"}"#,
+    )
+    .await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .configure(routes::monitors::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/monitors/job/checkins",
+            project.id
+        ))
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
 
@@ -112,79 +168,4 @@ async fn test_list_logs_returns_stored_logs() {
     assert_eq!(body["total_count"], 2);
     let items = body["items"].as_array().expect("items is array");
     assert_eq!(items.len(), 2);
-    // Newest timestamp first.
-    assert_eq!(items[0]["body"], "ok");
-    assert_eq!(items[1]["body"], "boom");
-}
-
-#[actix_web::test]
-async fn test_list_logs_filters_by_level() {
-    let db = TestDb::new().await;
-    let pool = db.pool.clone();
-    let config = create_test_config();
-    let token = create_test_token(&pool).await;
-    let project = ProjectService::create(
-        &pool,
-        CreateProject {
-            name: "Logs Filter Test".to_string(),
-            slug: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    store_sample_logs(&pool, project.id).await;
-
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(pool.clone()))
-            .app_data(web::Data::new(config.clone()))
-            .configure(routes::logs::configure),
-    )
-    .await;
-
-    let req = test::TestRequest::get()
-        .uri(&format!("/api/projects/{}/logs?level=error", project.id))
-        .insert_header(("Authorization", format!("Bearer {}", token)))
-        .to_request();
-
-    let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 200);
-
-    let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["total_count"], 1);
-    let items = body["items"].as_array().expect("items is array");
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0]["level"], "error");
-}
-
-#[actix_web::test]
-async fn test_list_logs_returns_401_without_token() {
-    let db = TestDb::new().await;
-    let pool = db.pool.clone();
-    let config = create_test_config();
-    let project = ProjectService::create(
-        &pool,
-        CreateProject {
-            name: "Logs Auth Test".to_string(),
-            slug: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(pool.clone()))
-            .app_data(web::Data::new(config.clone()))
-            .configure(routes::logs::configure),
-    )
-    .await;
-
-    let req = test::TestRequest::get()
-        .uri(&format!("/api/projects/{}/logs", project.id))
-        .to_request();
-
-    let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 401);
 }

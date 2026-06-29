@@ -2646,6 +2646,225 @@
         ]
       }
     },
+    "/api/projects/{project_id}/monitors": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "GET /api/projects/{project_id}/monitors\nLists all monitors (Sentry Crons) for a project, most-recently-active first.",
+        "operationId": "list_monitors",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of monitors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorsListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/monitors/{slug}/checkins": {
+      "get": {
+        "tags": [
+          "Monitors"
+        ],
+        "summary": "GET /api/projects/{project_id}/monitors/{slug}/checkins\nLists check-ins for one monitor with offset pagination (newest first).",
+        "operationId": "list_check_ins",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "description": "Monitor slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated check-in list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "A single check-in (one reported execution) in the list view.",
+                        "required": [
+                          "id",
+                          "status",
+                          "timestamp"
+                        ],
+                        "properties": {
+                          "duration": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration in seconds."
+                          },
+                          "environment": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "trace_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/sessions/stats": {
       "get": {
         "tags": [
@@ -4811,6 +5030,48 @@
           }
         }
       },
+      "CheckInResponse": {
+        "type": "object",
+        "description": "A single check-in (one reported execution) in the list view.",
+        "required": [
+          "id",
+          "status",
+          "timestamp"
+        ],
+        "properties": {
+          "duration": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Duration in seconds."
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trace_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ChunkUploadBody": {
         "type": "object",
         "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
@@ -5352,6 +5613,106 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "MonitorResponse": {
+        "type": "object",
+        "description": "A monitor (scheduled job) in the list view.",
+        "required": [
+          "id",
+          "slug",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "checkin_margin": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "last_check_in_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_check_in_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_runtime": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "next_expected_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "schedule_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schedule_unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "schedule_value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Derived monitor status: active/ok/error/missed/timeout/disabled."
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "MonitorsListResponse": {
+        "type": "object",
+        "description": "Wrapper for the (unpaginated) monitor list response.",
+        "required": [
+          "monitors"
+        ],
+        "properties": {
+          "monitors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MonitorResponse"
+            }
           }
         }
       },

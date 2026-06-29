@@ -13,6 +13,7 @@ mod health_test;
 mod ingest_test;
 mod issues_api_test;
 mod logs_api_test;
+mod monitors_api_test;
 mod projects_api_test;
 mod rate_limit_test;
 mod sessions_api_test;

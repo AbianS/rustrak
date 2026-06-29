@@ -26,6 +26,9 @@ pub struct Config {
     /// Max distinct (release, environment) pairs tracked per project before folding into <overflow>.
     /// Default: 10000. Override with SESSION_CARDINALITY_CAP env var.
     pub session_cardinality_cap: usize,
+    /// How often the monitor worker scans for missed/timed-out check-ins (seconds).
+    /// Default: 60. Override with MONITOR_TICK_INTERVAL_SECS env var.
+    pub monitor_tick_interval_secs: u64,
 }
 
 /// Database connection pool configuration
@@ -101,6 +104,10 @@ impl Config {
                 .unwrap_or_else(|_| "10000".to_string())
                 .parse()
                 .unwrap_or(10_000),
+            monitor_tick_interval_secs: env::var("MONITOR_TICK_INTERVAL_SECS")
+                .unwrap_or_else(|_| "60".to_string())
+                .parse()
+                .unwrap_or(60),
         })
     }
 }
