@@ -321,6 +321,147 @@ fn test_empty_fingerprint_array() {
 }
 
 // =============================================================================
+// Fingerprint Coercion Tests (Relay LenientString parity)
+// relay-event-schema/src/protocol/types.rs:722-747 @97f9c4b
+// =============================================================================
+
+#[test]
+fn test_fingerprint_coerces_bool_true_to_capital_true() {
+    let event = json!({
+        "fingerprint": [true]
+    });
+
+    let key = calculate_grouping_key(&event);
+    // Relay coerces Bool(true) -> "True" (capital, python legacy), not "".
+    assert_eq!(key, "True");
+}
+
+#[test]
+fn test_fingerprint_coerces_bool_false_to_capital_false() {
+    let event = json!({ "fingerprint": [false] });
+    assert_eq!(calculate_grouping_key(&event), "False");
+}
+
+#[test]
+fn test_fingerprint_coerces_integer_to_string() {
+    let event = json!({ "fingerprint": [42] });
+    assert_eq!(calculate_grouping_key(&event), "42");
+}
+
+#[test]
+fn test_fingerprint_coerces_negative_integer_to_string() {
+    let event = json!({ "fingerprint": [-7] });
+    assert_eq!(calculate_grouping_key(&event), "-7");
+}
+
+#[test]
+fn test_fingerprint_coerces_float_by_truncating() {
+    // Relay truncates toward zero: 3.99 -> "3".
+    let event = json!({ "fingerprint": [3.99] });
+    assert_eq!(calculate_grouping_key(&event), "3");
+}
+
+#[test]
+fn test_fingerprint_skips_null_elements() {
+    // null is dropped entirely, not turned into an empty component.
+    let event = json!({ "fingerprint": ["a", null, "b"] });
+    let key = calculate_grouping_key(&event);
+    assert_eq!(key, format!("a{}b", " ⋄ "));
+}
+
+#[test]
+fn test_fingerprint_skips_nested_array_and_object() {
+    // Arrays and objects are dropped (Relay cannot coerce them).
+    let event = json!({ "fingerprint": ["keep", [1, 2], {"k": "v"}] });
+    assert_eq!(calculate_grouping_key(&event), "keep");
+}
+
+#[test]
+fn test_fingerprint_numeric_values_produce_distinct_groups() {
+    // The core bug: distinct numeric fingerprints used to both collapse to ""
+    // and merge into one issue. They must now group separately.
+    let event1 = json!({ "fingerprint": [1] });
+    let event2 = json!({ "fingerprint": [2] });
+    assert_ne!(
+        calculate_grouping_key(&event1),
+        calculate_grouping_key(&event2)
+    );
+}
+
+#[test]
+fn test_fingerprint_coercion_preserves_default_placeholder() {
+    // Coercion must not break the "{{ default }}" substitution.
+    let event = json!({
+        "exception": { "values": [{ "type": "MyError", "value": "boom" }] },
+        "transaction": "/x",
+        "fingerprint": [7, "{{ default }}"]
+    });
+    let key = calculate_grouping_key(&event);
+    assert!(key.starts_with("7"));
+    assert!(key.contains("MyError: boom"));
+}
+
+// =============================================================================
+// Synthetic Exception Tests (Relay mechanism.synthetic parity)
+// relay-event-schema/src/protocol/mechanism.rs:113 @97f9c4b
+// =============================================================================
+
+#[test]
+fn test_synthetic_exception_ignored_falls_back_to_log_message() {
+    // A synthetic exception (e.g. signal/segfault wrapper) must not drive
+    // grouping by its type/value; Relay falls through to the next component.
+    let event = json!({
+        "exception": {
+            "values": [{
+                "type": "SIGSEGV",
+                "value": "Segmentation fault",
+                "mechanism": { "synthetic": true }
+            }]
+        },
+        "logentry": { "message": "real grouping message" }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Log Message");
+    assert_eq!(value, "real grouping message");
+}
+
+#[test]
+fn test_synthetic_exception_without_message_is_unknown() {
+    let event = json!({
+        "exception": {
+            "values": [{
+                "type": "SIGSEGV",
+                "value": "Segmentation fault",
+                "mechanism": { "synthetic": true }
+            }]
+        }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Unknown");
+    assert_eq!(value, "");
+}
+
+#[test]
+fn test_non_synthetic_exception_still_groups_by_type() {
+    // synthetic:false must keep the existing exception-based grouping.
+    let event = json!({
+        "exception": {
+            "values": [{
+                "type": "TypeError",
+                "value": "boom",
+                "mechanism": { "synthetic": false }
+            }]
+        }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "TypeError");
+    assert_eq!(value, "boom");
+}
+
+// =============================================================================
 // Fallback and Edge Cases
 // =============================================================================
 

@@ -5,6 +5,7 @@ pub mod event;
 pub mod grouping;
 pub mod invitation;
 pub mod issue;
+pub mod issue_social;
 pub mod log;
 pub mod notification;
 pub mod project;
@@ -25,6 +26,7 @@ pub use grouping::{
 };
 pub use invitation::InvitationService;
 pub use issue::IssueService;
+pub use issue_social::IssueSocialService;
 pub use log::{LogFilters, LogService};
 pub use notification::{create_dispatcher, NotificationDispatcher, NotificationResult};
 pub use project::ProjectService;

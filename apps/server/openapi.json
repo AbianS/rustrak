@@ -1638,6 +1638,18 @@
             "schema": {
               "$ref": "#/components/schemas/IssueFilter"
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Free-text search across type, value, transaction, and culprit.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1667,16 +1679,43 @@
                           "short_id",
                           "title",
                           "value",
+                          "culprit",
+                          "logger",
                           "first_seen",
                           "last_seen",
                           "event_count",
+                          "status",
+                          "issue_type",
+                          "issue_category",
+                          "first_release",
+                          "last_release",
+                          "status_details",
                           "is_resolved",
                           "is_muted"
                         ],
                         "properties": {
+                          "assigned_to": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int32"
+                          },
+                          "assignee_type": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "culprit": {
+                            "type": "string"
+                          },
                           "event_count": {
                             "type": "integer",
                             "format": "int32"
+                          },
+                          "first_release": {
+                            "type": "string"
                           },
                           "first_seen": {
                             "type": "string",
@@ -1687,10 +1726,21 @@
                             "format": "uuid"
                           },
                           "is_muted": {
-                            "type": "boolean"
+                            "type": "boolean",
+                            "description": "Deprecated: derived from `status`. See `is_resolved`."
                           },
                           "is_resolved": {
-                            "type": "boolean"
+                            "type": "boolean",
+                            "description": "Deprecated: derived from `status`. Kept for the legacy client/UI until\nthey migrate to `status`. Remove in the client/frontend phases of #165."
+                          },
+                          "issue_category": {
+                            "type": "string"
+                          },
+                          "issue_type": {
+                            "type": "string"
+                          },
+                          "last_release": {
+                            "type": "string"
                           },
                           "last_seen": {
                             "type": "string",
@@ -1702,7 +1752,16 @@
                               "null"
                             ]
                           },
+                          "logger": {
+                            "type": "string"
+                          },
                           "platform": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "priority": {
                             "type": [
                               "string",
                               "null"
@@ -1714,6 +1773,16 @@
                           },
                           "short_id": {
                             "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "status_details": {},
+                          "substatus": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
                           },
                           "title": {
                             "type": "string"
@@ -5218,16 +5287,43 @@
           "short_id",
           "title",
           "value",
+          "culprit",
+          "logger",
           "first_seen",
           "last_seen",
           "event_count",
+          "status",
+          "issue_type",
+          "issue_category",
+          "first_release",
+          "last_release",
+          "status_details",
           "is_resolved",
           "is_muted"
         ],
         "properties": {
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "assignee_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "culprit": {
+            "type": "string"
+          },
           "event_count": {
             "type": "integer",
             "format": "int32"
+          },
+          "first_release": {
+            "type": "string"
           },
           "first_seen": {
             "type": "string",
@@ -5238,10 +5334,21 @@
             "format": "uuid"
           },
           "is_muted": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Deprecated: derived from `status`. See `is_resolved`."
           },
           "is_resolved": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Deprecated: derived from `status`. Kept for the legacy client/UI until\nthey migrate to `status`. Remove in the client/frontend phases of #165."
+          },
+          "issue_category": {
+            "type": "string"
+          },
+          "issue_type": {
+            "type": "string"
+          },
+          "last_release": {
+            "type": "string"
           },
           "last_seen": {
             "type": "string",
@@ -5253,7 +5360,16 @@
               "null"
             ]
           },
+          "logger": {
+            "type": "string"
+          },
           "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
             "type": [
               "string",
               "null"
@@ -5265,6 +5381,16 @@
           },
           "short_id": {
             "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "status_details": {},
+          "substatus": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
@@ -6028,8 +6154,21 @@
       },
       "UpdateIssueState": {
         "type": "object",
-        "description": "Request to update issue state",
+        "description": "Request to update issue state.\n\n`status`/`substatus`/`priority`/assignment are the canonical fields.\n`is_resolved`/`is_muted` are accepted as a deprecated compatibility shim\nand mapped onto `status`.",
         "properties": {
+          "assigned_to": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "assignee_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "is_muted": {
             "type": [
               "boolean",
@@ -6039,6 +6178,24 @@
           "is_resolved": {
             "type": [
               "boolean",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "substatus": {
+            "type": [
+              "string",
               "null"
             ]
           }

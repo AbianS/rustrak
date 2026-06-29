@@ -13,12 +13,16 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
     if let Some(fingerprint) = event_data.get("fingerprint").and_then(|f| f.as_array()) {
         return fingerprint
             .iter()
-            .map(|part| {
-                let part_str = part.as_str().unwrap_or("");
-                if part_str == "{{ default }}" {
-                    default_grouping_key(&calculated_type, &calculated_value, &transaction)
+            .filter_map(|part| {
+                let coerced = coerce_fingerprint_element(part)?;
+                if coerced == "{{ default }}" {
+                    Some(default_grouping_key(
+                        &calculated_type,
+                        &calculated_value,
+                        &transaction,
+                    ))
                 } else {
-                    part_str.to_string()
+                    Some(coerced)
                 }
             })
             .collect::<Vec<_>>()
@@ -27,6 +31,32 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
 
     // Default grouping
     default_grouping_key(&calculated_type, &calculated_value, &transaction)
+}
+
+/// Coerces a single fingerprint array element to a string, mirroring Relay's
+/// `LenientString` (relay-event-schema/src/protocol/types.rs:722-747).
+///
+/// Returns `None` for elements Relay drops (null, arrays, objects) so the
+/// caller can skip them rather than emit an empty component.
+fn coerce_fingerprint_element(part: &Value) -> Option<String> {
+    match part {
+        Value::String(s) => Some(s.clone()),
+        // True/False (capitalized) for legacy python compatibility.
+        Value::Bool(true) => Some("True".to_string()),
+        Value::Bool(false) => Some("False".to_string()),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Some(i.to_string())
+            } else if let Some(u) = n.as_u64() {
+                Some(u.to_string())
+            } else {
+                // Float: truncate toward zero, like Relay's `num.trunc()`.
+                n.as_f64().map(|f| f.trunc().to_string())
+            }
+        }
+        // null, arrays, and objects are dropped.
+        _ => None,
+    }
 }
 
 /// Default grouping key: "Type: value ⋄ transaction"
@@ -48,8 +78,11 @@ pub fn hash_grouping_key(grouping_key: &str) -> String {
 
 /// Extracts type and value from the event
 pub fn get_type_and_value(event_data: &Value) -> (String, String) {
-    // Try to extract from exception
-    if let Some(exception) = get_main_exception(event_data) {
+    // Try to extract from exception, unless it is synthetic. Relay ignores the
+    // type/value of synthetic exceptions (signal/segfault wrappers) for
+    // grouping and falls through to the next component
+    // (relay-event-schema/src/protocol/mechanism.rs:113).
+    if let Some(exception) = get_main_exception(event_data).filter(|e| !is_synthetic(e)) {
         let exc_type = exception
             .get("type")
             .and_then(|t| t.as_str())
@@ -87,6 +120,15 @@ fn get_main_exception(event_data: &Value) -> Option<&Value> {
 
     // Return the last exception (most important)
     values.last()
+}
+
+/// Whether an exception is marked synthetic via `mechanism.synthetic`.
+fn is_synthetic(exception: &Value) -> bool {
+    exception
+        .get("mechanism")
+        .and_then(|m| m.get("synthetic"))
+        .and_then(|s| s.as_bool())
+        .unwrap_or(false)
 }
 
 /// Gets the log message
@@ -155,14 +197,45 @@ pub fn get_denormalized_fields(event_data: &Value) -> DenormalizedFields {
     // Try to get the last frame from the stacktrace
     let (filename, module, function) = get_last_frame_info(event_data);
 
+    let transaction = get_transaction(event_data);
+    let culprit = get_culprit(&function, &filename, &transaction);
+    let logger = event_data
+        .get("logger")
+        .and_then(|l| l.as_str())
+        .map(|s| truncate(s, 128))
+        .unwrap_or_default();
+    let release = event_data
+        .get("release")
+        .and_then(|r| r.as_str())
+        .map(|s| truncate(s, 250))
+        .unwrap_or_default();
+
     DenormalizedFields {
         calculated_type,
         calculated_value,
-        transaction: get_transaction(event_data),
+        transaction,
         last_frame_filename: filename,
         last_frame_module: module,
         last_frame_function: function,
+        culprit,
+        logger,
+        release,
     }
+}
+
+/// Derives the issue culprit — a short string identifying the error source.
+/// Prefers the relevant frame's function, then filename, then the transaction.
+fn get_culprit(function: &str, filename: &str, transaction: &str) -> String {
+    let chosen = if !function.is_empty() {
+        function
+    } else if !filename.is_empty() {
+        filename
+    } else if transaction != "<no transaction>" {
+        transaction
+    } else {
+        ""
+    };
+    truncate(chosen, 255)
 }
 
 /// Denormalized fields extracted from event data
@@ -174,6 +247,9 @@ pub struct DenormalizedFields {
     pub last_frame_filename: String,
     pub last_frame_module: String,
     pub last_frame_function: String,
+    pub culprit: String,
+    pub logger: String,
+    pub release: String,
 }
 
 /// Extracts information from the last stacktrace frame

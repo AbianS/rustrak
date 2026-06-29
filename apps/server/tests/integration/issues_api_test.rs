@@ -81,6 +81,9 @@ fn create_denormalized_fields(
         last_frame_filename: "test.rs".to_string(),
         last_frame_module: "test_module".to_string(),
         last_frame_function: "test_function".to_string(),
+        culprit: "test_function".to_string(),
+        logger: String::new(),
+        release: String::new(),
     }
 }
 
@@ -450,7 +453,7 @@ async fn test_resolve_issue() {
     let config = create_test_config();
 
     let issue = create_test_issue(&db.pool, project.id, "TypeError", "Error").await;
-    assert!(!issue.is_resolved);
+    assert!(!issue.is_resolved());
 
     let app = test::init_service(
         App::new()

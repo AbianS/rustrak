@@ -138,6 +138,9 @@ async fn seed_issue(pool: &DbPool, project_id: i32) -> Issue {
         last_frame_filename: "test.rs".to_string(),
         last_frame_module: "test_module".to_string(),
         last_frame_function: "test_function".to_string(),
+        culprit: "test_function".to_string(),
+        logger: String::new(),
+        release: String::new(),
     };
     IssueService::create(
         pool,

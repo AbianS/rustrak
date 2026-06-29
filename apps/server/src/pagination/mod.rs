@@ -136,6 +136,10 @@ pub struct ListIssuesQuery {
     /// Filter: open (not resolved, not muted), resolved, muted, all
     #[serde(default)]
     pub filter: IssueFilter,
+
+    /// Free-text search across type, value, transaction, and culprit.
+    #[serde(default)]
+    pub q: Option<String>,
 }
 
 fn default_page() -> i64 {

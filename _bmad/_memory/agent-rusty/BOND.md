@@ -88,8 +88,9 @@ Relay has 21+ `ItemType` variants. Rustrak handles 4 with dedicated types. The r
 Relay parses `trace` field from envelope headers as `DynamicSamplingContext`. Used for: sampling decisions, span validation, metrics extraction. Contains `trace_id`, `public_key`, `release`, `environment`, `transaction`, `replay_id`, `sample_rate`, `user`. Rustrak does not parse or use this at all.
 
 ## Local Repo State
-- **relay-repo SHA:** 4222d43e090dc7215411ad2dbacd6cc8efb12ba7
-- **relay-repo last updated:** 2026-05-22
+- **relay-repo SHA:** 97f9c4beab78baaa2d2be1f05dacaba0a987821d (2026-06-26)
+- **relay-repo last updated:** 2026-06-29 (verified during issue #165 confirmation)
+- **⚠️ pending upstream:** origin/master at ded5f96f8 — `git -C ~/.rusty/relay-repo pull` to refresh
 - **sentry-data-schemas SHA:** 6d2c435b8ce3a67e2065f38374bb437f274d0a6c
 - **sentry-data-schemas last updated:** 2026-05-22
 
@@ -106,6 +107,11 @@ _Gaps we've already dug into — so I don't repeat the same work. Append after e
 | Source map: chunk upload field name | ✅ Fixed | 2026-05-25 | Filter changed from `!= "file"` to `is_empty()`. Accepts any named field (real sentry-cli uses SHA1). TDD: test_chunk_upload_sha1_field_name_accepted. |
 | Source map: `frame.data.sourcemap` not set | ✅ Fixed | 2026-05-25 | `frame["data"]["sourcemap"] = debug_id` added after rewrite. TDD: test_rewrite_sets_data_sourcemap. |
 | Source map: no total bundle size limit | ✅ Fixed | 2026-05-25 | `max_bundle_size_bytes: usize` added to `assemble_bundle` signature. Worker passes `max_chunk_size_bytes * 64`. TDD: test_assemble_bundle_rejects_oversized_bundle. |
+| **Issues full audit (GH #165)** | 📋 Confirmed | 2026-06-29 | 28 gaps. ALL verified against source both sides. Rustrak: `Issue` struct 16 fields, only `is_resolved`/`is_muted` booleans, PATCH-only API, no PUT/bulk/hashes/tags endpoints. Grouping confirmed gaps below. |
+| #165 fingerprint coercion | ❌ Missing (P0, cheap) | 2026-06-29 | grouping.rs:17 uses `.as_str().unwrap_or("")` → bool/number/null fingerprint elements collapse to `""`, merging distinct issues. Relay `LenientString` (relay-event-schema/src/protocol/types.rs:722-747 @97f9c4b): Bool→"True"/"False", U64/I64→to_string, F64→trunc().to_string(), null→skip. |
+| #165 mechanism.synthetic in grouping | ❌ Missing | 2026-06-29 | `mechanism.rs:113` synthetic:Annotated<bool>. When synthetic, Relay ignores exc type/value for grouping. Rustrak never checks it. |
+| #165 grouping_config passthrough | ❌ Missing (low pri for self-host) | 2026-06-29 | `event.rs:435` grouping_config:Annotated<Object>. Rustrak single hardcoded algorithm. Acceptable for self-host MVP. |
+| #165 status/substatus enum | ❌ Missing (P0) | 2026-06-29 | 2 booleans vs Sentry 5-status+6-substatus state machine. Regression detection (`trigger_regression_alert` is dead_code) does not exist. |
 
 ## How They Work
 {Preferences learned during First Breath and refined over sessions — how deep to go, raw source vs synthesis, what to emphasize.}
