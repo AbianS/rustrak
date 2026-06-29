@@ -10,6 +10,7 @@ import {
   IssuesResource,
   LogsResource,
   MembersResource,
+  MonitorsResource,
   ProjectsResource,
   SessionsResource,
   SourceMapsResource,
@@ -114,6 +115,11 @@ export class RustrakClient {
   public readonly logs: LogsResource;
 
   /**
+   * Monitors API resource (Sentry Crons — scheduled job monitoring)
+   */
+  public readonly monitors: MonitorsResource;
+
+  /**
    * Storage API resource (usage + retention cleanup, admin only)
    */
   public readonly storage: StorageResource;
@@ -146,6 +152,7 @@ export class RustrakClient {
     this.sessions = new SessionsResource(this.http);
     this.transactions = new TransactionsResource(this.http);
     this.logs = new LogsResource(this.http);
+    this.monitors = new MonitorsResource(this.http);
     this.storage = new StorageResource(this.http);
     this.health = new HealthResource(this.http);
   }

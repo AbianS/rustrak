@@ -40,6 +40,7 @@ export type {
   AuthTokenCreated,
   /** @deprecated Use ProviderType */
   ChannelType,
+  CheckIn,
   ChunkUploadCapability,
   CleanupCounts,
   CleanupOptions,
@@ -59,6 +60,7 @@ export type {
   IssueFilter,
   IssueSort,
   ListAlertHistoryOptions,
+  ListCheckInsOptions,
   ListEventsOptions,
   ListIssuesOptions,
   ListLogsOptions,
@@ -68,6 +70,7 @@ export type {
   Log,
   LoginRequest,
   LoginResult,
+  Monitor,
   /** @deprecated Use AlertIntegration */
   NotificationChannel,
   OffsetPaginatedResponse,

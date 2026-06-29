@@ -103,3 +103,11 @@ export interface ListLogsOptions {
   /** Filter by trace id. */
   trace_id?: string;
 }
+
+/**
+ * List options for the monitor check-ins endpoint (offset-based pagination)
+ */
+export interface ListCheckInsOptions {
+  page?: number;
+  per_page?: number;
+}
