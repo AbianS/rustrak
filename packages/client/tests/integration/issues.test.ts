@@ -121,7 +121,9 @@ describe('IssuesResource Integration', () => {
       expect(updated.is_muted).toBe(true);
     });
 
-    it('should update both flags', async () => {
+    it('should let is_resolved win over is_muted (unified status model)', async () => {
+      // Under the #165 status model, status is single-valued: resolving an
+      // issue clears the muted/ignored state (they are mutually exclusive).
       const updated = await client.issues.updateState(
         1,
         '323e4567-e89b-12d3-a456-426614174000',
@@ -132,7 +134,8 @@ describe('IssuesResource Integration', () => {
       );
 
       expect(updated.is_resolved).toBe(true);
-      expect(updated.is_muted).toBe(true);
+      expect(updated.is_muted).toBe(false);
+      expect(updated.status).toBe('resolved');
     });
 
     it('should throw NotFoundError for non-existent issue', async () => {
@@ -155,6 +158,163 @@ describe('IssuesResource Integration', () => {
       await expect(
         client.issues.delete(1, '999e4567-e89b-12d3-a456-426614174000'),
       ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('status model fields (#165)', () => {
+    it('should expose status, substatus, priority, culprit and metadata', async () => {
+      const issue = await client.issues.get(
+        1,
+        '323e4567-e89b-12d3-a456-426614174000',
+      );
+
+      expect(issue.status).toBe('unresolved');
+      expect(issue.substatus).toBe('new');
+      expect(issue.priority).toBe('high');
+      expect(issue.culprit).toBe('handleRequest');
+      expect(issue.issue_type).toBe('error');
+      expect(issue.issue_category).toBe('error');
+      expect(issue.user_report_count).toBe(0);
+      expect(issue.status_details).toEqual({});
+      // legacy derived fields remain for backward compatibility
+      expect(issue.is_resolved).toBe(false);
+      expect(issue.is_muted).toBe(false);
+    });
+
+    it('should update issue status with the canonical field', async () => {
+      const issue = await client.issues.updateState(
+        1,
+        '323e4567-e89b-12d3-a456-426614174000',
+        { status: 'resolved' },
+      );
+      expect(issue.status).toBe('resolved');
+    });
+
+    it('should default user_report_count to 0 when the list omits it', async () => {
+      // The list endpoint returns the lean IssueResponse (no user_report_count
+      // enrichment); the schema must tolerate its absence, not reject the page.
+      const response = await client.issues.list(1);
+      expect(response.items.length).toBeGreaterThan(0);
+      for (const issue of response.items) {
+        expect(issue.user_report_count).toBe(0);
+      }
+    });
+  });
+
+  describe('search (#165)', () => {
+    it('should filter issues by free-text query', async () => {
+      const response = await client.issues.list(1, { q: 'ReferenceError' });
+      expect(response.items).toHaveLength(1);
+      expect(response.items[0]!.title).toContain('ReferenceError');
+    });
+  });
+
+  describe('hashes / tags / aggregates / stats (#165)', () => {
+    const issueId = '323e4567-e89b-12d3-a456-426614174000';
+
+    it('should list grouping hashes', async () => {
+      const hashes = await client.issues.getHashes(1, issueId);
+      expect(hashes).toHaveLength(1);
+      expect(hashes[0]!.grouping_key_hash).toHaveLength(64);
+    });
+
+    it('should list tag values for a key', async () => {
+      const result = await client.issues.getTagValues(1, issueId, 'browser');
+      expect(result.key).toBe('browser');
+      expect(result.values[0]).toEqual({ value: 'chrome', count: 2 });
+    });
+
+    it('should fetch aggregates (user count + top tags)', async () => {
+      const agg = await client.issues.getAggregates(1, issueId);
+      expect(agg.user_count).toBe(2);
+      expect(agg.tags[0]!.key).toBe('browser');
+    });
+
+    it('should fetch a stats timeseries', async () => {
+      const stats = await client.issues.getStats(1, issueId, '24h');
+      expect(stats.data).toHaveLength(2);
+      expect(stats.data[0]).toEqual([1000, 3]);
+    });
+  });
+
+  describe('activity, comments & social (#165)', () => {
+    const issueId = '323e4567-e89b-12d3-a456-426614174000';
+
+    it('should list activity', async () => {
+      const activity = await client.issues.getActivity(1, issueId);
+      expect(activity).toHaveLength(1);
+      expect(activity[0]!.type).toBe('note');
+    });
+
+    it('should add a comment', async () => {
+      const entry = await client.issues.addComment(1, issueId, {
+        text: 'hello world',
+      });
+      expect(entry.type).toBe('note');
+      expect(entry.data).toContain('hello world');
+    });
+
+    it('should toggle bookmark', async () => {
+      const res = await client.issues.setBookmark(1, issueId, true);
+      expect(res.is_bookmarked).toBe(true);
+    });
+
+    it('should toggle subscription', async () => {
+      const res = await client.issues.setSubscription(1, issueId, false);
+      expect(res.is_subscribed).toBe(false);
+    });
+
+    it('should mark seen', async () => {
+      const res = await client.issues.markSeen(1, issueId);
+      expect(res.has_seen).toBe(true);
+    });
+
+    it('should list and create user reports', async () => {
+      const reports = await client.issues.listUserReports(1, issueId);
+      expect(reports).toHaveLength(1);
+      expect(reports[0]!.name).toBe('Jane');
+
+      const created = await client.issues.createUserReport(1, issueId, {
+        name: 'Bob',
+        email: 'bob@example.com',
+        comments: 'broke too',
+      });
+      expect(created.name).toBe('Bob');
+    });
+  });
+
+  describe('bulk operations & deploys (#165)', () => {
+    const ids = [
+      '323e4567-e89b-12d3-a456-426614174000',
+      '423e4567-e89b-12d3-a456-426614174000',
+    ];
+
+    it('should bulk-update issues', async () => {
+      const res = await client.issues.bulkUpdate(1, {
+        ids,
+        status: 'resolved',
+      });
+      expect(res.updated).toBe(2);
+    });
+
+    it('should bulk-delete issues', async () => {
+      const res = await client.issues.bulkDelete(1, { ids });
+      expect(res.deleted).toBe(2);
+    });
+
+    it('should record a deploy', async () => {
+      const res = await client.issues.createDeploy(1, { version: 'v2.0.0' });
+      expect(res.version).toBe('v2.0.0');
+      expect(res.finalized).toBe(1);
+    });
+
+    it('should resolve in next release', async () => {
+      const issue = await client.issues.resolveInNextRelease(
+        1,
+        '323e4567-e89b-12d3-a456-426614174000',
+      );
+      // mock PATCH echoes the body's status field back as the canonical status
+      expect(issue.status).toBeDefined();
     });
   });
 });

@@ -1,20 +1,9 @@
 'use client';
 
-import {
-  ChevronFirst,
-  ChevronLast,
-  ChevronLeft,
-  ChevronRight,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { EventNavigation } from '@/actions/events';
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface EventNavigationBarProps {
   projectId: number;
@@ -28,7 +17,6 @@ export function EventNavigationBar({
   navigation,
 }: EventNavigationBarProps) {
   const router = useRouter();
-
   const {
     currentIndex,
     totalCount,
@@ -39,106 +27,55 @@ export function EventNavigationBar({
   } = navigation;
 
   const baseUrl = `/projects/${projectId}/issues/${issueId}/events`;
+  const go = (eventId?: string | null) => {
+    if (eventId) {
+      router.push(`${baseUrl}/${eventId}`);
+    }
+  };
 
   return (
-    <TooltipProvider delay={300}>
-      <div className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2">
-        {/* First */}
-        <Tooltip>
-          <TooltipTrigger render={<span />}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={!firstEventId || currentIndex === 1}
-              onClick={() => {
-                if (firstEventId && currentIndex !== 1) {
-                  router.push(`${baseUrl}/${firstEventId}`);
-                }
-              }}
-            >
-              <ChevronFirst className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>First event</p>
-          </TooltipContent>
-        </Tooltip>
+    <div className="flex items-center gap-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="size-8 px-0"
+        aria-label="Previous event"
+        disabled={!prevEventId}
+        onClick={() => go(prevEventId)}
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="size-8 px-0"
+        aria-label="Next event"
+        disabled={!nextEventId}
+        onClick={() => go(nextEventId)}
+      >
+        <ChevronRight className="size-4" />
+      </Button>
 
-        {/* Previous */}
-        <Tooltip>
-          <TooltipTrigger render={<span />}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={!prevEventId}
-              onClick={() => {
-                if (prevEventId) {
-                  router.push(`${baseUrl}/${prevEventId}`);
-                }
-              }}
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Previous event</p>
-          </TooltipContent>
-        </Tooltip>
+      <span className="mx-1.5 text-xs tabular-nums text-muted-foreground">
+        {currentIndex} of {totalCount}
+      </span>
 
-        {/* Counter */}
-        <div className="min-w-[100px] text-center">
-          <span className="text-sm font-medium">
-            Event <span className="font-bold text-primary">{currentIndex}</span>{' '}
-            of <span className="font-bold">{totalCount}</span>
-          </span>
-        </div>
-
-        {/* Next */}
-        <Tooltip>
-          <TooltipTrigger render={<span />}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={!nextEventId}
-              onClick={() => {
-                if (nextEventId) {
-                  router.push(`${baseUrl}/${nextEventId}`);
-                }
-              }}
-            >
-              <ChevronRight className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Next event</p>
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Last */}
-        <Tooltip>
-          <TooltipTrigger render={<span />}>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={!lastEventId || currentIndex === totalCount}
-              onClick={() => {
-                if (lastEventId && currentIndex !== totalCount) {
-                  router.push(`${baseUrl}/${lastEventId}`);
-                }
-              }}
-            >
-              <ChevronLast className="size-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Last event</p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-    </TooltipProvider>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={currentIndex <= 1}
+        onClick={() => go(firstEventId)}
+      >
+        First
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={currentIndex >= totalCount}
+        onClick={() => go(lastEventId)}
+      >
+        Latest
+      </Button>
+    </div>
   );
 }

@@ -15,12 +15,14 @@ use serde_json::json;
 
 /// Body for creating an issue comment (note).
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CommentRequest {
     pub text: String,
 }
 
 /// Body for toggling a per-user flag (bookmark/subscription).
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ToggleRequest {
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -28,6 +30,7 @@ pub struct ToggleRequest {
 
 /// Body for submitting user feedback on an issue.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UserReportRequest {
     #[serde(default)]
     pub name: Option<String>,
@@ -294,6 +297,20 @@ pub async fn delete_issue(
     Ok(HttpResponse::NoContent().finish())
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/hashes",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Grouping hashes mapped to the issue", body = Vec<crate::models::grouping::Grouping>),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}/hashes
 /// Lists the grouping hashes that map to an issue.
 pub async fn get_issue_hashes(
@@ -320,6 +337,21 @@ pub async fn get_issue_hashes(
     Ok(HttpResponse::Ok().json(hashes))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/tags/{key}",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+        ("key" = String, Path, description = "Tag key"),
+    ),
+    responses(
+        (status = 200, description = "Distinct values for the tag key", body = resp::TagValuesResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}/tags/{key}
 /// Lists the distinct values (with counts) for a tag key across the issue.
 pub async fn get_issue_tag_values(
@@ -346,6 +378,20 @@ pub async fn get_issue_tag_values(
     Ok(HttpResponse::Ok().json(json!({ "key": key, "values": values })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/aggregates",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Unique user count and top tags", body = crate::services::issue::IssueAggregates),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /api/projects/{project_id}/issues/{issue_id}/aggregates
 /// Returns the unique user count and top tags for the issue.
 pub async fn get_issue_aggregates(
@@ -372,6 +418,18 @@ pub async fn get_issue_aggregates(
     Ok(HttpResponse::Ok().json(aggregates))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    put,
+    path = "/api/projects/{project_id}/issues",
+    tag = "Issues",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    request_body = crate::models::BulkUpdateIssues,
+    responses(
+        (status = 200, description = "Number of issues updated", body = resp::BulkUpdateResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PUT /api/projects/{project_id}/issues  (bulk mutate)
 pub async fn bulk_update_issues(
     pool: web::Data<DbPool>,
@@ -408,6 +466,18 @@ pub async fn bulk_update_issues(
     Ok(HttpResponse::Ok().json(json!({ "updated": updated })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    delete,
+    path = "/api/projects/{project_id}/issues",
+    tag = "Issues",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    request_body = crate::models::BulkDeleteIssues,
+    responses(
+        (status = 200, description = "Number of issues deleted", body = resp::BulkDeleteResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// DELETE /api/projects/{project_id}/issues  (bulk delete)
 pub async fn bulk_delete_issues(
     pool: web::Data<DbPool>,
@@ -431,10 +501,23 @@ pub async fn bulk_delete_issues(
 
 /// Body for recording a deploy.
 #[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeployRequest {
     pub version: String,
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/deploys",
+    tag = "Issues",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    request_body = DeployRequest,
+    responses(
+        (status = 200, description = "Issues finalized by the deploy", body = resp::DeployResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /api/projects/{project_id}/deploys — record a release deploy, which
 /// finalizes issues that were "resolved in the next release".
 pub async fn create_deploy(
@@ -469,6 +552,21 @@ fn require_user(actor: &ApiActor) -> AppResult<i32> {
         .ok_or_else(|| AppError::Validation("This action requires a user session".to_string()))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/stats",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+        ("window" = Option<String>, Query, description = "Time window: 24h (default) or 30d"),
+    ),
+    responses(
+        (status = 200, description = "Zero-filled event-count timeseries", body = resp::IssueStatsResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /{issue_id}/stats?window=24h|30d — zero-filled event-count timeseries.
 pub async fn get_issue_stats(
     pool: web::Data<DbPool>,
@@ -493,6 +591,20 @@ pub async fn get_issue_stats(
     Ok(HttpResponse::Ok().json(json!({ "data": points })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/activity",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Activity log (status changes, comments, …)", body = Vec<crate::services::issue_social::ActivityEntry>),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /{issue_id}/activity — chronological activity log (incl. comments).
 pub async fn get_issue_activity(
     pool: web::Data<DbPool>,
@@ -506,6 +618,21 @@ pub async fn get_issue_activity(
     Ok(HttpResponse::Ok().json(activity))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/issues/{issue_id}/comments",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = CommentRequest,
+    responses(
+        (status = 201, description = "Comment added", body = crate::services::issue_social::ActivityEntry),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /{issue_id}/comments — add a note.
 pub async fn create_issue_comment(
     pool: web::Data<DbPool>,
@@ -522,6 +649,21 @@ pub async fn create_issue_comment(
     Ok(HttpResponse::Created().json(entry))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    put,
+    path = "/api/projects/{project_id}/issues/{issue_id}/bookmark",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = ToggleRequest,
+    responses(
+        (status = 200, description = "Updated bookmark state", body = resp::BookmarkResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PUT /{issue_id}/bookmark — set/clear the per-user bookmark.
 pub async fn set_issue_bookmark(
     pool: web::Data<DbPool>,
@@ -538,6 +680,21 @@ pub async fn set_issue_bookmark(
     Ok(HttpResponse::Ok().json(json!({ "is_bookmarked": enabled })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    put,
+    path = "/api/projects/{project_id}/issues/{issue_id}/subscription",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = ToggleRequest,
+    responses(
+        (status = 200, description = "Updated subscription state", body = resp::SubscriptionResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// PUT /{issue_id}/subscription — set/clear the per-user subscription.
 pub async fn set_issue_subscription(
     pool: web::Data<DbPool>,
@@ -555,6 +712,20 @@ pub async fn set_issue_subscription(
     Ok(HttpResponse::Ok().json(json!({ "is_subscribed": enabled })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/issues/{issue_id}/seen",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "Issue marked as seen", body = resp::SeenResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /{issue_id}/seen — mark the issue as seen by the current user.
 pub async fn mark_issue_seen(
     pool: web::Data<DbPool>,
@@ -569,6 +740,20 @@ pub async fn mark_issue_seen(
     Ok(HttpResponse::Ok().json(json!({ "has_seen": true })))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/issues/{issue_id}/user-reports",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    responses(
+        (status = 200, description = "User feedback reports for the issue", body = Vec<crate::services::issue_social::UserReport>),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// GET /{issue_id}/user-reports — list user feedback for an issue.
 pub async fn list_issue_user_reports(
     pool: web::Data<DbPool>,
@@ -582,6 +767,21 @@ pub async fn list_issue_user_reports(
     Ok(HttpResponse::Ok().json(reports))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/projects/{project_id}/issues/{issue_id}/user-reports",
+    tag = "Issues",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("issue_id" = uuid::Uuid, Path, description = "Issue ID"),
+    ),
+    request_body = UserReportRequest,
+    responses(
+        (status = 201, description = "User feedback attached", body = crate::services::issue_social::UserReport),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
 /// POST /{issue_id}/user-reports — attach user feedback to an issue.
 pub async fn create_issue_user_report(
     pool: web::Data<DbPool>,
@@ -605,11 +805,97 @@ pub async fn create_issue_user_report(
     Ok(HttpResponse::Created().json(report))
 }
 
+/// OpenAPI-only response schemas for endpoints that return ad-hoc JSON objects.
+#[cfg(feature = "openapi")]
+#[allow(dead_code)]
+pub mod resp {
+    use crate::services::issue::TagValueCount;
+    use utoipa::ToSchema;
+
+    #[derive(ToSchema)]
+    pub struct TagValuesResponse {
+        pub key: String,
+        pub values: Vec<TagValueCount>,
+    }
+    #[derive(ToSchema)]
+    pub struct IssueStatsResponse {
+        /// Each point is `[bucketStartUnix, count]`.
+        pub data: Vec<Vec<i64>>,
+    }
+    #[derive(ToSchema)]
+    pub struct BulkUpdateResponse {
+        pub updated: i64,
+    }
+    #[derive(ToSchema)]
+    pub struct BulkDeleteResponse {
+        pub deleted: i64,
+    }
+    #[derive(ToSchema)]
+    pub struct DeployResponse {
+        pub version: String,
+        pub finalized: i64,
+    }
+    #[derive(ToSchema)]
+    pub struct BookmarkResponse {
+        pub is_bookmarked: bool,
+    }
+    #[derive(ToSchema)]
+    pub struct SubscriptionResponse {
+        pub is_subscribed: bool,
+    }
+    #[derive(ToSchema)]
+    pub struct SeenResponse {
+        pub has_seen: bool,
+    }
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
-    paths(list_issues, get_issue, update_issue, delete_issue),
-    components(schemas(crate::models::IssueResponse, crate::models::UpdateIssueState,))
+    paths(
+        list_issues,
+        get_issue,
+        update_issue,
+        delete_issue,
+        get_issue_hashes,
+        get_issue_tag_values,
+        get_issue_aggregates,
+        get_issue_stats,
+        get_issue_activity,
+        create_issue_comment,
+        set_issue_bookmark,
+        set_issue_subscription,
+        mark_issue_seen,
+        list_issue_user_reports,
+        create_issue_user_report,
+        bulk_update_issues,
+        bulk_delete_issues,
+        create_deploy,
+    ),
+    components(schemas(
+        crate::models::IssueResponse,
+        crate::models::UpdateIssueState,
+        crate::models::BulkUpdateIssues,
+        crate::models::BulkDeleteIssues,
+        crate::models::grouping::Grouping,
+        crate::services::issue::IssueAggregates,
+        crate::services::issue::TagSummary,
+        crate::services::issue::TagValueCount,
+        crate::services::issue_social::ActivityEntry,
+        crate::services::issue_social::UserReport,
+        CommentRequest,
+        ToggleRequest,
+        UserReportRequest,
+        DeployRequest,
+        resp::TagValuesResponse,
+        resp::IssueStatsResponse,
+        resp::BulkUpdateResponse,
+        resp::BulkDeleteResponse,
+        resp::DeployResponse,
+        resp::BookmarkResponse,
+        resp::SubscriptionResponse,
+        resp::SeenResponse,
+    ))
 )]
 pub struct IssuesApi;
 

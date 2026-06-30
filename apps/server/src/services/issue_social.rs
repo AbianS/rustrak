@@ -15,6 +15,7 @@ pub struct ActivityEntry {
     pub issue_id: Uuid,
     pub user_id: Option<i32>,
     #[sqlx(rename = "type")]
+    #[serde(rename = "type")]
     pub activity_type: String,
     pub data: String,
     pub created_at: DateTime<Utc>,

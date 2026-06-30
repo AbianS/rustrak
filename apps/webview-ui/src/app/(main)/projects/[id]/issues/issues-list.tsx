@@ -4,14 +4,17 @@ import type { Issue, OffsetPaginatedResponse } from '@rustrak/client';
 import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
-  Bell,
-  BellOff,
+  Bookmark,
   Check,
   ChevronLeft,
   ChevronRight,
   Loader2,
   MoreVertical,
+  Search,
   Trash2,
+  Volume2,
+  VolumeX,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -27,7 +30,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
+import {
+  LevelBadge,
+  PriorityIndicator,
+  StatusIndicator,
+} from '@/components/issue-indicators';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -36,6 +43,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface IssuesListProps {
@@ -43,6 +51,7 @@ interface IssuesListProps {
   initialIssues: OffsetPaginatedResponse<Issue>;
   currentFilter: string;
   currentPage: number;
+  currentQuery: string;
 }
 
 const FILTERS = [
@@ -57,6 +66,7 @@ export function IssuesList({
   initialIssues,
   currentFilter,
   currentPage,
+  currentQuery,
 }: IssuesListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -64,17 +74,37 @@ export function IssuesList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
   const [isBatchDelete, setIsBatchDelete] = useState(false);
+  const [searchInput, setSearchInput] = useState(currentQuery);
 
   const { items: issues, total_count, total_pages, per_page } = initialIssues;
 
+  const buildUrl = (params: { filter?: string; page?: number; q?: string }) => {
+    const search = new URLSearchParams();
+    search.set('filter', params.filter ?? currentFilter);
+    search.set('page', String(params.page ?? 1));
+    const query = params.q ?? currentQuery;
+    if (query) {
+      search.set('q', query);
+    }
+    return `/projects/${projectId}/issues?${search.toString()}`;
+  };
+
   const handleFilterChange = (filter: string) => {
-    router.push(`/projects/${projectId}/issues?filter=${filter}&page=1`);
+    router.push(buildUrl({ filter, page: 1 }));
   };
 
   const handlePageChange = (page: number) => {
-    router.push(
-      `/projects/${projectId}/issues?filter=${currentFilter}&page=${page}`,
-    );
+    router.push(buildUrl({ page }));
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    router.push(buildUrl({ page: 1, q: searchInput.trim() }));
+  };
+
+  const handleSearchClear = () => {
+    setSearchInput('');
+    router.push(buildUrl({ page: 1, q: '' }));
   };
 
   const toggleSelectAll = () => {
@@ -152,7 +182,7 @@ export function IssuesList({
     <div className="flex flex-col h-full">
       {/* Filters + Batch Actions */}
       <div className="shrink-0 flex flex-col gap-2 mb-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <Tabs value={currentFilter} onValueChange={handleFilterChange}>
             <TabsList>
               {FILTERS.map((filter) => (
@@ -162,6 +192,30 @@ export function IssuesList({
               ))}
             </TabsList>
           </Tabs>
+
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full sm:w-72"
+          >
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search issues..."
+              className="pl-9 pr-9"
+            />
+            {currentQuery && (
+              <button
+                type="button"
+                onClick={handleSearchClear}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </form>
         </div>
 
         {selectedIds.size > 0 && (
@@ -184,7 +238,7 @@ export function IssuesList({
               onClick={() => handleBatchAction('mute')}
               disabled={isPending}
             >
-              <BellOff className="mr-1 size-3" />
+              <VolumeX className="mr-1 size-3" />
               Mute
             </Button>
             <Button
@@ -249,36 +303,27 @@ export function IssuesList({
                     className="block group-hover:text-primary transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      {issue.is_resolved && (
-                        <Check className="size-4 text-primary shrink-0" />
-                      )}
-                      {issue.is_muted && (
-                        <BellOff className="size-4 text-muted-foreground shrink-0" />
+                      {issue.is_bookmarked && (
+                        <Bookmark className="size-4 text-primary shrink-0 fill-current" />
                       )}
                       <span className="font-semibold truncate">
                         {issue.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      {issue.platform && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {issue.platform}
-                        </Badge>
-                      )}
-                      {issue.level && (
-                        <Badge
-                          variant={
-                            issue.level === 'error'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                          className="text-[10px]"
-                        >
-                          {issue.level}
-                        </Badge>
-                      )}
-                      <span className="font-mono">{issue.short_id}</span>
-                      <span className="sm:hidden text-muted-foreground/70">
+                    {issue.culprit && (
+                      <p className="text-xs text-muted-foreground/70 font-mono truncate mb-1.5">
+                        {issue.culprit}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                      <StatusIndicator issue={issue} />
+                      <PriorityIndicator priority={issue.priority} />
+                      <LevelBadge level={issue.level} />
+                      {issue.platform && <span>{issue.platform}</span>}
+                      <span className="font-mono text-muted-foreground/70">
+                        {issue.short_id}
+                      </span>
+                      <span className="sm:hidden">
                         {formatDistanceToNow(new Date(issue.last_seen), {
                           addSuffix: true,
                         })}
@@ -336,7 +381,7 @@ export function IssuesList({
                           handleBatchAction('mute', new Set([issue.id]))
                         }
                       >
-                        <BellOff className="mr-2 size-4" />
+                        <VolumeX className="mr-2 size-4" />
                         Mute
                       </DropdownMenuItem>
                     )}
@@ -346,7 +391,7 @@ export function IssuesList({
                           handleBatchAction('unmute', new Set([issue.id]))
                         }
                       >
-                        <Bell className="mr-2 size-4" />
+                        <Volume2 className="mr-2 size-4" />
                         Unmute
                       </DropdownMenuItem>
                     )}

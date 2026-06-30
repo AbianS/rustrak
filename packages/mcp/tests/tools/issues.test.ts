@@ -14,6 +14,20 @@ describe('issue tools', () => {
         get: vi.fn(),
         updateState: vi.fn(),
         delete: vi.fn(),
+        bulkUpdate: vi.fn(),
+        bulkDelete: vi.fn(),
+        getHashes: vi.fn(),
+        getTagValues: vi.fn(),
+        getAggregates: vi.fn(),
+        getStats: vi.fn(),
+        getActivity: vi.fn(),
+        addComment: vi.fn(),
+        setBookmark: vi.fn(),
+        setSubscription: vi.fn(),
+        markSeen: vi.fn(),
+        listUserReports: vi.fn(),
+        createUserReport: vi.fn(),
+        createDeploy: vi.fn(),
       },
       projects: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
       events: { list: vi.fn(), get: vi.fn() },
@@ -122,6 +136,249 @@ describe('issue tools', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0]?.text).toMatch(/60/);
+    });
+
+    it('forwards the q search parameter', async () => {
+      mockClient.issues.list.mockResolvedValue({ items: [], total_count: 0 });
+      await callTool({
+        name: 'list_issues',
+        arguments: { project_id: 1, q: 'TypeError' },
+      });
+      expect(mockClient.issues.list).toHaveBeenCalledWith(1, {
+        page: undefined,
+        per_page: undefined,
+        filter: undefined,
+        q: 'TypeError',
+      });
+    });
+  });
+
+  describe('issue status & assignment (#165)', () => {
+    it('update_issue_status sets canonical status + priority', async () => {
+      mockClient.issues.updateState.mockResolvedValue({ status: 'resolved' });
+      const result = await callTool({
+        name: 'update_issue_status',
+        arguments: {
+          project_id: 1,
+          issue_id: 'abc',
+          status: 'resolved',
+          priority: 'high',
+        },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockClient.issues.updateState).toHaveBeenCalledWith(1, 'abc', {
+        status: 'resolved',
+        priority: 'high',
+      });
+    });
+
+    it('update_issue_status supports resolvedInNextRelease', async () => {
+      mockClient.issues.updateState.mockResolvedValue({ status: 'resolved' });
+      await callTool({
+        name: 'update_issue_status',
+        arguments: {
+          project_id: 1,
+          issue_id: 'abc',
+          status: 'resolvedInNextRelease',
+        },
+      });
+      expect(mockClient.issues.updateState).toHaveBeenCalledWith(1, 'abc', {
+        status: 'resolvedInNextRelease',
+        priority: undefined,
+      });
+    });
+
+    it('assign_issue assigns to a user', async () => {
+      mockClient.issues.updateState.mockResolvedValue({ assigned_to: 7 });
+      await callTool({
+        name: 'assign_issue',
+        arguments: { project_id: 1, issue_id: 'abc', assigned_to: 7 },
+      });
+      expect(mockClient.issues.updateState).toHaveBeenCalledWith(1, 'abc', {
+        assigned_to: 7,
+        assignee_type: undefined,
+      });
+    });
+  });
+
+  describe('bulk operations & deploys (#165)', () => {
+    it('bulk_update_issues forwards ids + status', async () => {
+      mockClient.issues.bulkUpdate.mockResolvedValue({ updated: 2 });
+      const result = await callTool({
+        name: 'bulk_update_issues',
+        arguments: { project_id: 1, ids: ['a', 'b'], status: 'resolved' },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockClient.issues.bulkUpdate).toHaveBeenCalledWith(1, {
+        ids: ['a', 'b'],
+        status: 'resolved',
+        priority: undefined,
+      });
+    });
+
+    it('bulk_delete_issues forwards ids', async () => {
+      mockClient.issues.bulkDelete.mockResolvedValue({ deleted: 2 });
+      await callTool({
+        name: 'bulk_delete_issues',
+        arguments: { project_id: 1, ids: ['a', 'b'] },
+      });
+      expect(mockClient.issues.bulkDelete).toHaveBeenCalledWith(1, {
+        ids: ['a', 'b'],
+      });
+    });
+
+    it('record_deploy forwards version', async () => {
+      mockClient.issues.createDeploy.mockResolvedValue({
+        version: 'v2',
+        finalized: 1,
+      });
+      await callTool({
+        name: 'record_deploy',
+        arguments: { project_id: 1, version: 'v2' },
+      });
+      expect(mockClient.issues.createDeploy).toHaveBeenCalledWith(1, {
+        version: 'v2',
+      });
+    });
+  });
+
+  describe('read sub-resources (#165)', () => {
+    it('get_issue_hashes', async () => {
+      mockClient.issues.getHashes.mockResolvedValue([{ id: 1 }]);
+      const result = await callTool({
+        name: 'get_issue_hashes',
+        arguments: { project_id: 1, issue_id: 'abc' },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(mockClient.issues.getHashes).toHaveBeenCalledWith(1, 'abc');
+    });
+
+    it('get_issue_tag_values forwards key', async () => {
+      mockClient.issues.getTagValues.mockResolvedValue({
+        key: 'browser',
+        values: [],
+      });
+      await callTool({
+        name: 'get_issue_tag_values',
+        arguments: { project_id: 1, issue_id: 'abc', key: 'browser' },
+      });
+      expect(mockClient.issues.getTagValues).toHaveBeenCalledWith(
+        1,
+        'abc',
+        'browser',
+      );
+    });
+
+    it('get_issue_aggregates', async () => {
+      mockClient.issues.getAggregates.mockResolvedValue({
+        user_count: 2,
+        tags: [],
+      });
+      await callTool({
+        name: 'get_issue_aggregates',
+        arguments: { project_id: 1, issue_id: 'abc' },
+      });
+      expect(mockClient.issues.getAggregates).toHaveBeenCalledWith(1, 'abc');
+    });
+
+    it('get_issue_stats forwards window', async () => {
+      mockClient.issues.getStats.mockResolvedValue({ data: [] });
+      await callTool({
+        name: 'get_issue_stats',
+        arguments: { project_id: 1, issue_id: 'abc', window: '30d' },
+      });
+      expect(mockClient.issues.getStats).toHaveBeenCalledWith(1, 'abc', '30d');
+    });
+
+    it('get_issue_activity', async () => {
+      mockClient.issues.getActivity.mockResolvedValue([]);
+      await callTool({
+        name: 'get_issue_activity',
+        arguments: { project_id: 1, issue_id: 'abc' },
+      });
+      expect(mockClient.issues.getActivity).toHaveBeenCalledWith(1, 'abc');
+    });
+  });
+
+  describe('social tools (#165)', () => {
+    it('comment_on_issue', async () => {
+      mockClient.issues.addComment.mockResolvedValue({ type: 'note' });
+      await callTool({
+        name: 'comment_on_issue',
+        arguments: { project_id: 1, issue_id: 'abc', text: 'hi' },
+      });
+      expect(mockClient.issues.addComment).toHaveBeenCalledWith(1, 'abc', {
+        text: 'hi',
+      });
+    });
+
+    it('bookmark_issue', async () => {
+      mockClient.issues.setBookmark.mockResolvedValue({ is_bookmarked: true });
+      await callTool({
+        name: 'bookmark_issue',
+        arguments: { project_id: 1, issue_id: 'abc', enabled: true },
+      });
+      expect(mockClient.issues.setBookmark).toHaveBeenCalledWith(
+        1,
+        'abc',
+        true,
+      );
+    });
+
+    it('subscribe_issue', async () => {
+      mockClient.issues.setSubscription.mockResolvedValue({
+        is_subscribed: false,
+      });
+      await callTool({
+        name: 'subscribe_issue',
+        arguments: { project_id: 1, issue_id: 'abc', enabled: false },
+      });
+      expect(mockClient.issues.setSubscription).toHaveBeenCalledWith(
+        1,
+        'abc',
+        false,
+      );
+    });
+
+    it('mark_issue_seen', async () => {
+      mockClient.issues.markSeen.mockResolvedValue({ has_seen: true });
+      await callTool({
+        name: 'mark_issue_seen',
+        arguments: { project_id: 1, issue_id: 'abc' },
+      });
+      expect(mockClient.issues.markSeen).toHaveBeenCalledWith(1, 'abc');
+    });
+
+    it('list_user_reports', async () => {
+      mockClient.issues.listUserReports.mockResolvedValue([]);
+      await callTool({
+        name: 'list_user_reports',
+        arguments: { project_id: 1, issue_id: 'abc' },
+      });
+      expect(mockClient.issues.listUserReports).toHaveBeenCalledWith(1, 'abc');
+    });
+
+    it('submit_user_report', async () => {
+      mockClient.issues.createUserReport.mockResolvedValue({ id: 'r1' });
+      await callTool({
+        name: 'submit_user_report',
+        arguments: {
+          project_id: 1,
+          issue_id: 'abc',
+          name: 'Jane',
+          comments: 'broke',
+        },
+      });
+      expect(mockClient.issues.createUserReport).toHaveBeenCalledWith(
+        1,
+        'abc',
+        {
+          name: 'Jane',
+          email: undefined,
+          comments: 'broke',
+          event_id: undefined,
+        },
+      );
     });
   });
 });

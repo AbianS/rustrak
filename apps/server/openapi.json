@@ -1571,6 +1571,64 @@
         ]
       }
     },
+    "/api/projects/{project_id}/deploys": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "POST /api/projects/{project_id}/deploys — record a release deploy, which\nfinalizes issues that were \"resolved in the next release\".",
+        "operationId": "create_deploy",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeployRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Issues finalized by the deploy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeployResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/issues": {
       "get": {
         "tags": [
@@ -1840,6 +1898,118 @@
             "bearer_auth": []
           }
         ]
+      },
+      "put": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "PUT /api/projects/{project_id}/issues  (bulk mutate)",
+        "operationId": "bulk_update_issues",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateIssues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Number of issues updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "DELETE /api/projects/{project_id}/issues  (bulk delete)",
+        "operationId": "bulk_delete_issues",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteIssues"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Number of issues deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDeleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
       }
     },
     "/api/projects/{project_id}/issues/{issue_id}": {
@@ -2023,6 +2193,261 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/activity": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /{issue_id}/activity — chronological activity log (incl. comments).",
+        "operationId": "get_issue_activity",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity log (status changes, comments, …)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityEntry"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/aggregates": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /api/projects/{project_id}/issues/{issue_id}/aggregates\nReturns the unique user count and top tags for the issue.",
+        "operationId": "get_issue_aggregates",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Unique user count and top tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueAggregates"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/bookmark": {
+      "put": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "PUT /{issue_id}/bookmark — set/clear the per-user bookmark.",
+        "operationId": "set_issue_bookmark",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated bookmark state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookmarkResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/comments": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "POST /{issue_id}/comments — add a note.",
+        "operationId": "create_issue_comment",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Comment added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityEntry"
                 }
               }
             }
@@ -2263,6 +2688,454 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/hashes": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /api/projects/{project_id}/issues/{issue_id}/hashes\nLists the grouping hashes that map to an issue.",
+        "operationId": "get_issue_hashes",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Grouping hashes mapped to the issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Grouping"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/seen": {
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "POST /{issue_id}/seen — mark the issue as seen by the current user.",
+        "operationId": "mark_issue_seen",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Issue marked as seen",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeenResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/stats": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /{issue_id}/stats?window=24h|30d — zero-filled event-count timeseries.",
+        "operationId": "get_issue_stats",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "window",
+            "in": "query",
+            "description": "Time window: 24h (default) or 30d",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zero-filled event-count timeseries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueStatsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/subscription": {
+      "put": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "PUT /{issue_id}/subscription — set/clear the per-user subscription.",
+        "operationId": "set_issue_subscription",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToggleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated subscription state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/tags/{key}": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /api/projects/{project_id}/issues/{issue_id}/tags/{key}\nLists the distinct values (with counts) for a tag key across the issue.",
+        "operationId": "get_issue_tag_values",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Tag key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Distinct values for the tag key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagValuesResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/issues/{issue_id}/user-reports": {
+      "get": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "GET /{issue_id}/user-reports — list user feedback for an issue.",
+        "operationId": "list_issue_user_reports",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User feedback reports for the issue",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserReport"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Issues"
+        ],
+        "summary": "POST /{issue_id}/user-reports — attach user feedback to an issue.",
+        "operationId": "create_issue_user_report",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "issue_id",
+            "in": "path",
+            "description": "Issue ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "User feedback attached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserReport"
                 }
               }
             }
@@ -4489,6 +5362,44 @@
           }
         }
       },
+      "ActivityEntry": {
+        "type": "object",
+        "description": "An entry in an issue's activity log. Comments are stored as activity rows of\ntype `note` with `{\"text\": ...}` in `data` (Sentry models notes as activity).",
+        "required": [
+          "id",
+          "issue_id",
+          "type",
+          "data",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "data": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issue_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
       "AlertHistory": {
         "type": "object",
         "description": "Alert delivery history record (audit log and retry queue)",
@@ -4880,6 +5791,85 @@
           }
         }
       },
+      "BookmarkResponse": {
+        "type": "object",
+        "required": [
+          "is_bookmarked"
+        ],
+        "properties": {
+          "is_bookmarked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BulkDeleteIssues": {
+        "type": "object",
+        "description": "Bulk delete request: remove many issues by id.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "BulkDeleteResponse": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "BulkUpdateIssues": {
+        "type": "object",
+        "description": "Bulk mutate request: apply a status (and/or priority) to many issues.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "BulkUpdateResponse": {
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "ChunkUploadBody": {
         "type": "object",
         "description": "Multipart chunk upload.\nEach part's **field name** may be the SHA-1 hex digest of that part's binary content\n(sentry-cli v2 protocol, e.g. `da39a3ee5e6b4b0d3255bfef95601890afd80709`) or an arbitrary\nname like `file` (sentry-cli v3.x). Up to 64 parts per request; each part body is raw binary."
@@ -4947,6 +5937,18 @@
               "null"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "CommentRequest": {
+        "type": "object",
+        "description": "Body for creating an issue comment (note).",
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
           }
         }
       },
@@ -5059,6 +6061,34 @@
             "type": "string"
           },
           "password": {
+            "type": "string"
+          }
+        }
+      },
+      "DeployRequest": {
+        "type": "object",
+        "description": "Body for recording a deploy.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          }
+        }
+      },
+      "DeployResponse": {
+        "type": "object",
+        "required": [
+          "version",
+          "finalized"
+        ],
+        "properties": {
+          "finalized": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "version": {
             "type": "string"
           }
         }
@@ -5219,6 +6249,42 @@
           }
         }
       },
+      "Grouping": {
+        "type": "object",
+        "description": "Grouping model - maps a grouping key to an issue",
+        "required": [
+          "id",
+          "project_id",
+          "issue_id",
+          "grouping_key",
+          "grouping_key_hash",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "grouping_key": {
+            "type": "string"
+          },
+          "grouping_key_hash": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "issue_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "InvitationInfoResponse": {
         "type": "object",
         "description": "Public-facing invitation info for the accept page.",
@@ -5275,6 +6341,26 @@
           },
           "token": {
             "type": "string"
+          }
+        }
+      },
+      "IssueAggregates": {
+        "type": "object",
+        "description": "Per-issue aggregates computed from recent events (capped scan).",
+        "required": [
+          "user_count",
+          "tags"
+        ],
+        "properties": {
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagSummary"
+            }
+          },
+          "user_count": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },
@@ -5397,6 +6483,25 @@
           },
           "value": {
             "type": "string"
+          }
+        }
+      },
+      "IssueStatsResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "int64"
+              }
+            },
+            "description": "Each point is `[bucketStartUnix, count]`."
           }
         }
       },
@@ -5694,6 +6799,17 @@
           }
         }
       },
+      "SeenResponse": {
+        "type": "object",
+        "required": [
+          "has_seen"
+        ],
+        "properties": {
+          "has_seen": {
+            "type": "boolean"
+          }
+        }
+      },
       "SourceMapGcResult": {
         "type": "object",
         "description": "Outcome of a source-map garbage collection: orphaned `source_file` rows\n(no `source_file_metadata` referencing them) removed from the DB and unlinked\nfrom disk. `bytes_freed` is the exact summed `size` of the removed files.",
@@ -5872,6 +6988,76 @@
           }
         }
       },
+      "SubscriptionResponse": {
+        "type": "object",
+        "required": [
+          "is_subscribed"
+        ],
+        "properties": {
+          "is_subscribed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TagSummary": {
+        "type": "object",
+        "description": "A tag key with its most common values within an issue.",
+        "required": [
+          "key",
+          "total_values",
+          "top_values"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "top_values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagValueCount"
+            }
+          },
+          "total_values": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "TagValueCount": {
+        "type": "object",
+        "description": "A tag value with its event count within an issue.",
+        "required": [
+          "value",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "TagValuesResponse": {
+        "type": "object",
+        "required": [
+          "key",
+          "values"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagValueCount"
+            }
+          }
+        }
+      },
       "TeamMemberResponse": {
         "type": "object",
         "description": "A user as exposed on the team roster.",
@@ -5919,6 +7105,18 @@
         "description": "Request body for the test-integration endpoint.",
         "properties": {
           "routing_override": {}
+        }
+      },
+      "ToggleRequest": {
+        "type": "object",
+        "description": "Body for toggling a per-user flag (bookmark/subscription).",
+        "properties": {
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
         }
       },
       "TransactionDetailResponse": {
@@ -6238,6 +7436,86 @@
           "user_id": {
             "type": "integer",
             "format": "int32"
+          }
+        }
+      },
+      "UserReport": {
+        "type": "object",
+        "description": "A user feedback report attached to a project/issue/event.",
+        "required": [
+          "id",
+          "project_id",
+          "name",
+          "email",
+          "comments",
+          "created_at"
+        ],
+        "properties": {
+          "comments": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "email": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issue_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "UserReportRequest": {
+        "type": "object",
+        "description": "Body for submitting user feedback on an issue.",
+        "properties": {
+          "comments": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

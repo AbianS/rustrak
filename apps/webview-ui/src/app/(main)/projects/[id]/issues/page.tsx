@@ -11,7 +11,7 @@ import { IssuesList } from './issues-list';
 
 interface IssuesPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ filter?: string; page?: string }>;
+  searchParams: Promise<{ filter?: string; page?: string; q?: string }>;
 }
 
 export async function generateMetadata({
@@ -35,7 +35,7 @@ export default async function IssuesPage({
   searchParams,
 }: IssuesPageProps) {
   const { id } = await params;
-  const { filter = 'open', page = '1' } = await searchParams;
+  const { filter = 'open', page = '1', q = '' } = await searchParams;
   const projectId = parseInt(id, 10);
   const currentPage = parseInt(page, 10) || 1;
 
@@ -59,6 +59,7 @@ export default async function IssuesPage({
       per_page: 20,
       sort: 'last_seen',
       order: 'desc',
+      ...(q ? { q } : {}),
     }),
     listAlertRules(projectId).catch(() => []),
     listIntegrations().catch(() => []),
@@ -93,6 +94,7 @@ export default async function IssuesPage({
           initialIssues={issuesResponse}
           currentFilter={filter}
           currentPage={currentPage}
+          currentQuery={q}
         />
       </div>
     </div>

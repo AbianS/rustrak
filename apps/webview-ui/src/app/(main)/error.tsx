@@ -43,7 +43,11 @@ export default function MainError({ error, reset }: ErrorProps) {
             <RefreshCw className="mr-2 size-4" />
             Try again
           </Button>
-          <Button variant="outline" render={<Link href="/projects" />}>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/projects" />}
+          >
             <Home className="mr-2 size-4" />
             Go to Projects
           </Button>

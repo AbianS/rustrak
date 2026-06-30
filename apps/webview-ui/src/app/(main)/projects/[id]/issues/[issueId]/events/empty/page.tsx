@@ -53,6 +53,7 @@ export default async function EmptyEventsPage({
         <Button
           variant="ghost"
           size="sm"
+          nativeButton={false}
           render={<Link href={`/projects/${projectId}`} />}
         >
           <ChevronLeft className="mr-1 size-4" />
