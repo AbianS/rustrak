@@ -113,7 +113,7 @@ export default async function TransactionDetailPage({
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header */}
-      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
+      <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <Link
           href={`/projects/${projectId}/performance`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
@@ -150,7 +150,7 @@ export default async function TransactionDetailPage({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 space-y-6">
+      <div className="flex-1 overflow-auto w-full px-4 md:px-8 py-4 md:py-6 space-y-6">
         {measurements && <MeasurementsCard measurements={measurements} />}
 
         <section className="rounded-lg border">

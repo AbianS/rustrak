@@ -10,11 +10,9 @@ import {
   ChevronRight,
   Loader2,
   MoreVertical,
-  Search,
   Trash2,
   Volume2,
   VolumeX,
-  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -44,7 +42,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface IssuesListProps {
@@ -52,7 +49,6 @@ interface IssuesListProps {
   initialIssues: OffsetPaginatedResponse<Issue>;
   currentFilter: string;
   currentPage: number;
-  currentQuery: string;
 }
 
 const FILTERS = [
@@ -67,7 +63,6 @@ export function IssuesList({
   initialIssues,
   currentFilter,
   currentPage,
-  currentQuery,
 }: IssuesListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -75,18 +70,13 @@ export function IssuesList({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [issueToDelete, setIssueToDelete] = useState<Issue | null>(null);
   const [isBatchDelete, setIsBatchDelete] = useState(false);
-  const [searchInput, setSearchInput] = useState(currentQuery);
 
   const { items: issues, total_count, total_pages, per_page } = initialIssues;
 
-  const buildUrl = (params: { filter?: string; page?: number; q?: string }) => {
+  const buildUrl = (params: { filter?: string; page?: number }) => {
     const search = new URLSearchParams();
     search.set('filter', params.filter ?? currentFilter);
     search.set('page', String(params.page ?? 1));
-    const query = params.q ?? currentQuery;
-    if (query) {
-      search.set('q', query);
-    }
     return `/projects/${projectId}/issues?${search.toString()}`;
   };
 
@@ -96,16 +86,6 @@ export function IssuesList({
 
   const handlePageChange = (page: number) => {
     router.push(buildUrl({ page }));
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push(buildUrl({ page: 1, q: searchInput.trim() }));
-  };
-
-  const handleSearchClear = () => {
-    setSearchInput('');
-    router.push(buildUrl({ page: 1, q: '' }));
   };
 
   const toggleSelectAll = () => {
@@ -193,30 +173,6 @@ export function IssuesList({
               ))}
             </TabsList>
           </Tabs>
-
-          <form
-            onSubmit={handleSearchSubmit}
-            className="relative w-full sm:w-72"
-          >
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              type="search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search issues..."
-              className="pl-9 pr-9"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={handleSearchClear}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="size-4" />
-              </button>
-            )}
-          </form>
         </div>
 
         {selectedIds.size > 0 && (
@@ -280,16 +236,16 @@ export function IssuesList({
             <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16">
               Trend
             </span>
-            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16 text-right">
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
               Age
             </span>
             <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
               Events
             </span>
-            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16 text-right">
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-20 text-right">
               Users
             </span>
-            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
+            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-36 text-right">
               Last Seen
             </span>
             <span className="w-8" />
@@ -346,26 +302,26 @@ export function IssuesList({
                   <IssueTrendSparkline trend={issue.trend ?? []} />
                 </div>
 
-                <div className="hidden lg:block w-16 text-right">
-                  <span className="text-sm text-muted-foreground">
+                <div className="hidden lg:block w-24 text-right">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(issue.first_seen))}
                   </span>
                 </div>
 
                 <div className="hidden sm:block w-24 text-right">
-                  <span className="font-mono text-sm">
+                  <span className="font-mono text-sm whitespace-nowrap">
                     {issue.event_count.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="hidden lg:block w-16 text-right">
-                  <span className="font-mono text-sm">
+                <div className="hidden lg:block w-20 text-right">
+                  <span className="font-mono text-sm whitespace-nowrap">
                     {(issue.user_count ?? 0).toLocaleString()}
                   </span>
                 </div>
 
-                <div className="hidden sm:block w-32 text-right">
-                  <span className="text-sm text-muted-foreground">
+                <div className="hidden sm:block w-36 text-right">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(issue.last_seen), {
                       addSuffix: true,
                     })}

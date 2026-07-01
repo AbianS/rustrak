@@ -10,7 +10,7 @@ export default function EventLoading() {
     <div className="flex flex-col h-[calc(100vh-64px)] bg-background">
       {/* Header band */}
       <header className="shrink-0 bg-card border-b">
-        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-3 space-y-2">
+        <div className="w-full px-4 md:px-8 py-3 space-y-2">
           <Skeleton className="h-3 w-40" />
           <div className="flex items-start justify-between gap-6">
             <Skeleton className="h-6 w-64 max-w-[60%]" />
@@ -31,7 +31,7 @@ export default function EventLoading() {
 
         {/* Toolbar band */}
         <div className="border-t">
-          <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-2 flex items-center justify-between gap-2">
+          <div className="w-full px-4 md:px-8 py-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Skeleton className="h-8 w-24" />
               <Skeleton className="h-8 w-24" />
@@ -45,7 +45,7 @@ export default function EventLoading() {
       {/* Body */}
       <div className="flex-1 min-h-0 flex">
         <main className="flex-1 min-w-0 overflow-hidden">
-          <div className="max-w-[1100px] w-full mx-auto px-4 md:px-8 py-5 space-y-5">
+          <div className="w-full px-4 md:px-8 py-5 space-y-5">
             {/* Trends */}
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
               <div className="rounded-lg border bg-card p-4 flex gap-5">
