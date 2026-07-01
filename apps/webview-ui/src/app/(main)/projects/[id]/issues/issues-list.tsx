@@ -21,6 +21,11 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { deleteIssue, updateIssueState } from '@/actions/issues';
 import {
+  LevelBadge,
+  PriorityIndicator,
+  StatusIndicator,
+} from '@/components/issue-indicators';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -30,11 +35,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  LevelBadge,
-  PriorityIndicator,
-  StatusIndicator,
-} from '@/components/issue-indicators';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -205,7 +205,7 @@ export function IssuesList({
               placeholder="Search issues..."
               className="pl-9 pr-9"
             />
-            {currentQuery && (
+            {searchInput && (
               <button
                 type="button"
                 onClick={handleSearchClear}

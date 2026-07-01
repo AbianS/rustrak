@@ -313,8 +313,8 @@ describe('IssuesResource Integration', () => {
         1,
         '323e4567-e89b-12d3-a456-426614174000',
       );
-      // mock PATCH echoes the body's status field back as the canonical status
-      expect(issue.status).toBeDefined();
+      // mock PATCH maps resolvedInNextRelease to the canonical 'resolved' status
+      expect(issue.status).toBe('resolved');
     });
   });
 });

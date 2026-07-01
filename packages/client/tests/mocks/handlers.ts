@@ -524,6 +524,8 @@ export const handlers = [
         status = 'unresolved';
       } else if (body.is_muted === true) {
         status = 'ignored';
+      } else if (body.is_muted === false && status === 'ignored') {
+        status = 'unresolved';
       }
 
       const updated = {

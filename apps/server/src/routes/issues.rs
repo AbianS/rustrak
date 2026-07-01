@@ -9,7 +9,7 @@ use crate::models::IssueResponse;
 use crate::models::{BulkDeleteIssues, BulkUpdateIssues, UpdateIssueState};
 use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
 use crate::services::access::{self, Action};
-use crate::services::{IssueService, IssueSocialService, ProjectService};
+use crate::services::{EventService, IssueService, IssueSocialService, ProjectService};
 use serde::Deserialize;
 use serde_json::json;
 
@@ -153,20 +153,19 @@ pub async fn get_issue(
     }
 
     // Enrich with per-user and aggregate fields.
-    let mut body = serde_json::to_value(issue.to_response(&project.slug))
-        .unwrap_or_else(|_| json!({}));
-    body["user_report_count"] =
-        json!(IssueSocialService::user_report_count(pool.get_ref(), issue_id).await?);
+    let mut response = issue.to_response(&project.slug);
+    response.user_report_count =
+        Some(IssueSocialService::user_report_count(pool.get_ref(), issue_id).await?);
     if let Some(user_id) = actor.user_id() {
-        body["is_bookmarked"] =
-            json!(IssueSocialService::is_bookmarked(pool.get_ref(), issue_id, user_id).await?);
-        body["is_subscribed"] =
-            json!(IssueSocialService::is_subscribed(pool.get_ref(), issue_id, user_id).await?);
-        body["has_seen"] =
-            json!(IssueSocialService::has_seen(pool.get_ref(), issue_id, user_id).await?);
+        response.is_bookmarked =
+            Some(IssueSocialService::is_bookmarked(pool.get_ref(), issue_id, user_id).await?);
+        response.is_subscribed =
+            Some(IssueSocialService::is_subscribed(pool.get_ref(), issue_id, user_id).await?);
+        response.has_seen =
+            Some(IssueSocialService::has_seen(pool.get_ref(), issue_id, user_id).await?);
     }
 
-    Ok(HttpResponse::Ok().json(body))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -227,15 +226,11 @@ pub async fn update_issue(
             "resolvedInNextRelease",
         )
         .await?;
-    } else if let Some(status) = body.resolved_status() {
-        updated = IssueService::set_status(pool.get_ref(), issue_id, status).await?;
-        IssueSocialService::record_status_change(
-            pool.get_ref(),
-            issue_id,
-            actor.user_id(),
-            status,
-        )
-        .await?;
+    } else if let Some(status) = body.resolved_status()? {
+        let substatus = body.validated_substatus()?;
+        updated = IssueService::set_status(pool.get_ref(), issue_id, status, substatus).await?;
+        IssueSocialService::record_status_change(pool.get_ref(), issue_id, actor.user_id(), status)
+            .await?;
     }
     if let Some(priority) = body.priority.as_deref() {
         updated = IssueService::set_priority(pool.get_ref(), issue_id, priority).await?;
@@ -244,8 +239,8 @@ pub async fn update_issue(
         updated = IssueService::assign(
             pool.get_ref(),
             issue_id,
-            body.assigned_to,
-            body.assignee_type.as_deref(),
+            body.assigned_to.flatten(),
+            body.assignee_type.as_ref().and_then(|t| t.as_deref()),
         )
         .await?;
     }
@@ -449,7 +444,12 @@ pub async fn bulk_update_issues(
 
     let mut updated = 0u64;
     if let Some(status) = body.status.as_deref() {
-        updated = IssueService::bulk_set_status(pool.get_ref(), project_id, &body.ids, status).await?;
+        updated = if status == "resolvedInNextRelease" {
+            IssueService::bulk_resolve_in_next_release(pool.get_ref(), project_id, &body.ids)
+                .await?
+        } else {
+            IssueService::bulk_set_status(pool.get_ref(), project_id, &body.ids, status).await?
+        };
     }
     if let Some(priority) = body.priority.as_deref() {
         for id in &body.ids {
@@ -458,6 +458,9 @@ pub async fn bulk_update_issues(
             if let Ok(issue) = issue {
                 if issue.project_id == project_id {
                     IssueService::set_priority(pool.get_ref(), *id, priority).await?;
+                    if body.status.is_none() {
+                        updated += 1;
+                    }
                 }
             }
         }
@@ -527,18 +530,21 @@ pub async fn create_deploy(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::MutateIssue).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::MutateIssue,
+    )
+    .await?;
     let finalized =
         IssueService::finalize_release(pool.get_ref(), project_id, &body.version).await?;
     Ok(HttpResponse::Ok().json(json!({ "version": body.version, "finalized": finalized })))
 }
 
 /// Loads an issue and verifies it belongs to the project (helper for sub-routes).
-async fn require_issue_in_project(
-    pool: &DbPool,
-    project_id: i32,
-    issue_id: Uuid,
-) -> AppResult<()> {
+async fn require_issue_in_project(pool: &DbPool, project_id: i32, issue_id: Uuid) -> AppResult<()> {
     let issue = IssueService::get_by_id(pool, issue_id).await?;
     if issue.project_id != project_id {
         return Err(AppError::NotFound(format!("Issue {} not found", issue_id)));
@@ -575,7 +581,14 @@ pub async fn get_issue_stats(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
 
     // window=24h → 24 hourly buckets; window=30d → 30 daily buckets.
@@ -612,7 +625,14 @@ pub async fn get_issue_activity(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let activity = IssueSocialService::list_activity(pool.get_ref(), issue_id).await?;
     Ok(HttpResponse::Ok().json(activity))
@@ -641,7 +661,14 @@ pub async fn create_issue_comment(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::MutateIssue).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::MutateIssue,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let entry =
         IssueSocialService::add_comment(pool.get_ref(), issue_id, actor.user_id(), &body.text)
@@ -672,7 +699,14 @@ pub async fn set_issue_bookmark(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let user_id = require_user(&actor)?;
     let enabled = body.enabled.unwrap_or(true);
@@ -703,7 +737,14 @@ pub async fn set_issue_subscription(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let user_id = require_user(&actor)?;
     let enabled = body.enabled.unwrap_or(true);
@@ -733,7 +774,14 @@ pub async fn mark_issue_seen(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let user_id = require_user(&actor)?;
     IssueSocialService::mark_seen(pool.get_ref(), issue_id, user_id).await?;
@@ -761,7 +809,14 @@ pub async fn list_issue_user_reports(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::ViewProject).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
     let reports = IssueSocialService::list_user_reports(pool.get_ref(), issue_id).await?;
     Ok(HttpResponse::Ok().json(reports))
@@ -790,8 +845,28 @@ pub async fn create_issue_user_report(
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let (project_id, issue_id) = path.into_inner();
-    access::require(pool.get_ref(), actor.is_admin(), actor.user_id(), project_id, Action::MutateIssue).await?;
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::MutateIssue,
+    )
+    .await?;
     require_issue_in_project(pool.get_ref(), project_id, issue_id).await?;
+
+    // If an event_id is supplied, verify it actually belongs to this issue so
+    // the report can't be linked to an event from another issue/project.
+    if let Some(event_id) = body.event_id {
+        let event = EventService::get_by_id(pool.get_ref(), event_id).await?;
+        if event.issue_id != Some(issue_id) {
+            return Err(AppError::Validation(format!(
+                "Event {} does not belong to issue {}",
+                event_id, issue_id
+            )));
+        }
+    }
+
     let report = IssueSocialService::create_user_report(
         pool.get_ref(),
         project_id,
@@ -907,16 +982,31 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("", web::put().to(bulk_update_issues))
             .route("", web::delete().to(bulk_delete_issues))
             .route("/{issue_id}/hashes", web::get().to(get_issue_hashes))
-            .route("/{issue_id}/aggregates", web::get().to(get_issue_aggregates))
-            .route("/{issue_id}/tags/{key}", web::get().to(get_issue_tag_values))
+            .route(
+                "/{issue_id}/aggregates",
+                web::get().to(get_issue_aggregates),
+            )
+            .route(
+                "/{issue_id}/tags/{key}",
+                web::get().to(get_issue_tag_values),
+            )
             .route("/{issue_id}/stats", web::get().to(get_issue_stats))
             .route("/{issue_id}/activity", web::get().to(get_issue_activity))
             .route("/{issue_id}/comments", web::post().to(create_issue_comment))
             .route("/{issue_id}/bookmark", web::put().to(set_issue_bookmark))
-            .route("/{issue_id}/subscription", web::put().to(set_issue_subscription))
+            .route(
+                "/{issue_id}/subscription",
+                web::put().to(set_issue_subscription),
+            )
             .route("/{issue_id}/seen", web::post().to(mark_issue_seen))
-            .route("/{issue_id}/user-reports", web::get().to(list_issue_user_reports))
-            .route("/{issue_id}/user-reports", web::post().to(create_issue_user_report))
+            .route(
+                "/{issue_id}/user-reports",
+                web::get().to(list_issue_user_reports),
+            )
+            .route(
+                "/{issue_id}/user-reports",
+                web::post().to(create_issue_user_report),
+            )
             .route("/{issue_id}", web::get().to(get_issue))
             .route("/{issue_id}", web::patch().to(update_issue))
             .route("/{issue_id}", web::put().to(update_issue))

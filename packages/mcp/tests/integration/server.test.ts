@@ -148,6 +148,7 @@ describe('MCP server integration', () => {
   });
 
   it.each([
+    'bulk_delete_issues',
     'remove_team_member',
     'revoke_invitation',
     'remove_project_member',

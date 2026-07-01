@@ -2,7 +2,9 @@ import type { TagSummary } from '@rustrak/client';
 
 /**
  * Sentry-style tag distribution: one row per tag key showing the most common
- * value with a proportional bar and its share of sampled values.
+ * value with a proportional bar. The percentage is the top value's share
+ * among the top values returned (`top_values` is capped server-side), not
+ * a share of all occurrences of the tag.
  */
 export function TagDistribution({ tags }: { tags: TagSummary[] }) {
   return (
@@ -23,7 +25,10 @@ export function TagDistribution({ tags }: { tags: TagSummary[] }) {
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <span className="w-9 shrink-0 text-right tabular-nums text-muted-foreground">
+            <span
+              className="w-9 shrink-0 text-right tabular-nums text-muted-foreground"
+              title="Share of the top values shown, not of all occurrences"
+            >
               {pct}%
             </span>
             <span className="w-24 shrink-0 truncate font-mono text-muted-foreground">

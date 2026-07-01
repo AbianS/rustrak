@@ -94,17 +94,18 @@ impl ErrorProcessor {
         let denormalized = get_denormalized_fields(&event_data);
 
         // 6. Find or create Grouping/Issue (within a transaction with advisory lock)
-        let (issue, grouping, issue_created, regressed) = find_or_create_issue_and_grouping_with_lock(
-            pool,
-            metadata.project_id,
-            &grouping_key,
-            &grouping_key_hash,
-            metadata.ingested_at,
-            &denormalized,
-            event_data.get("level").and_then(|l| l.as_str()),
-            event_data.get("platform").and_then(|p| p.as_str()),
-        )
-        .await?;
+        let (issue, grouping, issue_created, regressed) =
+            find_or_create_issue_and_grouping_with_lock(
+                pool,
+                metadata.project_id,
+                &grouping_key,
+                &grouping_key_hash,
+                metadata.ingested_at,
+                &denormalized,
+                event_data.get("level").and_then(|l| l.as_str()),
+                event_data.get("platform").and_then(|p| p.as_str()),
+            )
+            .await?;
 
         // 7. Create Event
         let digest_order = if issue_created {
@@ -294,7 +295,10 @@ async fn find_or_create_issue_and_grouping_inner(
             .ok()
             .and_then(|v| v.get("in_next_release").and_then(|b| b.as_bool()))
             .unwrap_or(false);
-        let same_release = !denormalized.release.is_empty() && denormalized.release == prev.2;
+        // An event with no release metadata can't prove it's from a newer
+        // release, so treat it as the same release rather than triggering a
+        // spurious regression reopen.
+        let same_release = denormalized.release.is_empty() || denormalized.release == prev.2;
         let suppress = in_next_release && same_release;
         let regressed = prev.0 == crate::models::STATUS_RESOLVED && !suppress;
 

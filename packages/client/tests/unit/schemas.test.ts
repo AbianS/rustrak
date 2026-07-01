@@ -170,6 +170,38 @@ describe('Schema Validation', () => {
       const result = issueSchema.safeParse(issue);
       expect(result.success).toBe(true);
     });
+
+    it('should default user_report_count to 0 when omitted', () => {
+      const issue = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        project_id: 1,
+        short_id: 'TEST-1',
+        title: 'Error',
+        value: 'Something went wrong',
+        culprit: '',
+        logger: '',
+        first_seen: '2026-01-20T10:00:00.000Z',
+        last_seen: '2026-01-20T11:00:00.000Z',
+        event_count: 5,
+        level: null,
+        platform: null,
+        status: 'unresolved',
+        substatus: null,
+        priority: null,
+        assigned_to: null,
+        assignee_type: null,
+        issue_type: 'error',
+        issue_category: 'error',
+        first_release: '',
+        last_release: '',
+        status_details: {},
+        is_resolved: false,
+        is_muted: false,
+      };
+
+      const result = issueSchema.parse(issue);
+      expect(result.user_report_count).toBe(0);
+    });
   });
 
   describe('eventDetailSchema', () => {

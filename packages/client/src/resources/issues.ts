@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import {
   activityEntrySchema,
+  bulkDeleteIssuesSchema,
+  bulkUpdateIssuesSchema,
+  createCommentSchema,
+  createDeploySchema,
+  createUserReportSchema,
   issueAggregatesSchema,
   issueHashSchema,
   issueSchema,
@@ -125,8 +130,9 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     input: BulkUpdateIssues,
   ): Promise<{ updated: number }> {
+    const validatedInput = this.validate(input, bulkUpdateIssuesSchema);
     const data = await this.http
-      .put(`api/projects/${projectId}/issues`, { json: input })
+      .put(`api/projects/${projectId}/issues`, { json: validatedInput })
       .json();
     return this.validate(data, z.object({ updated: z.number().int() }));
   }
@@ -138,8 +144,9 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     input: BulkDeleteIssues,
   ): Promise<{ deleted: number }> {
+    const validatedInput = this.validate(input, bulkDeleteIssuesSchema);
     const data = await this.http
-      .delete(`api/projects/${projectId}/issues`, { json: input })
+      .delete(`api/projects/${projectId}/issues`, { json: validatedInput })
       .json();
     return this.validate(data, z.object({ deleted: z.number().int() }));
   }
@@ -163,7 +170,9 @@ export class IssuesResource extends BaseResource {
     key: string,
   ): Promise<TagValuesResponse> {
     const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/tags/${key}`)
+      .get(
+        `api/projects/${projectId}/issues/${issueId}/tags/${encodeURIComponent(key)}`,
+      )
       .json();
     return this.validate(data, tagValuesResponseSchema);
   }
@@ -218,9 +227,10 @@ export class IssuesResource extends BaseResource {
     issueId: string,
     input: CreateComment,
   ): Promise<ActivityEntry> {
+    const validatedInput = this.validate(input, createCommentSchema);
     const data = await this.http
       .post(`api/projects/${projectId}/issues/${issueId}/comments`, {
-        json: input,
+        json: validatedInput,
       })
       .json();
     return this.validate(data, activityEntrySchema);
@@ -292,9 +302,10 @@ export class IssuesResource extends BaseResource {
     issueId: string,
     input: CreateUserReport,
   ): Promise<UserReport> {
+    const validatedInput = this.validate(input, createUserReportSchema);
     const data = await this.http
       .post(`api/projects/${projectId}/issues/${issueId}/user-reports`, {
-        json: input,
+        json: validatedInput,
       })
       .json();
     return this.validate(data, userReportSchema);
@@ -307,8 +318,9 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     input: CreateDeploy,
   ): Promise<{ version: string; finalized: number }> {
+    const validatedInput = this.validate(input, createDeploySchema);
     const data = await this.http
-      .post(`api/projects/${projectId}/deploys`, { json: input })
+      .post(`api/projects/${projectId}/deploys`, { json: validatedInput })
       .json();
     return this.validate(
       data,

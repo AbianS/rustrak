@@ -1,7 +1,19 @@
+use crate::error::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+
+/// Canonical issue substatus values (Sentry-compatible). See
+/// `docs/sentry-compat/issue-165-roadmap.md` for the full 7-value set this
+/// project already committed to.
+pub const SUBSTATUS_ONGOING: &str = "ongoing";
+pub const SUBSTATUS_ESCALATING: &str = "escalating";
+pub const SUBSTATUS_REGRESSED: &str = "regressed";
+pub const SUBSTATUS_NEW: &str = "new";
+pub const SUBSTATUS_ARCHIVED_UNTIL_ESCALATING: &str = "archived_until_escalating";
+pub const SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET: &str = "archived_until_condition_met";
+pub const SUBSTATUS_ARCHIVED_FOREVER: &str = "archived_forever";
 
 /// Canonical issue status (Sentry-compatible).
 pub const STATUS_UNRESOLVED: &str = "unresolved";
@@ -73,6 +85,15 @@ pub struct IssueResponse {
     pub is_resolved: bool,
     /// Deprecated: derived from `status`. See `is_resolved`.
     pub is_muted: bool,
+    /// Only populated by the single-issue GET endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_report_count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_bookmarked: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_subscribed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_seen: Option<bool>,
 }
 
 /// Request to update issue state.
@@ -86,11 +107,26 @@ pub struct UpdateIssueState {
     pub status: Option<String>,
     pub substatus: Option<String>,
     pub priority: Option<String>,
-    pub assigned_to: Option<i32>,
-    pub assignee_type: Option<String>,
+    /// `None` when omitted, `Some(None)` when the client sent an explicit
+    /// `null` (clears the assignment), `Some(Some(id))` to assign.
+    #[serde(default, deserialize_with = "deserialize_some")]
+    pub assigned_to: Option<Option<i32>>,
+    #[serde(default, deserialize_with = "deserialize_some")]
+    pub assignee_type: Option<Option<String>>,
     // Deprecated compatibility fields.
     pub is_resolved: Option<bool>,
     pub is_muted: Option<bool>,
+}
+
+/// Wraps a field's normal deserialization in `Some`, so a present JSON value
+/// (including explicit `null`) is distinguishable from the field being
+/// omitted entirely, which leaves the outer `Option` at its `#[serde(default)]`.
+fn deserialize_some<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    T::deserialize(deserializer).map(Some)
 }
 
 /// Bulk mutate request: apply a status (and/or priority) to many issues.
@@ -113,21 +149,46 @@ impl UpdateIssueState {
     /// Resolves the requested status, mapping the deprecated booleans when the
     /// canonical `status` field is absent. `is_resolved` wins over `is_muted`,
     /// matching the historical PATCH semantics.
-    pub fn resolved_status(&self) -> Option<&'static str> {
+    ///
+    /// A `status` that is present but not one of the recognized literals is a
+    /// client error, not a no-op — callers must reject the request rather
+    /// than silently leaving the issue unchanged.
+    pub fn resolved_status(&self) -> AppResult<Option<&'static str>> {
         if let Some(status) = self.status.as_deref() {
             return match status {
-                STATUS_RESOLVED => Some(STATUS_RESOLVED),
-                STATUS_IGNORED => Some(STATUS_IGNORED),
-                STATUS_UNRESOLVED => Some(STATUS_UNRESOLVED),
-                _ => None,
+                STATUS_RESOLVED => Ok(Some(STATUS_RESOLVED)),
+                STATUS_IGNORED => Ok(Some(STATUS_IGNORED)),
+                STATUS_UNRESOLVED => Ok(Some(STATUS_UNRESOLVED)),
+                other => Err(AppError::Validation(format!("Invalid status: {}", other))),
             };
         }
-        match (self.is_resolved, self.is_muted) {
+        Ok(match (self.is_resolved, self.is_muted) {
             (Some(true), _) => Some(STATUS_RESOLVED),
             (Some(false), _) => Some(STATUS_UNRESOLVED),
             (None, Some(true)) => Some(STATUS_IGNORED),
             (None, Some(false)) => Some(STATUS_UNRESOLVED),
             (None, None) => None,
+        })
+    }
+
+    /// Validates the requested substatus, if present, against the canonical
+    /// set of allowed values (Sentry-compatible).
+    pub fn validated_substatus(&self) -> AppResult<Option<&str>> {
+        match self.substatus.as_deref() {
+            None => Ok(None),
+            Some(
+                s @ (SUBSTATUS_ONGOING
+                | SUBSTATUS_ESCALATING
+                | SUBSTATUS_REGRESSED
+                | SUBSTATUS_NEW
+                | SUBSTATUS_ARCHIVED_UNTIL_ESCALATING
+                | SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET
+                | SUBSTATUS_ARCHIVED_FOREVER),
+            ) => Ok(Some(s)),
+            Some(other) => Err(AppError::Validation(format!(
+                "Invalid substatus: {}",
+                other
+            ))),
         }
     }
 }
@@ -195,6 +256,10 @@ impl Issue {
             status_details,
             is_resolved: self.is_resolved(),
             is_muted: self.is_muted(),
+            user_report_count: None,
+            is_bookmarked: None,
+            is_subscribed: None,
+            has_seen: None,
         }
     }
 }

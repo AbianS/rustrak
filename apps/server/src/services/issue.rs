@@ -70,8 +70,7 @@ fn extract_tags(data: &serde_json::Value) -> Vec<(String, String)> {
             for item in items {
                 if let Some(arr) = item.as_array() {
                     if arr.len() == 2 {
-                        if let (Some(k), Some(v)) =
-                            (arr[0].as_str(), value_to_tag_string(&arr[1]))
+                        if let (Some(k), Some(v)) = (arr[0].as_str(), value_to_tag_string(&arr[1]))
                         {
                             out.push((k.to_string(), v));
                         }
@@ -618,11 +617,23 @@ impl IssueService {
         Ok(issue)
     }
 
-    /// Sets an issue's status (and its matching default substatus).
+    /// Sets an issue's status. `substatus_override` takes precedence when
+    /// given (e.g. a client-supplied canonical substatus); otherwise the
+    /// matching default substatus for `status` is used.
+    ///
+    /// Always clears `status_details` — it only carries the "resolved in
+    /// next release" marker (see [`resolve_in_next_release`]), which no
+    /// longer applies once the issue transitions through a normal status
+    /// change.
     ///
     /// Accepted statuses: `unresolved`, `resolved`, `ignored`.
-    pub async fn set_status(pool: &DbPool, id: Uuid, status: &str) -> AppResult<Issue> {
-        let substatus: Option<&str> = match status {
+    pub async fn set_status(
+        pool: &DbPool,
+        id: Uuid,
+        status: &str,
+        substatus_override: Option<&str>,
+    ) -> AppResult<Issue> {
+        let default_substatus: Option<&str> = match status {
             crate::models::STATUS_UNRESOLVED => Some("ongoing"),
             crate::models::STATUS_RESOLVED => None,
             crate::models::STATUS_IGNORED => Some("archived_forever"),
@@ -630,11 +641,12 @@ impl IssueService {
                 return Err(AppError::Validation(format!("Invalid status: {}", other)));
             }
         };
+        let substatus = substatus_override.or(default_substatus);
 
         let issue = sqlx::query_as::<_, Issue>(
             r#"
             UPDATE issues
-            SET status = $2, substatus = $3
+            SET status = $2, substatus = $3, status_details = '{}'
             WHERE id = $1
             RETURNING *
             "#,
@@ -651,22 +663,22 @@ impl IssueService {
 
     /// Marks an issue as resolved
     pub async fn resolve(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
-        Self::set_status(pool, id, crate::models::STATUS_RESOLVED).await
+        Self::set_status(pool, id, crate::models::STATUS_RESOLVED, None).await
     }
 
     /// Reopens an issue
     pub async fn unresolve(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
-        Self::set_status(pool, id, crate::models::STATUS_UNRESOLVED).await
+        Self::set_status(pool, id, crate::models::STATUS_UNRESOLVED, None).await
     }
 
     /// Mutes (ignores) an issue
     pub async fn mute(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
-        Self::set_status(pool, id, crate::models::STATUS_IGNORED).await
+        Self::set_status(pool, id, crate::models::STATUS_IGNORED, None).await
     }
 
     /// Unmutes an issue (back to unresolved)
     pub async fn unmute(pool: &DbPool, id: Uuid) -> AppResult<Issue> {
-        Self::set_status(pool, id, crate::models::STATUS_UNRESOLVED).await
+        Self::set_status(pool, id, crate::models::STATUS_UNRESOLVED, None).await
     }
 
     /// Resolves an issue "in the next release": it is marked resolved now, but
@@ -691,11 +703,7 @@ impl IssueService {
     /// "resolved in next release" marker on issues whose last_release differs
     /// from the new version (the awaited release has now shipped). Returns the
     /// number of issues finalized.
-    pub async fn finalize_release(
-        pool: &DbPool,
-        project_id: i32,
-        version: &str,
-    ) -> AppResult<u64> {
+    pub async fn finalize_release(pool: &DbPool, project_id: i32, version: &str) -> AppResult<u64> {
         let res = sqlx::query(
             r#"
             UPDATE issues
@@ -780,7 +788,7 @@ impl IssueService {
         let mut updated = 0u64;
         for id in ids {
             let res = sqlx::query(
-                "UPDATE issues SET status = $2, substatus = $3 WHERE id = $1 AND project_id = $4",
+                "UPDATE issues SET status = $2, substatus = $3, status_details = '{}' WHERE id = $1 AND project_id = $4",
             )
             .bind(id)
             .bind(status)
@@ -794,7 +802,41 @@ impl IssueService {
         Ok(updated)
     }
 
+    /// Bulk "resolve in next release": same semantics as
+    /// [`resolve_in_next_release`], applied to many issues in one project in
+    /// a single transaction. Returns the number of issues updated.
+    pub async fn bulk_resolve_in_next_release(
+        pool: &DbPool,
+        project_id: i32,
+        ids: &[Uuid],
+    ) -> AppResult<u64> {
+        let mut tx = pool.begin().await?;
+        let mut updated = 0u64;
+        for id in ids {
+            let res = sqlx::query(
+                r#"
+                UPDATE issues
+                SET status = 'resolved', substatus = NULL, status_details = '{"in_next_release":true}'
+                WHERE id = $1 AND project_id = $2
+                "#,
+            )
+            .bind(id)
+            .bind(project_id)
+            .execute(&mut *tx)
+            .await?;
+            updated += res.rows_affected();
+        }
+        tx.commit().await?;
+        Ok(updated)
+    }
+
     /// Bulk-deletes multiple issues in one project. Returns the number deleted.
+    ///
+    /// Not atomic: each issue is deleted independently (reusing [`delete`],
+    /// whose postgres/sqlite paths differ enough that wrapping the whole loop
+    /// in one transaction isn't safe to do generically here). If a delete
+    /// fails partway through, the ids processed so far are already gone and
+    /// the caller only learns the count actually deleted, not which ones.
     pub async fn bulk_delete(pool: &DbPool, project_id: i32, ids: &[Uuid]) -> AppResult<u64> {
         let mut deleted = 0u64;
         for id in ids {
@@ -908,9 +950,8 @@ impl IssueService {
         .fetch_all(pool)
         .await?;
 
-        let mut series: Vec<(i64, i64)> = (0..buckets)
-            .map(|i| (start + i * bucket_secs, 0))
-            .collect();
+        let mut series: Vec<(i64, i64)> =
+            (0..buckets).map(|i| (start + i * bucket_secs, 0)).collect();
 
         for (ts,) in rows {
             let raw = (ts.timestamp() - start) / bucket_secs;

@@ -79,9 +79,13 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
   const handleConfirmDelete = () => {
     setPending('delete');
     startTransition(async () => {
-      await deleteIssue(projectId, issue.id);
-      setDeleteDialogOpen(false);
-      router.push(`/projects/${projectId}`);
+      try {
+        await deleteIssue(projectId, issue.id);
+        setDeleteDialogOpen(false);
+        router.push(`/projects/${projectId}`);
+      } finally {
+        setPending(null);
+      }
     });
   };
 
@@ -166,7 +170,12 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="outline" size="sm" className="size-8 px-0" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="size-8 px-0"
+                aria-label="Issue actions"
+              />
             }
           >
             <MoreHorizontal className="size-4" />

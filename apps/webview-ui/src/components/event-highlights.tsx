@@ -45,9 +45,9 @@ export function EventHighlights({
   const runtime = asRecord(contexts?.runtime);
   const trace = asRecord(contexts?.trace);
 
-  const runtimeLabel = runtime
-    ? [str(runtime.name), str(runtime.version)].filter(Boolean).join(' ')
-    : tags['runtime.name'];
+  const runtimeLabel =
+    [str(runtime?.name), str(runtime?.version)].filter(Boolean).join(' ') ||
+    tags['runtime.name'];
 
   const items: Highlight[] = [
     { label: 'handled', value: tags.handled ?? str(mechanism?.handled) },

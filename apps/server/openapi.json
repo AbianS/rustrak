@@ -1779,9 +1779,21 @@
                             "type": "string",
                             "format": "date-time"
                           },
+                          "has_seen": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          },
                           "id": {
                             "type": "string",
                             "format": "uuid"
+                          },
+                          "is_bookmarked": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
                           },
                           "is_muted": {
                             "type": "boolean",
@@ -1790,6 +1802,12 @@
                           "is_resolved": {
                             "type": "boolean",
                             "description": "Deprecated: derived from `status`. Kept for the legacy client/UI until\nthey migrate to `status`. Remove in the client/frontend phases of #165."
+                          },
+                          "is_subscribed": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
                           },
                           "issue_category": {
                             "type": "string"
@@ -1844,6 +1862,14 @@
                           },
                           "title": {
                             "type": "string"
+                          },
+                          "user_report_count": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int64",
+                            "description": "Only populated by the single-issue GET endpoint."
                           },
                           "value": {
                             "type": "string"
@@ -6415,9 +6441,21 @@
             "type": "string",
             "format": "date-time"
           },
+          "has_seen": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "is_bookmarked": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "is_muted": {
             "type": "boolean",
@@ -6426,6 +6464,12 @@
           "is_resolved": {
             "type": "boolean",
             "description": "Deprecated: derived from `status`. Kept for the legacy client/UI until\nthey migrate to `status`. Remove in the client/frontend phases of #165."
+          },
+          "is_subscribed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "issue_category": {
             "type": "string"
@@ -6480,6 +6524,14 @@
           },
           "title": {
             "type": "string"
+          },
+          "user_report_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only populated by the single-issue GET endpoint."
           },
           "value": {
             "type": "string"
@@ -7359,7 +7411,8 @@
               "integer",
               "null"
             ],
-            "format": "int32"
+            "format": "int32",
+            "description": "`None` when omitted, `Some(None)` when the client sent an explicit\n`null` (clears the assignment), `Some(Some(id))` to assign."
           },
           "assignee_type": {
             "type": [

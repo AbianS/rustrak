@@ -69,13 +69,19 @@ export async function getEventNavigation(
 ): Promise<EventNavigation> {
   const client = await createClient();
 
-  // Fetch events in ascending order (oldest first)
-  // This gives us chronological order for navigation
-  const response = await client.events.list(projectId, issueId, {
-    order: 'asc',
-  });
+  // Fetch events in ascending order (oldest first), following the cursor
+  // chain, so navigation is correct for issues with more than one page.
+  const events: Event[] = [];
+  let cursor: string | undefined;
+  do {
+    const response = await client.events.list(projectId, issueId, {
+      order: 'asc',
+      cursor,
+    });
+    events.push(...response.items);
+    cursor = response.has_more ? response.next_cursor : undefined;
+  } while (cursor);
 
-  const events = response.items;
   const totalCount = events.length;
 
   if (totalCount === 0) {

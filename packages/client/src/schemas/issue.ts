@@ -115,6 +115,11 @@ export const issueAggregatesSchema = z.object({
 });
 
 /**
+ * Time window for issue stats.
+ */
+export const issueStatsWindowSchema = z.enum(['24h', '30d']);
+
+/**
  * Event-count timeseries for an issue: `[bucketStartUnix, count]` points.
  */
 export const issueStatsSchema = z.object({
@@ -142,7 +147,7 @@ export const userReportSchema = z.object({
   issue_id: uuidSchema.nullable(),
   event_id: uuidSchema.nullable(),
   name: z.string(),
-  email: z.string(),
+  email: z.email(),
   comments: z.string(),
   created_at: dateTimeSchema,
 });
@@ -159,7 +164,7 @@ export const createCommentSchema = z.object({
  */
 export const createUserReportSchema = z.object({
   name: z.string().optional(),
-  email: z.string().optional(),
+  email: z.email().optional(),
   comments: z.string().optional(),
   event_id: uuidSchema.optional(),
 });

@@ -2,16 +2,27 @@
 -- status + substatus state machine, plus priority/culprit/logger/metadata.
 -- Aligns Rustrak's Issue model with Sentry's issue lifecycle (GH #165).
 
+-- issue_type/issue_category are deliberately left unconstrained: the server
+-- only ever writes 'error' today (see IssueService::create), and Rustrak's
+-- Sentry-compat surface for the other categories (performance, cron, replay,
+-- ...) isn't implemented yet — see /docs/FUTURE_FEATURES.md.
 ALTER TABLE issues
-    ADD COLUMN status            VARCHAR(20)  NOT NULL DEFAULT 'unresolved',
-    ADD COLUMN substatus         VARCHAR(32),
-    ADD COLUMN priority          VARCHAR(10),
+    ADD COLUMN status            VARCHAR(20)  NOT NULL DEFAULT 'unresolved'
+        CHECK (status IN ('unresolved', 'resolved', 'ignored')),
+    ADD COLUMN substatus         VARCHAR(32)
+        CHECK (substatus IS NULL OR substatus IN (
+            'new', 'ongoing', 'escalating', 'regressed',
+            'archived_until_escalating', 'archived_until_condition_met', 'archived_forever'
+        )),
+    ADD COLUMN priority          VARCHAR(10)
+        CHECK (priority IS NULL OR priority IN ('low', 'medium', 'high')),
     ADD COLUMN priority_locked_at TIMESTAMPTZ,
     ADD COLUMN culprit           VARCHAR(255) NOT NULL DEFAULT '',
     ADD COLUMN logger            VARCHAR(128) NOT NULL DEFAULT '',
     ADD COLUMN status_details    TEXT         NOT NULL DEFAULT '{}',
     ADD COLUMN assigned_to       INTEGER      REFERENCES users(id) ON DELETE SET NULL,
-    ADD COLUMN assignee_type     VARCHAR(10),
+    ADD COLUMN assignee_type     VARCHAR(10)
+        CHECK (assignee_type IS NULL OR assignee_type IN ('user', 'team')),
     ADD COLUMN issue_type        VARCHAR(20)  NOT NULL DEFAULT 'error',
     ADD COLUMN issue_category    VARCHAR(20)  NOT NULL DEFAULT 'error',
     ADD COLUMN first_release     VARCHAR(250) NOT NULL DEFAULT '',

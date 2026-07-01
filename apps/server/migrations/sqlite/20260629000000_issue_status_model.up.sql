@@ -24,16 +24,27 @@ CREATE TABLE issues_new (
     last_frame_function VARCHAR(255) NOT NULL DEFAULT '',
     level VARCHAR(20),
     platform VARCHAR(64),
-    -- new status model
-    status VARCHAR(20) NOT NULL DEFAULT 'unresolved',
-    substatus VARCHAR(32),
-    priority VARCHAR(10),
+    -- new status model. issue_type/issue_category are deliberately left
+    -- unconstrained: the server only ever writes 'error' today (see
+    -- IssueService::create), and Rustrak's Sentry-compat surface for the
+    -- other categories (performance, cron, replay, ...) isn't implemented
+    -- yet — see /docs/FUTURE_FEATURES.md.
+    status VARCHAR(20) NOT NULL DEFAULT 'unresolved'
+        CHECK (status IN ('unresolved', 'resolved', 'ignored')),
+    substatus VARCHAR(32)
+        CHECK (substatus IS NULL OR substatus IN (
+            'new', 'ongoing', 'escalating', 'regressed',
+            'archived_until_escalating', 'archived_until_condition_met', 'archived_forever'
+        )),
+    priority VARCHAR(10)
+        CHECK (priority IS NULL OR priority IN ('low', 'medium', 'high')),
     priority_locked_at TEXT,
     culprit VARCHAR(255) NOT NULL DEFAULT '',
     logger VARCHAR(128) NOT NULL DEFAULT '',
     status_details TEXT NOT NULL DEFAULT '{}',
     assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    assignee_type VARCHAR(10),
+    assignee_type VARCHAR(10)
+        CHECK (assignee_type IS NULL OR assignee_type IN ('user', 'team')),
     issue_type VARCHAR(20) NOT NULL DEFAULT 'error',
     issue_category VARCHAR(20) NOT NULL DEFAULT 'error',
     first_release VARCHAR(250) NOT NULL DEFAULT '',

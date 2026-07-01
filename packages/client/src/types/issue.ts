@@ -11,6 +11,7 @@ import type {
   issuePrioritySchema,
   issueSchema,
   issueStatsSchema,
+  issueStatsWindowSchema,
   issueStatusSchema,
   tagSummarySchema,
   tagValueCountSchema,
@@ -71,4 +72,4 @@ export type BulkDeleteIssues = z.infer<typeof bulkDeleteIssuesSchema>;
 export type CreateDeploy = z.infer<typeof createDeploySchema>;
 
 /** Time window for issue stats */
-export type IssueStatsWindow = '24h' | '30d';
+export type IssueStatsWindow = z.infer<typeof issueStatsWindowSchema>;

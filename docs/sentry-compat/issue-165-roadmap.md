@@ -79,7 +79,7 @@ Kills `is_resolved`/`is_muted`. Migrate ALL call sites in one change.
 - Data migration: `is_resolved=true → status=resolved`; `is_muted=true → status=ignored`.
 - `culprit` + `logger` extracted during digest from top frame / event.
 - Regression detection: wake `alert.rs:437 trigger_regression_alert`
-  (currently `#[allow(dead_code)]`); on new event for a resolved issue →
+  (previously `#[allow(dead_code)]`); on new event for a resolved issue →
   reopen as `status=unresolved, substatus=regressed` + fire alert.
 - `IssueService::create()` advisory-lock race fix (audit §5).
 
@@ -98,7 +98,8 @@ Kills `is_resolved`/`is_muted`. Migrate ALL call sites in one change.
   bookmarks + subscriptions + read tracking (`hasSeen`/`seenBy`);
   user reports / feedback counter.
 - Releases + `firstRelease`/`lastRelease`; auto-resolve-on-deploy.
-- Issue search (PostgreSQL tsvector) + query parser.
+- Issue search (`?q=` substring match, LOWER LIKE, dialect-safe; tsvector
+  ranked search + query parser deferred to Phase 5).
 - Stats timeseries (24h/30d), `permalink` (needs `PUBLIC_URL`).
 
 ## Phase 5 — Remaining normalization (low priority / defer)
