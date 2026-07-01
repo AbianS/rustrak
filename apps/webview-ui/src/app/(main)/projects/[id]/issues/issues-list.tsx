@@ -17,7 +17,11 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { deleteIssue, updateIssueState } from '@/actions/issues';
+import {
+  bulkDeleteIssues,
+  bulkUpdateIssues,
+  deleteIssue,
+} from '@/actions/issues';
 import {
   LevelBadge,
   PriorityIndicator,
@@ -110,19 +114,14 @@ export function IssuesList({
     action: 'resolve' | 'unresolve' | 'mute' | 'unmute',
     ids: Set<string> = selectedIds,
   ) => {
+    const status =
+      action === 'resolve'
+        ? 'resolved'
+        : action === 'mute'
+          ? 'ignored'
+          : 'unresolved';
     startTransition(async () => {
-      for (const id of ids) {
-        await updateIssueState(projectId, id, {
-          is_resolved:
-            action === 'resolve'
-              ? true
-              : action === 'unresolve'
-                ? false
-                : undefined,
-          is_muted:
-            action === 'mute' ? true : action === 'unmute' ? false : undefined,
-        });
-      }
+      await bulkUpdateIssues(projectId, { ids: Array.from(ids), status });
       setSelectedIds(new Set());
       router.refresh();
     });
@@ -143,9 +142,7 @@ export function IssuesList({
   const handleConfirmDelete = async () => {
     startTransition(async () => {
       if (isBatchDelete) {
-        for (const id of selectedIds) {
-          await deleteIssue(projectId, id);
-        }
+        await bulkDeleteIssues(projectId, { ids: Array.from(selectedIds) });
         setSelectedIds(new Set());
       } else if (issueToDelete) {
         await deleteIssue(projectId, issueToDelete.id);

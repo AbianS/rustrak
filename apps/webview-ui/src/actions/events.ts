@@ -51,11 +51,15 @@ export async function getLastEvent(
   return response.items[0] ?? null;
 }
 
+// Caps sequential page fetches in getEventNavigation to bound worst-case
+// round-trips for high-volume issues (~1000 events at PAGE_SIZE=20).
+const MAX_NAV_PAGES = 50;
+
 /**
  * Get navigation info for an event within an issue.
- * This fetches all events to determine prev/next, which works for
- * issues with reasonable event counts. For very large issues,
- * server-side support would be more efficient.
+ * This fetches events (up to MAX_NAV_PAGES pages) to determine prev/next,
+ * which works for issues with reasonable event counts. For very large
+ * issues, navigation is best-effort within the fetched window.
  *
  * @param projectId - The project ID
  * @param issueId - The issue UUID
@@ -73,6 +77,7 @@ export async function getEventNavigation(
   // chain, so navigation is correct for issues with more than one page.
   const events: Event[] = [];
   let cursor: string | undefined;
+  let pageCount = 0;
   do {
     const response = await client.events.list(projectId, issueId, {
       order: 'asc',
@@ -80,7 +85,8 @@ export async function getEventNavigation(
     });
     events.push(...response.items);
     cursor = response.has_more ? response.next_cursor : undefined;
-  } while (cursor);
+    pageCount++;
+  } while (cursor && pageCount < MAX_NAV_PAGES);
 
   const totalCount = events.length;
 

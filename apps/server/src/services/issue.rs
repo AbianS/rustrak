@@ -670,7 +670,10 @@ impl IssueService {
         .bind(substatus)
         .fetch_one(pool)
         .await
-        .map_err(|_| AppError::NotFound(format!("Issue {} not found", id)))?;
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("Issue {} not found", id)),
+            other => other.into(),
+        })?;
 
         Ok(issue)
     }
@@ -710,7 +713,10 @@ impl IssueService {
         .bind(id)
         .fetch_one(pool)
         .await
-        .map_err(|_| AppError::NotFound(format!("Issue {} not found", id)))
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("Issue {} not found", id)),
+            other => other.into(),
+        })
     }
 
     /// Records a deploy of `version` for a project: clears the
@@ -751,7 +757,10 @@ impl IssueService {
         .bind(Utc::now())
         .fetch_one(pool)
         .await
-        .map_err(|_| AppError::NotFound(format!("Issue {} not found", id)))
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("Issue {} not found", id)),
+            other => other.into(),
+        })
     }
 
     /// Assigns an issue to a user (or clears the assignment when `None`).
@@ -769,7 +778,10 @@ impl IssueService {
         .bind(assignee_type)
         .fetch_one(pool)
         .await
-        .map_err(|_| AppError::NotFound(format!("Issue {} not found", id)))
+        .map_err(|error| match error {
+            sqlx::Error::RowNotFound => AppError::NotFound(format!("Issue {} not found", id)),
+            other => other.into(),
+        })
     }
 
     /// Lists the grouping hashes that map to an issue.
@@ -941,48 +953,83 @@ impl IssueService {
     }
 
     /// Bulk-computes [`IssueListStats`] (user_count + 24h trend) for the given
-    /// issues, one capped scan per issue — used by the issue list so it can
-    /// show per-row Users/Trend columns in a single request instead of the
-    /// client firing one `aggregates`/`stats` call per visible row.
+    /// issues in a single time-bounded query (all events across all issues
+    /// within the last 24h) — used by the issue list so it can show per-row
+    /// Users/Trend columns in one request instead of the client firing one
+    /// `aggregates`/`stats` call per visible row, and instead of awaiting one
+    /// query per issue serially.
     pub async fn list_stats(
         pool: &DbPool,
         issue_ids: &[Uuid],
     ) -> AppResult<HashMap<Uuid, IssueListStats>> {
+        if issue_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
         let now = Utc::now().timestamp();
         let start = now - LIST_TREND_BUCKET_SECS * LIST_TREND_BUCKETS;
+        let start_dt = DateTime::<Utc>::from_timestamp(start, 0).unwrap_or_else(Utc::now);
 
-        let mut out = HashMap::new();
-        for issue_id in issue_ids {
-            let rows: Vec<(serde_json::Value, DateTime<Utc>)> = sqlx::query_as(
-                "SELECT data, ingested_at FROM events WHERE issue_id = $1 ORDER BY ingested_at DESC LIMIT $2",
-            )
-            .bind(issue_id)
-            .bind(AGGREGATE_SCAN_CAP)
-            .fetch_all(pool)
-            .await?;
+        #[cfg(feature = "postgres")]
+        let rows: Vec<(Uuid, serde_json::Value, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT issue_id, data, ingested_at FROM events \
+             WHERE issue_id = ANY($1) AND ingested_at >= $2",
+        )
+        .bind(issue_ids)
+        .bind(start_dt)
+        .fetch_all(pool)
+        .await?;
 
-            let mut users: std::collections::HashSet<String> = std::collections::HashSet::new();
-            let mut trend = vec![0i64; LIST_TREND_BUCKETS as usize];
-
-            for (data, ts) in &rows {
-                if let Some(id) = extract_user_identity(data) {
-                    users.insert(id);
-                }
-                let raw = (ts.timestamp() - start) / LIST_TREND_BUCKET_SECS;
-                if raw >= 0 {
-                    let idx = (raw as usize).min(trend.len() - 1);
-                    trend[idx] += 1;
-                }
-            }
-
-            out.insert(
-                *issue_id,
-                IssueListStats {
-                    user_count: users.len() as i64,
-                    trend,
-                },
+        #[cfg(not(feature = "postgres"))]
+        let rows: Vec<(Uuid, serde_json::Value, DateTime<Utc>)> = {
+            use sqlx::QueryBuilder;
+            let mut qb = QueryBuilder::new(
+                "SELECT issue_id, data, ingested_at FROM events WHERE issue_id IN (",
             );
+            let mut sep = qb.separated(", ");
+            for id in issue_ids {
+                sep.push_bind(*id);
+            }
+            qb.push(") AND datetime(ingested_at) >= datetime(");
+            qb.push_bind(start_dt.naive_utc());
+            qb.push(")");
+            qb.build_query_as().fetch_all(pool).await?
+        };
+
+        let mut out: HashMap<Uuid, IssueListStats> = issue_ids
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    IssueListStats {
+                        user_count: 0,
+                        trend: vec![0i64; LIST_TREND_BUCKETS as usize],
+                    },
+                )
+            })
+            .collect();
+        let mut users: HashMap<Uuid, std::collections::HashSet<String>> = HashMap::new();
+
+        for (issue_id, data, ts) in &rows {
+            let Some(stats) = out.get_mut(issue_id) else {
+                continue;
+            };
+            if let Some(uid) = extract_user_identity(data) {
+                users.entry(*issue_id).or_default().insert(uid);
+            }
+            let raw = (ts.timestamp() - start) / LIST_TREND_BUCKET_SECS;
+            if raw >= 0 {
+                let idx = (raw as usize).min(stats.trend.len() - 1);
+                stats.trend[idx] += 1;
+            }
         }
+
+        for (issue_id, ids) in users {
+            if let Some(stats) = out.get_mut(&issue_id) {
+                stats.user_count = ids.len() as i64;
+            }
+        }
+
         Ok(out)
     }
 
@@ -998,15 +1045,31 @@ impl IssueService {
     ) -> AppResult<Vec<(i64, i64)>> {
         let now = Utc::now().timestamp();
         let start = now - bucket_secs * buckets;
+        let start_dt = DateTime::<Utc>::from_timestamp(start, 0).unwrap_or_else(Utc::now);
 
-        // Bucket entirely in Rust (dialect-safe). Binding a DateTime into a
-        // WHERE comparison is unreliable across SQLite's TEXT timestamps, so we
-        // fetch recent events ordered by ingested_at and filter the window here.
+        // Bucket entirely in Rust (dialect-safe), but scope the fetch to the
+        // requested window in SQL rather than capping by row count: this is
+        // an exact timeseries, not the approximate tag/user aggregates
+        // AGGREGATE_SCAN_CAP was designed for, so a row cap would silently
+        // truncate older buckets to zero for high-volume issues. Filtering by
+        // `ingested_at` needs a dialect-specific comparison — SQLite stores
+        // it as TEXT, so `datetime(...)` normalizes both sides before
+        // comparing (same pattern as `rate_limit::count_project_events_since`).
+        #[cfg(feature = "postgres")]
         let rows: Vec<(DateTime<Utc>,)> = sqlx::query_as(
-            "SELECT ingested_at FROM events WHERE issue_id = $1 ORDER BY ingested_at DESC LIMIT $2",
+            "SELECT ingested_at FROM events WHERE issue_id = $1 AND ingested_at >= $2 ORDER BY ingested_at DESC",
         )
         .bind(issue_id)
-        .bind(AGGREGATE_SCAN_CAP)
+        .bind(start_dt)
+        .fetch_all(pool)
+        .await?;
+
+        #[cfg(not(feature = "postgres"))]
+        let rows: Vec<(DateTime<Utc>,)> = sqlx::query_as(
+            "SELECT ingested_at FROM events WHERE issue_id = $1 AND datetime(ingested_at) >= datetime($2) ORDER BY ingested_at DESC",
+        )
+        .bind(issue_id)
+        .bind(start_dt.naive_utc())
         .fetch_all(pool)
         .await?;
 
