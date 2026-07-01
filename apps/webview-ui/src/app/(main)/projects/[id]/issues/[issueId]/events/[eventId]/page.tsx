@@ -1,7 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEventDetail, getEventNavigation } from '@/actions/events';
@@ -24,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { IssueActions } from '../../issue-actions';
 import { IssueActivity } from '../../issue-activity';
 import { Breadcrumbs } from './breadcrumbs';
-import { CollapsibleRail, RAIL_COOKIE } from './collapsible-rail';
+import { CollapsibleRail } from './collapsible-rail';
 import { EventContext } from './event-context';
 import { EventDetails } from './event-details';
 import { EventNavigationBar } from './event-navigation';
@@ -71,7 +70,6 @@ const compact = (n: number) =>
 export default async function EventPage({ params }: EventPageProps) {
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
-  const railCollapsed = (await cookies()).get(RAIL_COOKIE)?.value === '1';
 
   const [project, issue, event, navigation, aggregates, stats30d, activity] =
     await Promise.all([
@@ -418,9 +416,7 @@ export default async function EventPage({ params }: EventPageProps) {
         </main>
 
         {/* Right rail (desktop, collapsible) */}
-        <CollapsibleRail title="Details" defaultCollapsed={railCollapsed}>
-          {rail}
-        </CollapsibleRail>
+        <CollapsibleRail title="Details">{rail}</CollapsibleRail>
       </div>
     </div>
   );

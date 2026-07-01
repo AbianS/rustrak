@@ -4,32 +4,20 @@ import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-export const RAIL_COOKIE = 'rustrak_rail_collapsed';
-
 /**
- * The issue detail right rail with a Sentry-style collapse toggle. The collapsed
- * state is persisted in a cookie and read on the server (`defaultCollapsed`) so
- * the correct state renders on first paint — no expand→collapse flash on reload.
+ * The issue detail right rail with a collapse toggle. Plain component state,
+ * open by default — resets on every event navigation, which is fine here.
  * Desktop only — on mobile the rail is rendered inline in the main column.
  */
 export function CollapsibleRail({
   title,
-  defaultCollapsed = false,
   children,
 }: {
   title: string;
-  defaultCollapsed?: boolean;
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
-
-  const toggle = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      document.cookie = `${RAIL_COOKIE}=${next ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`;
-      return next;
-    });
-  };
+  const [collapsed, setCollapsed] = useState(false);
+  const toggleRail = () => setCollapsed((c) => !c);
 
   if (collapsed) {
     return (
@@ -40,7 +28,7 @@ export function CollapsibleRail({
           className="size-8 px-0"
           aria-label="Open sidebar"
           title="Show sidebar"
-          onClick={toggle}
+          onClick={toggleRail}
         >
           <ChevronsLeft className="size-4" />
         </Button>
@@ -58,7 +46,7 @@ export function CollapsibleRail({
           className="size-8 px-0 shrink-0"
           aria-label="Close sidebar"
           title="Hide sidebar"
-          onClick={toggle}
+          onClick={toggleRail}
         >
           <ChevronsRight className="size-4" />
         </Button>
