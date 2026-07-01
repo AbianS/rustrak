@@ -82,6 +82,12 @@ const contextsSchema = z
   .optional();
 
 /**
+ * Schema for `modules` — a flat package-name → version map SDKs attach to
+ * report the dependency versions running when the event was captured.
+ */
+const modulesSchema = z.record(z.string(), z.string()).optional();
+
+/**
  * Parsed and validated event data types.
  */
 type ValidatedEventBreadcrumbs = z.infer<typeof breadcrumbsSchema>;
@@ -94,6 +100,7 @@ export function parseEventData(eventData: Record<string, unknown>) {
   const exception = exceptionSchema.safeParse(eventData.exception);
   const breadcrumbs = breadcrumbsSchema.safeParse(eventData.breadcrumbs);
   const contexts = contextsSchema.safeParse(eventData.contexts);
+  const modules = modulesSchema.safeParse(eventData.modules);
   const tagsResult = tagsSchema.safeParse(eventData.tags);
   const user = userSchema.safeParse(eventData.user);
 
@@ -108,6 +115,7 @@ export function parseEventData(eventData: Record<string, unknown>) {
     exception: exception.success ? exception.data : undefined,
     breadcrumbs: breadcrumbs.success ? breadcrumbs.data : undefined,
     contexts: contexts.success ? contexts.data : undefined,
+    modules: modules.success ? modules.data : undefined,
     tags,
     user: user.success ? user.data : undefined,
   };

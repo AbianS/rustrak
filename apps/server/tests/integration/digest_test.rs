@@ -1292,6 +1292,65 @@ async fn test_tag_values_and_aggregates() {
 }
 
 #[actix_web::test]
+async fn test_list_stats_counts_distinct_users_per_issue() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "List Stats Project").await;
+    let temp_dir = TempDir::new().unwrap();
+    let cfg = create_rate_limit_config();
+
+    ingest_event_with_tags(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        json!({}),
+        json!({"id": "user-1"}),
+    )
+    .await;
+    ingest_event_with_tags(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        json!({}),
+        json!({"id": "user-2"}),
+    )
+    .await;
+
+    let issue_id = only_issue_id(&db.pool, project.id).await;
+
+    let stats = IssueService::list_stats(&db.pool, &[issue_id])
+        .await
+        .unwrap();
+    let entry = stats.get(&issue_id).expect("stats for the issue");
+    assert_eq!(entry.user_count, 2);
+}
+
+#[actix_web::test]
+async fn test_list_stats_trend_has_24_buckets_summing_to_event_count() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Trend Project").await;
+    let temp_dir = TempDir::new().unwrap();
+    let cfg = create_rate_limit_config();
+
+    let e1 = Uuid::new_v4().to_string().replace("-", "");
+    ingest_error_event(&db.pool, project.id, temp_dir.path(), &cfg, &e1).await;
+    let issue_id = only_issue_id(&db.pool, project.id).await;
+
+    let stats = IssueService::list_stats(&db.pool, &[issue_id])
+        .await
+        .unwrap();
+    let entry = stats.get(&issue_id).expect("stats for the issue");
+
+    assert_eq!(entry.trend.len(), 24);
+    let total: i64 = entry.trend.iter().sum();
+    assert_eq!(total, 1, "the one event should be counted exactly once");
+    // Freshly ingested, so it lands in one of the most recent buckets.
+    let recent: i64 = entry.trend.iter().rev().take(2).sum();
+    assert_eq!(recent, 1);
+}
+
+#[actix_web::test]
 async fn test_list_offset_search_filters_by_text() {
     use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
     use rustrak::services::grouping::get_denormalized_fields;

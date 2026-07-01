@@ -95,10 +95,22 @@ pub async fn list_issues(
     )
     .await?;
 
+    // Bulk-compute per-issue user_count/trend for this page in one request
+    // (avoids the list UI firing one aggregates/stats call per visible row).
+    let issue_ids: Vec<Uuid> = issues.iter().map(|i| i.id).collect();
+    let list_stats = IssueService::list_stats(pool.get_ref(), &issue_ids).await?;
+
     // Build responses
     let responses: Vec<_> = issues
         .iter()
-        .map(|i| i.to_response(&project.slug))
+        .map(|i| {
+            let mut response = i.to_response(&project.slug);
+            if let Some(stats) = list_stats.get(&i.id) {
+                response.user_count = Some(stats.user_count);
+                response.trend = Some(stats.trend.clone());
+            }
+            response
+        })
         .collect();
 
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(

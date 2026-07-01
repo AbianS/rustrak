@@ -25,6 +25,7 @@ import {
   PriorityIndicator,
   StatusIndicator,
 } from '@/components/issue-indicators';
+import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -276,8 +277,17 @@ export function IssuesList({
             <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
               Issue
             </span>
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16">
+              Trend
+            </span>
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16 text-right">
+              Age
+            </span>
             <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
               Events
+            </span>
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16 text-right">
+              Users
             </span>
             <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
               Last Seen
@@ -332,9 +342,25 @@ export function IssuesList({
                   </Link>
                 </div>
 
+                <div className="hidden lg:flex w-16 justify-start">
+                  <IssueTrendSparkline trend={issue.trend ?? []} />
+                </div>
+
+                <div className="hidden lg:block w-16 text-right">
+                  <span className="text-sm text-muted-foreground">
+                    {formatDistanceToNow(new Date(issue.first_seen))}
+                  </span>
+                </div>
+
                 <div className="hidden sm:block w-24 text-right">
                   <span className="font-mono text-sm">
                     {issue.event_count.toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="hidden lg:block w-16 text-right">
+                  <span className="font-mono text-sm">
+                    {(issue.user_count ?? 0).toLocaleString()}
                   </span>
                 </div>
 

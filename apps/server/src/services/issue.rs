@@ -37,6 +37,20 @@ pub struct IssueAggregates {
 /// Max events scanned when computing per-issue aggregates (tags, user count).
 const AGGREGATE_SCAN_CAP: i64 = 1000;
 
+/// Per-issue supplementary stats for the issue list (unique user count + a
+/// compact 24h hourly trend), computed from a single capped scan per issue.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct IssueListStats {
+    pub user_count: i64,
+    /// 24 hourly buckets covering the last 24h, oldest to newest.
+    pub trend: Vec<i64>,
+}
+
+/// Hourly buckets in the issue-list trend column (Sentry's default "24h" window).
+const LIST_TREND_BUCKETS: i64 = 24;
+const LIST_TREND_BUCKET_SECS: i64 = 3600;
+
 pub struct IssueService;
 
 /// Derives an initial issue priority from the event level, mirroring Sentry's
@@ -924,6 +938,52 @@ impl IssueService {
             user_count: users.len() as i64,
             tags,
         })
+    }
+
+    /// Bulk-computes [`IssueListStats`] (user_count + 24h trend) for the given
+    /// issues, one capped scan per issue — used by the issue list so it can
+    /// show per-row Users/Trend columns in a single request instead of the
+    /// client firing one `aggregates`/`stats` call per visible row.
+    pub async fn list_stats(
+        pool: &DbPool,
+        issue_ids: &[Uuid],
+    ) -> AppResult<HashMap<Uuid, IssueListStats>> {
+        let now = Utc::now().timestamp();
+        let start = now - LIST_TREND_BUCKET_SECS * LIST_TREND_BUCKETS;
+
+        let mut out = HashMap::new();
+        for issue_id in issue_ids {
+            let rows: Vec<(serde_json::Value, DateTime<Utc>)> = sqlx::query_as(
+                "SELECT data, ingested_at FROM events WHERE issue_id = $1 ORDER BY ingested_at DESC LIMIT $2",
+            )
+            .bind(issue_id)
+            .bind(AGGREGATE_SCAN_CAP)
+            .fetch_all(pool)
+            .await?;
+
+            let mut users: std::collections::HashSet<String> = std::collections::HashSet::new();
+            let mut trend = vec![0i64; LIST_TREND_BUCKETS as usize];
+
+            for (data, ts) in &rows {
+                if let Some(id) = extract_user_identity(data) {
+                    users.insert(id);
+                }
+                let raw = (ts.timestamp() - start) / LIST_TREND_BUCKET_SECS;
+                if raw >= 0 {
+                    let idx = (raw as usize).min(trend.len() - 1);
+                    trend[idx] += 1;
+                }
+            }
+
+            out.insert(
+                *issue_id,
+                IssueListStats {
+                    user_count: users.len() as i64,
+                    trend,
+                },
+            );
+        }
+        Ok(out)
     }
 
     /// Computes a zero-filled event-count timeseries for an issue.

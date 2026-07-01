@@ -1863,6 +1863,25 @@
                           "title": {
                             "type": "string"
                           },
+                          "trend": {
+                            "type": [
+                              "array",
+                              "null"
+                            ],
+                            "items": {
+                              "type": "integer",
+                              "format": "int64"
+                            },
+                            "description": "24 hourly buckets, oldest to newest. Only populated by the issue list\nendpoint."
+                          },
+                          "user_count": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ],
+                            "format": "int64",
+                            "description": "Only populated by the issue list endpoint (bulk-computed per page)."
+                          },
                           "user_report_count": {
                             "type": [
                               "integer",
@@ -6524,6 +6543,25 @@
           },
           "title": {
             "type": "string"
+          },
+          "trend": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "24 hourly buckets, oldest to newest. Only populated by the issue list\nendpoint."
+          },
+          "user_count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only populated by the issue list endpoint (bulk-computed per page)."
           },
           "user_report_count": {
             "type": [

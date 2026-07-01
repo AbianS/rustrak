@@ -13,11 +13,13 @@ import {
 } from '@/actions/issues';
 import { getProject } from '@/actions/projects';
 import { Section } from '@/components/collapsible-section';
+import { CopyAsDropdown } from '@/components/copy-as-dropdown';
 import { EventChart } from '@/components/event-chart';
 import { EventHighlights } from '@/components/event-highlights';
 import { StatusIndicator } from '@/components/issue-indicators';
 import { TagDistribution } from '@/components/tag-distribution';
 import { normalizeBreadcrumbs, parseEventData } from '@/lib/event-schema';
+import { formatStackTraceAsText } from '@/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
 import { IssueActions } from '../../issue-actions';
 import { IssueActivity } from '../../issue-activity';
@@ -91,6 +93,7 @@ export default async function EventPage({ params }: EventPageProps) {
     exception,
     breadcrumbs: rawBreadcrumbs,
     contexts,
+    modules,
     tags,
     user,
   } = parseEventData(eventData);
@@ -99,6 +102,7 @@ export default async function EventPage({ params }: EventPageProps) {
   const hasStackTrace = Boolean(exception?.values?.length);
   const hasBreadcrumbs = breadcrumbs.length > 0;
   const hasContexts = Boolean(contexts && Object.keys(contexts).length > 0);
+  const hasModules = Boolean(modules && Object.keys(modules).length > 0);
   const hasUser = Boolean(user && (user.id || user.email || user.ip_address));
   const safeTags = tags ?? {};
   const hasTags = Object.keys(safeTags).length > 0;
@@ -119,7 +123,10 @@ export default async function EventPage({ params }: EventPageProps) {
     hasStackTrace && { id: 'stacktrace', label: 'Stack Trace' },
     hasBreadcrumbs && { id: 'breadcrumbs', label: 'Breadcrumbs' },
     hasTags && { id: 'tags', label: 'Tags' },
-    (hasContexts || hasUser) && { id: 'context', label: 'Context' },
+    (hasContexts || hasModules || hasUser) && {
+      id: 'context',
+      label: 'Context',
+    },
   ].filter(Boolean) as { id: string; label: string }[];
 
   const rail = (
@@ -337,13 +344,43 @@ export default async function EventPage({ params }: EventPageProps) {
               </Section>
 
               {hasStackTrace && (
-                <Section id="stacktrace" title="Stack Trace">
+                <Section
+                  id="stacktrace"
+                  title="Stack Trace"
+                  actions={
+                    <CopyAsDropdown
+                      formats={[
+                        {
+                          label: 'Plain Text',
+                          value: formatStackTraceAsText(exception),
+                        },
+                        {
+                          label: 'JSON',
+                          value: JSON.stringify(exception, null, 2),
+                        },
+                      ]}
+                    />
+                  }
+                >
                   <StackTrace exception={exception} />
                 </Section>
               )}
 
               {hasBreadcrumbs && (
-                <Section id="breadcrumbs" title="Breadcrumbs">
+                <Section
+                  id="breadcrumbs"
+                  title="Breadcrumbs"
+                  actions={
+                    <CopyAsDropdown
+                      formats={[
+                        {
+                          label: 'JSON',
+                          value: JSON.stringify(breadcrumbs, null, 2),
+                        },
+                      ]}
+                    />
+                  }
+                >
                   <Breadcrumbs breadcrumbs={breadcrumbs} />
                 </Section>
               )}
@@ -354,9 +391,13 @@ export default async function EventPage({ params }: EventPageProps) {
                 </Section>
               )}
 
-              {(hasContexts || hasUser) && (
+              {(hasContexts || hasModules || hasUser) && (
                 <Section id="context" title="Context">
-                  <EventContext contexts={contexts} user={user} />
+                  <EventContext
+                    contexts={contexts}
+                    modules={modules}
+                    user={user}
+                  />
                 </Section>
               )}
 

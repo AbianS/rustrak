@@ -94,6 +94,13 @@ pub struct IssueResponse {
     pub is_subscribed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub has_seen: Option<bool>,
+    /// Only populated by the issue list endpoint (bulk-computed per page).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_count: Option<i64>,
+    /// 24 hourly buckets, oldest to newest. Only populated by the issue list
+    /// endpoint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trend: Option<Vec<i64>>,
 }
 
 /// Request to update issue state.
@@ -260,6 +267,8 @@ impl Issue {
             is_bookmarked: None,
             is_subscribed: None,
             has_seen: None,
+            user_count: None,
+            trend: None,
         }
     }
 }

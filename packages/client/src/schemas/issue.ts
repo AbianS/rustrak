@@ -45,6 +45,10 @@ export const issueSchema = z.object({
   is_bookmarked: z.boolean().optional(),
   is_subscribed: z.boolean().optional(),
   has_seen: z.boolean().optional(),
+  // Bulk list stats — only the list endpoint populates these (computed once
+  // per page); the single-issue GET and PATCH responses omit them.
+  user_count: z.number().int().optional(),
+  trend: z.array(z.number().int()).optional(),
   // Deprecated, derived from `status`; kept for backward compatibility.
   is_resolved: z.boolean(),
   is_muted: z.boolean(),

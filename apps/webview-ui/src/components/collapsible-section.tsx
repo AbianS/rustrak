@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+import { StopPropagation } from '@/components/stop-propagation';
 
 /**
  * A collapsible, anchor-addressable content section (Sentry "group event
@@ -9,11 +10,15 @@ export function Section({
   id,
   title,
   defaultOpen = true,
+  actions,
   children,
 }: {
   id?: string;
   title: string;
   defaultOpen?: boolean;
+  /** Right-aligned controls in the header (e.g. a "Copy as" dropdown). Clicks
+   * here don't toggle the section, since `<summary>` normally intercepts them. */
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -24,7 +29,8 @@ export function Section({
     >
       <summary className="flex cursor-pointer list-none select-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
-        <span className="text-sm font-semibold">{title}</span>
+        <span className="text-sm font-semibold flex-1">{title}</span>
+        {actions && <StopPropagation>{actions}</StopPropagation>}
       </summary>
       <div className="pb-5">{children}</div>
     </details>
