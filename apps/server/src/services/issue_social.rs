@@ -136,13 +136,12 @@ impl IssueSocialService {
     }
 
     pub async fn is_bookmarked(pool: &DbPool, issue_id: Uuid, user_id: i32) -> AppResult<bool> {
-        let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT 1 FROM issue_bookmarks WHERE issue_id = $1 AND user_id = $2",
-        )
-        .bind(issue_id)
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await?;
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM issue_bookmarks WHERE issue_id = $1 AND user_id = $2")
+                .bind(issue_id)
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await?;
         Ok(row.is_some())
     }
 
