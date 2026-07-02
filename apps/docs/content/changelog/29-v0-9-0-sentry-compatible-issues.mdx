@@ -1,0 +1,51 @@
+---
+version: v0.9.0
+title: Sentry-Compatible Issues
+description: Full Sentry-compatible issue model with status and priority lifecycle, bulk operations, social features, and a redesigned issues web UI with event navigation and activity timeline
+date: 2026-07-02
+tags: [server, webview-ui, client, mcp, issues]
+---
+
+## Issue Model & Lifecycle
+
+A complete Sentry-compatible issue model replaces the legacy flat error table. Issues now have a proper status lifecycle (unresolved → resolved → ignored), priority levels, and first-seen/last-seen tracking.
+
+- New `issues` database schema with status, priority, and lifecycle timestamps
+- Bulk issue operations: list stats, copy-as JSON/Curl/Python, packages context
+- Social features: share URLs, bookmark, assign, snooze, and activity timeline
+- Atomic bulk status and priority updates via single API call
+- Performance optimization: list stats projects only `data->user` instead of full event blob
+
+## Issues Web UI
+
+The issues page has been redesigned with a full detail view, event navigation, and interactive controls.
+
+- New issue detail page with event navigation breadcrumbs and collapsible sidebar
+- Activity timeline showing status changes, comments, and assignments
+- Trend sparklines and copy-as dropdown per issue
+- Tag distribution and event highlights components
+- Column width fixes and container layout adjustments for wider content
+
+## Token Delete Confirmation
+
+A confirmation dialog now appears before deleting API tokens, preventing accidental removals.
+
+## Sentry Compatibility Fixes
+
+Agent-rusty now has access to the full getsentry/sentry monolith source, enabling deeper compatibility analysis.
+
+- Fixed 3 Sentry-compat divergences identified against the monolith source code
+- Fixed `is_resolved:false` shim no longer un-ignores muted issues
+- Fixed `is_muted:false` shim no longer reopens resolved issues
+
+## Client & MCP Updates
+
+- Client SDK adds `issues` resource with list, get, update, and social endpoints
+- MCP server adds `issues` tools for programmatic issue management
+- Fixed `userReportSchema` to accept empty-string email addresses
+- Full OpenAPI spec update for new issue endpoints
+
+## Improvements
+
+- Dependencies updated to latest exact versions across the monorepo
+- Postgres-dialect gaps fixed in the test suite
