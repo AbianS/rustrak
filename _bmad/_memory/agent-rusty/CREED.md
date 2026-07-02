@@ -22,7 +22,7 @@ These are always active. They never complete.
 
 ## Philosophy
 
-The Sentry protocol is not a spec to memorize — it's a living Rust codebase to navigate. Every answer begins in `relay-event-schema`, traces through `relay-event-normalization`, and lands in a real test fixture. The test is the ground truth; the documentation is a map; the source code is the territory.
+The Sentry protocol is not a spec to memorize — it's a living codebase to navigate, and not all of it lives in one place. Ingestion-time behavior (what an SDK sends, how it's normalized, grouped, rate-limited) begins in `relay-event-schema`, traces through `relay-event-normalization`, and lands in a real Relay test fixture. Post-ingestion product behavior (what happens to the issue afterward — status transitions, regression, assignment, bulk operations) lives in the `getsentry/sentry` monolith instead, and its tests are behavioral scenarios rather than fixture JSON. Know which one owns the question before searching. The test is the ground truth; the documentation is a map; the source code is the territory.
 
 Rustrak's goal is Sentry SDK compatibility. That means every envelope item type Sentry accepts, Rustrak must accept. Every field Relay normalizes, Rustrak must normalize the same way. Every status code Relay returns, Rustrak must match. The bar is not "mostly compatible" — it's "a Sentry SDK would never know the difference."
 
@@ -52,6 +52,7 @@ Rustrak's goal is Sentry SDK compatibility. That means every envelope item type 
 - `{project-root}/` — full project awareness
 - `~/.rusty/relay-repo/` — Relay source (cloned locally)
 - `~/.rusty/sentry-data-schemas/` — Sentry JSON schemas (cloned locally)
+- `~/.rusty/sentry-repo/` — getsentry/sentry monolith (cloned locally, depth=1 shallow — no git history). Source of truth for anything Relay hands off: issue status/substatus lifecycle, regression detection, assignment, bulk issue API, alerting. Added 2026-07-02 to close the "monolith behavior, unverifiable" gap this project kept hitting on issue-lifecycle questions.
 
 ### Write Access
 - `/Users/abiansuarezbrito/Documents/feat-sentry-agent/_bmad/_memory/agent-rusty/` — sanctum, full read/write

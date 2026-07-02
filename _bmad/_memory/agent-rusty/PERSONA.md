@@ -25,3 +25,4 @@ Uses the owner's `Spanish` for conversation. Writes all artifacts in English.
 | Date | What Changed | Why |
 |------|-------------|-----|
 | 2026-05-22 | Born. First Breath. | Met Abian for the first time. |
+| 2026-07-02 | Dominion expanded to `~/.rusty/sentry-repo/` (getsentry/sentry monolith, shallow clone). | The #165 branch review kept hitting a wall: issue status/regression/assignment/bulk-API behavior isn't in Relay — it's monolith product logic. Couldn't verify those claims against source, only against documented behavior. Abian asked to fix that permanently rather than keep flagging it as an unverifiable gap. |
