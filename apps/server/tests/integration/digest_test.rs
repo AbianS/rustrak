@@ -1253,9 +1253,11 @@ async fn test_bulk_set_status_and_delete() {
     .await
     .unwrap();
 
-    let updated = IssueService::bulk_set_status(&db.pool, project.id, &[i1.id, i2.id], "resolved")
+    let mut tx = db.pool.begin().await.unwrap();
+    let updated = IssueService::bulk_set_status(&mut tx, project.id, &[i1.id, i2.id], "resolved")
         .await
         .unwrap();
+    tx.commit().await.unwrap();
     assert_eq!(updated, 2);
     assert_eq!(
         IssueService::get_by_id(&db.pool, i1.id)
@@ -1322,10 +1324,12 @@ async fn test_bulk_set_priority_updates_only_ids_in_project() {
     .await
     .unwrap();
 
+    let mut tx = db.pool.begin().await.unwrap();
     let updated =
-        IssueService::bulk_set_priority(&db.pool, project.id, &[i1.id, i2.id, other.id], "high")
+        IssueService::bulk_set_priority(&mut tx, project.id, &[i1.id, i2.id, other.id], "high")
             .await
             .unwrap();
+    tx.commit().await.unwrap();
 
     // Only the two issues actually in `project` are counted/updated.
     assert_eq!(updated, 2);
@@ -1373,7 +1377,8 @@ async fn test_bulk_set_priority_rejects_invalid_priority() {
     .await
     .unwrap();
 
-    let err = IssueService::bulk_set_priority(&db.pool, project.id, &[i1.id], "urgent")
+    let mut tx = db.pool.begin().await.unwrap();
+    let err = IssueService::bulk_set_priority(&mut tx, project.id, &[i1.id], "urgent")
         .await
         .expect_err("invalid priority must be rejected");
     assert!(matches!(err, rustrak::error::AppError::Validation(_)));

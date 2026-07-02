@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
-use crate::db::DbPool;
+use crate::db::{Db, DbPool};
 use crate::error::{AppError, AppResult};
 use crate::models::{Grouping, Issue};
 use crate::pagination::{IssueCursor, IssueFilter, IssueSort, SortOrder};
@@ -849,8 +849,12 @@ impl IssueService {
 
     /// Bulk-sets the status of multiple issues in one project.
     /// Returns the number of issues updated.
+    ///
+    /// Takes an open transaction rather than a pool so callers that also
+    /// touch priority in the same request (see `bulk_update_issues`) can
+    /// commit both changes atomically.
     pub async fn bulk_set_status(
-        pool: &DbPool,
+        tx: &mut sqlx::Transaction<'_, Db>,
         project_id: i32,
         ids: &[Uuid],
         status: &str,
@@ -862,7 +866,6 @@ impl IssueService {
             other => return Err(AppError::Validation(format!("Invalid status: {}", other))),
         };
 
-        let mut tx = pool.begin().await?;
         let mut updated = 0u64;
         for id in ids {
             let res = sqlx::query(
@@ -872,23 +875,22 @@ impl IssueService {
             .bind(status)
             .bind(substatus)
             .bind(project_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             updated += res.rows_affected();
         }
-        tx.commit().await?;
         Ok(updated)
     }
 
     /// Bulk-sets the priority of multiple issues in one project, in a single
-    /// query (unlike the per-id loop in [`bulk_set_status`], this doesn't
-    /// need a transaction since it's already one statement). Ids that don't
-    /// exist or belong to another project are silently not counted, matching
-    /// [`bulk_set_status`]'s semantics.
+    /// query. Ids that don't exist or belong to another project are silently
+    /// not counted, matching [`bulk_set_status`]'s semantics.
+    ///
+    /// Takes an open transaction — see [`bulk_set_status`] for why.
     ///
     /// [`bulk_set_status`]: Self::bulk_set_status
     pub async fn bulk_set_priority(
-        pool: &DbPool,
+        tx: &mut sqlx::Transaction<'_, Db>,
         project_id: i32,
         ids: &[Uuid],
         priority: &str,
@@ -915,7 +917,7 @@ impl IssueService {
             .bind(now)
             .bind(project_id)
             .bind(ids)
-            .execute(pool)
+            .execute(&mut **tx)
             .await?;
             Ok(res.rows_affected())
         }
@@ -935,20 +937,23 @@ impl IssueService {
                 sep.push_bind(*id);
             }
             qb.push(")");
-            let res = qb.build().execute(pool).await?;
+            let res = qb.build().execute(&mut **tx).await?;
             Ok(res.rows_affected())
         }
     }
 
     /// Bulk "resolve in next release": same semantics as
-    /// [`resolve_in_next_release`], applied to many issues in one project in
-    /// a single transaction. Returns the number of issues updated.
+    /// [`resolve_in_next_release`], applied to many issues in one project.
+    /// Returns the number of issues updated.
+    ///
+    /// Takes an open transaction — see [`bulk_set_status`] for why.
+    ///
+    /// [`bulk_set_status`]: Self::bulk_set_status
     pub async fn bulk_resolve_in_next_release(
-        pool: &DbPool,
+        tx: &mut sqlx::Transaction<'_, Db>,
         project_id: i32,
         ids: &[Uuid],
     ) -> AppResult<u64> {
-        let mut tx = pool.begin().await?;
         let mut updated = 0u64;
         for id in ids {
             let res = sqlx::query(
@@ -960,11 +965,10 @@ impl IssueService {
             )
             .bind(id)
             .bind(project_id)
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await?;
             updated += res.rows_affected();
         }
-        tx.commit().await?;
         Ok(updated)
     }
 

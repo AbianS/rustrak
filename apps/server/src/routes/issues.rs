@@ -455,23 +455,28 @@ pub async fn bulk_update_issues(
     .await?;
     body.validate_size()?;
 
+    // Status and priority are applied in one transaction so a request that sets
+    // both never leaves issues with the new status but the old priority (or
+    // vice versa) if one of the two updates fails partway through.
+    let mut tx = pool.get_ref().begin().await?;
+
     let mut updated = 0u64;
     if let Some(status) = body.status.as_deref() {
         updated = if status == "resolvedInNextRelease" {
-            IssueService::bulk_resolve_in_next_release(pool.get_ref(), project_id, &body.ids)
-                .await?
+            IssueService::bulk_resolve_in_next_release(&mut tx, project_id, &body.ids).await?
         } else {
-            IssueService::bulk_set_status(pool.get_ref(), project_id, &body.ids, status).await?
+            IssueService::bulk_set_status(&mut tx, project_id, &body.ids, status).await?
         };
     }
     if let Some(priority) = body.priority.as_deref() {
         let priority_updated =
-            IssueService::bulk_set_priority(pool.get_ref(), project_id, &body.ids, priority)
-                .await?;
+            IssueService::bulk_set_priority(&mut tx, project_id, &body.ids, priority).await?;
         if body.status.is_none() {
             updated = priority_updated;
         }
     }
+
+    tx.commit().await?;
 
     Ok(HttpResponse::Ok().json(json!({ "updated": updated })))
 }
