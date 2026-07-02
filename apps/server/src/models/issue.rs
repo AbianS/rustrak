@@ -221,13 +221,21 @@ impl UpdateIssueState {
     /// than silently leaving the issue unchanged.
     ///
     /// `current_status` is the issue's status *before* this request is
-    /// applied. It's only consulted for the deprecated `is_muted: false`
-    /// shim: the old boolean model's `unmute` only ever cleared the
-    /// `is_muted` column, leaving `is_resolved` untouched, so unmuting an
-    /// already-resolved (or already-unresolved) issue was a no-op. Mapping
-    /// it onto the new unified `status` unconditionally would reopen
-    /// resolved issues that a client "defensively" unmutes — so this arm
-    /// only fires when the issue is currently `ignored`.
+    /// applied. It's consulted for both deprecated `false` shims:
+    ///
+    /// - `is_resolved: false` — the old boolean model's `unresolve` only
+    ///   ever cleared the `is_resolved` column and never touched `is_muted`,
+    ///   so unresolving an already-ignored (or already-unresolved) issue was
+    ///   a no-op that left it ignored. Mapping it onto the new unified
+    ///   `status` unconditionally would un-ignore issues that a client
+    ///   "defensively" unresolves — so this arm only fires when the issue is
+    ///   currently `resolved`.
+    /// - `is_muted: false` — the old boolean model's `unmute` only ever
+    ///   cleared the `is_muted` column, leaving `is_resolved` untouched, so
+    ///   unmuting an already-resolved (or already-unresolved) issue was a
+    ///   no-op. Mapping it onto the new unified `status` unconditionally
+    ///   would reopen resolved issues that a client "defensively" unmutes —
+    ///   so this arm only fires when the issue is currently `ignored`.
     pub fn resolved_status(&self, current_status: &str) -> AppResult<Option<&'static str>> {
         if let Some(status) = self.status.as_deref() {
             return match status {
@@ -239,7 +247,8 @@ impl UpdateIssueState {
         }
         Ok(match (self.is_resolved, self.is_muted) {
             (Some(true), _) => Some(STATUS_RESOLVED),
-            (Some(false), _) => Some(STATUS_UNRESOLVED),
+            (Some(false), _) if current_status == STATUS_RESOLVED => Some(STATUS_UNRESOLVED),
+            (Some(false), _) => None,
             (None, Some(true)) => Some(STATUS_IGNORED),
             (None, Some(false)) if current_status == STATUS_IGNORED => Some(STATUS_UNRESOLVED),
             (None, Some(false)) => None,
@@ -447,5 +456,44 @@ mod tests {
         ] {
             assert!(!substatus_valid_for_status(STATUS_UNRESOLVED, s));
         }
+    }
+
+    #[test]
+    fn test_resolve_shim_is_noop_on_ignored_issue() {
+        // Old boolean model: unresolve() did `SET is_resolved = FALSE`
+        // unconditionally and never touched is_muted. On an already-ignored
+        // issue (is_resolved already FALSE, is_muted = TRUE) that was a true
+        // no-op — the issue stayed ignored. A defensive {"is_resolved":
+        // false} PATCH must not reopen it.
+        let body = UpdateIssueState {
+            is_resolved: Some(false),
+            ..Default::default()
+        };
+        assert_eq!(
+            body.resolved_status(STATUS_IGNORED).unwrap(),
+            None,
+            "is_resolved:false must be a no-op on an ignored issue"
+        );
+    }
+
+    #[test]
+    fn test_resolve_shim_transitions_resolved_issue_to_unresolved() {
+        let body = UpdateIssueState {
+            is_resolved: Some(false),
+            ..Default::default()
+        };
+        assert_eq!(
+            body.resolved_status(STATUS_RESOLVED).unwrap(),
+            Some(STATUS_UNRESOLVED)
+        );
+    }
+
+    #[test]
+    fn test_resolve_shim_is_noop_on_already_unresolved_issue() {
+        let body = UpdateIssueState {
+            is_resolved: Some(false),
+            ..Default::default()
+        };
+        assert_eq!(body.resolved_status(STATUS_UNRESOLVED).unwrap(), None);
     }
 }

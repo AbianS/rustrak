@@ -603,6 +603,42 @@ async fn test_unmute_shim_transitions_ignored_issue_to_unresolved() {
 }
 
 #[actix_web::test]
+async fn test_unresolve_shim_is_noop_on_ignored_issue() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Unresolve Noop Project").await;
+    let config = create_test_config();
+
+    let issue = create_test_issue(&db.pool, project.id, "TypeError", "Error").await;
+    IssueService::mute(&db.pool, issue.id).await.unwrap();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::patch()
+        .uri(&format!("/api/projects/{}/issues/{}", project.id, issue.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(json!({"is_resolved": false}))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body["status"], "ignored",
+        "a defensive {{is_resolved: false}} call must not un-ignore a muted issue"
+    );
+}
+
+#[actix_web::test]
 async fn test_update_issue_not_found() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
