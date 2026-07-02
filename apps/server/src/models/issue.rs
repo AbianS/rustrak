@@ -20,6 +20,33 @@ pub const STATUS_UNRESOLVED: &str = "unresolved";
 pub const STATUS_RESOLVED: &str = "resolved";
 pub const STATUS_IGNORED: &str = "ignored";
 
+/// Substatus values valid under `status = "unresolved"`.
+const UNRESOLVED_SUBSTATUSES: &[&str] = &[
+    SUBSTATUS_NEW,
+    SUBSTATUS_ONGOING,
+    SUBSTATUS_ESCALATING,
+    SUBSTATUS_REGRESSED,
+];
+
+/// Substatus values valid under `status = "ignored"`.
+const IGNORED_SUBSTATUSES: &[&str] = &[
+    SUBSTATUS_ARCHIVED_UNTIL_ESCALATING,
+    SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET,
+    SUBSTATUS_ARCHIVED_FOREVER,
+];
+
+/// Whether `substatus` is a legal pairing with `status` (Sentry-compatible).
+/// `resolved` issues never carry a substatus — Sentry's `GroupSubStatus` is
+/// only meaningful under `unresolved` (new/ongoing/escalating/regressed) and
+/// `ignored` (the three `archived_*` values).
+pub fn substatus_valid_for_status(status: &str, substatus: &str) -> bool {
+    match status {
+        STATUS_UNRESOLVED => UNRESOLVED_SUBSTATUSES.contains(&substatus),
+        STATUS_IGNORED => IGNORED_SUBSTATUSES.contains(&substatus),
+        _ => false,
+    }
+}
+
 /// Issue model - a group of similar events
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct Issue {
@@ -136,6 +163,24 @@ where
     T::deserialize(deserializer).map(Some)
 }
 
+/// Maximum number of ids accepted by a single bulk mutate/delete request.
+/// Mirrors the cap Sentry's own dashboard bulk-action UI applies; guards
+/// against a single request holding row locks or issuing queries for an
+/// unbounded batch.
+pub const MAX_BULK_IDS: usize = 100;
+
+/// Rejects a bulk request whose `ids` list exceeds [`MAX_BULK_IDS`].
+fn validate_bulk_ids_size(ids: &[Uuid]) -> AppResult<()> {
+    if ids.len() > MAX_BULK_IDS {
+        return Err(AppError::Validation(format!(
+            "Too many ids: {} (max {})",
+            ids.len(),
+            MAX_BULK_IDS
+        )));
+    }
+    Ok(())
+}
+
 /// Bulk mutate request: apply a status (and/or priority) to many issues.
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -145,11 +190,25 @@ pub struct BulkUpdateIssues {
     pub priority: Option<String>,
 }
 
+impl BulkUpdateIssues {
+    /// Rejects the request if `ids` exceeds [`MAX_BULK_IDS`].
+    pub fn validate_size(&self) -> AppResult<()> {
+        validate_bulk_ids_size(&self.ids)
+    }
+}
+
 /// Bulk delete request: remove many issues by id.
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct BulkDeleteIssues {
     pub ids: Vec<Uuid>,
+}
+
+impl BulkDeleteIssues {
+    /// Rejects the request if `ids` exceeds [`MAX_BULK_IDS`].
+    pub fn validate_size(&self) -> AppResult<()> {
+        validate_bulk_ids_size(&self.ids)
+    }
 }
 
 impl UpdateIssueState {
@@ -269,6 +328,112 @@ impl Issue {
             has_seen: None,
             user_count: None,
             trend: None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bulk_update_rejects_ids_over_max() {
+        let ids = (0..=MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
+        let body = BulkUpdateIssues {
+            ids,
+            status: None,
+            priority: None,
+        };
+        assert!(body.validate_size().is_err());
+    }
+
+    #[test]
+    fn test_bulk_update_accepts_ids_at_max() {
+        let ids = (0..MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
+        let body = BulkUpdateIssues {
+            ids,
+            status: None,
+            priority: None,
+        };
+        assert!(body.validate_size().is_ok());
+    }
+
+    #[test]
+    fn test_bulk_delete_rejects_ids_over_max() {
+        let ids = (0..=MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
+        let body = BulkDeleteIssues { ids };
+        assert!(body.validate_size().is_err());
+    }
+
+    #[test]
+    fn test_substatus_valid_for_status_unresolved_pairings() {
+        for s in [
+            SUBSTATUS_NEW,
+            SUBSTATUS_ONGOING,
+            SUBSTATUS_ESCALATING,
+            SUBSTATUS_REGRESSED,
+        ] {
+            assert!(
+                substatus_valid_for_status(STATUS_UNRESOLVED, s),
+                "{} should be valid under unresolved",
+                s
+            );
+        }
+    }
+
+    #[test]
+    fn test_substatus_valid_for_status_ignored_pairings() {
+        for s in [
+            SUBSTATUS_ARCHIVED_UNTIL_ESCALATING,
+            SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET,
+            SUBSTATUS_ARCHIVED_FOREVER,
+        ] {
+            assert!(
+                substatus_valid_for_status(STATUS_IGNORED, s),
+                "{} should be valid under ignored",
+                s
+            );
+        }
+    }
+
+    #[test]
+    fn test_substatus_invalid_for_resolved() {
+        // `resolved` issues never carry a substatus in real Sentry.
+        for s in [
+            SUBSTATUS_NEW,
+            SUBSTATUS_ONGOING,
+            SUBSTATUS_ESCALATING,
+            SUBSTATUS_REGRESSED,
+            SUBSTATUS_ARCHIVED_UNTIL_ESCALATING,
+            SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET,
+            SUBSTATUS_ARCHIVED_FOREVER,
+        ] {
+            assert!(
+                !substatus_valid_for_status(STATUS_RESOLVED, s),
+                "{} should NOT be valid under resolved",
+                s
+            );
+        }
+    }
+
+    #[test]
+    fn test_substatus_cross_pairings_rejected() {
+        // Unresolved-only substatuses must not be accepted under `ignored`.
+        for s in [
+            SUBSTATUS_NEW,
+            SUBSTATUS_ONGOING,
+            SUBSTATUS_ESCALATING,
+            SUBSTATUS_REGRESSED,
+        ] {
+            assert!(!substatus_valid_for_status(STATUS_IGNORED, s));
+        }
+        // Ignored-only substatuses must not be accepted under `unresolved`.
+        for s in [
+            SUBSTATUS_ARCHIVED_UNTIL_ESCALATING,
+            SUBSTATUS_ARCHIVED_UNTIL_CONDITION_MET,
+            SUBSTATUS_ARCHIVED_FOREVER,
+        ] {
+            assert!(!substatus_valid_for_status(STATUS_UNRESOLVED, s));
         }
     }
 }

@@ -454,6 +454,18 @@ impl IssueService {
         per_page: i64,
         search: Option<&str>,
     ) -> AppResult<(Vec<Issue>, i64)> {
+        if page < 1 {
+            return Err(AppError::Validation(format!(
+                "page must be >= 1, got {}",
+                page
+            )));
+        }
+        if !(1..=100).contains(&per_page) {
+            return Err(AppError::Validation(format!(
+                "per_page must be between 1 and 100, got {}",
+                per_page
+            )));
+        }
         let offset = (page - 1) * per_page;
 
         // Build WHERE clause based on filter
@@ -473,19 +485,26 @@ impl IssueService {
         };
 
         // Normalize the search term into a case-insensitive LIKE pattern (works
-        // on both Postgres and SQLite, unlike Postgres-only ILIKE).
-        let pattern = search
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(|s| format!("%{}%", s.to_lowercase()));
+        // on both Postgres and SQLite, unlike Postgres-only ILIKE). Literal
+        // `%`/`_`/`\` in the user's term are escaped first so they match
+        // themselves instead of acting as LIKE wildcards (the `%` added here
+        // for the prefix/suffix match are the only real wildcards).
+        let pattern = search.map(str::trim).filter(|s| !s.is_empty()).map(|s| {
+            let escaped = s
+                .to_lowercase()
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            format!("%{}%", escaped)
+        });
 
         if let Some(pattern) = pattern {
             // $2 = search pattern, applied to both count and select.
             let search_clause = r#"AND (
-                LOWER(calculated_type) LIKE $2
-                OR LOWER(calculated_value) LIKE $2
-                OR LOWER("transaction") LIKE $2
-                OR LOWER(culprit) LIKE $2
+                LOWER(calculated_type) LIKE $2 ESCAPE '\'
+                OR LOWER(calculated_value) LIKE $2 ESCAPE '\'
+                OR LOWER("transaction") LIKE $2 ESCAPE '\'
+                OR LOWER(culprit) LIKE $2 ESCAPE '\'
             )"#;
             let count_query = format!(
                 "SELECT COUNT(*) FROM issues WHERE {} {}",
@@ -632,8 +651,9 @@ impl IssueService {
     }
 
     /// Sets an issue's status. `substatus_override` takes precedence when
-    /// given (e.g. a client-supplied canonical substatus); otherwise the
-    /// matching default substatus for `status` is used.
+    /// given (e.g. a client-supplied canonical substatus), but only if it is
+    /// a legal pairing with `status` (see [`substatus_valid_for_status`]);
+    /// otherwise the matching default substatus for `status` is used.
     ///
     /// Always clears `status_details` — it only carries the "resolved in
     /// next release" marker (see [`resolve_in_next_release`]), which no
@@ -641,6 +661,8 @@ impl IssueService {
     /// change.
     ///
     /// Accepted statuses: `unresolved`, `resolved`, `ignored`.
+    ///
+    /// [`substatus_valid_for_status`]: crate::models::substatus_valid_for_status
     pub async fn set_status(
         pool: &DbPool,
         id: Uuid,
@@ -655,7 +677,16 @@ impl IssueService {
                 return Err(AppError::Validation(format!("Invalid status: {}", other)));
             }
         };
-        let substatus = substatus_override.or(default_substatus);
+        let substatus = match substatus_override {
+            Some(s) if crate::models::substatus_valid_for_status(status, s) => Some(s),
+            Some(s) => {
+                return Err(AppError::Validation(format!(
+                    "substatus '{}' is not valid for status '{}'",
+                    s, status
+                )));
+            }
+            None => default_substatus,
+        };
 
         let issue = sqlx::query_as::<_, Issue>(
             r#"
@@ -826,6 +857,66 @@ impl IssueService {
         }
         tx.commit().await?;
         Ok(updated)
+    }
+
+    /// Bulk-sets the priority of multiple issues in one project, in a single
+    /// query (unlike the per-id loop in [`bulk_set_status`], this doesn't
+    /// need a transaction since it's already one statement). Ids that don't
+    /// exist or belong to another project are silently not counted, matching
+    /// [`bulk_set_status`]'s semantics.
+    ///
+    /// [`bulk_set_status`]: Self::bulk_set_status
+    pub async fn bulk_set_priority(
+        pool: &DbPool,
+        project_id: i32,
+        ids: &[Uuid],
+        priority: &str,
+    ) -> AppResult<u64> {
+        if !matches!(priority, "low" | "medium" | "high") {
+            return Err(AppError::Validation(format!(
+                "Invalid priority: {}",
+                priority
+            )));
+        }
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let now = Utc::now();
+
+        #[cfg(feature = "postgres")]
+        {
+            let res = sqlx::query(
+                "UPDATE issues SET priority = $1, priority_locked_at = $2 \
+                 WHERE project_id = $3 AND id = ANY($4)",
+            )
+            .bind(priority)
+            .bind(now)
+            .bind(project_id)
+            .bind(ids)
+            .execute(pool)
+            .await?;
+            Ok(res.rows_affected())
+        }
+
+        #[cfg(not(feature = "postgres"))]
+        {
+            use sqlx::QueryBuilder;
+            let mut qb = QueryBuilder::new("UPDATE issues SET priority = ");
+            qb.push_bind(priority);
+            qb.push(", priority_locked_at = ");
+            qb.push_bind(now);
+            qb.push(" WHERE project_id = ");
+            qb.push_bind(project_id);
+            qb.push(" AND id IN (");
+            let mut sep = qb.separated(", ");
+            for id in ids {
+                sep.push_bind(*id);
+            }
+            qb.push(")");
+            let res = qb.build().execute(pool).await?;
+            Ok(res.rows_affected())
+        }
     }
 
     /// Bulk "resolve in next release": same semantics as

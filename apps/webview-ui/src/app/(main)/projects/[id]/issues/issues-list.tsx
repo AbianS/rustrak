@@ -334,7 +334,7 @@ export function IssuesList({
                     <MoreVertical className="size-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {!issue.is_resolved && (
+                    {issue.status !== 'resolved' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('resolve', new Set([issue.id]))
@@ -344,7 +344,7 @@ export function IssuesList({
                         Resolve
                       </DropdownMenuItem>
                     )}
-                    {issue.is_resolved && (
+                    {issue.status === 'resolved' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('unresolve', new Set([issue.id]))
@@ -354,7 +354,7 @@ export function IssuesList({
                         Unresolve
                       </DropdownMenuItem>
                     )}
-                    {!issue.is_muted && (
+                    {issue.status !== 'ignored' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('mute', new Set([issue.id]))
@@ -364,7 +364,7 @@ export function IssuesList({
                         Mute
                       </DropdownMenuItem>
                     )}
-                    {issue.is_muted && (
+                    {issue.status === 'ignored' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('unmute', new Set([issue.id]))

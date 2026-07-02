@@ -453,6 +453,7 @@ pub async fn bulk_update_issues(
         Action::MutateIssue,
     )
     .await?;
+    body.validate_size()?;
 
     let mut updated = 0u64;
     if let Some(status) = body.status.as_deref() {
@@ -464,17 +465,11 @@ pub async fn bulk_update_issues(
         };
     }
     if let Some(priority) = body.priority.as_deref() {
-        for id in &body.ids {
-            // Best-effort: only touch issues in this project.
-            let issue = IssueService::get_by_id(pool.get_ref(), *id).await;
-            if let Ok(issue) = issue {
-                if issue.project_id == project_id {
-                    IssueService::set_priority(pool.get_ref(), *id, priority).await?;
-                    if body.status.is_none() {
-                        updated += 1;
-                    }
-                }
-            }
+        let priority_updated =
+            IssueService::bulk_set_priority(pool.get_ref(), project_id, &body.ids, priority)
+                .await?;
+        if body.status.is_none() {
+            updated = priority_updated;
         }
     }
 
@@ -509,6 +504,7 @@ pub async fn bulk_delete_issues(
         Action::MutateIssue,
     )
     .await?;
+    body.validate_size()?;
 
     let deleted = IssueService::bulk_delete(pool.get_ref(), project_id, &body.ids).await?;
     Ok(HttpResponse::Ok().json(json!({ "deleted": deleted })))

@@ -199,15 +199,17 @@ pub fn get_denormalized_fields(event_data: &Value) -> DenormalizedFields {
 
     let transaction = get_transaction(event_data);
     let culprit = get_culprit(&function, &filename, &transaction);
+    // Limits match Relay's exactly (relay-event-schema/src/protocol/event.rs
+    // @97f9c4b): `logger` max_chars = 64, `release` max_chars = 200.
     let logger = event_data
         .get("logger")
         .and_then(|l| l.as_str())
-        .map(|s| truncate(s, 128))
+        .map(|s| truncate(s, 64))
         .unwrap_or_default();
     let release = event_data
         .get("release")
         .and_then(|r| r.as_str())
-        .map(|s| truncate(s, 250))
+        .map(|s| truncate(s, 200))
         .unwrap_or_default();
 
     DenormalizedFields {

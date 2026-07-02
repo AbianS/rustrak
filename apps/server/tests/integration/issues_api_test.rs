@@ -111,7 +111,6 @@ async fn create_test_issue(
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_empty() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -135,14 +134,15 @@ async fn test_list_issues_empty() {
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
 
+    // Offset pagination (GH #165), not the old cursor shape: items/total_count/
+    // page/per_page/total_pages.
     let body: Value = test::read_body_json(resp).await;
     assert!(body["items"].as_array().unwrap().is_empty());
-    assert_eq!(body["has_more"], false);
-    assert!(body["next_cursor"].is_null());
+    assert_eq!(body["total_count"], 0);
+    assert_eq!(body["total_pages"], 0);
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_with_data() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -176,7 +176,6 @@ async fn test_list_issues_with_data() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_unauthorized() {
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Unauthorized Project").await;
@@ -200,7 +199,6 @@ async fn test_list_issues_unauthorized() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_project_not_found() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -225,7 +223,6 @@ async fn test_list_issues_project_not_found() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_filters_resolved_by_default() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -263,7 +260,6 @@ async fn test_list_issues_filters_resolved_by_default() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_include_resolved() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -284,11 +280,10 @@ async fn test_list_issues_include_resolved() {
     )
     .await;
 
+    // `include_resolved=true` is the old boolean param; the current API uses
+    // `filter=all` (an `IssueFilter` enum: open/resolved/muted/all).
     let req = test::TestRequest::get()
-        .uri(&format!(
-            "/api/projects/{}/issues?include_resolved=true",
-            project.id
-        ))
+        .uri(&format!("/api/projects/{}/issues?filter=all", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
 
@@ -301,7 +296,6 @@ async fn test_list_issues_include_resolved() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_sort_by_last_seen() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -345,7 +339,6 @@ async fn test_list_issues_sort_by_last_seen() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_issue_success() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -377,7 +370,6 @@ async fn test_get_issue_success() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_issue_not_found() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -407,7 +399,6 @@ async fn test_get_issue_not_found() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_get_issue_wrong_project() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -445,7 +436,6 @@ async fn test_get_issue_wrong_project() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_resolve_issue() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -479,7 +469,6 @@ async fn test_resolve_issue() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_unresolve_issue() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -513,7 +502,6 @@ async fn test_unresolve_issue() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_mute_issue() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -546,7 +534,6 @@ async fn test_mute_issue() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_update_issue_not_found() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -578,7 +565,6 @@ async fn test_update_issue_not_found() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_update_issue_empty_body() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -613,7 +599,6 @@ async fn test_update_issue_empty_body() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_delete_issue_success() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -657,7 +642,6 @@ async fn test_delete_issue_success() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_delete_issue_not_found() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -687,7 +671,6 @@ async fn test_delete_issue_not_found() {
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_delete_issue_wrong_project() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -735,15 +718,14 @@ async fn test_delete_issue_wrong_project() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_list_issues_pagination() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
     let project = create_test_project(&db.pool, "Pagination Project").await;
     let config = create_test_config();
 
-    // Create a few issues for pagination testing
-    // (actual page size is 250, so we test with fewer items and verify pagination structure)
+    // Create 25 issues — more than the default page size (PAGE_SIZE = 20,
+    // pagination/mod.rs:8), so pagination structure is actually exercised.
     for i in 0..25 {
         create_test_issue(
             &db.pool,
@@ -763,7 +745,7 @@ async fn test_list_issues_pagination() {
     )
     .await;
 
-    // First page - should return all 25 issues (less than page size of 250)
+    // First page: 20 items, 25 total, 2 pages.
     let req = test::TestRequest::get()
         .uri(&format!("/api/projects/{}/issues", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
@@ -774,19 +756,36 @@ async fn test_list_issues_pagination() {
 
     let body: Value = test::read_body_json(resp).await;
     let issues = body["items"].as_array().unwrap();
-    assert_eq!(issues.len(), 25);
-    // With only 25 items and page size 250, there should be no more pages
-    assert_eq!(body["has_more"], false);
-    // next_cursor should be null when no more pages
-    assert!(body["next_cursor"].is_null());
+    assert_eq!(issues.len(), 20);
+    assert_eq!(body["total_count"], 25);
+    assert_eq!(body["page"], 1);
+    assert_eq!(body["per_page"], 20);
+    assert_eq!(body["total_pages"], 2);
+
+    // Second page: the remaining 5 items.
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/projects/{}/issues?page=2", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let issues = body["items"].as_array().unwrap();
+    assert_eq!(issues.len(), 5);
+    assert_eq!(body["page"], 2);
 }
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
-async fn test_list_issues_invalid_cursor() {
+async fn test_list_issues_invalid_page_param() {
+    // `cursor` doesn't exist as a query param on the offset-paginated
+    // endpoint anymore (`?page=` replaced it); a non-numeric `page` is the
+    // current equivalent of a malformed pagination param and must 400 via
+    // actix's `Query<ListIssuesQuery>` extraction failure.
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
-    let project = create_test_project(&db.pool, "Invalid Cursor Project").await;
+    let project = create_test_project(&db.pool, "Invalid Page Project").await;
     let config = create_test_config();
 
     let app = test::init_service(
@@ -800,9 +799,37 @@ async fn test_list_issues_invalid_cursor() {
 
     let req = test::TestRequest::get()
         .uri(&format!(
-            "/api/projects/{}/issues?cursor=invalid_cursor_value",
+            "/api/projects/{}/issues?page=not_a_number",
             project.id
         ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+}
+
+#[actix_web::test]
+async fn test_list_issues_page_zero_rejected_not_negative_offset() {
+    // page=0 used to silently produce a negative SQL OFFSET instead of an
+    // error (SQLite tolerated it and returned zero rows; Postgres would
+    // likely 500). Must be a clean 400 now.
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Page Zero Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/projects/{}/issues?page=0", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
 
@@ -815,7 +842,6 @@ async fn test_list_issues_invalid_cursor() {
 // =============================================================================
 
 #[actix_web::test]
-#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_issue_response_format() {
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
@@ -866,4 +892,120 @@ async fn test_issue_response_format() {
     let short_id = body["short_id"].as_str().unwrap();
     assert!(short_id.starts_with(&project.slug.to_uppercase()));
     assert!(short_id.contains("-"));
+}
+
+// =============================================================================
+// Bulk Operations Tests (through the real HTTP handlers, not IssueService
+// directly — closes the coverage gap where digest_test.rs's bulk tests only
+// exercised the service layer and never touched access::require, the
+// resolvedInNextRelease branch, or the size-cap/IDOR checks in routes/issues.rs)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_bulk_update_issues_via_http_sets_status_and_priority() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Bulk HTTP Project").await;
+    let config = create_test_config();
+
+    let i1 = create_test_issue(&db.pool, project.id, "TypeError", "a").await;
+    let i2 = create_test_issue(&db.pool, project.id, "ValueError", "b").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .set_json(json!({
+            "ids": [i1.id, i2.id],
+            "status": "resolved",
+            "priority": "high",
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["updated"], 2);
+
+    let updated1 = IssueService::get_by_id(&db.pool, i1.id).await.unwrap();
+    assert_eq!(updated1.status, "resolved");
+    assert_eq!(updated1.priority.as_deref(), Some("high"));
+    let updated2 = IssueService::get_by_id(&db.pool, i2.id).await.unwrap();
+    assert_eq!(updated2.status, "resolved");
+    assert_eq!(updated2.priority.as_deref(), Some("high"));
+}
+
+#[actix_web::test]
+async fn test_bulk_update_issues_rejects_oversized_batch() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Bulk Oversized Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    // 101 random ids (over MAX_BULK_IDS = 100) — none need to exist, the size
+    // cap must reject the request before any DB lookup happens.
+    let ids: Vec<Uuid> = (0..101).map(|_| Uuid::new_v4()).collect();
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .set_json(json!({ "ids": ids, "status": "resolved" }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 400);
+}
+
+#[actix_web::test]
+async fn test_bulk_delete_issues_via_http_scoped_to_project() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Bulk Delete HTTP Project").await;
+    let other_project = create_test_project(&db.pool, "Other HTTP Project").await;
+    let config = create_test_config();
+
+    let mine = create_test_issue(&db.pool, project.id, "TypeError", "a").await;
+    let theirs = create_test_issue(&db.pool, other_project.id, "TypeError", "b").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    // A bulk-delete request scoped to `project` must not delete an issue
+    // belonging to `other_project`, even though its id is included (IDOR
+    // check on the bulk path, not just single-issue delete).
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .set_json(json!({ "ids": [mine.id, theirs.id] }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["deleted"], 1);
+
+    assert!(IssueService::get_by_id(&db.pool, mine.id).await.is_err());
+    assert!(IssueService::get_by_id(&db.pool, theirs.id).await.is_ok());
 }

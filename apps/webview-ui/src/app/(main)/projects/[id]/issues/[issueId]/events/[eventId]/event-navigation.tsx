@@ -63,7 +63,7 @@ export function EventNavigationBar({
       <Button
         variant="ghost"
         size="sm"
-        disabled={currentIndex <= 1}
+        disabled={currentIndex <= 1 || !firstEventId}
         onClick={() => go(firstEventId)}
       >
         First
@@ -71,7 +71,7 @@ export function EventNavigationBar({
       <Button
         variant="ghost"
         size="sm"
-        disabled={currentIndex >= totalCount}
+        disabled={currentIndex >= totalCount || !lastEventId}
         onClick={() => go(lastEventId)}
       >
         Latest

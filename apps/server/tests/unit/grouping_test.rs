@@ -683,6 +683,34 @@ fn test_value_truncation() {
 }
 
 #[test]
+fn test_logger_truncation_matches_relay_limit() {
+    // Relay's `logger` field limit is 64 chars
+    // (relay-event-schema/src/protocol/event.rs @97f9c4b), not 128.
+    let long_logger = "L".repeat(200);
+    let event = json!({
+        "exception": { "values": [{ "type": "Error", "value": "test" }] },
+        "logger": long_logger
+    });
+
+    let fields = get_denormalized_fields(&event);
+    assert_eq!(fields.logger.len(), 64);
+}
+
+#[test]
+fn test_release_truncation_matches_relay_limit() {
+    // Relay's `release` field limit is 200 chars
+    // (relay-event-schema/src/protocol/event.rs @97f9c4b), not 250.
+    let long_release = "R".repeat(300);
+    let event = json!({
+        "exception": { "values": [{ "type": "Error", "value": "test" }] },
+        "release": long_release
+    });
+
+    let fields = get_denormalized_fields(&event);
+    assert_eq!(fields.release.len(), 200);
+}
+
+#[test]
 fn test_transaction_truncation() {
     let long_transaction = "/".to_string() + &"x".repeat(300);
     let event = json!({

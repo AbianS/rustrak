@@ -1083,6 +1083,45 @@ async fn test_unresolved_issue_does_not_regress() {
     assert_ne!(issue.substatus.as_deref(), Some("regressed"));
 }
 
+#[actix_web::test]
+async fn test_set_status_rejects_substatus_not_valid_for_status() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Invalid Pair Project").await;
+    let temp_dir = TempDir::new().unwrap();
+    let cfg = create_rate_limit_config();
+
+    let e1 = Uuid::new_v4().to_string().replace("-", "");
+    ingest_error_event(&db.pool, project.id, temp_dir.path(), &cfg, &e1).await;
+    let issue_id = sqlx::query_scalar::<_, Uuid>("SELECT id FROM issues WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+
+    // "escalating" is only a legal substatus under `unresolved`, never `resolved`.
+    let err = IssueService::set_status(&db.pool, issue_id, "resolved", Some("escalating"))
+        .await
+        .expect_err("resolved+escalating must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+
+    // The issue must be left untouched by the rejected update.
+    let issue = IssueService::get_by_id(&db.pool, issue_id).await.unwrap();
+    assert_eq!(issue.status, "unresolved");
+
+    // An `ignored`-only substatus under `unresolved` must be rejected too.
+    let err = IssueService::set_status(&db.pool, issue_id, "unresolved", Some("archived_forever"))
+        .await
+        .expect_err("unresolved+archived_forever must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+
+    // A legal pairing must still succeed.
+    let issue = IssueService::set_status(&db.pool, issue_id, "ignored", Some("archived_forever"))
+        .await
+        .expect("ignored+archived_forever is a legal pairing");
+    assert_eq!(issue.status, "ignored");
+    assert_eq!(issue.substatus.as_deref(), Some("archived_forever"));
+}
+
 // =============================================================================
 // Hashes, bulk ops, and tag/user aggregation (GH #165)
 // =============================================================================
@@ -1238,6 +1277,106 @@ async fn test_bulk_set_status_and_delete() {
         .unwrap();
     assert_eq!(deleted, 2);
     assert!(IssueService::get_by_id(&db.pool, i1.id).await.is_err());
+}
+
+#[actix_web::test]
+async fn test_bulk_set_priority_updates_only_ids_in_project() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Bulk Priority Project").await;
+    let other_project = create_test_project(&db.pool, "Other Project").await;
+
+    use rustrak::services::grouping::get_denormalized_fields;
+    let d = get_denormalized_fields(&json!({"exception":{"values":[{"type":"A","value":"a"}]}}));
+    let i1 = IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &d,
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+    let i2 = IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &d,
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+    // An issue in a different project must not be touched even if its id is
+    // (mistakenly or maliciously) included in the request. Created with
+    // level "info" (derives to "low" priority) so a leaked update to "high"
+    // is actually observable, rather than starting at "high" already.
+    let other = IssueService::create(
+        &db.pool,
+        other_project.id,
+        Utc::now(),
+        &d,
+        Some("info"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+
+    let updated =
+        IssueService::bulk_set_priority(&db.pool, project.id, &[i1.id, i2.id, other.id], "high")
+            .await
+            .unwrap();
+
+    // Only the two issues actually in `project` are counted/updated.
+    assert_eq!(updated, 2);
+    assert_eq!(
+        IssueService::get_by_id(&db.pool, i1.id)
+            .await
+            .unwrap()
+            .priority
+            .as_deref(),
+        Some("high")
+    );
+    assert_eq!(
+        IssueService::get_by_id(&db.pool, i2.id)
+            .await
+            .unwrap()
+            .priority
+            .as_deref(),
+        Some("high")
+    );
+    assert_ne!(
+        IssueService::get_by_id(&db.pool, other.id)
+            .await
+            .unwrap()
+            .priority
+            .as_deref(),
+        Some("high")
+    );
+}
+
+#[actix_web::test]
+async fn test_bulk_set_priority_rejects_invalid_priority() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Bulk Priority Invalid Project").await;
+
+    use rustrak::services::grouping::get_denormalized_fields;
+    let d = get_denormalized_fields(&json!({"exception":{"values":[{"type":"A","value":"a"}]}}));
+    let i1 = IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &d,
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+
+    let err = IssueService::bulk_set_priority(&db.pool, project.id, &[i1.id], "urgent")
+        .await
+        .expect_err("invalid priority must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
 }
 
 #[actix_web::test]
@@ -1430,6 +1569,131 @@ async fn test_list_offset_search_filters_by_text() {
     .await
     .unwrap();
     assert_eq!(total, 0);
+}
+
+#[actix_web::test]
+async fn test_list_offset_search_escapes_like_wildcards() {
+    // `_` is a single-char LIKE wildcard; an unescaped search for a literal
+    // underscore would also match any other single character in that
+    // position. Two issues differing only by "_" vs "x" in that spot must
+    // NOT both match a search for the literal underscore.
+    use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
+    use rustrak::services::grouping::get_denormalized_fields;
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Search Escape Project").await;
+
+    let with_underscore = get_denormalized_fields(
+        &json!({"exception":{"values":[{"type":"Error","value":"database_error"}]}}),
+    );
+    let without_underscore = get_denormalized_fields(
+        &json!({"exception":{"values":[{"type":"Error","value":"databasexerror"}]}}),
+    );
+    IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &with_underscore,
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+    IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &without_underscore,
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .unwrap();
+
+    let (hits, total) = IssueService::list_offset(
+        &db.pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Desc,
+        IssueFilter::All,
+        1,
+        50,
+        Some("database_error"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        total, 1,
+        "literal '_' in the search term must not act as a LIKE wildcard"
+    );
+    assert_eq!(hits[0].calculated_value, "database_error");
+}
+
+#[actix_web::test]
+async fn test_list_offset_rejects_page_below_one() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Page Clamp Project").await;
+
+    let err = IssueService::list_offset(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        rustrak::pagination::IssueFilter::All,
+        0,
+        20,
+        None,
+    )
+    .await
+    .expect_err("page=0 must be rejected, not produce a negative SQL OFFSET");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+
+    let err = IssueService::list_offset(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        rustrak::pagination::IssueFilter::All,
+        -5,
+        20,
+        None,
+    )
+    .await
+    .expect_err("negative page must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+}
+
+#[actix_web::test]
+async fn test_list_offset_rejects_per_page_out_of_range() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Per Page Clamp Project").await;
+
+    let err = IssueService::list_offset(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        rustrak::pagination::IssueFilter::All,
+        1,
+        0,
+        None,
+    )
+    .await
+    .expect_err("per_page=0 must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+
+    let err = IssueService::list_offset(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        rustrak::pagination::IssueFilter::All,
+        1,
+        101,
+        None,
+    )
+    .await
+    .expect_err("per_page over the documented max of 100 must be rejected");
+    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
 }
 
 // =============================================================================
