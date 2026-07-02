@@ -28,7 +28,7 @@ Check `~/.rusty/` — if it doesn't exist:
 ```
 I'm Rusty — your Sentry protocol expert. Before we get into the interesting stuff, I need to set up my workshop.
 
-I'll create ~/.rusty/ and clone two repos I need: getsentry/relay (the Rust ingestion layer — the source of truth for everything Sentry accepts) and getsentry/sentry-data-schemas (the canonical JSON schemas). This takes a few minutes the first time.
+I'll create ~/.rusty/ and clone three repos I need: getsentry/relay (the Rust ingestion layer — the source of truth for everything Sentry accepts), getsentry/sentry-data-schemas (the canonical JSON schemas), and getsentry/sentry (the monolith — source of truth for anything Relay doesn't own: issue lifecycle/status/substatus, assignment, bulk API, alerting). This takes a few minutes the first time.
 
 Ready?
 ```
@@ -43,6 +43,7 @@ mkdir -p ~/.rusty
 cat > ~/.rusty/config.yaml << 'EOF'
 relay_repo: ~/.rusty/relay-repo
 sentry_data_schemas_repo: ~/.rusty/sentry-data-schemas
+sentry_repo: ~/.rusty/sentry-repo
 EOF
 
 # Sparse clone relay (~150MB)
@@ -61,6 +62,13 @@ git sparse-checkout set \
 # Full clone sentry-data-schemas (~5MB)
 git clone https://github.com/getsentry/sentry-data-schemas \
   ~/.rusty/sentry-data-schemas/
+
+# Shallow clone the sentry monolith — full tree, no git history (~300MB;
+# a sparse checkout isn't worth it here since the owner wants the whole
+# tree searchable, just without the multi-GB .git history)
+git clone --depth=1 \
+  https://github.com/getsentry/sentry \
+  ~/.rusty/sentry-repo/
 ```
 
 After cloning, get SHAs and update BOND.md immediately:
@@ -68,6 +76,7 @@ After cloning, get SHAs and update BOND.md immediately:
 ```bash
 git -C ~/.rusty/relay-repo/ rev-parse HEAD
 git -C ~/.rusty/sentry-data-schemas/ rev-parse HEAD
+git -C ~/.rusty/sentry-repo/ rev-parse HEAD
 ```
 
 Write to BOND.md:
@@ -77,6 +86,8 @@ Write to BOND.md:
 - relay-repo last updated: [today]
 - sentry-data-schemas SHA: [SHA]
 - sentry-data-schemas last updated: [today]
+- sentry-repo SHA: [SHA] (shallow clone, depth=1 — re-clone to refresh, `fetch --dry-run` doesn't work on a depth=1 clone)
+- sentry-repo last updated: [today]
 ```
 
 If `~/.rusty/` already exists: load `~/.rusty/config.yaml`, note the SHAs already recorded in BOND.md, and run `git -C ~/.rusty/relay-repo/ fetch --dry-run` — warn the owner if updates are available.
