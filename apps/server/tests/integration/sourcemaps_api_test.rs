@@ -179,6 +179,17 @@ async fn insert_assembly_job_with_state(
     .expect("insert assembly_jobs must succeed");
 }
 
+/// Binds a UUID-typed column: Postgres requires a native `Uuid` value (a bare
+/// `&str` is sent as `text`, which Postgres refuses to assign into a `uuid`
+/// column — code 42804), while SQLite's `uuid` columns are untyped `TEXT` and
+/// accept the string form directly.
+fn push_uuid_bind(qb: &mut sqlx::QueryBuilder<rustrak::db::Db>, value: &str) {
+    #[cfg(feature = "postgres")]
+    qb.push_bind(uuid::Uuid::parse_str(value).expect("value must be a valid uuid"));
+    #[cfg(not(feature = "postgres"))]
+    qb.push_bind(value);
+}
+
 async fn insert_source_file(
     pool: &rustrak::db::DbPool,
     id: &str,
@@ -189,7 +200,7 @@ async fn insert_source_file(
     let mut qb = sqlx::QueryBuilder::new(
         "INSERT INTO source_file(id, checksum, size, storage_path) VALUES (",
     );
-    qb.push_bind(id);
+    push_uuid_bind(&mut qb, id);
     qb.push(", ");
     qb.push_bind(checksum);
     qb.push(", ");
@@ -211,15 +222,15 @@ async fn insert_source_file_metadata(
     let mut qb = sqlx::QueryBuilder::new(
         "INSERT INTO source_file_metadata(id, project_id, debug_id, file_type, file_id) VALUES (",
     );
-    qb.push_bind(id);
+    push_uuid_bind(&mut qb, id);
     qb.push(", ");
     qb.push_bind(project_id);
     qb.push(", ");
-    qb.push_bind(debug_id);
+    push_uuid_bind(&mut qb, debug_id);
     qb.push(", ");
     qb.push_bind(file_type);
     qb.push(", ");
-    qb.push_bind(file_id);
+    push_uuid_bind(&mut qb, file_id);
     qb.push(")");
     qb.build()
         .execute(pool)
