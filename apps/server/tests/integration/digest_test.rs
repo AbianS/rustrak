@@ -1502,6 +1502,65 @@ async fn test_list_stats_trend_has_24_buckets_summing_to_event_count() {
 }
 
 #[actix_web::test]
+async fn test_list_stats_counts_by_email_when_id_is_absent() {
+    // list_stats's SQL projects just `data`'s `user` sub-field (not the
+    // whole event) for the issue-list hot path — this locks in that the
+    // id > email > username > ip_address fallback still works once only the
+    // `user` object survives the projection, on events that otherwise carry
+    // a large unrelated payload (exception/stacktrace) alongside it.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "List Stats Email Fallback Project").await;
+    let temp_dir = TempDir::new().unwrap();
+    let cfg = create_rate_limit_config();
+
+    ingest_event_with_tags(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        json!({}),
+        json!({"email": "a@example.com"}),
+    )
+    .await;
+    ingest_event_with_tags(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        json!({}),
+        json!({"email": "a@example.com"}),
+    )
+    .await;
+    ingest_event_with_tags(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        json!({}),
+        json!({"email": "b@example.com"}),
+    )
+    .await;
+    // No `user` field at all — must not be counted, and must not error the
+    // NULL projection path.
+    ingest_error_event(
+        &db.pool,
+        project.id,
+        temp_dir.path(),
+        &cfg,
+        &Uuid::new_v4().to_string().replace("-", ""),
+    )
+    .await;
+
+    let issue_id = only_issue_id(&db.pool, project.id).await;
+
+    let stats = IssueService::list_stats(&db.pool, &[issue_id])
+        .await
+        .unwrap();
+    let entry = stats.get(&issue_id).expect("stats for the issue");
+    assert_eq!(entry.user_count, 2, "a@example.com and b@example.com");
+}
+
+#[actix_web::test]
 async fn test_list_offset_search_filters_by_text() {
     use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
     use rustrak::services::grouping::get_denormalized_fields;

@@ -141,7 +141,14 @@ fn value_to_tag_string_opt(v: &serde_json::Value) -> Option<String> {
 /// Extracts a stable user identity (id, else email, else ip_address) for unique
 /// user counting.
 fn extract_user_identity(data: &serde_json::Value) -> Option<String> {
-    let user = data.get("user")?;
+    user_identity_from_user_field(data.get("user")?)
+}
+
+/// Extracts a stable user identity string from an already-extracted `user`
+/// sub-object (as opposed to a full event `data` blob) — split out so
+/// `list_stats`'s SQL can project just `data->'user'` instead of hydrating
+/// the entire event payload for every event on the issue-list hot path.
+fn user_identity_from_user_field(user: &serde_json::Value) -> Option<String> {
     for field in ["id", "email", "username", "ip_address"] {
         if let Some(s) = user.get(field).and_then(|v| v.as_str()) {
             if !s.is_empty() {
@@ -1115,9 +1122,17 @@ impl IssueService {
         let start = now - LIST_TREND_BUCKET_SECS * LIST_TREND_BUCKETS;
         let start_dt = DateTime::<Utc>::from_timestamp(start, 0).unwrap_or_else(Utc::now);
 
+        // Projects only `data->'user'` instead of the full event payload:
+        // this runs on every issue-list page load (up to 100 issues,
+        // uncapped events per issue within the 24h window), and the only
+        // thing read from `data` is the user sub-object — pulling the whole
+        // blob (stacktraces, breadcrumbs, contexts, tags, request) across
+        // every matching event is needless bytes-on-the-wire and JSON
+        // deserialization for a hot path. `aggregates()`/`tag_values()`
+        // still fetch the full row since they also read tags from it.
         #[cfg(feature = "postgres")]
-        let rows: Vec<(Uuid, serde_json::Value, DateTime<Utc>)> = sqlx::query_as(
-            "SELECT issue_id, data, ingested_at FROM events \
+        let rows: Vec<(Uuid, Option<serde_json::Value>, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT issue_id, data -> 'user', ingested_at FROM events \
              WHERE issue_id = ANY($1) AND ingested_at >= $2",
         )
         .bind(issue_ids)
@@ -1126,10 +1141,10 @@ impl IssueService {
         .await?;
 
         #[cfg(not(feature = "postgres"))]
-        let rows: Vec<(Uuid, serde_json::Value, DateTime<Utc>)> = {
+        let rows: Vec<(Uuid, Option<serde_json::Value>, DateTime<Utc>)> = {
             use sqlx::QueryBuilder;
             let mut qb = QueryBuilder::new(
-                "SELECT issue_id, data, ingested_at FROM events WHERE issue_id IN (",
+                "SELECT issue_id, json_extract(data, '$.user'), ingested_at FROM events WHERE issue_id IN (",
             );
             let mut sep = qb.separated(", ");
             for id in issue_ids {
@@ -1155,11 +1170,11 @@ impl IssueService {
             .collect();
         let mut users: HashMap<Uuid, std::collections::HashSet<String>> = HashMap::new();
 
-        for (issue_id, data, ts) in &rows {
+        for (issue_id, user, ts) in &rows {
             let Some(stats) = out.get_mut(issue_id) else {
                 continue;
             };
-            if let Some(uid) = extract_user_identity(data) {
+            if let Some(uid) = user.as_ref().and_then(user_identity_from_user_field) {
                 users.entry(*issue_id).or_default().insert(uid);
             }
             let raw = (ts.timestamp() - start) / LIST_TREND_BUCKET_SECS;
@@ -1343,5 +1358,50 @@ mod tests {
         // Same fallthrough as the missing-level case, for a level string
         // Sentry doesn't recognize either.
         assert_eq!(derive_priority(Some("critical")), "medium");
+    }
+
+    #[test]
+    fn test_user_identity_from_user_field_prefers_id() {
+        let user = serde_json::json!({"id": "u1", "email": "a@b.com"});
+        assert_eq!(
+            user_identity_from_user_field(&user),
+            Some("id:u1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_user_identity_from_user_field_falls_back_to_email() {
+        let user = serde_json::json!({"email": "a@b.com"});
+        assert_eq!(
+            user_identity_from_user_field(&user),
+            Some("email:a@b.com".to_string())
+        );
+    }
+
+    #[test]
+    fn test_user_identity_from_user_field_skips_empty_strings() {
+        let user = serde_json::json!({"id": "", "username": "bob"});
+        assert_eq!(
+            user_identity_from_user_field(&user),
+            Some("username:bob".to_string())
+        );
+    }
+
+    #[test]
+    fn test_user_identity_from_user_field_none_when_no_recognized_field() {
+        let user = serde_json::json!({"segment": "beta"});
+        assert_eq!(user_identity_from_user_field(&user), None);
+    }
+
+    #[test]
+    fn test_extract_user_identity_still_reads_from_full_event_data() {
+        // `extract_user_identity` (used by `aggregates()`, which needs the
+        // full event blob anyway for tags) must keep unwrapping `data.user`
+        // itself — only `list_stats`'s SQL-level projection changes.
+        let data = serde_json::json!({
+            "user": {"id": "u1"},
+            "exception": {"values": [{"type": "TypeError"}]},
+        });
+        assert_eq!(extract_user_identity(&data), Some("id:u1".to_string()));
     }
 }
