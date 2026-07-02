@@ -157,7 +157,9 @@ export const userReportSchema = z.object({
   issue_id: uuidSchema.nullable(),
   event_id: uuidSchema.nullable(),
   name: z.string(),
-  email: z.email(),
+  // Server stores '' for anonymous reports (column DEFAULT '' / unwrap_or_default),
+  // matching real Sentry's own save_userreport(report.get("email", "")) — accept it.
+  email: z.union([z.email(), z.literal('')]),
   comments: z.string(),
   created_at: dateTimeSchema,
 });
