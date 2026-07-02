@@ -442,13 +442,26 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/issues/:issueId/tags/:key`,
     ({ params }) => {
       const { key } = params;
-      return HttpResponse.json({
-        key,
-        values: [
-          { value: 'chrome', count: 2 },
-          { value: 'firefox', count: 1 },
-        ],
-      });
+      // Bare list, one entry per value (Sentry-compatible shape) — not a
+      // `{key, values}` wrapper.
+      return HttpResponse.json([
+        {
+          key,
+          name: key,
+          value: 'chrome',
+          count: 2,
+          first_seen: '2026-01-20T10:00:00.000Z',
+          last_seen: '2026-01-20T11:00:00.000Z',
+        },
+        {
+          key,
+          name: key,
+          value: 'firefox',
+          count: 1,
+          first_seen: '2026-01-20T10:30:00.000Z',
+          last_seen: '2026-01-20T10:30:00.000Z',
+        },
+      ]);
     },
   ),
 

@@ -164,10 +164,10 @@ where
 }
 
 /// Maximum number of ids accepted by a single bulk mutate/delete request.
-/// Mirrors the cap Sentry's own dashboard bulk-action UI applies; guards
-/// against a single request holding row locks or issuing queries for an
-/// unbounded batch.
-pub const MAX_BULK_IDS: usize = 100;
+/// Matches Sentry's own `BULK_MUTATION_LIMIT`
+/// (src/sentry/api/helpers/group_index/__init__.py:12: "Bulk mutations are
+/// limited to 1000 items.").
+pub const MAX_BULK_IDS: usize = 1000;
 
 /// Rejects a bulk request whose `ids` list exceeds [`MAX_BULK_IDS`].
 fn validate_bulk_ids_size(ids: &[Uuid]) -> AppResult<()> {
@@ -337,19 +337,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bulk_update_rejects_ids_over_max() {
+    fn test_bulk_delete_rejects_ids_over_max() {
         let ids = (0..=MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
-        let body = BulkUpdateIssues {
-            ids,
-            status: None,
-            priority: None,
-        };
+        let body = BulkDeleteIssues { ids };
         assert!(body.validate_size().is_err());
     }
 
     #[test]
-    fn test_bulk_update_accepts_ids_at_max() {
-        let ids = (0..MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
+    fn test_bulk_update_accepts_1000_ids_matching_sentry_limit() {
+        // Real Sentry's BULK_MUTATION_LIMIT is 1000
+        // (src/sentry/api/helpers/group_index/__init__.py:12).
+        let ids = (0..1000).map(|_| Uuid::new_v4()).collect();
         let body = BulkUpdateIssues {
             ids,
             status: None,
@@ -359,9 +357,13 @@ mod tests {
     }
 
     #[test]
-    fn test_bulk_delete_rejects_ids_over_max() {
-        let ids = (0..=MAX_BULK_IDS).map(|_| Uuid::new_v4()).collect();
-        let body = BulkDeleteIssues { ids };
+    fn test_bulk_update_rejects_1001_ids() {
+        let ids = (0..1001).map(|_| Uuid::new_v4()).collect();
+        let body = BulkUpdateIssues {
+            ids,
+            status: None,
+            priority: None,
+        };
         assert!(body.validate_size().is_err());
     }
 

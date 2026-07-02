@@ -94,11 +94,17 @@ export const tagValueCountSchema = z.object({
 });
 
 /**
- * Distinct values for a single tag key within an issue.
+ * A single tag value's usage within an issue — the shape `GET
+ * /issues/{id}/tags/{key}` returns per entry (Sentry-compatible: a bare
+ * list of these, not a `{key, values}` wrapper).
  */
-export const tagValuesResponseSchema = z.object({
+export const issueTagValueSchema = z.object({
   key: z.string(),
-  values: z.array(tagValueCountSchema),
+  name: z.string(),
+  value: z.string(),
+  count: z.number().int(),
+  first_seen: dateTimeSchema,
+  last_seen: dateTimeSchema,
 });
 
 /**

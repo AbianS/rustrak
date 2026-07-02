@@ -218,10 +218,17 @@ describe('IssuesResource Integration', () => {
       expect(hashes[0]!.grouping_key_hash).toHaveLength(64);
     });
 
-    it('should list tag values for a key', async () => {
+    it('should list tag values for a key as a bare list', async () => {
       const result = await client.issues.getTagValues(1, issueId, 'browser');
-      expect(result.key).toBe('browser');
-      expect(result.values[0]).toEqual({ value: 'chrome', count: 2 });
+      expect(Array.isArray(result)).toBe(true);
+      expect(result[0]).toMatchObject({
+        key: 'browser',
+        name: 'browser',
+        value: 'chrome',
+        count: 2,
+      });
+      expect(typeof result[0]!.first_seen).toBe('string');
+      expect(typeof result[0]!.last_seen).toBe('string');
     });
 
     it('should fetch aggregates (user count + top tags)', async () => {

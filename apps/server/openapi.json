@@ -3049,11 +3049,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Distinct values for the tag key",
+            "description": "Distinct values for the tag key, one entry per value (Sentry-compatible: a bare list, not wrapped)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TagValuesResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssueTagValue"
+                  }
                 }
               }
             }
@@ -6595,6 +6598,42 @@
           }
         }
       },
+      "IssueTagValue": {
+        "type": "object",
+        "description": "A single tag value's usage within an issue — the shape `GET\n/issues/{id}/tags/{key}` returns per entry, matching Sentry's\n`TagValueSerializerResponse` (src/sentry/tagstore/types.py:166-173):\na bare list of these, not `{key, values}`.",
+        "required": [
+          "key",
+          "name",
+          "value",
+          "count",
+          "first_seen",
+          "last_seen"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "first_seen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "key": {
+            "type": "string"
+          },
+          "last_seen": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name for the tag key. Real Sentry has a reserved-key display\nname table; Rustrak doesn't, so this currently just mirrors `key`."
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
       "LivenessResponse": {
         "type": "object",
         "required": [
@@ -7127,24 +7166,6 @@
           },
           "value": {
             "type": "string"
-          }
-        }
-      },
-      "TagValuesResponse": {
-        "type": "object",
-        "required": [
-          "key",
-          "values"
-        ],
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "values": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TagValueCount"
-            }
           }
         }
       },

@@ -17,6 +17,23 @@ pub struct TagValueCount {
     pub count: i64,
 }
 
+/// A single tag value's usage within an issue — the shape `GET
+/// /issues/{id}/tags/{key}` returns per entry, matching Sentry's
+/// `TagValueSerializerResponse` (src/sentry/tagstore/types.py:166-173):
+/// a bare list of these, not `{key, values}`.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct IssueTagValue {
+    pub key: String,
+    /// Display name for the tag key. Real Sentry has a reserved-key display
+    /// name table; Rustrak doesn't, so this currently just mirrors `key`.
+    pub name: String,
+    pub value: String,
+    pub count: i64,
+    pub first_seen: DateTime<Utc>,
+    pub last_seen: DateTime<Utc>,
+}
+
 /// A tag key with its most common values within an issue.
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -58,9 +75,13 @@ pub struct IssueService;
 /// low otherwise).
 pub(crate) fn derive_priority(level: Option<&str>) -> &'static str {
     match level {
-        Some("fatal") | Some("error") | None => "high",
+        Some("fatal") | Some("error") => "high",
         Some("warning") => "medium",
-        _ => "low",
+        Some("info") | Some("debug") => "low",
+        // Missing or unrecognized level: Sentry's `_get_priority_for_group`
+        // (event_manager.py:2099-2134) falls through to MEDIUM here, not
+        // HIGH and not LOW.
+        _ => "medium",
     }
 }
 
@@ -979,24 +1000,53 @@ impl IssueService {
         pool: &DbPool,
         issue_id: Uuid,
         key: &str,
-    ) -> AppResult<Vec<TagValueCount>> {
-        let rows: Vec<(serde_json::Value,)> = sqlx::query_as(
-            "SELECT data FROM events WHERE issue_id = $1 ORDER BY digested_at DESC LIMIT $2",
+    ) -> AppResult<Vec<IssueTagValue>> {
+        let rows: Vec<(serde_json::Value, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT data, timestamp FROM events WHERE issue_id = $1 ORDER BY digested_at DESC LIMIT $2",
         )
         .bind(issue_id)
         .bind(AGGREGATE_SCAN_CAP)
         .fetch_all(pool)
         .await?;
 
-        let mut counts: HashMap<String, i64> = HashMap::new();
-        for (data,) in &rows {
+        struct Acc {
+            count: i64,
+            first_seen: DateTime<Utc>,
+            last_seen: DateTime<Utc>,
+        }
+        let mut acc: HashMap<String, Acc> = HashMap::new();
+        for (data, timestamp) in &rows {
             for (k, v) in extract_tags(data) {
-                if k == key {
-                    *counts.entry(v).or_insert(0) += 1;
+                if k != key {
+                    continue;
                 }
+                acc.entry(v)
+                    .and_modify(|a| {
+                        a.count += 1;
+                        a.first_seen = a.first_seen.min(*timestamp);
+                        a.last_seen = a.last_seen.max(*timestamp);
+                    })
+                    .or_insert(Acc {
+                        count: 1,
+                        first_seen: *timestamp,
+                        last_seen: *timestamp,
+                    });
             }
         }
-        Ok(sort_counts(counts))
+
+        let mut values: Vec<IssueTagValue> = acc
+            .into_iter()
+            .map(|(value, a)| IssueTagValue {
+                key: key.to_string(),
+                name: key.to_string(),
+                value,
+                count: a.count,
+                first_seen: a.first_seen,
+                last_seen: a.last_seen,
+            })
+            .collect();
+        values.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.value.cmp(&b.value)));
+        Ok(values)
     }
 
     /// Computes per-issue aggregates (unique user count + top tags) from a
@@ -1244,5 +1294,50 @@ impl IssueService {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_derive_priority_fatal_is_high() {
+        assert_eq!(derive_priority(Some("fatal")), "high");
+    }
+
+    #[test]
+    fn test_derive_priority_error_is_high() {
+        assert_eq!(derive_priority(Some("error")), "high");
+    }
+
+    #[test]
+    fn test_derive_priority_warning_is_medium() {
+        assert_eq!(derive_priority(Some("warning")), "medium");
+    }
+
+    #[test]
+    fn test_derive_priority_info_is_low() {
+        assert_eq!(derive_priority(Some("info")), "low");
+    }
+
+    #[test]
+    fn test_derive_priority_debug_is_low() {
+        assert_eq!(derive_priority(Some("debug")), "low");
+    }
+
+    #[test]
+    fn test_derive_priority_missing_level_is_medium() {
+        // Real Sentry's `_get_priority_for_group` (event_manager.py:2099-2134)
+        // falls through to PriorityLevel.MEDIUM when the level is absent —
+        // not HIGH.
+        assert_eq!(derive_priority(None), "medium");
+    }
+
+    #[test]
+    fn test_derive_priority_unrecognized_level_is_medium() {
+        // Same fallthrough as the missing-level case, for a level string
+        // Sentry doesn't recognize either.
+        assert_eq!(derive_priority(Some("critical")), "medium");
     }
 }

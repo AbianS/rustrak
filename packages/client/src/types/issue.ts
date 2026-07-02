@@ -13,9 +13,9 @@ import type {
   issueStatsSchema,
   issueStatsWindowSchema,
   issueStatusSchema,
+  issueTagValueSchema,
   tagSummarySchema,
   tagValueCountSchema,
-  tagValuesResponseSchema,
   updateIssueStateSchema,
   userReportSchema,
 } from '../schemas/issue.js';
@@ -38,8 +38,8 @@ export type IssueHash = z.infer<typeof issueHashSchema>;
 /** A tag value with its event count */
 export type TagValueCount = z.infer<typeof tagValueCountSchema>;
 
-/** Distinct values for a tag key within an issue */
-export type TagValuesResponse = z.infer<typeof tagValuesResponseSchema>;
+/** A single tag value's usage within an issue (one entry of a `/tags/{key}` response) */
+export type IssueTagValue = z.infer<typeof issueTagValueSchema>;
 
 /** A tag key with its top values */
 export type TagSummary = z.infer<typeof tagSummarySchema>;

@@ -354,7 +354,7 @@ pub async fn get_issue_hashes(
         ("key" = String, Path, description = "Tag key"),
     ),
     responses(
-        (status = 200, description = "Distinct values for the tag key", body = resp::TagValuesResponse),
+        (status = 200, description = "Distinct values for the tag key, one entry per value (Sentry-compatible: a bare list, not wrapped)", body = Vec<crate::services::issue::IssueTagValue>),
         (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
@@ -382,7 +382,7 @@ pub async fn get_issue_tag_values(
     }
 
     let values = IssueService::tag_values(pool.get_ref(), issue_id, &key).await?;
-    Ok(HttpResponse::Ok().json(json!({ "key": key, "values": values })))
+    Ok(HttpResponse::Ok().json(values))
 }
 
 #[cfg_attr(feature = "openapi", utoipa::path(
@@ -892,14 +892,8 @@ pub async fn create_issue_user_report(
 #[cfg(feature = "openapi")]
 #[allow(dead_code)]
 pub mod resp {
-    use crate::services::issue::TagValueCount;
     use utoipa::ToSchema;
 
-    #[derive(ToSchema)]
-    pub struct TagValuesResponse {
-        pub key: String,
-        pub values: Vec<TagValueCount>,
-    }
     #[derive(ToSchema)]
     pub struct IssueStatsResponse {
         /// Each point is `[bucketStartUnix, count]`.
@@ -964,13 +958,13 @@ pub mod resp {
         crate::services::issue::IssueAggregates,
         crate::services::issue::TagSummary,
         crate::services::issue::TagValueCount,
+        crate::services::issue::IssueTagValue,
         crate::services::issue_social::ActivityEntry,
         crate::services::issue_social::UserReport,
         CommentRequest,
         ToggleRequest,
         UserReportRequest,
         DeployRequest,
-        resp::TagValuesResponse,
         resp::IssueStatsResponse,
         resp::BulkUpdateResponse,
         resp::BulkDeleteResponse,

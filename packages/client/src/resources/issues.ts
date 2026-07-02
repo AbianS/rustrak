@@ -10,8 +10,8 @@ import {
   issueHashSchema,
   issueSchema,
   issueStatsSchema,
+  issueTagValueSchema,
   offsetPaginatedResponseSchema,
-  tagValuesResponseSchema,
   updateIssueStateSchema,
   userReportSchema,
 } from '../schemas/index.js';
@@ -27,9 +27,9 @@ import type {
   IssueHash,
   IssueStats,
   IssueStatsWindow,
+  IssueTagValue,
   ListIssuesOptions,
   OffsetPaginatedResponse,
-  TagValuesResponse,
   UpdateIssueState,
   UserReport,
 } from '../types/index.js';
@@ -163,18 +163,19 @@ export class IssuesResource extends BaseResource {
 
   /**
    * List the distinct values (with counts) for a tag key across the issue.
+   * Returns a bare list, one entry per value (Sentry-compatible shape).
    */
   async getTagValues(
     projectId: number,
     issueId: string,
     key: string,
-  ): Promise<TagValuesResponse> {
+  ): Promise<IssueTagValue[]> {
     const data = await this.http
       .get(
         `api/projects/${projectId}/issues/${issueId}/tags/${encodeURIComponent(key)}`,
       )
       .json();
-    return this.validate(data, tagValuesResponseSchema);
+    return this.validate(data, z.array(issueTagValueSchema));
   }
 
   /**

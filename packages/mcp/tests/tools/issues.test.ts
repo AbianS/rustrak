@@ -254,10 +254,8 @@ describe('issue tools', () => {
     });
 
     it('get_issue_tag_values forwards key', async () => {
-      mockClient.issues.getTagValues.mockResolvedValue({
-        key: 'browser',
-        values: [],
-      });
+      // Bare list, one entry per value (Sentry-compatible shape).
+      mockClient.issues.getTagValues.mockResolvedValue([]);
       await callTool({
         name: 'get_issue_tag_values',
         arguments: { project_id: 1, issue_id: 'abc', key: 'browser' },

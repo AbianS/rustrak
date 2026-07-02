@@ -959,9 +959,10 @@ async fn test_bulk_update_issues_rejects_oversized_batch() {
     )
     .await;
 
-    // 101 random ids (over MAX_BULK_IDS = 100) — none need to exist, the size
-    // cap must reject the request before any DB lookup happens.
-    let ids: Vec<Uuid> = (0..101).map(|_| Uuid::new_v4()).collect();
+    // 1001 random ids (over MAX_BULK_IDS = 1000, matching Sentry's own
+    // BULK_MUTATION_LIMIT) — none need to exist, the size cap must reject
+    // the request before any DB lookup happens.
+    let ids: Vec<Uuid> = (0..1001).map(|_| Uuid::new_v4()).collect();
     let req = test::TestRequest::put()
         .uri(&format!("/api/projects/{}/issues", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
@@ -1008,4 +1009,46 @@ async fn test_bulk_delete_issues_via_http_scoped_to_project() {
 
     assert!(IssueService::get_by_id(&db.pool, mine.id).await.is_err());
     assert!(IssueService::get_by_id(&db.pool, theirs.id).await.is_ok());
+}
+
+#[actix_web::test]
+async fn test_get_issue_tag_values_returns_bare_list_not_wrapped() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Tag Values HTTP Project").await;
+    let config = create_test_config();
+
+    let issue = create_test_issue(&db.pool, project.id, "TypeError", "Error").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/tags/browser",
+            project.id, issue.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Real Sentry returns a bare list per value (`{key, name, value, count,
+    // firstSeen/lastSeen}` each), not a `{key, values: [...]}` wrapper —
+    // no events with this tag exist yet, so the list is empty, but the
+    // response itself must be a JSON array, not an object.
+    let body: Value = test::read_body_json(resp).await;
+    assert!(
+        body.is_array(),
+        "expected a bare list response, got: {}",
+        body
+    );
+    assert_eq!(body.as_array().unwrap().len(), 0);
 }

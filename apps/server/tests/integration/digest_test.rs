@@ -1423,6 +1423,13 @@ async fn test_tag_values_and_aggregates() {
     assert_eq!(values[0].value, "chrome");
     assert_eq!(values[0].count, 2);
     assert!(values.iter().any(|v| v.value == "firefox" && v.count == 1));
+    // Sentry-compatible shape: each value carries its own key/name and a
+    // seen range, not just value+count.
+    for v in &values {
+        assert_eq!(v.key, "browser");
+        assert_eq!(v.name, "browser");
+        assert!(v.first_seen <= v.last_seen);
+    }
 
     let agg = IssueService::aggregates(&db.pool, issue_id).await.unwrap();
     assert_eq!(agg.user_count, 2); // user-1, user-2
