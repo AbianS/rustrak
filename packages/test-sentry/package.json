@@ -29,11 +29,11 @@
     "demo:logs": "tsx demo/src/logs.ts"
   },
   "dependencies": {
-    "@sentry/node": "10.59.0"
+    "@sentry/node": "10.63.0"
   },
   "devDependencies": {
     "@sentry/esbuild-plugin": "5.3.0",
-    "@types/node": "26.0.0",
+    "@types/node": "26.1.0",
     "esbuild": "0.28.1",
     "tsup": "8.5.1",
     "tsx": "4.22.4",
