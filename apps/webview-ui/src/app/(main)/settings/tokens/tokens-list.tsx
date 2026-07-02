@@ -7,11 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { createToken, deleteToken, getToken } from '@/actions/tokens';
-import { Button } from '@/components/ui/button';
-import { copyToClipboard } from '@/lib/clipboard';
-
-const TOKEN_DESCRIPTION_MAX_LENGTH = 200;
-
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -48,6 +44,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { copyToClipboard } from '@/lib/clipboard';
+
+const TOKEN_DESCRIPTION_MAX_LENGTH = 200;
 
 interface TokensListProps {
   initialTokens: AuthToken[];
