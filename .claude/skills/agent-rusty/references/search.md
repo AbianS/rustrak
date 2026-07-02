@@ -76,7 +76,7 @@ Spawn a subagent with the self-contained prompt below. Substitute actual values 
 
 ---SUBAGENT PROMPT START---
 Sentry Source Search: TOPIC
-Keywords: KEYWORDS
+Keywords: KEYWORDS_REGEX (all terms joined with \|, e.g. term1\|term2\|term3)
 Relay repo: ~/.rusty/relay-repo/
 Schema repo: ~/.rusty/sentry-data-schemas/
 Monolith repo: ~/.rusty/sentry-repo/ (only search if TARGET is "monolith" or "both")
@@ -88,27 +88,27 @@ Steps — return ONLY the JSON at the end, no prose:
    git -C ~/.rusty/sentry-repo/ rev-parse HEAD   # only if searching monolith
 
 2. Search relay-event-schema first (struct definitions, field types):
-   grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/relay-repo/relay-event-schema/ --include="*.rs" | head -60
+   grep -rn "$KEYWORDS_REGEX" ~/.rusty/relay-repo/relay-event-schema/ --include="*.rs" | head -60
    For each distinct matched file (max 4): read ±20 lines around each hit.
    Permalink format: https://github.com/getsentry/relay/blob/SHA/RELATIVE_PATH#LLINE
 
 3. Search relay-event-normalization (how Relay transforms the field):
-   grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/relay-repo/relay-event-normalization/ --include="*.rs" | head -40
+   grep -rn "$KEYWORDS_REGEX" ~/.rusty/relay-repo/relay-event-normalization/ --include="*.rs" | head -40
    For each distinct matched file (max 3): read ±15 lines around each hit.
 
 4. Search relay tests for real fixtures:
-   grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/relay-repo/tests/ --include="*.rs" --include="*.json" | head -30
+   grep -rn "$KEYWORDS_REGEX" ~/.rusty/relay-repo/tests/ --include="*.rs" --include="*.json" | head -30
    For each test file matched (max 2): read ±10 lines around each hit.
 
 5. Check sentry-data-schemas:
-   grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/sentry-data-schemas/ | head -20
+   grep -rn "$KEYWORDS_REGEX" ~/.rusty/sentry-data-schemas/ | head -20
 
 6. If TARGET is "monolith" or "both" — search the sentry monolith. Scope the
    grep to likely directories first so it doesn't crawl the whole repo:
-   grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/sentry-repo/src/sentry/issues/ ~/.rusty/sentry-repo/src/sentry/models/ ~/.rusty/sentry-repo/src/sentry/api/endpoints/ --include="*.py" | head -60
+   grep -rn "$KEYWORDS_REGEX" ~/.rusty/sentry-repo/src/sentry/issues/ ~/.rusty/sentry-repo/src/sentry/models/ ~/.rusty/sentry-repo/src/sentry/api/endpoints/ --include="*.py" | head -60
    If that returns nothing, widen to ~/.rusty/sentry-repo/src/sentry/ (still `--include="*.py"`, still piped to `head -60`).
    For each distinct matched file (max 4): read ±20 lines around each hit.
-   For each matched file, also check tests/sentry/ for the same basename (max 2 files, ±15 lines).
+   For each matched file, also search tests/sentry/ using the full keyword pattern (max 2 files, ±15 lines) — don't limit to the same basename, matching tests may live under a different filename.
    Permalink format: https://github.com/getsentry/sentry/blob/SHA/RELATIVE_PATH#LLINE
    (Note: sentry-repo is a depth=1 shallow clone — the permalink SHA is real and resolves on GitHub, but `git log`/`git blame` won't work locally.)
 

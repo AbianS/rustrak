@@ -90,7 +90,7 @@ Write to BOND.md:
 - sentry-repo last updated: [today]
 ```
 
-If `~/.rusty/` already exists: load `~/.rusty/config.yaml`, note the SHAs already recorded in BOND.md, and run `git -C ~/.rusty/relay-repo/ fetch --dry-run` — warn the owner if updates are available.
+If `~/.rusty/` already exists: load `~/.rusty/config.yaml`, note the SHAs already recorded in BOND.md, and run `git -C ~/.rusty/relay-repo/ fetch --dry-run` — warn the owner if updates are available. If `config.yaml` is missing the `sentry_repo` key (upgrading an older sanctum), clone the monolith now — see the shallow clone command above — and append the line to `config.yaml` before continuing.
 
 ### Step 2: Rustrak State
 

@@ -28,20 +28,20 @@ Launch both simultaneously. Substitute actual values before spawning. Use the mo
 
 ---SUBAGENT A — Relay Implementation (source: relay)---
 Relay Audit: FEATURE
-Keywords: KEYWORDS
+Keywords: KEYWORDS_REGEX (all terms joined with \|, e.g. term1\|term2\|term3)
 Relay repo: ~/.rusty/relay-repo/
 
 Steps — return ONLY JSON, no prose:
 
 1. Get SHA: git -C ~/.rusty/relay-repo/ rev-parse HEAD
 
-2. grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/relay-repo/relay-event-schema/ ~/.rusty/relay-repo/relay-server/src/ --include="*.rs" | head -80
+2. grep -rn "$KEYWORDS_REGEX" ~/.rusty/relay-repo/relay-event-schema/ ~/.rusty/relay-repo/relay-server/src/ --include="*.rs" | head -80
    For each distinct matched file (max 5): read ±20 lines.
    Permalink: https://github.com/getsentry/relay/blob/SHA/PATH#LLINE
 
 3. For the 1–2 most relevant files: follow outbound function calls 1 hop into relay-event-normalization.
 
-4. Search tests: grep -rn "KEYWORD1" ~/.rusty/relay-repo/tests/ --include="*.rs" --include="*.json" | head -30
+4. Search tests: grep -rn "$KEYWORDS_REGEX" ~/.rusty/relay-repo/tests/ --include="*.rs" --include="*.json" | head -30
    For each test matched (max 2): extract the fixture payload shape and expected behavior.
 
 Return JSON:
@@ -58,27 +58,27 @@ Return JSON:
 
 ---SUBAGENT A — Sentry Monolith Implementation (source: monolith)---
 Monolith Audit: FEATURE
-Keywords: KEYWORDS
+Keywords: KEYWORDS_REGEX (all terms joined with \|, e.g. term1\|term2\|term3)
 Monolith repo: ~/.rusty/sentry-repo/ (depth=1 shallow clone — permalinks resolve on GitHub but `git log`/`blame` won't work locally)
 
 Steps — return ONLY JSON, no prose:
 
 1. Get SHA: git -C ~/.rusty/sentry-repo/ rev-parse HEAD
 
-2. grep -rn "KEYWORD1\|KEYWORD2" ~/.rusty/sentry-repo/src/sentry/issues/ ~/.rusty/sentry-repo/src/sentry/models/ ~/.rusty/sentry-repo/src/sentry/api/endpoints/ --include="*.py" | head -80
+2. grep -rn "$KEYWORDS_REGEX" ~/.rusty/sentry-repo/src/sentry/issues/ ~/.rusty/sentry-repo/src/sentry/models/ ~/.rusty/sentry-repo/src/sentry/api/endpoints/ --include="*.py" | head -80
    If empty, widen to ~/.rusty/sentry-repo/src/sentry/ --include="*.py" | head -80.
    For each distinct matched file (max 5): read ±20 lines.
    Permalink: https://github.com/getsentry/sentry/blob/SHA/PATH#LLINE
 
 3. For the 1–2 most relevant files: follow outbound calls 1 hop (e.g. a status-transition method into the state machine it delegates to).
 
-4. Search tests: grep -rn "KEYWORD1" ~/.rusty/sentry-repo/tests/sentry/ --include="*.py" | head -30
+4. Search tests: grep -rn "$KEYWORDS_REGEX" ~/.rusty/sentry-repo/tests/sentry/ --include="*.py" | head -30
    For each test matched (max 2): extract the scenario and expected behavior (monolith tests are usually behavioral, not fixture-JSON like Relay's).
 
 Return JSON:
 {
   "feature": "...", "sha": "...", "source": "monolith",
-  "relay_behaviors": [
+  "monolith_behaviors": [
     { "behavior": "...", "file": "...", "line": N, "permalink": "...", "snippet": "...max 20 lines...", "key_rule": "...one line..." }
   ],
   "test_evidence": [
@@ -89,12 +89,12 @@ Return JSON:
 
 ---SUBAGENT B — Rustrak Implementation---
 Rustrak Audit: FEATURE
-Keywords: KEYWORDS
+Keywords: KEYWORDS_REGEX (all terms joined with \|, e.g. term1\|term2\|term3)
 Rustrak server: RUSTRAK_PATH
 
 Steps — return ONLY JSON, no prose:
 
-1. grep -rn "KEYWORD1\|KEYWORD2" RUSTRAK_PATH --include="*.rs" | head -60
+1. grep -rn "$KEYWORDS_REGEX" RUSTRAK_PATH --include="*.rs" | head -60
    For each matched file (max 4): read ±15 lines.
 
 2. Check HTTP status codes returned for relevant error cases.
@@ -115,7 +115,7 @@ Wait for both subagents to complete.
 
 ## Synthesize the Gap Report
 
-For each source behavior from Subagent A (Relay or monolith — check `source` in its returned JSON), find the Rustrak equivalent from Subagent B:
+For each source behavior from Subagent A (Relay or monolith — check `source` in its returned JSON, and read the behaviors from `relay_behaviors` or `monolith_behaviors` accordingly), find the Rustrak equivalent from Subagent B:
 
 - ✅ **Correct** — Rustrak handles it, behavior matches the source
 - ⚠️ **Different** — Rustrak handles it but behavior diverges (show both snippets + permalinks)
