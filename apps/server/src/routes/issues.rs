@@ -238,7 +238,7 @@ pub async fn update_issue(
             "resolvedInNextRelease",
         )
         .await?;
-    } else if let Some(status) = body.resolved_status()? {
+    } else if let Some(status) = body.resolved_status(&updated.status)? {
         let substatus = body.validated_substatus()?;
         updated = IssueService::set_status(pool.get_ref(), issue_id, status, substatus).await?;
         IssueSocialService::record_status_change(pool.get_ref(), issue_id, actor.user_id(), status)

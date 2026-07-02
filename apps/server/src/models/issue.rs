@@ -219,7 +219,16 @@ impl UpdateIssueState {
     /// A `status` that is present but not one of the recognized literals is a
     /// client error, not a no-op — callers must reject the request rather
     /// than silently leaving the issue unchanged.
-    pub fn resolved_status(&self) -> AppResult<Option<&'static str>> {
+    ///
+    /// `current_status` is the issue's status *before* this request is
+    /// applied. It's only consulted for the deprecated `is_muted: false`
+    /// shim: the old boolean model's `unmute` only ever cleared the
+    /// `is_muted` column, leaving `is_resolved` untouched, so unmuting an
+    /// already-resolved (or already-unresolved) issue was a no-op. Mapping
+    /// it onto the new unified `status` unconditionally would reopen
+    /// resolved issues that a client "defensively" unmutes — so this arm
+    /// only fires when the issue is currently `ignored`.
+    pub fn resolved_status(&self, current_status: &str) -> AppResult<Option<&'static str>> {
         if let Some(status) = self.status.as_deref() {
             return match status {
                 STATUS_RESOLVED => Ok(Some(STATUS_RESOLVED)),
@@ -232,7 +241,8 @@ impl UpdateIssueState {
             (Some(true), _) => Some(STATUS_RESOLVED),
             (Some(false), _) => Some(STATUS_UNRESOLVED),
             (None, Some(true)) => Some(STATUS_IGNORED),
-            (None, Some(false)) => Some(STATUS_UNRESOLVED),
+            (None, Some(false)) if current_status == STATUS_IGNORED => Some(STATUS_UNRESOLVED),
+            (None, Some(false)) => None,
             (None, None) => None,
         })
     }
