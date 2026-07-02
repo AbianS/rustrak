@@ -128,7 +128,12 @@ async fn test_ingest_log_envelope_stores_rows() {
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success(), "log envelope should return 200");
 
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM logs WHERE project_id = ?")
+    #[cfg(feature = "postgres")]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM logs WHERE project_id = $1";
+    #[cfg(not(feature = "postgres"))]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM logs WHERE project_id = ?";
+
+    let count: i64 = sqlx::query_scalar(COUNT_QUERY)
         .bind(project_id)
         .fetch_one(&db.pool)
         .await

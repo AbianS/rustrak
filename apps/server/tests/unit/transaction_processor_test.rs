@@ -110,7 +110,7 @@ fn test_unknown_item_routes_to_ignored() {
 #[cfg(test)]
 mod level2 {
     use crate::common::TestDb;
-    use chrono::Utc;
+    use chrono::{DateTime, Utc};
     use rustrak::digest::processors::{Processor, ProcessorCtx, TransactionProcessor};
     use rustrak::models::CreateProject;
     use rustrak::services::ProjectService;
@@ -153,13 +153,18 @@ mod level2 {
 
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let row = sqlx::query(
-            "SELECT transaction_name, duration_ms FROM transactions WHERE project_id = ?",
-        )
-        .bind(project.id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT transaction_name, duration_ms FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT transaction_name, duration_ms FROM transactions WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
 
         let name: String = row.get("transaction_name");
         let duration_ms: f64 = row.get("duration_ms");
@@ -210,13 +215,16 @@ mod level2 {
 
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let row = sqlx::query(
-            "SELECT op, status, span_id, parent_span_id, trace_id FROM transactions WHERE project_id = ?",
-        )
-        .bind(project.id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT op, status, span_id, parent_span_id, trace_id FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT op, status, span_id, parent_span_id, trace_id FROM transactions WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
 
         let op: Option<String> = row.get("op");
         let status: Option<String> = row.get("status");
@@ -266,12 +274,16 @@ mod level2 {
         };
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let source: String =
-            sqlx::query_scalar("SELECT source FROM transactions WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT source FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT source FROM transactions WHERE project_id = ?";
+
+        let source: String = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert_eq!(source, "route");
     }
 
@@ -305,12 +317,16 @@ mod level2 {
         };
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let source: String =
-            sqlx::query_scalar("SELECT source FROM transactions WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT source FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT source FROM transactions WHERE project_id = ?";
+
+        let source: String = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert_eq!(source, "unknown");
     }
 
@@ -358,7 +374,12 @@ mod level2 {
         };
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM spans WHERE project_id = ?")
+        #[cfg(feature = "postgres")]
+        const COUNT_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const COUNT_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+
+        let count: i64 = sqlx::query_scalar(COUNT_QUERY)
             .bind(project.id)
             .fetch_one(&db.pool)
             .await
@@ -368,13 +389,16 @@ mod level2 {
             "both spans must be extracted into the spans table"
         );
 
-        let row = sqlx::query(
-            "SELECT op, description, status, duration_ms, trace_id, parent_span_id FROM spans WHERE span_id = ?",
-        )
-        .bind("cccccccccccccccc")
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+        #[cfg(feature = "postgres")]
+        const SPAN_QUERY: &str = "SELECT op, description, status, duration_ms, trace_id, parent_span_id FROM spans WHERE span_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const SPAN_QUERY: &str = "SELECT op, description, status, duration_ms, trace_id, parent_span_id FROM spans WHERE span_id = ?";
+
+        let row = sqlx::query(SPAN_QUERY)
+            .bind("cccccccccccccccc")
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
 
         let op: Option<String> = row.get("op");
         let description: Option<String> = row.get("description");
@@ -422,12 +446,16 @@ mod level2 {
             .await;
 
         assert!(res.is_err(), "malformed transaction JSON must be rejected");
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM transactions WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT COUNT(*) FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT COUNT(*) FROM transactions WHERE project_id = ?";
+
+        let count: i64 = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert_eq!(count, 0, "no row may be stored for a malformed payload");
     }
 
@@ -513,16 +541,24 @@ mod level2 {
 
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let row = sqlx::query(
-            "SELECT transaction_name, start_timestamp FROM transactions WHERE project_id = ?",
-        )
-        .bind(project.id)
-        .fetch_one(&db.pool)
-        .await
-        .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT transaction_name, start_timestamp FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT transaction_name, start_timestamp FROM transactions WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
 
         let transaction_name: String = row.get("transaction_name");
-        let start_timestamp: Option<String> = row.try_get("start_timestamp").ok().flatten();
+        // `start_timestamp` is TIMESTAMPTZ on Postgres, TEXT on SQLite; sqlx
+        // decodes both into `DateTime<Utc>` (see src/services/transaction.rs,
+        // which reads this same column the same way in production).
+        let start_timestamp: Option<DateTime<Utc>> = row.get("start_timestamp");
 
         assert_eq!(transaction_name, "/api/users");
         assert!(
@@ -566,12 +602,16 @@ mod level2 {
         // Drive the trait into existence: dispatch through the Processor contract.
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let name: String =
-            sqlx::query_scalar("SELECT transaction_name FROM transactions WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT transaction_name FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT transaction_name FROM transactions WHERE project_id = ?";
+
+        let name: String = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert_eq!(name, "/api/trait");
     }
 
@@ -625,12 +665,16 @@ mod level2 {
             .unwrap();
         handle.flush().await;
 
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM session_counts WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT COUNT(*) FROM session_counts WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT COUNT(*) FROM session_counts WHERE project_id = ?";
+
+        let count: i64 = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert!(
             count >= 1,
             "session must be aggregated and flushed to session_counts"
@@ -762,7 +806,12 @@ mod level2 {
         .unwrap();
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let txn_id: Uuid = sqlx::query_scalar("SELECT id FROM transactions WHERE project_id = ?")
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT id FROM transactions WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT id FROM transactions WHERE project_id = ?";
+
+        let txn_id: Uuid = sqlx::query_scalar(QUERY)
             .bind(project.id)
             .fetch_one(&db.pool)
             .await

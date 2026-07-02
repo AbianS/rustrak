@@ -85,13 +85,18 @@ mod level2 {
 
         LogsProcessor.process(body, &ctx).await.unwrap();
 
-        let rows = sqlx::query(
-            "SELECT level, body, trace_id FROM logs WHERE project_id = ? ORDER BY timestamp",
-        )
-        .bind(project.id)
-        .fetch_all(&db.pool)
-        .await
-        .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT level, body, trace_id FROM logs WHERE project_id = $1 ORDER BY timestamp";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT level, body, trace_id FROM logs WHERE project_id = ? ORDER BY timestamp";
+
+        let rows = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
 
         assert_eq!(rows.len(), 2, "two-item container → two log rows");
         let level0: String = rows[0].get("level");
@@ -147,12 +152,16 @@ mod level2 {
         };
         LogsProcessor.process(body, &ctx).await.unwrap();
 
-        let stored: serde_json::Value =
-            sqlx::query_scalar("SELECT attributes FROM logs WHERE project_id = ?")
-                .bind(project.id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT attributes FROM logs WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT attributes FROM logs WHERE project_id = ?";
+
+        let stored: serde_json::Value = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         assert!(
             stored.is_object(),
             "non-object attributes must be coerced to an object, got {stored}"

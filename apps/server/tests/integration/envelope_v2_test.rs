@@ -202,14 +202,18 @@ async fn test_transaction_envelope_returns_200_with_id() {
 
     // The processor runs in a spawned task; poll (bounded) instead of a fixed
     // sleep so the assertion isn't flaky on slower CI runners.
+    #[cfg(feature = "postgres")]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM transactions WHERE project_id = $1";
+    #[cfg(not(feature = "postgres"))]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM transactions WHERE project_id = ?";
+
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
     let stored: i64 = loop {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM transactions WHERE project_id = ?")
-                .bind(project_id)
-                .fetch_one(&db.pool)
-                .await
-                .unwrap();
+        let count: i64 = sqlx::query_scalar(COUNT_QUERY)
+            .bind(project_id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
         if count > 0 || tokio::time::Instant::now() >= deadline {
             break count;
         }
