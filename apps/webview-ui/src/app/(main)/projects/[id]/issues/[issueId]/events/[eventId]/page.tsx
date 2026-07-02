@@ -1,14 +1,29 @@
-import { format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEventDetail, getEventNavigation } from '@/actions/events';
-import { getIssue } from '@/actions/issues';
+import {
+  getIssue,
+  getIssueActivity,
+  getIssueAggregates,
+  getIssueStats,
+} from '@/actions/issues';
 import { getProject } from '@/actions/projects';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Section } from '@/components/collapsible-section';
+import { CopyAsDropdown } from '@/components/copy-as-dropdown';
+import { EventChart } from '@/components/event-chart';
+import { EventHighlights } from '@/components/event-highlights';
+import { StatusIndicator } from '@/components/issue-indicators';
+import { TagDistribution } from '@/components/tag-distribution';
 import { normalizeBreadcrumbs, parseEventData } from '@/lib/event-schema';
+import { formatStackTraceAsText } from '@/lib/format-stack-trace';
+import { cn } from '@/lib/utils';
 import { IssueActions } from '../../issue-actions';
+import { IssueActivity } from '../../issue-activity';
 import { Breadcrumbs } from './breadcrumbs';
+import { CollapsibleRail } from './collapsible-rail';
 import { EventContext } from './event-context';
 import { EventDetails } from './event-details';
 import { EventNavigationBar } from './event-navigation';
@@ -35,266 +50,373 @@ export async function generateMetadata({
     return { title: 'Event Not Found | Rustrak' };
   }
 
-  return {
-    title: `Event ${event.event_id.slice(0, 8)} | ${project.name} | Rustrak`,
-    description: `Event details`,
-  };
+  return { title: `${project.name} | Rustrak`, description: 'Event details' };
 }
+
+const LEVEL_TEXT: Record<string, string> = {
+  fatal: 'text-red-500',
+  error: 'text-red-500',
+  warning: 'text-amber-500',
+  info: 'text-sky-500',
+  debug: 'text-muted-foreground',
+};
+
+const compact = (n: number) =>
+  Intl.NumberFormat('en', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(n);
 
 export default async function EventPage({ params }: EventPageProps) {
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
 
-  const [project, issue, event, navigation] = await Promise.all([
-    getProject(projectId),
-    getIssue(projectId, issueId),
-    getEventDetail(projectId, issueId, eventId),
-    getEventNavigation(projectId, issueId, eventId),
-  ]);
+  const [project, issue, event, navigation, aggregates, stats30d, activity] =
+    await Promise.all([
+      getProject(projectId),
+      getIssue(projectId, issueId),
+      getEventDetail(projectId, issueId, eventId),
+      getEventNavigation(projectId, issueId, eventId),
+      getIssueAggregates(projectId, issueId).catch(() => null),
+      getIssueStats(projectId, issueId, '30d').catch(() => null),
+      getIssueActivity(projectId, issueId).catch(() => []),
+    ]);
 
   if (!project || !issue || !event) {
     notFound();
   }
 
-  // Extract and validate data from Sentry event JSON
-  // Uses Zod schemas to ensure type safety and prevent XSS from malformed data
   const eventData = event.data as Record<string, unknown>;
   const {
     exception,
     breadcrumbs: rawBreadcrumbs,
     contexts,
+    modules,
     tags,
     user,
   } = parseEventData(eventData);
-
-  // Normalize breadcrumbs to always be an array
   const breadcrumbs = normalizeBreadcrumbs(rawBreadcrumbs);
 
+  const hasStackTrace = Boolean(exception?.values?.length);
+  const hasBreadcrumbs = breadcrumbs.length > 0;
+  const hasContexts = Boolean(contexts && Object.keys(contexts).length > 0);
+  const hasModules = Boolean(modules && Object.keys(modules).length > 0);
+  const hasUser = Boolean(user && (user.id || user.email || user.ip_address));
+  const safeTags = tags ?? {};
+  const hasTags = Object.keys(safeTags).length > 0;
+
+  // Title = exception type; message = full value (Sentry-style).
+  const colonIdx = issue.title.indexOf(': ');
+  const titleType = colonIdx > 0 ? issue.title.slice(0, colonIdx) : issue.title;
+  const message = issue.value || issue.title;
+  const levelText =
+    LEVEL_TEXT[(event.level ?? '').toLowerCase()] ?? 'text-muted-foreground';
+
+  const userCount = aggregates?.user_count ?? 0;
+  const total30d = stats30d?.data.reduce((s, [, c]) => s + c, 0) ?? 0;
+
+  // "Jump to" anchors — only for sections that exist.
+  const jumps = [
+    { id: 'highlights', label: 'Highlights' },
+    hasStackTrace && { id: 'stacktrace', label: 'Stack Trace' },
+    hasBreadcrumbs && { id: 'breadcrumbs', label: 'Breadcrumbs' },
+    hasTags && { id: 'tags', label: 'Tags' },
+    (hasContexts || hasModules || hasUser) && {
+      id: 'context',
+      label: 'Context',
+    },
+  ].filter(Boolean) as { id: string; label: string }[];
+
+  const rail = (
+    <>
+      <div className="p-4 space-y-1.5 border-b">
+        <div className="flex items-baseline justify-between gap-2 text-sm">
+          <span className="text-muted-foreground">Last seen</span>
+          <span title={new Date(issue.last_seen).toLocaleString()}>
+            {formatDistanceToNow(new Date(issue.last_seen), {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between gap-2 text-sm">
+          <span className="text-muted-foreground">First seen</span>
+          <span title={new Date(issue.first_seen).toLocaleString()}>
+            {formatDistanceToNow(new Date(issue.first_seen), {
+              addSuffix: true,
+            })}
+          </span>
+        </div>
+        {issue.last_release && (
+          <p className="text-xs text-muted-foreground truncate pt-1">
+            in release <span className="font-mono">{issue.last_release}</span>
+          </p>
+        )}
+      </div>
+
+      <div className="p-4">
+        <IssueActivity
+          projectId={projectId}
+          issueId={issueId}
+          activity={activity}
+        />
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
+    <div className="flex flex-col h-[calc(100vh-64px)] bg-background">
       {/* Header */}
-      <header className="shrink-0 bg-background border-b">
-        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
-            <div className="space-y-2 min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                {issue.is_resolved && (
-                  <Badge
-                    variant="outline"
-                    className="text-green-600 border-green-600"
-                  >
-                    Resolved
-                  </Badge>
-                )}
-                {issue.is_muted && (
-                  <Badge
-                    variant="outline"
-                    className="text-yellow-600 border-yellow-600"
-                  >
-                    Muted
-                  </Badge>
-                )}
-                {event.level && (
-                  <Badge
-                    variant={
-                      event.level === 'error' ? 'destructive' : 'secondary'
-                    }
-                  >
-                    {event.level}
-                  </Badge>
-                )}
-                {event.environment && (
-                  <Badge variant="outline">{event.environment}</Badge>
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {format(new Date(event.timestamp), 'PPpp')}
-                </span>
-                {event.release && (
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {event.release}
-                  </span>
-                )}
-              </div>
+      <header className="shrink-0 bg-card border-b">
+        <div className="w-full px-4 md:px-8 py-3 space-y-1.5">
+          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
+            <Link
+              href={`/projects/${projectId}/issues`}
+              className="hover:text-foreground transition-colors"
+            >
+              Issues
+            </Link>
+            <span className="text-muted-foreground/40">/</span>
+            <span className="font-mono text-foreground truncate">
+              {issue.short_id}
+            </span>
+          </nav>
 
-              <h1 className="text-xl font-extrabold tracking-tight truncate">
-                {issue.title}
-              </h1>
-
-              {issue.value && (
-                <p className="text-sm text-muted-foreground font-mono truncate">
-                  {issue.value}
+          <div className="flex items-start justify-between gap-6">
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate min-w-0">
+              {titleType}
+            </h1>
+            <div className="flex items-start gap-4 sm:gap-8 shrink-0">
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Events (total)
                 </p>
-              )}
+                <p className="text-xl font-semibold tabular-nums leading-tight">
+                  {compact(issue.event_count)}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Users
+                </p>
+                <p className="text-xl font-semibold tabular-nums leading-tight">
+                  {compact(userCount)}
+                </p>
+              </div>
             </div>
+          </div>
 
-            <div className="flex flex-row flex-wrap items-center gap-2 md:flex-col md:items-end md:gap-3 md:shrink-0">
-              <EventNavigationBar
-                projectId={projectId}
-                issueId={issueId}
-                navigation={navigation}
-              />
-              <IssueActions issue={issue} projectId={projectId} />
-            </div>
+          <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
+            <CircleAlert className={cn('size-4 shrink-0 mt-0.5', levelText)} />
+            <p className="truncate font-mono text-foreground/90">{message}</p>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+            <StatusIndicator issue={issue} />
+            {issue.culprit && (
+              <span className="font-mono truncate">{issue.culprit}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Workflow toolbar — same elevated band as the header */}
+        <div className="border-t">
+          <div className="w-full px-4 md:px-8 py-2">
+            <IssueActions issue={issue} projectId={projectId} />
           </div>
         </div>
       </header>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-            {/* Main Content */}
-            <div className="lg:col-span-8">
-              <Tabs defaultValue="stacktrace">
-                <div className="overflow-x-auto">
-                  <TabsList>
-                    <TabsTrigger value="stacktrace">Stack Trace</TabsTrigger>
-                    <TabsTrigger value="breadcrumbs">Breadcrumbs</TabsTrigger>
-                    <TabsTrigger value="details">Event Details</TabsTrigger>
-                    <TabsTrigger value="tags">Tags</TabsTrigger>
-                    <TabsTrigger value="context">Context</TabsTrigger>
-                    <TabsTrigger value="raw">Raw JSON</TabsTrigger>
-                  </TabsList>
+      {/* Body */}
+      <div className="flex-1 min-h-0 flex">
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <div className="w-full px-4 md:px-8 py-5 space-y-5">
+            {/* Trends */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-4">
+              <div className="rounded-lg border bg-card p-4 flex gap-5">
+                <div className="shrink-0 space-y-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Events
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums">
+                      {compact(total30d)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Users
+                    </p>
+                    <p className="text-xl font-semibold tabular-nums">
+                      {compact(userCount)}
+                    </p>
+                  </div>
                 </div>
+                <div className="flex-1 min-w-0">
+                  {stats30d && stats30d.data.length > 0 ? (
+                    <EventChart data={stats30d.data} />
+                  ) : (
+                    <div className="h-[130px] flex items-center justify-center text-xs text-muted-foreground">
+                      No event data
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                <TabsContent value="stacktrace" className="mt-6">
-                  <StackTrace exception={exception} />
-                </TabsContent>
-
-                <TabsContent value="breadcrumbs" className="mt-6">
-                  <Breadcrumbs breadcrumbs={breadcrumbs} />
-                </TabsContent>
-
-                <TabsContent value="details" className="mt-6">
-                  <EventDetails event={event} />
-                </TabsContent>
-
-                <TabsContent value="tags" className="mt-6">
-                  <EventTags tags={tags} />
-                </TabsContent>
-
-                <TabsContent value="context" className="mt-6">
-                  <EventContext contexts={contexts} user={user} />
-                </TabsContent>
-
-                <TabsContent value="raw" className="mt-6">
-                  <RawJson data={eventData} />
-                </TabsContent>
-              </Tabs>
+              <div className="rounded-lg border bg-card p-4">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Tags
+                </h3>
+                {aggregates && aggregates.tags.length > 0 ? (
+                  <TagDistribution tags={aggregates.tags.slice(0, 5)} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">No tags</p>
+                )}
+              </div>
             </div>
 
-            {/* Sidebar */}
-            <aside className="lg:col-span-4 space-y-6 lg:sticky lg:top-6 self-start">
-              {/* Issue Stats */}
-              <div className="bg-card rounded-xl border p-6 space-y-4">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                  Issue Statistics
-                </h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                      Total Events
-                    </p>
-                    <p className="text-2xl font-bold text-primary">
-                      {issue.event_count.toLocaleString()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground font-bold uppercase">
-                      First Seen
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {new Date(issue.first_seen).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+            {/* Event nav + identity + jump-to (sticks to the top on scroll, sm+) */}
+            <div className="sm:sticky sm:top-0 sm:z-20 -mx-4 md:-mx-8 border-b bg-background px-4 md:px-8 pt-1 pb-3 space-y-3 sm:space-y-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm">
+                  <span className="font-semibold">Events</span>{' '}
+                  <span className="text-muted-foreground">in this issue</span>
+                </p>
+                <EventNavigationBar
+                  projectId={projectId}
+                  issueId={issueId}
+                  navigation={navigation}
+                />
               </div>
 
-              {/* Tags */}
-              {tags && Object.keys(tags).length > 0 && (
-                <div className="bg-card rounded-xl border p-6 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    Tags
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(tags).map(([key, value]) => (
-                      <span
-                        key={key}
-                        className="px-2 py-1 bg-muted text-[10px] font-mono border rounded-sm"
-                      >
-                        {key}:{value}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* User */}
-              {user && (
-                <div className="bg-card rounded-xl border p-6 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                    User
-                  </h4>
-                  <div className="space-y-2">
-                    {user.id && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">ID</span>
-                        <span className="font-mono">{user.id}</span>
-                      </div>
-                    )}
-                    {user.email && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Email</span>
-                        <span className="font-mono text-xs truncate ml-2">
-                          {user.email}
-                        </span>
-                      </div>
-                    )}
-                    {user.ip_address && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">IP</span>
-                        <span className="font-mono">{user.ip_address}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Event Details */}
-              <div className="bg-card rounded-xl border p-6 space-y-4">
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                  Event Details
-                </h4>
-                <div className="space-y-2">
+              <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <span>
+                    ID:{' '}
+                    <span className="font-mono text-foreground">
+                      {event.event_id.slice(0, 8)}
+                    </span>
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>
+                    {formatDistanceToNow(new Date(event.timestamp), {
+                      addSuffix: true,
+                    })}
+                  </span>
                   {event.platform && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Platform</span>
-                      <span className="font-mono">{event.platform}</span>
-                    </div>
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+                      {event.platform}
+                    </span>
                   )}
                   {event.environment && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Environment</span>
-                      <span className="font-mono">{event.environment}</span>
-                    </div>
-                  )}
-                  {event.release && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Release</span>
-                      <span className="font-mono text-xs">{event.release}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Event ID</span>
-                    <span className="font-mono text-[10px]">
-                      {event.event_id.slice(0, 8)}...
+                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
+                      {event.environment}
                     </span>
-                  </div>
+                  )}
                 </div>
+                {jumps.length > 0 && (
+                  <div className="flex items-center gap-3 flex-wrap shrink-0">
+                    <span>Jump to:</span>
+                    {jumps.map((j) => (
+                      <a
+                        key={j.id}
+                        href={`#${j.id}`}
+                        className="hover:text-foreground transition-colors"
+                      >
+                        {j.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
-            </aside>
+            </div>
+
+            {/* Sections */}
+            <div className="rounded-lg border bg-card px-4">
+              <Section id="highlights" title="Highlights">
+                <EventHighlights
+                  event={event}
+                  tags={safeTags}
+                  contexts={contexts}
+                  eventData={eventData}
+                />
+              </Section>
+
+              {hasStackTrace && (
+                <Section
+                  id="stacktrace"
+                  title="Stack Trace"
+                  actions={
+                    <CopyAsDropdown
+                      formats={[
+                        {
+                          label: 'Plain Text',
+                          value: formatStackTraceAsText(exception),
+                        },
+                        {
+                          label: 'JSON',
+                          value: JSON.stringify(exception, null, 2),
+                        },
+                      ]}
+                    />
+                  }
+                >
+                  <StackTrace exception={exception} />
+                </Section>
+              )}
+
+              {hasBreadcrumbs && (
+                <Section
+                  id="breadcrumbs"
+                  title="Breadcrumbs"
+                  actions={
+                    <CopyAsDropdown
+                      formats={[
+                        {
+                          label: 'JSON',
+                          value: JSON.stringify(breadcrumbs, null, 2),
+                        },
+                      ]}
+                    />
+                  }
+                >
+                  <Breadcrumbs breadcrumbs={breadcrumbs} />
+                </Section>
+              )}
+
+              {hasTags && (
+                <Section id="tags" title="Tags">
+                  <EventTags tags={tags} />
+                </Section>
+              )}
+
+              {(hasContexts || hasModules || hasUser) && (
+                <Section id="context" title="Context">
+                  <EventContext
+                    contexts={contexts}
+                    modules={modules}
+                    user={user}
+                  />
+                </Section>
+              )}
+
+              <Section id="details" title="Event Details">
+                <EventDetails event={event} />
+              </Section>
+
+              <Section id="raw" title="Raw JSON" defaultOpen={false}>
+                <RawJson data={eventData} />
+              </Section>
+            </div>
+
+            {/* Right rail (mobile) */}
+            <div className="lg:hidden rounded-lg border bg-card overflow-hidden">
+              {rail}
+            </div>
           </div>
-        </div>
+        </main>
+
+        {/* Right rail (desktop, collapsible) */}
+        <CollapsibleRail title="Details">{rail}</CollapsibleRail>
       </div>
     </div>
   );

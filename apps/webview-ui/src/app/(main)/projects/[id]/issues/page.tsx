@@ -75,7 +75,7 @@ export default async function IssuesPage({
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
+      <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <ProjectHeader
           project={project}
           alertRules={alertRules}
@@ -87,7 +87,7 @@ export default async function IssuesPage({
         />
       </div>
 
-      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6">
         <IssuesList
           projectId={projectId}
           initialIssues={issuesResponse}

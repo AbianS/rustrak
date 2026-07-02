@@ -79,7 +79,7 @@ export default async function TransactionSummaryPage({
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
+      <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <Link
           href={`/projects/${projectId}/performance`}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
@@ -108,7 +108,7 @@ export default async function TransactionSummaryPage({
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 flex flex-col gap-3">
+      <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6 flex flex-col gap-3">
         <h2 className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">
           Samples
         </h2>

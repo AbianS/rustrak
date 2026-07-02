@@ -94,17 +94,18 @@ impl ErrorProcessor {
         let denormalized = get_denormalized_fields(&event_data);
 
         // 6. Find or create Grouping/Issue (within a transaction with advisory lock)
-        let (issue, grouping, issue_created) = find_or_create_issue_and_grouping_with_lock(
-            pool,
-            metadata.project_id,
-            &grouping_key,
-            &grouping_key_hash,
-            metadata.ingested_at,
-            &denormalized,
-            event_data.get("level").and_then(|l| l.as_str()),
-            event_data.get("platform").and_then(|p| p.as_str()),
-        )
-        .await?;
+        let (issue, grouping, issue_created, regressed) =
+            find_or_create_issue_and_grouping_with_lock(
+                pool,
+                metadata.project_id,
+                &grouping_key,
+                &grouping_key_hash,
+                metadata.ingested_at,
+                &denormalized,
+                event_data.get("level").and_then(|l| l.as_str()),
+                event_data.get("platform").and_then(|p| p.as_str()),
+            )
+            .await?;
 
         // 7. Create Event
         let digest_order = if issue_created {
@@ -149,8 +150,8 @@ impl ErrorProcessor {
             if issue_created { "new" } else { "existing" }
         );
 
-        // 10. Trigger alerts for new issues
-        if issue_created {
+        // 10. Trigger alerts for new issues and regressions
+        if issue_created || regressed {
             let pool = pool.clone();
             let project = project.clone();
             let issue = issue.clone();
@@ -158,11 +159,15 @@ impl ErrorProcessor {
                 .unwrap_or_else(|_| "http://localhost:3000".to_string());
 
             tokio::spawn(async move {
-                if let Err(e) =
+                let result = if issue_created {
                     AlertService::trigger_new_issue_alert(&pool, &project, &issue, &dashboard_url)
                         .await
-                {
-                    log::error!("Failed to trigger new issue alert: {}", e);
+                } else {
+                    AlertService::trigger_regression_alert(&pool, &project, &issue, &dashboard_url)
+                        .await
+                };
+                if let Err(e) = result {
+                    log::error!("Failed to trigger issue alert: {}", e);
                 }
             });
         }
@@ -206,7 +211,7 @@ async fn find_or_create_issue_and_grouping_with_lock(
     denormalized: &DenormalizedFields,
     level: Option<&str>,
     platform: Option<&str>,
-) -> AppResult<(Issue, Grouping, bool)> {
+) -> AppResult<(Issue, Grouping, bool, bool)> {
     // Start a write transaction. On SQLite this is `BEGIN IMMEDIATE` so the
     // read-then-write below (SELECT MAX(digest_order) → INSERT) takes the write
     // lock up front instead of failing with "database is locked" on upgrade.
@@ -234,10 +239,10 @@ async fn find_or_create_issue_and_grouping_with_lock(
     .await;
 
     match result {
-        Ok((issue, grouping, created)) => {
+        Ok((issue, grouping, created, regressed)) => {
             // Commit the transaction (releases the advisory lock)
             tx.commit().await?;
-            Ok((issue, grouping, created))
+            Ok((issue, grouping, created, regressed))
         }
         Err(e) => {
             // Rollback on error (also releases the advisory lock)
@@ -263,7 +268,7 @@ async fn find_or_create_issue_and_grouping_inner(
     denormalized: &DenormalizedFields,
     level: Option<&str>,
     platform: Option<&str>,
-) -> AppResult<(Issue, Grouping, bool)> {
+) -> AppResult<(Issue, Grouping, bool, bool)> {
     // Try to find existing grouping
     let existing_grouping: Option<Grouping> = sqlx::query_as(
         r#"
@@ -277,23 +282,69 @@ async fn find_or_create_issue_and_grouping_inner(
     .await?;
 
     if let Some(grouping) = existing_grouping {
-        // Grouping exists, update issue
-        let issue: Issue = sqlx::query_as(
-            r#"
-            UPDATE issues
-            SET last_seen = $2,
-                digested_event_count = digested_event_count + 1,
-                stored_event_count = stored_event_count + 1
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(grouping.issue_id)
-        .bind(timestamp)
-        .fetch_one(&mut **tx)
-        .await?;
+        // Detect regression: a new event for an already-resolved issue must
+        // reopen it as `regressed` (mirrors Sentry's lifecycle) — unless the
+        // issue was "resolved in next release" and this event is still from the
+        // same release (no new deploy yet), in which case it stays resolved.
+        let prev: (String, String, String) =
+            sqlx::query_as("SELECT status, status_details, last_release FROM issues WHERE id = $1")
+                .bind(grouping.issue_id)
+                .fetch_one(&mut **tx)
+                .await?;
+        let in_next_release = serde_json::from_str::<serde_json::Value>(&prev.1)
+            .ok()
+            .and_then(|v| v.get("in_next_release").and_then(|b| b.as_bool()))
+            .unwrap_or(false);
+        // An event with no release metadata can't prove it's from a newer
+        // release, so treat it as the same release rather than triggering a
+        // spurious regression reopen.
+        let same_release = denormalized.release.is_empty() || denormalized.release == prev.2;
+        let suppress = in_next_release && same_release;
+        let regressed = prev.0 == crate::models::STATUS_RESOLVED && !suppress;
 
-        return Ok((issue, grouping, false));
+        // Grouping exists, update issue (reopening it if it regressed).
+        let issue: Issue = if regressed {
+            sqlx::query_as(
+                r#"
+                UPDATE issues
+                SET last_seen = $2,
+                    digested_event_count = digested_event_count + 1,
+                    stored_event_count = stored_event_count + 1,
+                    status = 'unresolved',
+                    substatus = 'regressed',
+                    status_details = '{}',
+                    last_release = CASE WHEN $3 <> '' THEN $3 ELSE last_release END,
+                    first_release = CASE WHEN first_release = '' THEN $3 ELSE first_release END
+                WHERE id = $1
+                RETURNING *
+                "#,
+            )
+            .bind(grouping.issue_id)
+            .bind(timestamp)
+            .bind(&denormalized.release)
+            .fetch_one(&mut **tx)
+            .await?
+        } else {
+            sqlx::query_as(
+                r#"
+                UPDATE issues
+                SET last_seen = $2,
+                    digested_event_count = digested_event_count + 1,
+                    stored_event_count = stored_event_count + 1,
+                    last_release = CASE WHEN $3 <> '' THEN $3 ELSE last_release END,
+                    first_release = CASE WHEN first_release = '' THEN $3 ELSE first_release END
+                WHERE id = $1
+                RETURNING *
+                "#,
+            )
+            .bind(grouping.issue_id)
+            .bind(timestamp)
+            .bind(&denormalized.release)
+            .fetch_one(&mut **tx)
+            .await?
+        };
+
+        return Ok((issue, grouping, false, regressed));
     }
 
     // Get the next digest_order for this project (safe because we hold the advisory lock)
@@ -307,6 +358,7 @@ async fn find_or_create_issue_and_grouping_inner(
 
     // Create new issue (generate UUID in application for cross-DB compatibility)
     let issue_id = Uuid::new_v4();
+    let priority = crate::services::issue::derive_priority(level);
     let issue: Issue = sqlx::query_as(
         r#"
         INSERT INTO issues (
@@ -314,9 +366,13 @@ async fn find_or_create_issue_and_grouping_inner(
             digested_event_count, stored_event_count,
             calculated_type, calculated_value, "transaction",
             last_frame_filename, last_frame_module, last_frame_function,
-            level, platform
+            level, platform, status, substatus, priority, culprit, logger,
+            first_release, last_release
         )
-        VALUES ($1, $2, $3, $4, $4, 1, 1, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES (
+            $1, $2, $3, $4, $4, 1, 1, $5, $6, $7, $8, $9, $10, $11, $12,
+            'unresolved', 'new', $13, $14, $15, $16, $16
+        )
         RETURNING *
         "#,
     )
@@ -332,6 +388,10 @@ async fn find_or_create_issue_and_grouping_inner(
     .bind(&denormalized.last_frame_function)
     .bind(level)
     .bind(platform)
+    .bind(priority)
+    .bind(&denormalized.culprit)
+    .bind(&denormalized.logger)
+    .bind(&denormalized.release)
     .fetch_one(&mut **tx)
     .await?;
 
@@ -350,5 +410,5 @@ async fn find_or_create_issue_and_grouping_inner(
     .fetch_one(&mut **tx)
     .await?;
 
-    Ok((issue, grouping, true))
+    Ok((issue, grouping, true, false))
 }

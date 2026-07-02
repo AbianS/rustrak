@@ -1,5 +1,16 @@
 import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
+import {
+  Circle,
+  CircleAlert,
+  Database,
+  Globe,
+  Info,
+  type LucideIcon,
+  MousePointerClick,
+  Navigation,
+  Terminal,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface Breadcrumb {
   timestamp?: number;
@@ -19,12 +30,6 @@ interface BreadcrumbsProps {
   breadcrumbs?: Breadcrumb[] | { values?: Breadcrumb[] };
 }
 
-/**
- * Normalize breadcrumbs from Sentry format.
- * Sentry SDKs may send breadcrumbs as:
- * - An array directly: [{ ... }, { ... }]
- * - An object with values: { values: [{ ... }, { ... }] }
- */
 function normalizeBreadcrumbs(
   breadcrumbs?: Breadcrumb[] | { values?: Breadcrumb[] },
 ): Breadcrumb[] {
@@ -57,74 +62,92 @@ function groupConsecutiveBreadcrumbs(items: Breadcrumb[]): GroupedBreadcrumb[] {
   return grouped;
 }
 
+/** Pick a timeline icon from the crumb category/type. */
+function crumbIcon(crumb: Breadcrumb): LucideIcon {
+  const c = `${crumb.category ?? ''} ${crumb.type ?? ''}`.toLowerCase();
+  if (c.includes('navigation')) return Navigation;
+  if (/http|xhr|fetch|request/.test(c)) return Globe;
+  if (/console|debug/.test(c)) return Terminal;
+  if (/ui|click|touch/.test(c)) return MousePointerClick;
+  if (/query|sql|\bdb\b/.test(c)) return Database;
+  if (crumb.level === 'error' || /error|exception/.test(c)) return CircleAlert;
+  if (c.includes('info')) return Info;
+  return Circle;
+}
+
+function levelColor(level?: string): string {
+  switch (level) {
+    case 'fatal':
+    case 'error':
+      return 'text-red-500';
+    case 'warning':
+      return 'text-amber-500';
+    case 'info':
+      return 'text-sky-500';
+    default:
+      return 'text-muted-foreground';
+  }
+}
+
 export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
   const items = normalizeBreadcrumbs(breadcrumbs);
   const grouped = groupConsecutiveBreadcrumbs(items);
 
   if (items.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
+      <div className="py-8 text-center text-sm text-muted-foreground">
         No breadcrumbs available
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground mb-3">
-        {items.length} breadcrumb{items.length !== 1 ? 's' : ''}
-        {grouped.length < items.length &&
-          ` (${items.length - grouped.length} collapsed)`}
-      </p>
-      {grouped.map(({ crumb, count }, i) => (
-        <div
-          key={i}
-          className="flex items-start gap-4 p-3 bg-card border rounded-lg"
-        >
-          <div className="w-20 shrink-0 text-right">
-            {crumb.timestamp && (
-              <span className="text-xs text-muted-foreground font-mono">
-                {format(new Date(crumb.timestamp * 1000), 'HH:mm:ss')}
-              </span>
+    <ol className="relative">
+      {grouped.map(({ crumb, count }, i) => {
+        const Icon = crumbIcon(crumb);
+        const isLast = i === grouped.length - 1;
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: stable crumb order
+          <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
+            {!isLast && (
+              <span className="absolute left-[13px] top-7 bottom-0 w-px bg-border" />
             )}
-          </div>
-
-          <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              {crumb.category && (
-                <Badge variant="outline" className="text-[10px]">
-                  {crumb.category}
-                </Badge>
-              )}
-              {crumb.level && crumb.level !== 'info' && (
-                <Badge
-                  variant={
-                    crumb.level === 'error' ? 'destructive' : 'secondary'
-                  }
-                  className="text-[10px]"
-                >
-                  {crumb.level}
-                </Badge>
-              )}
-              {count > 1 && (
-                <Badge variant="secondary" className="text-[10px]">
-                  ×{count}
-                </Badge>
-              )}
+            <div className="relative flex size-7 shrink-0 items-center justify-center rounded-full border bg-card">
+              <Icon className={cn('size-3.5', levelColor(crumb.level))} />
             </div>
 
-            {crumb.message && (
-              <p className="text-sm text-foreground">{crumb.message}</p>
-            )}
+            <div className="min-w-0 flex-1 pt-0.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground truncate">
+                  {crumb.category || crumb.type || 'default'}
+                  {count > 1 && (
+                    <span className="ml-1.5 normal-case text-muted-foreground/70">
+                      ×{count}
+                    </span>
+                  )}
+                </span>
+                {crumb.timestamp && (
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground/70">
+                    {format(new Date(crumb.timestamp * 1000), 'HH:mm:ss')}
+                  </span>
+                )}
+              </div>
 
-            {crumb.data && Object.keys(crumb.data).length > 0 && (
-              <pre className="text-xs text-muted-foreground font-mono bg-muted/50 p-2 rounded overflow-x-auto">
-                {JSON.stringify(crumb.data, null, 2)}
-              </pre>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
+              {crumb.message && (
+                <p className="mt-0.5 break-words text-sm text-foreground">
+                  {crumb.message}
+                </p>
+              )}
+
+              {crumb.data && Object.keys(crumb.data).length > 0 && (
+                <pre className="mt-1.5 overflow-x-auto rounded bg-muted/50 p-2 font-mono text-xs text-muted-foreground">
+                  {JSON.stringify(crumb.data, null, 2)}
+                </pre>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

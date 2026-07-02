@@ -17,7 +17,7 @@ export default async function SettingsLayout({
   const isAdmin = user?.role === 'admin';
 
   return (
-    <div className="max-w-400 w-full mx-auto">
+    <div className="w-full">
       {/* Mobile top bar */}
       <div className="sticky top-16 z-40 bg-background flex items-center gap-3 border-b px-4 py-3 md:hidden">
         <SettingsMobileNav isAdmin={isAdmin} />

@@ -433,7 +433,6 @@ impl AlertService {
     }
 
     /// Triggers an alert for a regression
-    #[allow(dead_code)]
     pub async fn trigger_regression_alert(
         pool: &DbPool,
         project: &Project,

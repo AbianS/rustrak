@@ -4,19 +4,30 @@ import type { Issue, OffsetPaginatedResponse } from '@rustrak/client';
 import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
-  Bell,
-  BellOff,
+  Bookmark,
   Check,
   ChevronLeft,
   ChevronRight,
   Loader2,
   MoreVertical,
   Trash2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
-import { deleteIssue, updateIssueState } from '@/actions/issues';
+import {
+  bulkDeleteIssues,
+  bulkUpdateIssues,
+  deleteIssue,
+} from '@/actions/issues';
+import {
+  LevelBadge,
+  PriorityIndicator,
+  StatusIndicator,
+} from '@/components/issue-indicators';
+import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +38,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -67,14 +77,19 @@ export function IssuesList({
 
   const { items: issues, total_count, total_pages, per_page } = initialIssues;
 
+  const buildUrl = (params: { filter?: string; page?: number }) => {
+    const search = new URLSearchParams();
+    search.set('filter', params.filter ?? currentFilter);
+    search.set('page', String(params.page ?? 1));
+    return `/projects/${projectId}/issues?${search.toString()}`;
+  };
+
   const handleFilterChange = (filter: string) => {
-    router.push(`/projects/${projectId}/issues?filter=${filter}&page=1`);
+    router.push(buildUrl({ filter, page: 1 }));
   };
 
   const handlePageChange = (page: number) => {
-    router.push(
-      `/projects/${projectId}/issues?filter=${currentFilter}&page=${page}`,
-    );
+    router.push(buildUrl({ page }));
   };
 
   const toggleSelectAll = () => {
@@ -99,19 +114,14 @@ export function IssuesList({
     action: 'resolve' | 'unresolve' | 'mute' | 'unmute',
     ids: Set<string> = selectedIds,
   ) => {
+    const status =
+      action === 'resolve'
+        ? 'resolved'
+        : action === 'mute'
+          ? 'ignored'
+          : 'unresolved';
     startTransition(async () => {
-      for (const id of ids) {
-        await updateIssueState(projectId, id, {
-          is_resolved:
-            action === 'resolve'
-              ? true
-              : action === 'unresolve'
-                ? false
-                : undefined,
-          is_muted:
-            action === 'mute' ? true : action === 'unmute' ? false : undefined,
-        });
-      }
+      await bulkUpdateIssues(projectId, { ids: Array.from(ids), status });
       setSelectedIds(new Set());
       router.refresh();
     });
@@ -132,9 +142,7 @@ export function IssuesList({
   const handleConfirmDelete = async () => {
     startTransition(async () => {
       if (isBatchDelete) {
-        for (const id of selectedIds) {
-          await deleteIssue(projectId, id);
-        }
+        await bulkDeleteIssues(projectId, { ids: Array.from(selectedIds) });
         setSelectedIds(new Set());
       } else if (issueToDelete) {
         await deleteIssue(projectId, issueToDelete.id);
@@ -152,7 +160,7 @@ export function IssuesList({
     <div className="flex flex-col h-full">
       {/* Filters + Batch Actions */}
       <div className="shrink-0 flex flex-col gap-2 mb-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <Tabs value={currentFilter} onValueChange={handleFilterChange}>
             <TabsList>
               {FILTERS.map((filter) => (
@@ -184,7 +192,7 @@ export function IssuesList({
               onClick={() => handleBatchAction('mute')}
               disabled={isPending}
             >
-              <BellOff className="mr-1 size-3" />
+              <VolumeX className="mr-1 size-3" />
               Mute
             </Button>
             <Button
@@ -222,10 +230,19 @@ export function IssuesList({
             <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
               Issue
             </span>
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-16">
+              Trend
+            </span>
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
+              Age
+            </span>
             <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-24 text-right">
               Events
             </span>
-            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
+            <span className="hidden lg:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-20 text-right">
+              Users
+            </span>
+            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-36 text-right">
               Last Seen
             </span>
             <span className="w-8" />
@@ -249,36 +266,27 @@ export function IssuesList({
                     className="block group-hover:text-primary transition-colors"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      {issue.is_resolved && (
-                        <Check className="size-4 text-primary shrink-0" />
-                      )}
-                      {issue.is_muted && (
-                        <BellOff className="size-4 text-muted-foreground shrink-0" />
+                      {issue.is_bookmarked && (
+                        <Bookmark className="size-4 text-primary shrink-0 fill-current" />
                       )}
                       <span className="font-semibold truncate">
                         {issue.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      {issue.platform && (
-                        <Badge variant="outline" className="text-[10px]">
-                          {issue.platform}
-                        </Badge>
-                      )}
-                      {issue.level && (
-                        <Badge
-                          variant={
-                            issue.level === 'error'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                          className="text-[10px]"
-                        >
-                          {issue.level}
-                        </Badge>
-                      )}
-                      <span className="font-mono">{issue.short_id}</span>
-                      <span className="sm:hidden text-muted-foreground/70">
+                    {issue.culprit && (
+                      <p className="text-xs text-muted-foreground/70 font-mono truncate mb-1.5">
+                        {issue.culprit}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+                      <StatusIndicator issue={issue} />
+                      <PriorityIndicator priority={issue.priority} />
+                      <LevelBadge level={issue.level} />
+                      {issue.platform && <span>{issue.platform}</span>}
+                      <span className="font-mono text-muted-foreground/70">
+                        {issue.short_id}
+                      </span>
+                      <span className="sm:hidden">
                         {formatDistanceToNow(new Date(issue.last_seen), {
                           addSuffix: true,
                         })}
@@ -287,14 +295,30 @@ export function IssuesList({
                   </Link>
                 </div>
 
+                <div className="hidden lg:flex w-16 justify-start">
+                  <IssueTrendSparkline trend={issue.trend ?? []} />
+                </div>
+
+                <div className="hidden lg:block w-24 text-right">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    {formatDistanceToNow(new Date(issue.first_seen))}
+                  </span>
+                </div>
+
                 <div className="hidden sm:block w-24 text-right">
-                  <span className="font-mono text-sm">
+                  <span className="font-mono text-sm whitespace-nowrap">
                     {issue.event_count.toLocaleString()}
                   </span>
                 </div>
 
-                <div className="hidden sm:block w-32 text-right">
-                  <span className="text-sm text-muted-foreground">
+                <div className="hidden lg:block w-20 text-right">
+                  <span className="font-mono text-sm whitespace-nowrap">
+                    {(issue.user_count ?? 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="hidden sm:block w-36 text-right">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(issue.last_seen), {
                       addSuffix: true,
                     })}
@@ -310,7 +334,7 @@ export function IssuesList({
                     <MoreVertical className="size-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    {!issue.is_resolved && (
+                    {issue.status !== 'resolved' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('resolve', new Set([issue.id]))
@@ -320,7 +344,7 @@ export function IssuesList({
                         Resolve
                       </DropdownMenuItem>
                     )}
-                    {issue.is_resolved && (
+                    {issue.status === 'resolved' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('unresolve', new Set([issue.id]))
@@ -330,23 +354,23 @@ export function IssuesList({
                         Unresolve
                       </DropdownMenuItem>
                     )}
-                    {!issue.is_muted && (
+                    {issue.status !== 'ignored' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('mute', new Set([issue.id]))
                         }
                       >
-                        <BellOff className="mr-2 size-4" />
+                        <VolumeX className="mr-2 size-4" />
                         Mute
                       </DropdownMenuItem>
                     )}
-                    {issue.is_muted && (
+                    {issue.status === 'ignored' && (
                       <DropdownMenuItem
                         onClick={() =>
                           handleBatchAction('unmute', new Set([issue.id]))
                         }
                       >
-                        <Bell className="mr-2 size-4" />
+                        <Volume2 className="mr-2 size-4" />
                         Unmute
                       </DropdownMenuItem>
                     )}

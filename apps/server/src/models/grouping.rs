@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 /// Grouping model - maps a grouping key to an issue
 #[derive(Debug, Clone, Serialize, FromRow)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Grouping {
     pub id: i32,
     pub project_id: i32,

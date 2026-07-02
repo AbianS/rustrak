@@ -53,7 +53,10 @@ pub use installation::Installation;
 pub use invitation::{
     AcceptInvitation, CreateInvitation, Invitation, InvitationResponse, InvitationStatus,
 };
-pub use issue::{Issue, IssueResponse, UpdateIssueState};
+pub use issue::{
+    substatus_valid_for_status, BulkDeleteIssues, BulkUpdateIssues, Issue, IssueResponse,
+    UpdateIssueState, STATUS_IGNORED, STATUS_RESOLVED, STATUS_UNRESOLVED,
+};
 pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};

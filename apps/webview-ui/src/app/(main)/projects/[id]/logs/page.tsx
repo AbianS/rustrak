@@ -51,14 +51,14 @@ export default async function LogsPage({
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
-      <div className="shrink-0 max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6 border-b">
+      <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <h1 className="text-lg font-semibold">Logs</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Structured logs for {project.name}, newest first
         </p>
       </div>
 
-      <div className="flex-1 overflow-hidden max-w-400 w-full mx-auto px-4 md:px-8 py-4 md:py-6">
+      <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6">
         {logs.total_count === 0 && !level ? (
           <div className="flex flex-col items-center justify-center min-h-full text-center">
             <ScrollText className="size-12 text-muted-foreground/30 mb-4" />

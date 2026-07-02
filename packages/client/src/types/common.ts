@@ -55,6 +55,8 @@ export interface ListIssuesOptions {
   sort?: IssueSort;
   order?: SortOrder;
   filter?: IssueFilter;
+  /** Free-text search across type, value, transaction, and culprit. */
+  q?: string;
 }
 
 /**

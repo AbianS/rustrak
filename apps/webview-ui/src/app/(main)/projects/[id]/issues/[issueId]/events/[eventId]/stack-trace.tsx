@@ -4,31 +4,11 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import type { ExceptionChain, StackFrame } from '@/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
 
-interface StackFrame {
-  filename?: string;
-  function?: string;
-  lineno?: number;
-  colno?: number;
-  in_app?: boolean;
-  context_line?: string;
-  pre_context?: string[];
-  post_context?: string[];
-}
-
-interface Exception {
-  type?: string;
-  value?: string;
-  stacktrace?: {
-    frames?: StackFrame[];
-  };
-}
-
 interface StackTraceProps {
-  exception?: {
-    values?: Exception[];
-  };
+  exception?: ExceptionChain;
 }
 
 /**

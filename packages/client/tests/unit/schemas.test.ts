@@ -8,6 +8,7 @@ import {
   paginatedResponseSchema,
   projectSchema,
   transactionSchema,
+  userReportSchema,
 } from '../../src/schemas/index.js';
 
 describe('Schema Validation', () => {
@@ -112,11 +113,24 @@ describe('Schema Validation', () => {
         short_id: 'TEST-1',
         title: 'TypeError: Cannot read property',
         value: "Cannot read property 'x' of undefined",
+        culprit: 'handleRequest',
+        logger: '',
         first_seen: '2026-01-20T10:00:00.000Z',
         last_seen: '2026-01-20T11:00:00.000Z',
         event_count: 5,
         level: 'error',
         platform: 'javascript',
+        status: 'unresolved',
+        substatus: 'new',
+        priority: 'high',
+        assigned_to: null,
+        assignee_type: null,
+        issue_type: 'error',
+        issue_category: 'error',
+        first_release: '',
+        last_release: '',
+        status_details: {},
+        user_report_count: 0,
         is_resolved: false,
         is_muted: false,
       };
@@ -132,17 +146,112 @@ describe('Schema Validation', () => {
         short_id: 'TEST-1',
         title: 'Error',
         value: 'Something went wrong',
+        culprit: '',
+        logger: '',
         first_seen: '2026-01-20T10:00:00.000Z',
         last_seen: '2026-01-20T11:00:00.000Z',
         event_count: 5,
         level: null,
         platform: null,
+        status: 'unresolved',
+        substatus: null,
+        priority: null,
+        assigned_to: null,
+        assignee_type: null,
+        issue_type: 'error',
+        issue_category: 'error',
+        first_release: '',
+        last_release: '',
+        status_details: {},
+        user_report_count: 0,
         is_resolved: false,
         is_muted: false,
       };
 
       const result = issueSchema.safeParse(issue);
       expect(result.success).toBe(true);
+    });
+
+    it('should default user_report_count to 0 when omitted', () => {
+      const issue = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        project_id: 1,
+        short_id: 'TEST-1',
+        title: 'Error',
+        value: 'Something went wrong',
+        culprit: '',
+        logger: '',
+        first_seen: '2026-01-20T10:00:00.000Z',
+        last_seen: '2026-01-20T11:00:00.000Z',
+        event_count: 5,
+        level: null,
+        platform: null,
+        status: 'unresolved',
+        substatus: null,
+        priority: null,
+        assigned_to: null,
+        assignee_type: null,
+        issue_type: 'error',
+        issue_category: 'error',
+        first_release: '',
+        last_release: '',
+        status_details: {},
+        is_resolved: false,
+        is_muted: false,
+      };
+
+      const result = issueSchema.parse(issue);
+      expect(result.user_report_count).toBe(0);
+    });
+  });
+
+  describe('userReportSchema', () => {
+    it('should validate a report with a real email', () => {
+      const report = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        project_id: 1,
+        issue_id: '223e4567-e89b-12d3-a456-426614174000',
+        event_id: '323e4567-e89b-12d3-a456-426614174000',
+        name: 'Jane Doe',
+        email: 'jane@example.com',
+        comments: 'It crashed when I clicked submit.',
+        created_at: '2026-01-20T10:00:00.000Z',
+      };
+
+      const result = userReportSchema.safeParse(report);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept an empty email — server stores "" for anonymous reports (DEFAULT \'\' / unwrap_or_default), matching real Sentry\'s own save_userreport(report.get("email", ""))', () => {
+      const anonymousReport = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        project_id: 1,
+        issue_id: null,
+        event_id: null,
+        name: '',
+        email: '',
+        comments: 'Anonymous feedback.',
+        created_at: '2026-01-20T10:00:00.000Z',
+      };
+
+      const result = userReportSchema.safeParse(anonymousReport);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject a malformed non-empty email', () => {
+      const report = {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        project_id: 1,
+        issue_id: null,
+        event_id: null,
+        name: '',
+        email: 'not-an-email',
+        comments: 'x',
+        created_at: '2026-01-20T10:00:00.000Z',
+      };
+
+      const result = userReportSchema.safeParse(report);
+      expect(result.success).toBe(false);
     });
   });
 

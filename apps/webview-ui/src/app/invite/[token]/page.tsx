@@ -49,6 +49,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
               </p>
             </div>
             <Button
+              nativeButton={false}
               render={<Link href="/auth/login" />}
               variant="outline"
               className="w-full"

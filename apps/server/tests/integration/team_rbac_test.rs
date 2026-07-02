@@ -138,6 +138,9 @@ async fn seed_issue(pool: &DbPool, project_id: i32) -> Issue {
         last_frame_filename: "test.rs".to_string(),
         last_frame_module: "test_module".to_string(),
         last_frame_function: "test_function".to_string(),
+        culprit: "test_function".to_string(),
+        logger: String::new(),
+        release: String::new(),
     };
     IssueService::create(
         pool,
@@ -688,4 +691,203 @@ async fn disabled_user_token_is_rejected() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 401, "disabled user's token must be rejected");
+}
+
+// ---------------------------------------------------------------------------
+// (o) Viewer can read but not mutate the GH #165 issue-social/bulk endpoints;
+//     editor can. These endpoints had zero dedicated RBAC coverage before —
+//     `access::require` was verified correct by code review only.
+// ---------------------------------------------------------------------------
+
+#[actix_web::test]
+async fn viewer_cannot_mutate_new_issue_endpoints_but_editor_can() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+
+    let viewer = seed_user(&db.pool, "viewer@x.com", UserRole::Member).await;
+    let viewer_token = seed_token_for(&db.pool, viewer.id).await;
+    let editor = seed_user(&db.pool, "editor@x.com", UserRole::Member).await;
+    let editor_token = seed_token_for(&db.pool, editor.id).await;
+
+    let project = seed_project(&db.pool, "Social Project").await;
+    add_member(&db.pool, project.id, viewer.id, ProjectRole::Viewer).await;
+    add_member(&db.pool, project.id, editor.id, ProjectRole::Editor).await;
+    let issue = seed_issue(&db.pool, project.id).await;
+
+    let app = build_app!(db.pool.clone(), config);
+
+    // --- MutateIssue-gated endpoints: viewer 403, editor succeeds ---
+
+    // Bulk update (PUT /issues).
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "ids": [issue.id], "status": "resolved" }))
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        403,
+        "viewer cannot bulk-update issues"
+    );
+    let req = test::TestRequest::put()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(bearer(&editor_token))
+        .set_json(json!({ "ids": [issue.id], "status": "resolved" }))
+        .to_request();
+    assert!(
+        test::call_service(&app, req).await.status().is_success(),
+        "editor can bulk-update issues"
+    );
+
+    // Bulk delete (DELETE /issues) — reseed a fresh issue since the one
+    // above just got resolved, not deleted.
+    let issue2 = seed_issue(&db.pool, project.id).await;
+    let req = test::TestRequest::delete()
+        .uri(&format!("/api/projects/{}/issues", project.id))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "ids": [issue2.id] }))
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        403,
+        "viewer cannot bulk-delete issues"
+    );
+
+    // Comment (POST .../comments).
+    let req = test::TestRequest::post()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/comments",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "text": "nope" }))
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        403,
+        "viewer cannot comment on issues"
+    );
+    let req = test::TestRequest::post()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/comments",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&editor_token))
+        .set_json(json!({ "text": "editor comment" }))
+        .to_request();
+    assert!(
+        test::call_service(&app, req).await.status().is_success(),
+        "editor can comment on issues"
+    );
+
+    // User report (POST .../user-reports).
+    let req = test::TestRequest::post()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/user-reports",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "comments": "nope" }))
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        403,
+        "viewer cannot submit a user report"
+    );
+
+    // Deploy (POST /projects/{id}/deploys).
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/projects/{}/deploys", project.id))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "version": "v1.0.0" }))
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        403,
+        "viewer cannot record a deploy"
+    );
+
+    // --- ViewProject-gated endpoints: viewer succeeds (read + per-user toggles) ---
+
+    for (method, path) in [
+        (
+            "get",
+            format!("/api/projects/{}/issues/{}/hashes", project.id, issue.id),
+        ),
+        (
+            "get",
+            format!(
+                "/api/projects/{}/issues/{}/aggregates",
+                project.id, issue.id
+            ),
+        ),
+        (
+            "get",
+            format!("/api/projects/{}/issues/{}/stats", project.id, issue.id),
+        ),
+        (
+            "get",
+            format!("/api/projects/{}/issues/{}/activity", project.id, issue.id),
+        ),
+        (
+            "get",
+            format!(
+                "/api/projects/{}/issues/{}/user-reports",
+                project.id, issue.id
+            ),
+        ),
+    ] {
+        let req = match method {
+            "get" => test::TestRequest::get(),
+            _ => unreachable!(),
+        }
+        .uri(&path)
+        .insert_header(bearer(&viewer_token))
+        .to_request();
+        let status = test::call_service(&app, req).await.status();
+        assert!(
+            status.is_success(),
+            "viewer should be able to GET {} (got {})",
+            path,
+            status
+        );
+    }
+
+    // Bookmark/subscription/seen are per-user preferences, not project
+    // mutations — a viewer (ViewProject) can toggle their own.
+    let req = test::TestRequest::put()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/bookmark",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "enabled": true }))
+        .to_request();
+    assert!(
+        test::call_service(&app, req).await.status().is_success(),
+        "viewer can bookmark an issue"
+    );
+    let req = test::TestRequest::put()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/subscription",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&viewer_token))
+        .set_json(json!({ "enabled": true }))
+        .to_request();
+    assert!(
+        test::call_service(&app, req).await.status().is_success(),
+        "viewer can subscribe to an issue"
+    );
+    let req = test::TestRequest::post()
+        .uri(&format!(
+            "/api/projects/{}/issues/{}/seen",
+            project.id, issue.id
+        ))
+        .insert_header(bearer(&viewer_token))
+        .to_request();
+    assert!(
+        test::call_service(&app, req).await.status().is_success(),
+        "viewer can mark an issue seen"
+    );
 }

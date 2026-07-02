@@ -1,5 +1,6 @@
 interface EventContextProps {
   contexts?: Record<string, Record<string, unknown>>;
+  modules?: Record<string, string>;
   user?: {
     id?: string;
     email?: string;
@@ -7,11 +8,12 @@ interface EventContextProps {
   };
 }
 
-export function EventContext({ contexts, user }: EventContextProps) {
+export function EventContext({ contexts, modules, user }: EventContextProps) {
   const hasContexts = contexts && Object.keys(contexts).length > 0;
+  const hasModules = modules && Object.keys(modules).length > 0;
   const hasUser = user && (user.id || user.email || user.ip_address);
 
-  if (!hasContexts && !hasUser) {
+  if (!hasContexts && !hasModules && !hasUser) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         No context data available
@@ -49,6 +51,19 @@ export function EventContext({ contexts, user }: EventContextProps) {
             </div>
           </ContextSection>
         ))}
+
+      {/* Packages (dependency versions running at capture time) */}
+      {hasModules && (
+        <ContextSection title="Packages">
+          <div className="grid grid-cols-2 gap-4">
+            {Object.entries(modules)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([name, version]) => (
+                <ContextItem key={name} label={name} value={version} />
+              ))}
+          </div>
+        </ContextSection>
+      )}
     </div>
   );
 }

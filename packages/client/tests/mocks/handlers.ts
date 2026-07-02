@@ -35,11 +35,24 @@ export const mockIssues = [
     short_id: 'TEST-1',
     title: 'TypeError: Cannot read property',
     value: "Cannot read property 'x' of undefined",
+    culprit: 'handleRequest',
+    logger: '',
     first_seen: '2026-01-20T10:00:00.000Z',
     last_seen: '2026-01-20T11:00:00.000Z',
     event_count: 5,
     level: 'error',
     platform: 'javascript',
+    status: 'unresolved',
+    substatus: 'new',
+    priority: 'high',
+    assigned_to: null,
+    assignee_type: null,
+    issue_type: 'error',
+    issue_category: 'error',
+    first_release: '',
+    last_release: '',
+    status_details: {},
+    user_report_count: 0,
     is_resolved: false,
     is_muted: false,
   },
@@ -49,11 +62,24 @@ export const mockIssues = [
     short_id: 'TEST-2',
     title: 'ReferenceError: foo is not defined',
     value: 'foo is not defined',
+    culprit: '',
+    logger: '',
     first_seen: '2026-01-20T09:00:00.000Z',
     last_seen: '2026-01-20T10:00:00.000Z',
     event_count: 3,
     level: 'error',
     platform: 'javascript',
+    status: 'unresolved',
+    substatus: 'new',
+    priority: 'high',
+    assigned_to: null,
+    assignee_type: null,
+    issue_type: 'error',
+    issue_category: 'error',
+    first_release: '',
+    last_release: '',
+    status_details: {},
+    user_report_count: 0,
     is_resolved: false,
     is_muted: false,
   },
@@ -359,6 +385,7 @@ export const handlers = [
   http.get(`${BASE_URL}/api/projects/:projectId/issues`, ({ request }) => {
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') ?? '1', 10);
+    const q = url.searchParams.get('q');
 
     // Simple pagination mock - page 2 returns empty
     if (page > 1) {
@@ -371,12 +398,98 @@ export const handlers = [
       });
     }
 
+    const filtered = q
+      ? mockIssues.filter((i) =>
+          `${i.title} ${i.value} ${i.culprit}`
+            .toLowerCase()
+            .includes(q.toLowerCase()),
+        )
+      : mockIssues;
+
+    // The list endpoint returns the lean IssueResponse: it does NOT enrich with
+    // `user_report_count` (only the single-issue GET does). Mirror that here so
+    // the client schema stays honest about which fields the list omits.
+    const items = filtered.map(({ user_report_count: _omit, ...rest }) => rest);
+
     return HttpResponse.json({
-      items: mockIssues,
-      total_count: mockIssues.length,
+      items,
+      total_count: items.length,
       page: 1,
       per_page: 20,
       total_pages: 1,
+    });
+  }),
+
+  // Issue sub-resources (#165): hashes, tag values, aggregates, stats
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/hashes`,
+    ({ params }) => {
+      const { issueId } = params;
+      return HttpResponse.json([
+        {
+          id: 1,
+          project_id: 1,
+          issue_id: issueId,
+          grouping_key: 'TypeError: x ⋄ /api',
+          grouping_key_hash: 'a'.repeat(64),
+          created_at: '2026-01-20T10:00:00.000Z',
+        },
+      ]);
+    },
+  ),
+
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/tags/:key`,
+    ({ params }) => {
+      const { key } = params;
+      // Bare list, one entry per value (Sentry-compatible shape) — not a
+      // `{key, values}` wrapper.
+      return HttpResponse.json([
+        {
+          key,
+          name: key,
+          value: 'chrome',
+          count: 2,
+          first_seen: '2026-01-20T10:00:00.000Z',
+          last_seen: '2026-01-20T11:00:00.000Z',
+        },
+        {
+          key,
+          name: key,
+          value: 'firefox',
+          count: 1,
+          first_seen: '2026-01-20T10:30:00.000Z',
+          last_seen: '2026-01-20T10:30:00.000Z',
+        },
+      ]);
+    },
+  ),
+
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/aggregates`,
+    () => {
+      return HttpResponse.json({
+        user_count: 2,
+        tags: [
+          {
+            key: 'browser',
+            total_values: 2,
+            top_values: [
+              { value: 'chrome', count: 2 },
+              { value: 'firefox', count: 1 },
+            ],
+          },
+        ],
+      });
+    },
+  ),
+
+  http.get(`${BASE_URL}/api/projects/:projectId/issues/:issueId/stats`, () => {
+    return HttpResponse.json({
+      data: [
+        [1000, 3],
+        [4600, 0],
+      ],
     });
   }),
 
@@ -399,6 +512,9 @@ export const handlers = [
     async ({ params, request }) => {
       const { issueId } = params;
       const body = (await request.json()) as {
+        status?: string;
+        substatus?: string;
+        priority?: string;
         is_resolved?: boolean;
         is_muted?: boolean;
       };
@@ -408,9 +524,29 @@ export const handlers = [
         return HttpResponse.json({ error: 'Issue not found' }, { status: 404 });
       }
 
+      // Resolve the canonical status the way the server does: `status` wins,
+      // then legacy booleans; `resolvedInNextRelease` lands as `resolved`.
+      let status = issue.status;
+      if (body.status === 'resolvedInNextRelease') {
+        status = 'resolved';
+      } else if (body.status) {
+        status = body.status;
+      } else if (body.is_resolved === true) {
+        status = 'resolved';
+      } else if (body.is_resolved === false) {
+        status = 'unresolved';
+      } else if (body.is_muted === true) {
+        status = 'ignored';
+      } else if (body.is_muted === false && status === 'ignored') {
+        status = 'unresolved';
+      }
+
       const updated = {
         ...issue,
-        ...body,
+        status,
+        priority: body.priority ?? issue.priority,
+        is_resolved: status === 'resolved',
+        is_muted: status === 'ignored',
       };
 
       return HttpResponse.json(updated);
@@ -428,6 +564,135 @@ export const handlers = [
       }
 
       return new HttpResponse(null, { status: 204 });
+    },
+  ),
+
+  // Issue bulk operations (#165)
+  http.put(
+    `${BASE_URL}/api/projects/:projectId/issues`,
+    async ({ request }) => {
+      const body = (await request.json()) as { ids: string[] };
+      return HttpResponse.json({ updated: body.ids.length });
+    },
+  ),
+
+  http.delete(
+    `${BASE_URL}/api/projects/:projectId/issues`,
+    async ({ request }) => {
+      const body = (await request.json()) as { ids: string[] };
+      return HttpResponse.json({ deleted: body.ids.length });
+    },
+  ),
+
+  // Issue activity & comments (#165)
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/activity`,
+    ({ params }) => {
+      const { issueId } = params;
+      return HttpResponse.json([
+        {
+          id: '111e4567-e89b-12d3-a456-426614174000',
+          issue_id: issueId,
+          user_id: 1,
+          type: 'note',
+          data: '{"text":"looking into it"}',
+          created_at: '2026-01-20T12:00:00.000Z',
+        },
+      ]);
+    },
+  ),
+
+  http.post(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/comments`,
+    async ({ params, request }) => {
+      const { issueId } = params;
+      const body = (await request.json()) as { text: string };
+      return HttpResponse.json(
+        {
+          id: '222e4567-e89b-12d3-a456-426614174000',
+          issue_id: issueId,
+          user_id: 1,
+          type: 'note',
+          data: JSON.stringify({ text: body.text }),
+          created_at: '2026-01-20T12:30:00.000Z',
+        },
+        { status: 201 },
+      );
+    },
+  ),
+
+  // Bookmark / subscription / seen (#165)
+  http.put(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/bookmark`,
+    async ({ request }) => {
+      const body = (await request.json()) as { enabled?: boolean };
+      return HttpResponse.json({ is_bookmarked: body.enabled ?? true });
+    },
+  ),
+
+  http.put(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/subscription`,
+    async ({ request }) => {
+      const body = (await request.json()) as { enabled?: boolean };
+      return HttpResponse.json({ is_subscribed: body.enabled ?? true });
+    },
+  ),
+
+  http.post(`${BASE_URL}/api/projects/:projectId/issues/:issueId/seen`, () =>
+    HttpResponse.json({ has_seen: true }),
+  ),
+
+  // User reports (#165)
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/user-reports`,
+    ({ params }) => {
+      const { issueId } = params;
+      return HttpResponse.json([
+        {
+          id: '333e4567-e89b-12d3-a456-426614174000',
+          project_id: 1,
+          issue_id: issueId,
+          event_id: null,
+          name: 'Jane',
+          email: 'jane@example.com',
+          comments: 'it broke',
+          created_at: '2026-01-20T13:00:00.000Z',
+        },
+      ]);
+    },
+  ),
+
+  http.post(
+    `${BASE_URL}/api/projects/:projectId/issues/:issueId/user-reports`,
+    async ({ params, request }) => {
+      const { issueId } = params;
+      const body = (await request.json()) as {
+        name?: string;
+        email?: string;
+        comments?: string;
+      };
+      return HttpResponse.json(
+        {
+          id: '444e4567-e89b-12d3-a456-426614174000',
+          project_id: 1,
+          issue_id: issueId,
+          event_id: null,
+          name: body.name ?? '',
+          email: body.email ?? '',
+          comments: body.comments ?? '',
+          created_at: '2026-01-20T13:30:00.000Z',
+        },
+        { status: 201 },
+      );
+    },
+  ),
+
+  // Deploys (#165)
+  http.post(
+    `${BASE_URL}/api/projects/:projectId/deploys`,
+    async ({ request }) => {
+      const body = (await request.json()) as { version: string };
+      return HttpResponse.json({ version: body.version, finalized: 1 });
     },
   ),
 
