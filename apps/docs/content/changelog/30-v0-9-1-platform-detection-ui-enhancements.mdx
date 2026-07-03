@@ -1,0 +1,46 @@
+---
+version: v0.9.1
+title: Platform Detection & UI Enhancements
+description: Auto-detect project platforms from events, new project overview and releases pages, Sentry-compatible stack trace and breadcrumb rendering, and improved event trimming
+date: 2026-07-03
+tags: [server, webview-ui, client]
+---
+
+## Project Platform Auto-Detection
+
+The server now automatically detects the platform (JavaScript, Python, Ruby, etc.) of ingested events and exposes it as a `platform` field on projects. The web UI renders platform-specific icons for each project in the list.
+
+- Server auto-detects platform from event exceptions and SDK metadata
+- Web UI renders platform icons via `platformicons` package
+- Client SDK exposes `project.platform` in API responses
+
+## Project Overview
+
+A redesigned project detail page now shows session trend charts and health score cards, giving teams a quick pulse on release stability.
+
+- Session trend chart with crash-free user and session rates
+- Health score cards with adoption, crash rate, and crash-free metrics
+- Cleaner issue list cards in the project context
+
+## Releases Section
+
+New releases section provides visibility into release health and adoption across environments.
+
+- Releases list page with environment breakdown and adoption stats
+- Release detail page with per-environment health cards
+- Server-side releases API with version, environment, and adoption data
+- Client SDK releases resource with list and get endpoints
+
+## Sentry-Compatible Stack Traces & Breadcrumbs
+
+Stack trace and breadcrumb rendering now closely matches Sentry's behavior, improving familiarity for Sentry users.
+
+- Stack traces group frames by in-app vs. system with collapsible sections
+- Platform-adaptive formatting (JavaScript, Python, etc.)
+- Threads section for multi-thread events
+- Breadcrumbs with expand/collapse toggle, category icons, and color coding
+- Source map rewriting now applies to thread frames (not just exception stacktraces)
+
+## Event Size Handling
+
+The server no longer rejects oversized events. Instead, oversized events are intelligently trimmed while preserving key data, ensuring no events are lost due to size limits.
