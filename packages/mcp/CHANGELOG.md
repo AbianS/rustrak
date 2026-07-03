@@ -1,5 +1,12 @@
 # @rustrak/mcp
 
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [[`b3a05e9`](https://github.com/rustrak/rustrak/commit/b3a05e979e47669a3ec665bfe0dae4e6bc2eeef3)]:
+  - @rustrak/client@0.3.12
+
 ## 0.2.11
 
 ### Patch Changes
