@@ -64,7 +64,10 @@ pub async fn new_issues_for_release(
         IssueService::top_issues_for_release(pool.get_ref(), project_id, &release, query.limit())
             .await?;
 
-    let responses: Vec<_> = issues.iter().map(|i| i.to_response(&project.slug)).collect();
+    let responses: Vec<_> = issues
+        .iter()
+        .map(|i| i.to_response(&project.slug))
+        .collect();
 
     Ok(HttpResponse::Ok().json(responses))
 }
@@ -76,10 +79,8 @@ pub struct ReleasesApi;
 
 /// Configure release routes.
 pub fn configure(cfg: &mut web::ServiceConfig) {
-    cfg.service(
-        web::scope("/api/projects/{project_id}/releases").route(
-            "/{release}/new-issues",
-            web::get().to(new_issues_for_release),
-        ),
-    );
+    cfg.service(web::scope("/api/projects/{project_id}/releases").route(
+        "/{release}/new-issues",
+        web::get().to(new_issues_for_release),
+    ));
 }

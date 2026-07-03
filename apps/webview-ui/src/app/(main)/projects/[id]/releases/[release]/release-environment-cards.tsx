@@ -1,23 +1,14 @@
 import type { ReleaseHealth } from '@rustrak/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { crashFreeClass, pct } from '@/lib/session-health';
 
 interface ReleaseEnvironmentCardsProps {
   rows: ReleaseHealth;
 }
 
-function pct(rate: number | null): string {
-  if (rate === null) return '—';
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-function crashFreeClass(rate: number | null): string {
-  if (rate === null) return 'text-muted-foreground';
-  if (rate >= 0.99) return 'text-green-600 dark:text-green-400';
-  if (rate >= 0.95) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-600 dark:text-red-400';
-}
-
-export function ReleaseEnvironmentCards({ rows }: ReleaseEnvironmentCardsProps) {
+export function ReleaseEnvironmentCards({
+  rows,
+}: ReleaseEnvironmentCardsProps) {
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => (
@@ -31,7 +22,9 @@ export function ReleaseEnvironmentCards({ rows }: ReleaseEnvironmentCardsProps) 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <p className="text-[10px] text-muted-foreground">Sessions</p>
-                <p className="text-xl font-bold">{row.total.toLocaleString()}</p>
+                <p className="text-xl font-bold">
+                  {row.total.toLocaleString()}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">

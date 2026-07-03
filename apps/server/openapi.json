@@ -3728,6 +3728,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "release",
+            "in": "query",
+            "description": "Scope to a single release (all environments)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {

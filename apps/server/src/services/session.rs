@@ -19,7 +19,20 @@ impl SessionService {
         project_id: i32,
         period_hours: Option<i64>,
     ) -> AppResult<Vec<ReleaseHealthRow>> {
-        let rows = query_release_health(pool, project_id, period_hours).await?;
+        let rows = query_release_health(pool, project_id, period_hours, None).await?;
+        Ok(rows)
+    }
+
+    /// Same as [`Self::release_health`], scoped server-side to a single release
+    /// (all environments) instead of returning every release in the project.
+    /// Powers the release detail page, which only needs one release's rows.
+    pub async fn release_health_for_release(
+        pool: &DbPool,
+        project_id: i32,
+        release: &str,
+        period_hours: Option<i64>,
+    ) -> AppResult<Vec<ReleaseHealthRow>> {
+        let rows = query_release_health(pool, project_id, period_hours, Some(release)).await?;
         Ok(rows)
     }
 
@@ -44,8 +57,8 @@ impl SessionService {
         period_hours: Option<i64>,
         interval_hours: i64,
     ) -> AppResult<Vec<SessionTimeseriesPoint>> {
-        let points = query_session_timeseries(pool, project_id, period_hours, interval_hours)
-            .await?;
+        let points =
+            query_session_timeseries(pool, project_id, period_hours, interval_hours).await?;
         Ok(points)
     }
 }
@@ -54,52 +67,83 @@ async fn query_release_health(
     pool: &DbPool,
     project_id: i32,
     period_hours: Option<i64>,
+    release: Option<&str>,
 ) -> Result<Vec<ReleaseHealthRow>, sqlx::Error> {
     #[cfg(feature = "postgres")]
     {
         let (time_filter_sc, time_filter_su) = if let Some(hours) = period_hours {
             (
-                format!("AND sc.bucket >= NOW() - '{} hours'::interval", hours),
-                format!("AND su.day >= (NOW() - '{} hours'::interval)::date", hours),
+                format!("AND bucket >= NOW() - '{} hours'::interval", hours),
+                format!("AND day >= (NOW() - '{} hours'::interval)::date", hours),
             )
         } else {
             (String::new(), String::new())
         };
+        let release_filter = if release.is_some() {
+            "AND release = $2"
+        } else {
+            ""
+        };
 
+        // session_counts and session_users are aggregated in separate subqueries
+        // (each producing at most one row per release+environment) and then
+        // joined 1:1. A direct LEFT JOIN on (project_id, release, environment)
+        // alone is a many-to-many join — session_counts has one row per bucket
+        // and session_users one row per (day, did), so every counts row would
+        // be duplicated once per matching users row, inflating SUM(total) etc.
+        // by the distinct-user count.
         let sql = format!(
             r#"
                 SELECT
-                    sc.release,
-                    sc.environment,
-                    SUM(sc.total)::bigint    AS total,
-                    SUM(sc.errored)::bigint  AS errored,
-                    SUM(sc.crashed)::bigint  AS crashed,
-                    SUM(sc.abnormal)::bigint AS abnormal,
-                    CASE WHEN SUM(sc.total) > 0
-                         THEN 1.0 - SUM(sc.crashed)::float8 / NULLIF(SUM(sc.total), 0)
-                         ELSE NULL END AS crash_free_sessions_rate,
-                    CASE WHEN COUNT(DISTINCT su.did) > 0
-                         THEN 1.0 - COUNT(DISTINCT CASE WHEN su.crashed THEN su.did END)::float8
-                              / NULLIF(COUNT(DISTINCT su.did), 0)
-                         ELSE NULL END AS crash_free_users_rate
-                FROM session_counts sc
-                LEFT JOIN session_users su
-                    ON su.project_id = sc.project_id
-                   AND su.release    = sc.release
-                   AND su.environment = sc.environment
-                   {}
-                WHERE sc.project_id = $1
-                  {}
-                GROUP BY sc.release, sc.environment
-                ORDER BY SUM(sc.total) DESC
+                    counts.release,
+                    counts.environment,
+                    counts.total,
+                    counts.errored,
+                    counts.crashed,
+                    counts.abnormal,
+                    counts.crash_free_sessions_rate,
+                    users.crash_free_users_rate
+                FROM (
+                    SELECT
+                        release,
+                        environment,
+                        SUM(total)::bigint    AS total,
+                        SUM(errored)::bigint  AS errored,
+                        SUM(crashed)::bigint  AS crashed,
+                        SUM(abnormal)::bigint AS abnormal,
+                        CASE WHEN SUM(total) > 0
+                             THEN 1.0 - SUM(crashed)::float8 / NULLIF(SUM(total), 0)
+                             ELSE NULL END AS crash_free_sessions_rate
+                    FROM session_counts
+                    WHERE project_id = $1
+                      {time_filter_sc}
+                      {release_filter}
+                    GROUP BY release, environment
+                ) counts
+                LEFT JOIN (
+                    SELECT
+                        release,
+                        environment,
+                        CASE WHEN COUNT(DISTINCT did) > 0
+                             THEN 1.0 - COUNT(DISTINCT CASE WHEN crashed THEN did END)::float8
+                                  / NULLIF(COUNT(DISTINCT did), 0)
+                             ELSE NULL END AS crash_free_users_rate
+                    FROM session_users
+                    WHERE project_id = $1
+                      {time_filter_su}
+                      {release_filter}
+                    GROUP BY release, environment
+                ) users
+                ON users.release = counts.release AND users.environment = counts.environment
+                ORDER BY counts.total DESC
                 "#,
-            time_filter_su, time_filter_sc
         );
 
-        let rows: Vec<PgHealthRow> = sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
-            .bind(project_id)
-            .fetch_all(pool)
-            .await?;
+        let mut query = sqlx::query_as(sqlx::AssertSqlSafe(&*sql)).bind(project_id);
+        if let Some(r) = release {
+            query = query.bind(r);
+        }
+        let rows: Vec<PgHealthRow> = query.fetch_all(pool).await?;
 
         Ok(rows
             .into_iter()
@@ -138,6 +182,11 @@ async fn query_release_health(
         } else {
             String::new()
         };
+        let release_filter = if release.is_some() {
+            "AND release = ?2"
+        } else {
+            ""
+        };
 
         let sql = format!(
             r#"
@@ -150,18 +199,18 @@ async fn query_release_health(
                 SUM(abnormal) AS abnormal
             FROM session_counts
             WHERE project_id = ?1
-              {}
+              {time_filter_sc}
+              {release_filter}
             GROUP BY release, environment
             ORDER BY SUM(total) DESC
             "#,
-            time_filter_sc
         );
 
-        let rows: Vec<(String, String, i64, i64, i64, i64)> =
-            sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
-                .bind(project_id)
-                .fetch_all(pool)
-                .await?;
+        let mut count_query = sqlx::query_as(sqlx::AssertSqlSafe(&*sql)).bind(project_id);
+        if let Some(r) = release {
+            count_query = count_query.bind(r);
+        }
+        let rows: Vec<(String, String, i64, i64, i64, i64)> = count_query.fetch_all(pool).await?;
 
         let mut result = Vec::with_capacity(rows.len());
         for (release, environment, total, errored, crashed, abnormal) in rows {
@@ -224,52 +273,69 @@ async fn query_project_summary(
     {
         let (time_filter_sc, time_filter_su) = if let Some(hours) = period_hours {
             (
-                format!("AND sc.bucket >= NOW() - '{} hours'::interval", hours),
-                format!("AND su.day >= (NOW() - '{} hours'::interval)::date", hours),
+                format!("AND bucket >= NOW() - '{} hours'::interval", hours),
+                format!("AND day >= (NOW() - '{} hours'::interval)::date", hours),
             )
         } else {
             (String::new(), String::new())
         };
 
+        // Two independent scalar subqueries (each always returns exactly one
+        // row) combined with CROSS JOIN, instead of a single LEFT JOIN between
+        // session_counts and session_users on (project_id, release,
+        // environment) alone — that join has no day/did constraint, so it's
+        // many-to-many and inflates SUM(total) etc. by the distinct-user count.
         let sql = format!(
             r#"
                 SELECT
-                    COALESCE(SUM(sc.total), 0)::bigint    AS total,
-                    COALESCE(SUM(sc.errored), 0)::bigint  AS errored,
-                    COALESCE(SUM(sc.crashed), 0)::bigint  AS crashed,
-                    COALESCE(SUM(sc.abnormal), 0)::bigint AS abnormal,
-                    CASE WHEN SUM(sc.total) > 0
-                         THEN 1.0 - SUM(sc.crashed)::float8 / NULLIF(SUM(sc.total), 0)
-                         ELSE NULL END AS crash_free_sessions_rate,
-                    CASE WHEN COUNT(DISTINCT su.did) > 0
-                         THEN 1.0 - COUNT(DISTINCT CASE WHEN su.crashed THEN su.did END)::float8
-                              / NULLIF(COUNT(DISTINCT su.did), 0)
-                         ELSE NULL END AS crash_free_users_rate,
-                    COUNT(DISTINCT CASE WHEN sc.total > 0 THEN sc.release END)::bigint AS active_releases
-                FROM session_counts sc
-                LEFT JOIN session_users su
-                    ON su.project_id = sc.project_id
-                   AND su.release    = sc.release
-                   AND su.environment = sc.environment
-                   {}
-                WHERE sc.project_id = $1
-                  {}
+                    counts.total,
+                    counts.errored,
+                    counts.crashed,
+                    counts.abnormal,
+                    counts.crash_free_sessions_rate,
+                    users.crash_free_users_rate,
+                    counts.active_releases
+                FROM (
+                    SELECT
+                        COALESCE(SUM(total), 0)::bigint    AS total,
+                        COALESCE(SUM(errored), 0)::bigint  AS errored,
+                        COALESCE(SUM(crashed), 0)::bigint  AS crashed,
+                        COALESCE(SUM(abnormal), 0)::bigint AS abnormal,
+                        CASE WHEN SUM(total) > 0
+                             THEN 1.0 - SUM(crashed)::float8 / NULLIF(SUM(total), 0)
+                             ELSE NULL END AS crash_free_sessions_rate,
+                        COUNT(DISTINCT CASE WHEN total > 0 THEN release END)::bigint AS active_releases
+                    FROM session_counts
+                    WHERE project_id = $1
+                      {}
+                ) counts
+                CROSS JOIN (
+                    SELECT
+                        CASE WHEN COUNT(DISTINCT did) > 0
+                             THEN 1.0 - COUNT(DISTINCT CASE WHEN crashed THEN did END)::float8
+                                  / NULLIF(COUNT(DISTINCT did), 0)
+                             ELSE NULL END AS crash_free_users_rate
+                    FROM session_users
+                    WHERE project_id = $1
+                      {}
+                ) users
                 "#,
-            time_filter_su, time_filter_sc
+            time_filter_sc, time_filter_su
         );
 
-        let (total, errored, crashed, abnormal, crash_free_sessions_rate, crash_free_users_rate, active_releases): (
-            i64,
-            i64,
-            i64,
-            i64,
-            Option<f64>,
-            Option<f64>,
-            i64,
-        ) = sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
-            .bind(project_id)
-            .fetch_one(pool)
-            .await?;
+        let (
+            total,
+            errored,
+            crashed,
+            abnormal,
+            crash_free_sessions_rate,
+            crash_free_users_rate,
+            active_releases,
+        ): (i64, i64, i64, i64, Option<f64>, Option<f64>, i64) =
+            sqlx::query_as(sqlx::AssertSqlSafe(&*sql))
+                .bind(project_id)
+                .fetch_one(pool)
+                .await?;
 
         Ok(SessionSummary {
             total,
@@ -404,12 +470,14 @@ async fn query_session_timeseries(
 
         Ok(rows
             .into_iter()
-            .map(|(bucket, total, crashed, crash_free_sessions_rate)| SessionTimeseriesPoint {
-                bucket,
-                total,
-                crashed,
-                crash_free_sessions_rate,
-            })
+            .map(
+                |(bucket, total, crashed, crash_free_sessions_rate)| SessionTimeseriesPoint {
+                    bucket,
+                    total,
+                    crashed,
+                    crash_free_sessions_rate,
+                },
+            )
             .collect())
     }
 
@@ -446,8 +514,7 @@ async fn query_session_timeseries(
         Ok(rows
             .into_iter()
             .map(|(bucket, total, crashed)| {
-                let bucket =
-                    crate::models::session::parse_ts(&bucket).unwrap_or_else(Utc::now);
+                let bucket = crate::models::session::parse_ts(&bucket).unwrap_or_else(Utc::now);
                 let crash_free_sessions_rate = if total > 0 {
                     Some(1.0 - crashed as f64 / total as f64)
                 } else {

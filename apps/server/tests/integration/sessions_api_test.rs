@@ -365,6 +365,66 @@ async fn test_release_health_crash_free_users_rate() {
     assert!((rate - 0.5).abs() < 1e-9, "expected 0.5, got {}", rate);
 }
 
+#[actix_web::test]
+async fn test_release_health_total_not_inflated_by_multiple_users() {
+    // Regression test: same many-to-many join issue as
+    // test_project_summary_total_not_inflated_by_multiple_users, but for the
+    // per-release endpoint.
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Release Health No Inflation").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 2, 50, 0, 0, 0).await;
+    for i in 0..5 {
+        seed_user(
+            &db.pool,
+            project_id,
+            "1.0.0",
+            "prod",
+            &format!("user-{i}"),
+            false,
+        )
+        .await;
+    }
+
+    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0].total, 150,
+        "total must not be inflated by the number of distinct users"
+    );
+}
+
+#[actix_web::test]
+async fn test_release_health_for_release_filters_server_side() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Scoped Release Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "staging", 1, 40, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 999, 0, 0, 0).await;
+
+    let rows = SessionService::release_health_for_release(&db.pool, project_id, "1.0.0", Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(
+        rows.len(),
+        2,
+        "only the requested release's rows, across environments"
+    );
+    assert!(rows.iter().all(|r| r.release == "1.0.0"));
+    assert!(rows
+        .iter()
+        .any(|r| r.environment == "prod" && r.total == 100));
+    assert!(rows
+        .iter()
+        .any(|r| r.environment == "staging" && r.total == 40));
+}
+
 // ── project_summary tests ───────────────────────────────────────────────────
 
 #[actix_web::test]
@@ -438,12 +498,53 @@ async fn test_project_summary_crash_free_rates() {
     let sess_rate = summary
         .crash_free_sessions_rate
         .expect("must be Some when total > 0");
-    assert!((sess_rate - 0.9).abs() < 1e-9, "expected 0.9, got {sess_rate}");
+    assert!(
+        (sess_rate - 0.9).abs() < 1e-9,
+        "expected 0.9, got {sess_rate}"
+    );
 
     let user_rate = summary
         .crash_free_users_rate
         .expect("must be Some when users exist");
-    assert!((user_rate - 0.5).abs() < 1e-9, "expected 0.5, got {user_rate}");
+    assert!(
+        (user_rate - 0.5).abs() < 1e-9,
+        "expected 0.5, got {user_rate}"
+    );
+}
+
+#[actix_web::test]
+async fn test_project_summary_total_not_inflated_by_multiple_users() {
+    // Regression test: joining session_counts to session_users on
+    // (release, environment) alone is a many-to-many join — every
+    // session_counts row gets duplicated once per matching session_users row,
+    // multiplying SUM(total) by the user count instead of leaving it correct.
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Summary No Inflation Project").await;
+
+    // 2 count buckets (total 100 + 50 = 150) and 5 distinct users for the same
+    // release/environment. A many-to-many join would multiply total by 5.
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 2, 50, 0, 0, 0).await;
+    for i in 0..5 {
+        seed_user(
+            &db.pool,
+            project_id,
+            "1.0.0",
+            "prod",
+            &format!("user-{i}"),
+            false,
+        )
+        .await;
+    }
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(
+        summary.total, 150,
+        "total must not be inflated by the number of distinct users"
+    );
 }
 
 #[actix_web::test]
@@ -477,7 +578,10 @@ async fn test_project_summary_excludes_other_projects() {
         .await
         .expect("query failed");
 
-    assert_eq!(summary.total, 10, "other project's data must not be visible");
+    assert_eq!(
+        summary.total, 10,
+        "other project's data must not be visible"
+    );
     assert_eq!(summary.active_releases, 1);
 }
 
@@ -488,10 +592,9 @@ async fn test_session_timeseries_empty_project_returns_empty() {
     let db = TestDb::new().await;
     let project_id = create_project(&db.pool, "Empty Timeseries Project").await;
 
-    let points =
-        SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
-            .await
-            .expect("query failed");
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
 
     assert!(points.is_empty());
 }
@@ -509,7 +612,11 @@ async fn test_session_timeseries_aggregates_across_releases_in_same_bucket() {
         .await
         .expect("query failed");
 
-    assert_eq!(points.len(), 1, "same hourly bucket must merge into one point");
+    assert_eq!(
+        points.len(),
+        1,
+        "same hourly bucket must merge into one point"
+    );
     assert_eq!(points[0].total, 150);
     assert_eq!(points[0].crashed, 10);
 }
@@ -527,7 +634,11 @@ async fn test_session_timeseries_separates_buckets_outside_interval() {
         .await
         .expect("query failed");
 
-    assert_eq!(points.len(), 2, "buckets 4h apart must not merge at 1h interval");
+    assert_eq!(
+        points.len(),
+        2,
+        "buckets 4h apart must not merge at 1h interval"
+    );
 }
 
 #[actix_web::test]
@@ -543,7 +654,10 @@ async fn test_session_timeseries_excludes_buckets_outside_window() {
         .expect("query failed");
 
     let total: i64 = points.iter().map(|p| p.total).sum();
-    assert_eq!(total, 50, "old bucket outside the 24h window must be excluded");
+    assert_eq!(
+        total, 50,
+        "old bucket outside the 24h window must be excluded"
+    );
 }
 
 #[actix_web::test]

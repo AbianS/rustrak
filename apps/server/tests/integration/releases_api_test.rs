@@ -143,7 +143,10 @@ async fn test_new_issues_for_release_returns_matching_issues() {
     let body: Value = test::read_body_json(resp).await;
     let issues = body.as_array().unwrap();
     assert_eq!(issues.len(), 1);
-    assert!(issues[0]["title"].as_str().unwrap().contains("In this release"));
+    assert!(issues[0]["title"]
+        .as_str()
+        .unwrap()
+        .contains("In this release"));
 }
 
 #[actix_web::test]

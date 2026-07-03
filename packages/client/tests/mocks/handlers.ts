@@ -1398,11 +1398,11 @@ export const handlers = [
   // Sessions — release health stats
   http.get(
     `${BASE_URL}/api/projects/:projectId/sessions/stats`,
-    ({ params }) => {
+    ({ params, request }) => {
       if (params.projectId === '999') {
         return HttpResponse.json({ error: 'not found' }, { status: 404 });
       }
-      return HttpResponse.json([
+      const rows = [
         {
           release: '1.0.0',
           environment: 'production',
@@ -1414,7 +1414,23 @@ export const handlers = [
           crash_free_sessions_rate: 0.98,
           crash_free_users_rate: 0.99,
         },
-      ]);
+        {
+          release: '2.0.0',
+          environment: 'production',
+          total: 40,
+          errored: 1,
+          crashed: 0,
+          abnormal: 0,
+          healthy: 39,
+          crash_free_sessions_rate: 1,
+          crash_free_users_rate: 1,
+        },
+      ];
+      const url = new URL(request.url);
+      const release = url.searchParams.get('release');
+      return HttpResponse.json(
+        release ? rows.filter((r) => r.release === release) : rows,
+      );
     },
   ),
 

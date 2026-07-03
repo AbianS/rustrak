@@ -16,6 +16,9 @@ use utoipa::OpenApi;
 pub struct StatsQuery {
     /// Time window in hours (default: 24).
     pub period: Option<String>,
+    /// Scope to a single release (all environments). When omitted, every
+    /// release in the project is returned.
+    pub release: Option<String>,
 }
 
 impl StatsQuery {
@@ -44,6 +47,7 @@ impl StatsQuery {
     params(
         ("project_id" = i32, Path, description = "Project ID"),
         ("period" = Option<String>, Query, description = "Time window, e.g. '24h', '7d' (default: 24h)"),
+        ("release" = Option<String>, Query, description = "Scope to a single release (all environments)"),
     ),
     responses(
         (status = 200, description = "Per-release health stats", body = Vec<ReleaseHealthRow>),
@@ -71,7 +75,18 @@ pub async fn get_stats(
     .await?;
 
     let period_hours = query.period_hours();
-    let rows = SessionService::release_health(pool.get_ref(), project_id, period_hours).await?;
+    let rows = match query.release.as_deref() {
+        Some(release) => {
+            SessionService::release_health_for_release(
+                pool.get_ref(),
+                project_id,
+                release,
+                period_hours,
+            )
+            .await?
+        }
+        None => SessionService::release_health(pool.get_ref(), project_id, period_hours).await?,
+    };
 
     Ok(HttpResponse::Ok().json(rows))
 }
@@ -128,6 +143,7 @@ impl TimeseriesQuery {
     fn period_hours(&self) -> Option<i64> {
         StatsQuery {
             period: self.period.clone(),
+            release: None,
         }
         .period_hours()
     }

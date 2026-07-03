@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useCallback, useRef, useState, useTransition } from 'react';
 import { getReleaseHealth } from '@/actions/sessions';
 import { Card, CardContent } from '@/components/ui/card';
+import { crashFreeClass, pct } from '@/lib/session-health';
 
 interface ReleasesListProps {
   projectId: number;
@@ -19,18 +20,6 @@ const PERIODS = [
   { label: '14d', value: '14d' as const },
   { label: '30d', value: '30d' as const },
 ] as const;
-
-function pct(rate: number | null): string {
-  if (rate === null) return '—';
-  return `${(rate * 100).toFixed(1)}%`;
-}
-
-function crashFreeClass(rate: number | null): string {
-  if (rate === null) return 'text-muted-foreground';
-  if (rate >= 0.99) return 'text-green-600 dark:text-green-400';
-  if (rate >= 0.95) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-600 dark:text-red-400';
-}
 
 export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
   const [health, setHealth] = useState(initialHealth);
@@ -76,8 +65,8 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
           <Rocket className="size-12 text-muted-foreground/30 mb-4" />
           <h2 className="text-lg font-semibold mb-1">No releases yet</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Send a <code>release</code> attribute with your events or
-            sessions to start tracking release health.
+            Send a <code>release</code> attribute with your events or sessions
+            to start tracking release health.
           </p>
         </div>
       ) : (

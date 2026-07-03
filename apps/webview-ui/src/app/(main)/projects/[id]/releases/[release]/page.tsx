@@ -43,12 +43,10 @@ export default async function ReleaseDetailPage({
     notFound();
   }
 
-  const [releaseHealth, newIssues] = await Promise.all([
-    getReleaseHealth(projectId),
+  const [rows, newIssues] = await Promise.all([
+    getReleaseHealth(projectId, undefined, releaseVersion),
     getNewIssuesForRelease(projectId, releaseVersion, 10),
   ]);
-
-  const rows = releaseHealth.filter((row) => row.release === releaseVersion);
 
   if (rows.length === 0) {
     notFound();

@@ -15,7 +15,7 @@ describe('SessionsResource', () => {
     it('returns release health rows for a project', async () => {
       const result = await client.sessions.stats(1);
 
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(2);
       expect(result[0].release).toBe('1.0.0');
       expect(result[0].environment).toBe('production');
       expect(result[0].total).toBe(100);
@@ -27,13 +27,18 @@ describe('SessionsResource', () => {
 
     it('passes period query param without error', async () => {
       const result = await client.sessions.stats(1, '7d');
-      expect(result).toHaveLength(1);
-      expect(result[0].release).toBe('1.0.0');
+      expect(result).toHaveLength(2);
     });
 
     it('works without an explicit period', async () => {
       const result = await client.sessions.stats(1);
+      expect(result).toHaveLength(2);
+    });
+
+    it('scopes to a single release server-side when release is passed', async () => {
+      const result = await client.sessions.stats(1, undefined, '2.0.0');
       expect(result).toHaveLength(1);
+      expect(result[0].release).toBe('2.0.0');
     });
 
     it('validates response schema — null rates are valid', async () => {

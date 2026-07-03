@@ -12,17 +12,25 @@ import { createClient } from '@/lib/rustrak';
  *
  * @param projectId - The project ID
  * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
+ * @param release - Scope to a single release (all environments), computed
+ *   server-side. Omit to get every release in the project.
  * @returns Array of per-release health rows, or empty array on error.
  */
 export async function getReleaseHealth(
   projectId: number,
   period?: string,
+  release?: string,
 ): Promise<ReleaseHealth> {
   try {
     const client = await createClient();
-    return await client.sessions.stats(projectId, period);
+    return await client.sessions.stats(projectId, period, release);
   } catch (error) {
-    console.error('getReleaseHealth failed', { projectId, period, error });
+    console.error('getReleaseHealth failed', {
+      projectId,
+      period,
+      release,
+      error,
+    });
     return [];
   }
 }

@@ -18,11 +18,20 @@ export class SessionsResource extends BaseResource {
    * Get per-release health stats for a project.
    * @param projectId - Project ID
    * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
+   * @param release - Scope to a single release (all environments), computed
+   *   server-side. Omit to get every release in the project.
    */
-  async stats(projectId: number, period?: string): Promise<ReleaseHealth> {
+  async stats(
+    projectId: number,
+    period?: string,
+    release?: string,
+  ): Promise<ReleaseHealth> {
     const searchParams: Record<string, string> = {};
     if (period) {
       searchParams.period = period;
+    }
+    if (release) {
+      searchParams.release = release;
     }
 
     const data = await this.http

@@ -403,10 +403,9 @@ async fn test_top_issues_for_release_empty_when_no_matching_release() {
     let issue = create_test_issue(&db.pool, project.id, "TypeError", "Some error").await;
     set_first_release(&db.pool, issue.id, "1.0.0").await;
 
-    let issues =
-        IssueService::top_issues_for_release(&db.pool, project.id, "2.0.0", 10)
-            .await
-            .expect("query failed");
+    let issues = IssueService::top_issues_for_release(&db.pool, project.id, "2.0.0", 10)
+        .await
+        .expect("query failed");
 
     assert!(issues.is_empty());
 }
@@ -477,13 +476,8 @@ async fn test_top_issues_for_release_respects_limit() {
     let project = create_test_project(&db.pool, "Release Limit Project").await;
 
     for i in 0..5 {
-        let issue = create_test_issue(
-            &db.pool,
-            project.id,
-            "TypeError",
-            &format!("Error {i}"),
-        )
-        .await;
+        let issue =
+            create_test_issue(&db.pool, project.id, "TypeError", &format!("Error {i}")).await;
         set_first_release(&db.pool, issue.id, "1.0.0").await;
     }
 
