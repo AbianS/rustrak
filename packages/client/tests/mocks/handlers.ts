@@ -14,6 +14,7 @@ export const mockProjects = [
     digested_event_count: 95,
     created_at: '2026-01-20T10:00:00.000Z',
     updated_at: '2026-01-20T10:00:00.000Z',
+    platform: 'javascript',
   },
   {
     id: 2,
@@ -25,6 +26,7 @@ export const mockProjects = [
     digested_event_count: 48,
     created_at: '2026-01-19T10:00:00.000Z',
     updated_at: '2026-01-19T10:00:00.000Z',
+    platform: null,
   },
 ];
 
@@ -347,6 +349,7 @@ export const handlers = [
       digested_event_count: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      platform: null,
     };
 
     return HttpResponse.json(newProject, { status: 201 });

@@ -14,6 +14,7 @@ export const projectSchema = z.object({
   digested_event_count: z.number().int(),
   created_at: dateTimeSchema,
   updated_at: dateTimeSchema,
+  platform: z.string().nullable(),
 });
 
 /**
