@@ -34,7 +34,11 @@ export const sortOrderSchema = z.enum(['asc', 'desc']);
 /**
  * Issue sort field enum
  */
-export const issueSortSchema = z.enum(['digest_order', 'last_seen']);
+export const issueSortSchema = z.enum([
+  'digest_order',
+  'last_seen',
+  'event_count',
+]);
 
 /**
  * Issue filter enum

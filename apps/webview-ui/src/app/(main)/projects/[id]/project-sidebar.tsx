@@ -5,6 +5,8 @@ import {
   Check,
   ChevronsLeft,
   ChevronsUpDown,
+  LayoutDashboard,
+  Rocket,
   ScrollText,
   Zap,
 } from 'lucide-react';
@@ -112,7 +114,7 @@ function ProjectSwitcher({
           {projects.map((p) => (
             <DropdownMenuItem
               key={p.id}
-              render={<Link href={`/projects/${p.id}/issues`} />}
+              render={<Link href={`/projects/${p.id}`} />}
               className="gap-2"
             >
               <ProjectAvatar name={p.name} className="size-6 text-xs" />
@@ -157,9 +159,20 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
 
   const navItems = [
     {
+      href: `/projects/${projectId}`,
+      label: 'Overview',
+      icon: LayoutDashboard,
+      exact: true,
+    },
+    {
       href: `/projects/${projectId}/issues`,
       label: 'Issues',
       icon: AlertCircle,
+    },
+    {
+      href: `/projects/${projectId}/releases`,
+      label: 'Releases',
+      icon: Rocket,
     },
     {
       href: `/projects/${projectId}/performance`,
@@ -187,7 +200,9 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
               <SidebarMenu className="gap-1.5">
                 {navItems.map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname.startsWith(item.href);
+                  const isActive = item.exact
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href);
 
                   return (
                     <SidebarMenuItem key={item.href}>

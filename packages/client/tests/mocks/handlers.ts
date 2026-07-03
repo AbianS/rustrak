@@ -1418,6 +1418,60 @@ export const handlers = [
     },
   ),
 
+  // Sessions — project-wide health summary
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/sessions/summary`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json({
+        total: 300,
+        errored: 15,
+        crashed: 6,
+        abnormal: 3,
+        crash_free_sessions_rate: 0.98,
+        crash_free_users_rate: 0.99,
+        active_releases: 2,
+      });
+    },
+  ),
+
+  // Releases — new issues introduced in a release
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/releases/:release/new-issues`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json(mockIssues);
+    },
+  ),
+
+  // Sessions — project-wide time-bucketed trend
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/sessions/timeseries`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json([
+        {
+          bucket: '2026-01-20T10:00:00.000Z',
+          total: 100,
+          crashed: 2,
+          crash_free_sessions_rate: 0.98,
+        },
+        {
+          bucket: '2026-01-20T11:00:00.000Z',
+          total: 150,
+          crashed: 3,
+          crash_free_sessions_rate: 0.98,
+        },
+      ]);
+    },
+  ),
+
   // Logs — list logs for project
   http.get(`${BASE_URL}/api/projects/:projectId/logs`, ({ params }) => {
     if (params.projectId === '999') {

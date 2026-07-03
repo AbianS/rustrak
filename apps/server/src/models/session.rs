@@ -116,6 +116,30 @@ pub struct ReleaseHealthRow {
     pub crash_free_users_rate: Option<f64>,
 }
 
+/// Project-wide session health summary, aggregated across all releases and environments.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct SessionSummary {
+    pub total: i64,
+    pub errored: i64,
+    pub crashed: i64,
+    pub abnormal: i64,
+    pub crash_free_sessions_rate: Option<f64>,
+    pub crash_free_users_rate: Option<f64>,
+    pub active_releases: i64,
+}
+
+/// One time-bucketed point in a project's session trend, aggregated across all
+/// releases and environments. Powers trend charts (crash-free sessions over time).
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct SessionTimeseriesPoint {
+    pub bucket: DateTime<Utc>,
+    pub total: i64,
+    pub crashed: i64,
+    pub crash_free_sessions_rate: Option<f64>,
+}
+
 /// Parse an ISO-8601 timestamp string into a UTC DateTime, returning None on failure.
 pub fn parse_ts(s: &str) -> Option<DateTime<Utc>> {
     DateTime::parse_from_rfc3339(s)

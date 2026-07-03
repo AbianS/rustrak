@@ -334,6 +334,166 @@ async fn test_list_issues_sort_by_last_seen() {
     assert!(issues[0]["title"].as_str().unwrap().contains("Second"));
 }
 
+#[actix_web::test]
+async fn test_list_issues_sort_by_event_count() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Event Count Sort Project").await;
+    let config = create_test_config();
+
+    let low = create_test_issue(&db.pool, project.id, "TypeError", "Low count").await;
+    let high = create_test_issue(&db.pool, project.id, "ValueError", "High count").await;
+
+    sqlx::query("UPDATE issues SET digested_event_count = 5 WHERE id = $1")
+        .bind(low.id)
+        .execute(&db.pool)
+        .await
+        .expect("failed to bump low issue event count");
+    sqlx::query("UPDATE issues SET digested_event_count = 500 WHERE id = $1")
+        .bind(high.id)
+        .execute(&db.pool)
+        .await
+        .expect("failed to bump high issue event count");
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/issues?sort=event_count&order=desc",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let issues = body["items"].as_array().unwrap();
+    assert_eq!(issues.len(), 2);
+    assert!(issues[0]["title"].as_str().unwrap().contains("High count"));
+    assert!(issues[1]["title"].as_str().unwrap().contains("Low count"));
+}
+
+// =============================================================================
+// top_issues_for_release Tests
+// =============================================================================
+
+async fn set_first_release(pool: &rustrak::db::DbPool, issue_id: uuid::Uuid, release: &str) {
+    sqlx::query("UPDATE issues SET first_release = $1 WHERE id = $2")
+        .bind(release)
+        .bind(issue_id)
+        .execute(pool)
+        .await
+        .expect("failed to set first_release");
+}
+
+#[actix_web::test]
+async fn test_top_issues_for_release_empty_when_no_matching_release() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Empty Release Project").await;
+
+    let issue = create_test_issue(&db.pool, project.id, "TypeError", "Some error").await;
+    set_first_release(&db.pool, issue.id, "1.0.0").await;
+
+    let issues =
+        IssueService::top_issues_for_release(&db.pool, project.id, "2.0.0", 10)
+            .await
+            .expect("query failed");
+
+    assert!(issues.is_empty());
+}
+
+#[actix_web::test]
+async fn test_top_issues_for_release_filters_by_release() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Release Filter Project").await;
+
+    let in_release = create_test_issue(&db.pool, project.id, "TypeError", "In release").await;
+    set_first_release(&db.pool, in_release.id, "1.0.0").await;
+
+    let other_release =
+        create_test_issue(&db.pool, project.id, "ValueError", "Other release").await;
+    set_first_release(&db.pool, other_release.id, "0.9.0").await;
+
+    let issues = IssueService::top_issues_for_release(&db.pool, project.id, "1.0.0", 10)
+        .await
+        .expect("query failed");
+
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].id, in_release.id);
+}
+
+#[actix_web::test]
+async fn test_top_issues_for_release_filters_by_project() {
+    let db = TestDb::new().await;
+    let project_a = create_test_project(&db.pool, "Release Project A").await;
+    let project_b = create_test_project(&db.pool, "Release Project B").await;
+
+    let issue_a = create_test_issue(&db.pool, project_a.id, "TypeError", "Project A").await;
+    set_first_release(&db.pool, issue_a.id, "1.0.0").await;
+
+    let issue_b = create_test_issue(&db.pool, project_b.id, "TypeError", "Project B").await;
+    set_first_release(&db.pool, issue_b.id, "1.0.0").await;
+
+    let issues = IssueService::top_issues_for_release(&db.pool, project_a.id, "1.0.0", 10)
+        .await
+        .expect("query failed");
+
+    assert_eq!(issues.len(), 1);
+    assert_eq!(issues[0].id, issue_a.id);
+}
+
+#[actix_web::test]
+async fn test_top_issues_for_release_orders_by_first_seen_desc() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Release Order Project").await;
+
+    let older = create_test_issue(&db.pool, project.id, "TypeError", "Older").await;
+    set_first_release(&db.pool, older.id, "1.0.0").await;
+    tokio::time::sleep(StdDuration::from_millis(10)).await;
+    let newer = create_test_issue(&db.pool, project.id, "ValueError", "Newer").await;
+    set_first_release(&db.pool, newer.id, "1.0.0").await;
+
+    let issues = IssueService::top_issues_for_release(&db.pool, project.id, "1.0.0", 10)
+        .await
+        .expect("query failed");
+
+    assert_eq!(issues.len(), 2);
+    assert_eq!(issues[0].id, newer.id, "most recently introduced first");
+    assert_eq!(issues[1].id, older.id);
+}
+
+#[actix_web::test]
+async fn test_top_issues_for_release_respects_limit() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Release Limit Project").await;
+
+    for i in 0..5 {
+        let issue = create_test_issue(
+            &db.pool,
+            project.id,
+            "TypeError",
+            &format!("Error {i}"),
+        )
+        .await;
+        set_first_release(&db.pool, issue.id, "1.0.0").await;
+    }
+
+    let issues = IssueService::top_issues_for_release(&db.pool, project.id, "1.0.0", 3)
+        .await
+        .expect("query failed");
+
+    assert_eq!(issues.len(), 3);
+}
+
 // =============================================================================
 // Get Issue Tests
 // =============================================================================

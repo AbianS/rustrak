@@ -54,4 +54,39 @@ describe('SessionsResource', () => {
       expect(() => releaseHealthRowSchema.parse(row)).not.toThrow();
     });
   });
+
+  describe('summary()', () => {
+    it('returns project-wide session health summary', async () => {
+      const result = await client.sessions.summary(1);
+
+      expect(result.total).toBe(300);
+      expect(result.errored).toBe(15);
+      expect(result.crashed).toBe(6);
+      expect(result.abnormal).toBe(3);
+      expect(result.crash_free_sessions_rate).toBeCloseTo(0.98);
+      expect(result.crash_free_users_rate).toBeCloseTo(0.99);
+      expect(result.active_releases).toBe(2);
+    });
+
+    it('passes period query param without error', async () => {
+      const result = await client.sessions.summary(1, '7d');
+      expect(result.total).toBe(300);
+    });
+  });
+
+  describe('timeseries()', () => {
+    it('returns time-bucketed session trend points', async () => {
+      const result = await client.sessions.timeseries(1);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].total).toBe(100);
+      expect(result[0].crashed).toBe(2);
+      expect(result[0].crash_free_sessions_rate).toBeCloseTo(0.98);
+    });
+
+    it('passes period and interval query params without error', async () => {
+      const result = await client.sessions.timeseries(1, '7d', 24);
+      expect(result).toHaveLength(2);
+    });
+  });
 });

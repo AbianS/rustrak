@@ -365,6 +365,242 @@ async fn test_release_health_crash_free_users_rate() {
     assert!((rate - 0.5).abs() < 1e-9, "expected 0.5, got {}", rate);
 }
 
+// ── project_summary tests ───────────────────────────────────────────────────
+
+#[actix_web::test]
+async fn test_project_summary_empty_project_returns_zeros() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Empty Summary Project").await;
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(summary.total, 0);
+    assert_eq!(summary.errored, 0);
+    assert_eq!(summary.crashed, 0);
+    assert_eq!(summary.abnormal, 0);
+    assert_eq!(summary.active_releases, 0);
+    assert!(summary.crash_free_sessions_rate.is_none());
+    assert!(summary.crash_free_users_rate.is_none());
+}
+
+#[actix_web::test]
+async fn test_project_summary_aggregates_across_releases() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Summary Multi Release").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 5, 10, 2).await;
+    seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 50, 1, 0, 0).await;
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(summary.total, 150);
+    assert_eq!(summary.errored, 6);
+    assert_eq!(summary.crashed, 10);
+    assert_eq!(summary.abnormal, 2);
+    assert_eq!(
+        summary.active_releases, 2,
+        "must count distinct releases with total > 0"
+    );
+}
+
+#[actix_web::test]
+async fn test_project_summary_excludes_buckets_outside_window() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Summary Window Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 50, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 48, 9999, 0, 0, 0).await;
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(summary.total, 50, "old bucket must not contribute");
+}
+
+#[actix_web::test]
+async fn test_project_summary_crash_free_rates() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Summary CFR Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 10, 0).await;
+    seed_user(&db.pool, project_id, "1.0.0", "prod", "user-1", false).await;
+    seed_user(&db.pool, project_id, "1.0.0", "prod", "user-2", true).await;
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    let sess_rate = summary
+        .crash_free_sessions_rate
+        .expect("must be Some when total > 0");
+    assert!((sess_rate - 0.9).abs() < 1e-9, "expected 0.9, got {sess_rate}");
+
+    let user_rate = summary
+        .crash_free_users_rate
+        .expect("must be Some when users exist");
+    assert!((user_rate - 0.5).abs() < 1e-9, "expected 0.5, got {user_rate}");
+}
+
+#[actix_web::test]
+async fn test_project_summary_active_releases_excludes_zero_total_releases() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Summary Active Releases").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "0.9.0-empty", "prod", 1, 0, 0, 0, 0).await;
+
+    let summary = SessionService::project_summary(&db.pool, project_id, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(
+        summary.active_releases, 1,
+        "release with total=0 must not count as active"
+    );
+}
+
+#[actix_web::test]
+async fn test_project_summary_excludes_other_projects() {
+    let db = TestDb::new().await;
+    let project_a = create_project(&db.pool, "Summary Project A").await;
+    let project_b = create_project(&db.pool, "Summary Project B").await;
+
+    seed_count(&db.pool, project_a, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+    seed_count(&db.pool, project_b, "1.0.0", "prod", 1, 999, 0, 0, 0).await;
+
+    let summary = SessionService::project_summary(&db.pool, project_a, Some(24))
+        .await
+        .expect("query failed");
+
+    assert_eq!(summary.total, 10, "other project's data must not be visible");
+    assert_eq!(summary.active_releases, 1);
+}
+
+// ── session_timeseries tests ────────────────────────────────────────────────
+
+#[actix_web::test]
+async fn test_session_timeseries_empty_project_returns_empty() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Empty Timeseries Project").await;
+
+    let points =
+        SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+            .await
+            .expect("query failed");
+
+    assert!(points.is_empty());
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_aggregates_across_releases_in_same_bucket() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries Agg Project").await;
+
+    // Both 1h ago, same hourly bucket, different releases — must be summed together.
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 5, 10, 2).await;
+    seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 50, 1, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    assert_eq!(points.len(), 1, "same hourly bucket must merge into one point");
+    assert_eq!(points[0].total, 150);
+    assert_eq!(points[0].crashed, 10);
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_separates_buckets_outside_interval() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries Interval Project").await;
+
+    // 1h ago and 5h ago: with interval_hours=1 these fall in different hourly buckets.
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 5, 50, 0, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    assert_eq!(points.len(), 2, "buckets 4h apart must not merge at 1h interval");
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_excludes_buckets_outside_window() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries Window Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 50, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 48, 9999, 0, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    let total: i64 = points.iter().map(|p| p.total).sum();
+    assert_eq!(total, 50, "old bucket outside the 24h window must be excluded");
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_ordered_chronologically() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries Order Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 5, 20, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 10, 30, 0, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    assert_eq!(points.len(), 3);
+    assert!(
+        points.windows(2).all(|w| w[0].bucket <= w[1].bucket),
+        "points must be ordered oldest first"
+    );
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_crash_free_rate() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries CFR Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 10, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    assert_eq!(points.len(), 1);
+    let rate = points[0]
+        .crash_free_sessions_rate
+        .expect("must be Some when total > 0");
+    assert!((rate - 0.9).abs() < 1e-9, "expected 0.9, got {rate}");
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_excludes_other_projects() {
+    let db = TestDb::new().await;
+    let project_a = create_project(&db.pool, "Timeseries Project A").await;
+    let project_b = create_project(&db.pool, "Timeseries Project B").await;
+
+    seed_count(&db.pool, project_a, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+    seed_count(&db.pool, project_b, "1.0.0", "prod", 1, 999, 0, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_a, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    let total: i64 = points.iter().map(|p| p.total).sum();
+    assert_eq!(total, 10, "other project's data must not be visible");
+}
+
 #[actix_web::test]
 async fn test_release_health_multiple_releases_independent() {
     let db = TestDb::new().await;

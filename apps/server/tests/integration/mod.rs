@@ -15,6 +15,7 @@ mod issues_api_test;
 mod logs_api_test;
 mod projects_api_test;
 mod rate_limit_test;
+mod releases_api_test;
 mod sessions_api_test;
 mod sourcemaps_api_test;
 mod storage_api_test;
