@@ -9,6 +9,43 @@ use crate::models::session::{ReleaseHealthRow, SessionSummary, SessionTimeseries
 #[cfg(feature = "postgres")]
 type PgHealthRow = (String, String, i64, i64, i64, i64, Option<f64>, Option<f64>);
 
+/// `AND bucket >= ...` time filter for a `session_counts` (timestamptz) query.
+/// Empty string when `period_hours` is `None` (no time filter).
+#[cfg(feature = "postgres")]
+fn pg_bucket_time_filter(period_hours: Option<i64>) -> String {
+    match period_hours {
+        Some(hours) => format!("AND bucket >= NOW() - '{hours} hours'::interval"),
+        None => String::new(),
+    }
+}
+
+/// `AND day >= ...` time filter for a `session_users` (date) query.
+#[cfg(feature = "postgres")]
+fn pg_day_time_filter(period_hours: Option<i64>) -> String {
+    match period_hours {
+        Some(hours) => format!("AND day >= (NOW() - '{hours} hours'::interval)::date"),
+        None => String::new(),
+    }
+}
+
+/// `AND bucket >= ...` time filter for a `session_counts` (timestamptz) query.
+#[cfg(not(feature = "postgres"))]
+fn sqlite_bucket_time_filter(period_hours: Option<i64>) -> String {
+    match period_hours {
+        Some(hours) => format!("AND bucket >= datetime('now', '-' || '{hours}' || ' hours')"),
+        None => String::new(),
+    }
+}
+
+/// `AND day >= ...` time filter for a `session_users` (date) query.
+#[cfg(not(feature = "postgres"))]
+fn sqlite_day_time_filter(period_hours: Option<i64>) -> String {
+    match period_hours {
+        Some(hours) => format!("AND day >= date('now', '-' || '{hours}' || ' hours')"),
+        None => String::new(),
+    }
+}
+
 pub struct SessionService;
 
 impl SessionService {
@@ -71,14 +108,8 @@ async fn query_release_health(
 ) -> Result<Vec<ReleaseHealthRow>, sqlx::Error> {
     #[cfg(feature = "postgres")]
     {
-        let (time_filter_sc, time_filter_su) = if let Some(hours) = period_hours {
-            (
-                format!("AND bucket >= NOW() - '{} hours'::interval", hours),
-                format!("AND day >= (NOW() - '{} hours'::interval)::date", hours),
-            )
-        } else {
-            (String::new(), String::new())
-        };
+        let time_filter_sc = pg_bucket_time_filter(period_hours);
+        let time_filter_su = pg_day_time_filter(period_hours);
         let release_filter = if release.is_some() {
             "AND release = $2"
         } else {
@@ -168,20 +199,8 @@ async fn query_release_health(
 
     #[cfg(not(feature = "postgres"))]
     {
-        let time_filter_sc = if let Some(hours) = period_hours {
-            format!(
-                "AND bucket >= datetime('now', '-' || '{}' || ' hours')",
-                hours
-            )
-        } else {
-            String::new()
-        };
-
-        let time_filter_su = if let Some(hours) = period_hours {
-            format!("AND day >= date('now', '-' || '{}' || ' hours')", hours)
-        } else {
-            String::new()
-        };
+        let time_filter_sc = sqlite_bucket_time_filter(period_hours);
+        let time_filter_su = sqlite_day_time_filter(period_hours);
         let release_filter = if release.is_some() {
             "AND release = ?2"
         } else {
@@ -271,14 +290,8 @@ async fn query_project_summary(
 ) -> Result<SessionSummary, sqlx::Error> {
     #[cfg(feature = "postgres")]
     {
-        let (time_filter_sc, time_filter_su) = if let Some(hours) = period_hours {
-            (
-                format!("AND bucket >= NOW() - '{} hours'::interval", hours),
-                format!("AND day >= (NOW() - '{} hours'::interval)::date", hours),
-            )
-        } else {
-            (String::new(), String::new())
-        };
+        let time_filter_sc = pg_bucket_time_filter(period_hours);
+        let time_filter_su = pg_day_time_filter(period_hours);
 
         // Two independent scalar subqueries (each always returns exactly one
         // row) combined with CROSS JOIN, instead of a single LEFT JOIN between
@@ -350,14 +363,7 @@ async fn query_project_summary(
 
     #[cfg(not(feature = "postgres"))]
     {
-        let time_filter_sc = if let Some(hours) = period_hours {
-            format!(
-                "AND bucket >= datetime('now', '-' || '{}' || ' hours')",
-                hours
-            )
-        } else {
-            String::new()
-        };
+        let time_filter_sc = sqlite_bucket_time_filter(period_hours);
 
         let sql = format!(
             r#"
@@ -380,11 +386,7 @@ async fn query_project_summary(
                 .fetch_one(pool)
                 .await?;
 
-        let time_filter_su = if let Some(hours) = period_hours {
-            format!("AND day >= date('now', '-' || '{}' || ' hours')", hours)
-        } else {
-            String::new()
-        };
+        let time_filter_su = sqlite_day_time_filter(period_hours);
 
         let user_sql = format!(
             r#"
@@ -437,11 +439,7 @@ async fn query_session_timeseries(
 
     #[cfg(feature = "postgres")]
     {
-        let time_filter = if let Some(hours) = period_hours {
-            format!("AND bucket >= NOW() - '{} hours'::interval", hours)
-        } else {
-            String::new()
-        };
+        let time_filter = pg_bucket_time_filter(period_hours);
 
         let sql = format!(
             r#"
@@ -483,19 +481,12 @@ async fn query_session_timeseries(
 
     #[cfg(not(feature = "postgres"))]
     {
-        let time_filter = if let Some(hours) = period_hours {
-            format!(
-                "AND bucket >= datetime('now', '-' || '{}' || ' hours')",
-                hours
-            )
-        } else {
-            String::new()
-        };
+        let time_filter = sqlite_bucket_time_filter(period_hours);
 
         let sql = format!(
             r#"
             SELECT
-                datetime((CAST(strftime('%s', bucket) AS INTEGER) / {interval_seconds}) * {interval_seconds}, 'unixepoch') AS bucket,
+                strftime('%Y-%m-%dT%H:%M:%SZ', (CAST(strftime('%s', bucket) AS INTEGER) / {interval_seconds}) * {interval_seconds}, 'unixepoch') AS bucket,
                 SUM(total)   AS total,
                 SUM(crashed) AS crashed
             FROM session_counts

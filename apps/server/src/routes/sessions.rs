@@ -11,6 +11,25 @@ use crate::models::session::{ReleaseHealthRow, SessionSummary, SessionTimeseries
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
 
+/// Parse a period string ("24h", "7d", or a bare integer of hours) into hours,
+/// clamped to 1 hour – 90 days. Shared by every query struct in this module
+/// that accepts a `period` field.
+fn parse_period_hours(period: Option<&str>) -> Option<i64> {
+    period
+        .and_then(|p| {
+            // Accept "24h", "48h", "7d", or bare integers (treated as hours).
+            if let Some(stripped) = p.strip_suffix('h') {
+                stripped.parse::<i64>().ok()
+            } else if let Some(stripped) = p.strip_suffix('d') {
+                stripped.parse::<i64>().ok().and_then(|d| d.checked_mul(24))
+            } else {
+                p.parse::<i64>().ok()
+            }
+        })
+        // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
+        .map(|h| h.clamp(1, 90 * 24))
+}
+
 /// Query params for the stats endpoint.
 #[derive(serde::Deserialize)]
 pub struct StatsQuery {
@@ -23,20 +42,7 @@ pub struct StatsQuery {
 
 impl StatsQuery {
     pub fn period_hours(&self) -> Option<i64> {
-        self.period
-            .as_deref()
-            .and_then(|p| {
-                // Accept "24h", "48h", "7d", or bare integers (treated as hours).
-                if let Some(stripped) = p.strip_suffix('h') {
-                    stripped.parse::<i64>().ok()
-                } else if let Some(stripped) = p.strip_suffix('d') {
-                    stripped.parse::<i64>().ok().and_then(|d| d.checked_mul(24))
-                } else {
-                    p.parse::<i64>().ok()
-                }
-            })
-            // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
-            .map(|h| h.clamp(1, 90 * 24))
+        parse_period_hours(self.period.as_deref())
     }
 }
 
@@ -91,6 +97,21 @@ pub async fn get_stats(
     Ok(HttpResponse::Ok().json(rows))
 }
 
+/// Query params for the summary endpoint. Only `period` — unlike `StatsQuery`,
+/// this endpoint has no release scoping, so it doesn't accept `release` at all
+/// rather than silently ignoring it.
+#[derive(serde::Deserialize)]
+pub struct SummaryQuery {
+    /// Time window in hours (default: 24).
+    pub period: Option<String>,
+}
+
+impl SummaryQuery {
+    fn period_hours(&self) -> Option<i64> {
+        parse_period_hours(self.period.as_deref())
+    }
+}
+
 #[cfg_attr(feature = "openapi", utoipa::path(
     get,
     path = "/api/projects/{project_id}/sessions/summary",
@@ -110,7 +131,7 @@ pub async fn get_stats(
 pub async fn get_summary(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    query: web::Query<StatsQuery>,
+    query: web::Query<SummaryQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
@@ -141,11 +162,7 @@ pub struct TimeseriesQuery {
 
 impl TimeseriesQuery {
     fn period_hours(&self) -> Option<i64> {
-        StatsQuery {
-            period: self.period.clone(),
-            release: None,
-        }
-        .period_hours()
+        parse_period_hours(self.period.as_deref())
     }
 
     fn interval_hours(&self) -> i64 {

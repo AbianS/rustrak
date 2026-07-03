@@ -1,6 +1,7 @@
 import type { ReleaseHealth } from '@rustrak/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { crashFreeClass, pct } from '@/lib/session-health';
+import { cn } from '@/lib/utils';
 
 interface ReleaseEnvironmentCardsProps {
   rows: ReleaseHealth;
@@ -31,7 +32,10 @@ export function ReleaseEnvironmentCards({
                   Crash-free sessions
                 </p>
                 <p
-                  className={`text-xl font-bold ${crashFreeClass(row.crash_free_sessions_rate)}`}
+                  className={cn(
+                    'text-xl font-bold',
+                    crashFreeClass(row.crash_free_sessions_rate),
+                  )}
                 >
                   {pct(row.crash_free_sessions_rate)}
                 </p>
@@ -41,7 +45,10 @@ export function ReleaseEnvironmentCards({
                   Crash-free users
                 </p>
                 <p
-                  className={`text-xl font-bold ${crashFreeClass(row.crash_free_users_rate)}`}
+                  className={cn(
+                    'text-xl font-bold',
+                    crashFreeClass(row.crash_free_users_rate),
+                  )}
                 >
                   {pct(row.crash_free_users_rate)}
                 </p>
@@ -49,7 +56,12 @@ export function ReleaseEnvironmentCards({
               <div>
                 <p className="text-[10px] text-muted-foreground">Crashed</p>
                 <p
-                  className={`text-xl font-bold ${row.crashed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+                  className={cn(
+                    'text-xl font-bold',
+                    row.crashed > 0
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-muted-foreground',
+                  )}
                 >
                   {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
                 </p>

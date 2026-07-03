@@ -10,6 +10,7 @@
 //!   - orders by total DESC
 
 use crate::common::TestDb;
+use chrono::Utc;
 use rustrak::db::DbPool;
 use rustrak::services::session::SessionService;
 
@@ -677,6 +678,41 @@ async fn test_session_timeseries_ordered_chronologically() {
     assert!(
         points.windows(2).all(|w| w[0].bucket <= w[1].bucket),
         "points must be ordered oldest first"
+    );
+}
+
+#[actix_web::test]
+async fn test_session_timeseries_bucket_values_are_parsed_correctly() {
+    // Regression test: on SQLite, `datetime(..., 'unixepoch')` returns a
+    // space-separated timestamp ("2026-07-03 16:00:00"), but `parse_ts` only
+    // accepts T-separated RFC3339/ISO-8601 strings. If the bucket SQL doesn't
+    // emit a parseable format, every point silently falls back to `Utc::now()`
+    // — the ordering-only test above can't catch that because "all buckets are
+    // ~now" still happens to be non-decreasing.
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Timeseries Value Project").await;
+
+    let before = Utc::now();
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 10, 30, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+
+    let points = SessionService::session_timeseries(&db.pool, project_id, Some(24), 1)
+        .await
+        .expect("query failed");
+
+    assert_eq!(points.len(), 2);
+    // A fallback-to-now() bug would put both buckets within milliseconds of
+    // `before`/`after`, nowhere near their real ~1h/~10h-ago offsets.
+    let older = points[0].bucket;
+    let newer = points[1].bucket;
+    let gap = newer - older;
+    assert!(
+        gap.num_minutes() >= 8 * 60,
+        "buckets 10h and 1h ago should be ~9h apart, got {gap}"
+    );
+    assert!(
+        older < before - chrono::Duration::hours(8),
+        "oldest bucket must be far in the past, not collapsed to now(): {older} vs before={before}"
     );
 }
 

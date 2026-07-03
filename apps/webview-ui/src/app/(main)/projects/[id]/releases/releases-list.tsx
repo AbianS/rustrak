@@ -7,6 +7,7 @@ import { useCallback, useRef, useState, useTransition } from 'react';
 import { getReleaseHealth } from '@/actions/sessions';
 import { Card, CardContent } from '@/components/ui/card';
 import { crashFreeClass, pct } from '@/lib/session-health';
+import { cn } from '@/lib/utils';
 
 interface ReleasesListProps {
   projectId: number;
@@ -49,11 +50,12 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
             key={p.label}
             onClick={() => handlePeriodChange(p.value)}
             disabled={isPending}
-            className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+            className={cn(
+              'px-2.5 py-1 text-xs rounded-md font-medium transition-colors',
               period === p.value
                 ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
+                : 'bg-muted text-muted-foreground hover:bg-muted/80',
+            )}
           >
             {p.label}
           </button>
@@ -71,7 +73,10 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
         </div>
       ) : (
         <div
-          className={`flex flex-col gap-2 transition-opacity ${isPending ? 'opacity-50 pointer-events-none' : ''}`}
+          className={cn(
+            'flex flex-col gap-2 transition-opacity',
+            isPending && 'opacity-50 pointer-events-none',
+          )}
         >
           {health.map((row) => (
             <Link
@@ -103,7 +108,10 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
                         Crash-free sessions
                       </p>
                       <p
-                        className={`text-sm font-semibold ${crashFreeClass(row.crash_free_sessions_rate)}`}
+                        className={cn(
+                          'text-sm font-semibold',
+                          crashFreeClass(row.crash_free_sessions_rate),
+                        )}
                       >
                         {pct(row.crash_free_sessions_rate)}
                       </p>
@@ -113,7 +121,10 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
                         Crash-free users
                       </p>
                       <p
-                        className={`text-sm font-semibold ${crashFreeClass(row.crash_free_users_rate)}`}
+                        className={cn(
+                          'text-sm font-semibold',
+                          crashFreeClass(row.crash_free_users_rate),
+                        )}
                       >
                         {pct(row.crash_free_users_rate)}
                       </p>
@@ -123,7 +134,12 @@ export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
                         Crashed
                       </p>
                       <p
-                        className={`text-sm font-semibold ${row.crashed > 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
+                        className={cn(
+                          'text-sm font-semibold',
+                          row.crashed > 0
+                            ? 'text-red-600 dark:text-red-400'
+                            : 'text-muted-foreground',
+                        )}
                       >
                         {row.crashed > 0 ? row.crashed : '—'}
                       </p>
