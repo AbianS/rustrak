@@ -1,5 +1,28 @@
 # webview-ui
 
+## 0.8.1
+
+### Patch Changes
+
+- [`b3a05e9`](https://github.com/rustrak/rustrak/commit/b3a05e979e47669a3ec665bfe0dae4e6bc2eeef3) Thanks [@AbianS](https://github.com/AbianS)! - ## Project Platform Auto-Detection
+
+  Server automatically detects project platform from ingested events and exposes a `platform` field. The web UI renders platform-specific icons using platformicons. Client package now exposes `project.platform` in responses.
+
+  ## Project Overview & Releases
+
+  New project overview page with session trend charts and health score cards. New releases section with release environment cards and release list. Server adds releases and enhanced sessions API endpoints. Client adds releases and sessions resources.
+
+  ## Sentry-Compatible UI Improvements
+
+  Stack trace rendering now matches Sentry's behavior with in-app/system frame grouping, platform-adaptive formatting, and threads section. Breadcrumbs display with expand toggle, category icons, and color coding.
+
+  ## Server Fixes
+
+  Oversized events are now intelligently trimmed instead of being rejected outright. Source map rewriting also applies to thread frames, not just exception stacktraces.
+
+- Updated dependencies [[`b3a05e9`](https://github.com/rustrak/rustrak/commit/b3a05e979e47669a3ec665bfe0dae4e6bc2eeef3)]:
+  - @rustrak/client@0.3.12
+
 ## 0.8.0
 
 ### Minor Changes
