@@ -145,6 +145,12 @@ impl ErrorProcessor {
         .execute(pool)
         .await?;
 
+        // 8b. Sentry-parity platform auto-detection (set once, never overwritten)
+        if let Some(event_platform) = event_data.get("platform").and_then(|p| p.as_str()) {
+            ProjectService::infer_platform_from_event(pool, metadata.project_id, event_platform)
+                .await?;
+        }
+
         // Update rate limiting quotas (handles digested_event_count)
         RateLimitService::update_quota_state(pool, metadata.project_id, &self.rate_limit_config)
             .await?;

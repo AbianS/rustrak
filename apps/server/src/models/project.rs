@@ -3,6 +3,37 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+/// A list of all valid Sentry `platform` identifiers, mirrored verbatim from
+/// Relay: <https://github.com/getsentry/relay/blob/f42b1c8a15bba8cb96d1dfd3bd2b3158c7817c5f/relay-event-schema/src/protocol/constants.rs#L2-L22>
+///
+/// This is deliberately coarse (language-level only, e.g. "javascript", not
+/// "javascript-nextjs") — real Sentry's own project-platform auto-inference
+/// (`_set_project_platform_if_needed` in `event_manager.py`) only ever writes
+/// one of these 19 values, never a framework-specific id. Framework-specific
+/// platform ids only ever come from the manual project-creation picker, which
+/// Rustrak does not implement, so it is intentionally out of scope here.
+pub const VALID_PLATFORMS: &[&str] = &[
+    "as3",
+    "c",
+    "cfml",
+    "cocoa",
+    "csharp",
+    "elixir",
+    "go",
+    "groovy",
+    "haskell",
+    "java",
+    "javascript",
+    "native",
+    "node",
+    "objc",
+    "other",
+    "perl",
+    "php",
+    "python",
+    "ruby",
+];
+
 /// Project model for reading from the database
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct Project {
@@ -14,6 +45,10 @@ pub struct Project {
     pub digested_event_count: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Auto-detected from the first ingested event whose `platform` field is
+    /// a valid Sentry platform (see [`VALID_PLATFORMS`]). Set once, never
+    /// overwritten — same semantics as real Sentry.
+    pub platform: Option<String>,
     // Rate limiting fields
     #[serde(skip_serializing)]
     pub quota_exceeded_until: Option<DateTime<Utc>>,
@@ -53,6 +88,7 @@ pub struct ProjectResponse {
     pub digested_event_count: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub platform: Option<String>,
 }
 
 impl Project {
@@ -82,6 +118,7 @@ impl Project {
             digested_event_count: self.digested_event_count,
             created_at: self.created_at,
             updated_at: self.updated_at,
+            platform: self.platform.clone(),
         }
     }
 }
@@ -102,6 +139,7 @@ mod tests {
             digested_event_count: 0,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            platform: None,
             quota_exceeded_until: None,
             quota_exceeded_reason: None,
             next_quota_check: 0,

@@ -58,7 +58,7 @@ pub use issue::{
     UpdateIssueState, STATUS_IGNORED, STATUS_RESOLVED, STATUS_UNRESOLVED,
 };
 pub use log::LogResponse;
-pub use project::{CreateProject, Project, ProjectResponse, UpdateProject};
+pub use project::{CreateProject, Project, ProjectResponse, UpdateProject, VALID_PLATFORMS};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
 pub use storage::{
     CleanupCounts, CleanupFilter, CleanupRequest, ProjectStorage, SourceMapGcResult,
