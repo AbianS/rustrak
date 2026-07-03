@@ -38,6 +38,11 @@ fn trim_value(value: &mut serde_json::Value, remaining_size: &mut usize, remaini
             if s.len() > *remaining_size {
                 *s = truncate_to_bytes(s, *remaining_size);
             }
+            // Only place this accounts for its own size — Array/Object
+            // account for their contents inline below instead (see those
+            // arms), so a value's cost is never double-subtracted. +2 for
+            // the surrounding quotes, which `s.len()` alone doesn't cover.
+            *remaining_size = remaining_size.saturating_sub(s.len() + 2);
         }
         serde_json::Value::Array(arr) => {
             let mut cut_at = arr.len();
@@ -52,6 +57,7 @@ fn trim_value(value: &mut serde_json::Value, remaining_size: &mut usize, remaini
                 *remaining_size = remaining_size.saturating_sub(1);
             }
             arr.truncate(cut_at);
+            *remaining_size = remaining_size.saturating_sub(2); // "[" + "]"
         }
         serde_json::Value::Object(map) => {
             let mut cut_from: Option<String> = None;
@@ -70,12 +76,15 @@ fn trim_value(value: &mut serde_json::Value, remaining_size: &mut usize, remaini
             if let Some(key) = cut_from {
                 map.retain(|k, _| *k < key);
             }
+            *remaining_size = remaining_size.saturating_sub(2); // "{" + "}"
         }
-        _ => {}
+        _ => {
+            // Numbers, bools, null — no in-place trimming, just account
+            // for their (small, fixed) serialized cost.
+            let size = serde_json::to_string(value).map(|s| s.len()).unwrap_or(0);
+            *remaining_size = remaining_size.saturating_sub(size);
+        }
     }
-
-    let size = serde_json::to_string(value).map(|s| s.len()).unwrap_or(0);
-    *remaining_size = remaining_size.saturating_sub(size);
 }
 
 /// Truncates `s` to at most `max_bytes` bytes, backing off to the nearest
@@ -204,6 +213,34 @@ mod tests {
             serialized.len() <= 8192 + 32,
             "serialized output must respect the byte budget once separators are counted, got {} bytes",
             serialized.len()
+        );
+    }
+
+    #[test]
+    fn trim_databag_does_not_double_count_nested_container_overhead() {
+        // Each outer entry wraps a small nested object (`{"v":"xxxx...x"}`,
+        // ~28 real bytes). The old implementation subtracted the nested
+        // object's contents once while processing it, then re-serialized
+        // and subtracted the *whole nested object* a second time when that
+        // recursive call returned — roughly doubling the cost charged to
+        // the outer budget for every nested entry. With enough entries that
+        // compounds into dropping entries that genuinely fit.
+        let mut map = serde_json::Map::new();
+        for i in 0..10 {
+            let mut inner = serde_json::Map::new();
+            inner.insert("v".to_string(), json!("x".repeat(20)));
+            map.insert(format!("e{i}"), serde_json::Value::Object(inner));
+        }
+        let mut value = serde_json::Value::Object(map);
+
+        trim_databag(&mut value, 380, 5);
+
+        let obj = value.as_object().unwrap();
+        assert_eq!(
+            obj.len(),
+            10,
+            "all 10 entries fit the real ~341-byte serialized cost within the \
+             380-byte budget and none should be dropped"
         );
     }
 

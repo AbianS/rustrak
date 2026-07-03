@@ -132,13 +132,16 @@ export function ThreadsSection({
 
       {displayFrames.length > 0 ? (
         <div className="space-y-2">
-          {displayFrames.map((frame) => (
-            <StackFrameItem
-              key={originalFrames.indexOf(frame)}
-              frame={frame}
-              index={originalFrames.indexOf(frame) + 1}
-            />
-          ))}
+          {displayFrames.map((frame) => {
+            const originalIdx = originalFrames.indexOf(frame);
+            return (
+              <StackFrameItem
+                key={originalIdx}
+                frame={frame}
+                index={originalIdx + 1}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">

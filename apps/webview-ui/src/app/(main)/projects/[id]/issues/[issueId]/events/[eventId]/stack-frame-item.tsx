@@ -103,8 +103,8 @@ export function StackFrameItem({
           </p>
           <p className="text-xs text-muted-foreground font-mono truncate">
             {frameLocationLabel(frame)}
-            {frame.lineno && `:${frame.lineno}`}
-            {frame.colno && `:${frame.colno}`}
+            {frame.lineno != null && `:${frame.lineno}`}
+            {frame.colno != null && `:${frame.colno}`}
           </p>
         </div>
 
@@ -124,9 +124,9 @@ export function StackFrameItem({
         <>
           {contextLines.length > 0 && (
             <div className="bg-zinc-900 font-mono text-xs leading-relaxed overflow-x-auto">
-              {contextLines.map((line) => (
+              {contextLines.map((line, i) => (
                 <CodeLine
-                  key={line.lineNumber}
+                  key={i}
                   lineNumber={line.lineNumber}
                   code={line.code}
                   language={language}

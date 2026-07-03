@@ -158,7 +158,19 @@ export function matchExceptionForThread(
   const values = exception?.values;
   if (!values?.length || !thread) return undefined;
 
-  const matched = values.find((v) => v.thread_id === thread.id);
+  // Coerce both sides before comparing. Relay's own `ThreadId` protocol type
+  // (relay-event-schema/src/protocol/thread.rs) explicitly allows either a
+  // string or an integer on the wire, and — unlike Sentry's real frontend
+  // (static/app/types/event.tsx, which just declares `Thread.id: number` /
+  // `threadId: number | null` without runtime enforcement) — we don't have
+  // an upstream normalization step that guarantees both sides end up the
+  // same type before this comparison runs. A strict `===` here would silently
+  // fail to link the exception whenever an SDK's `id` and `thread_id` happen
+  // to differ in representation, even though they refer to the same thread.
+  const matched = values.find(
+    (v) =>
+      v.thread_id !== undefined && String(v.thread_id) === String(thread.id),
+  );
   if (matched) return matched;
 
   if (

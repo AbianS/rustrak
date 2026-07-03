@@ -520,10 +520,13 @@ fn test_payload_size_exactly_at_limit() {
 
 #[test]
 fn test_payload_size_over_limit() {
-    // Create a payload over 1MB limit
+    // Non-"event" items keep the original 1MB limit — "event" items get a
+    // relaxed ceiling instead (see ingest::parser::MAX_RAW_EVENT_SIZE and
+    // its unit tests) so the digest pipeline's trimming pass has verbose-
+    // but-legitimate payloads to work with instead of just rejecting them.
     let payload_size = 1024 * 1024 + 1; // 1MB + 1 byte
     let header = format!(
-        "{{\"event_id\":\"abc\"}}\n{{\"type\":\"event\",\"length\":{}}}\n",
+        "{{\"event_id\":\"abc\"}}\n{{\"type\":\"session\",\"length\":{}}}\n",
         payload_size
     );
     let mut envelope = header.into_bytes();
