@@ -4,8 +4,19 @@ use crate::ingest::envelope::{EnvelopeHeaders, EnvelopeItemKind, ItemHeaders, Pa
 /// Maximum header size (8KB)
 const MAX_HEADER_SIZE: usize = 8 * 1024;
 
-/// Maximum event size (1MB)
-const MAX_EVENT_SIZE: usize = 1024 * 1024;
+/// Maximum size for non-"event" items (session, transaction, attachment, etc.)
+const MAX_ITEM_SIZE: usize = 1024 * 1024;
+
+/// The size digest's trimming pass (`services::event_trim`) targets shrinking
+/// event payloads under. Matches the original, un-relaxed per-item limit.
+pub(crate) const TARGET_EVENT_SIZE: usize = 1024 * 1024;
+
+/// Hard abuse ceiling for "event" items specifically — raised above
+/// `TARGET_EVENT_SIZE` so a verbose-but-legitimate event (deep stack traces,
+/// frame `vars`, large breadcrumb trails) survives ingest long enough for the
+/// digest pipeline to trim it down, instead of being rejected outright for
+/// being over budget before anyone got a chance to shrink it.
+pub(crate) const MAX_RAW_EVENT_SIZE: usize = 4 * 1024 * 1024;
 
 /// Sentry envelope parser
 pub struct EnvelopeParser<'a> {
@@ -56,13 +67,20 @@ impl<'a> EnvelopeParser<'a> {
         let headers: ItemHeaders = serde_json::from_slice(&header_line)
             .map_err(|e| AppError::Validation(format!("Invalid item headers JSON: {}", e)))?;
 
+        // "event" items get the relaxed abuse ceiling — see MAX_RAW_EVENT_SIZE.
+        let max_size = if headers.item_type == "event" {
+            MAX_RAW_EVENT_SIZE
+        } else {
+            MAX_ITEM_SIZE
+        };
+
         // Read payload
         let payload = if let Some(length) = headers.length {
             // Explicit length
-            if length > MAX_EVENT_SIZE {
+            if length > max_size {
                 return Err(AppError::PayloadTooLarge(format!(
                     "Item payload exceeds {} bytes",
-                    MAX_EVENT_SIZE
+                    max_size
                 )));
             }
             let payload = self.read_bytes(length)?;
@@ -73,7 +91,7 @@ impl<'a> EnvelopeParser<'a> {
             payload
         } else {
             // Read until newline
-            self.read_line(MAX_EVENT_SIZE)?
+            self.read_line(max_size)?
         };
 
         Ok(Some(EnvelopeItemKind::from((headers, payload))))
@@ -120,5 +138,54 @@ impl<'a> EnvelopeParser<'a> {
 
     fn at_eof(&self) -> bool {
         self.position >= self.data.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Builds a minimal envelope with one item of the given type and payload size.
+    fn envelope_with_item(item_type: &str, payload_len: usize) -> Vec<u8> {
+        let mut data = b"{}\n".to_vec();
+        data.extend_from_slice(
+            format!(r#"{{"type":"{}","length":{}}}"#, item_type, payload_len).as_bytes(),
+        );
+        data.push(b'\n');
+        data.extend(std::iter::repeat_n(b'a', payload_len));
+        data
+    }
+
+    #[test]
+    fn event_item_between_1mb_and_4mb_is_accepted() {
+        let data = envelope_with_item("event", 2 * 1024 * 1024);
+        let result = EnvelopeParser::new(&data).parse();
+        assert!(
+            result.is_ok(),
+            "a 2MB event item should be accepted (only >4MB event items are rejected): {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn event_item_over_4mb_is_rejected() {
+        let data = envelope_with_item("event", 5 * 1024 * 1024);
+        let result = EnvelopeParser::new(&data).parse();
+        assert!(
+            matches!(result, Err(AppError::PayloadTooLarge(_))),
+            "a 5MB event item should still hit the abuse ceiling: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn non_event_item_over_1mb_is_still_rejected() {
+        let data = envelope_with_item("session", 2 * 1024 * 1024);
+        let result = EnvelopeParser::new(&data).parse();
+        assert!(
+            matches!(result, Err(AppError::PayloadTooLarge(_))),
+            "non-event items must not get the relaxed event ceiling: {:?}",
+            result
+        );
     }
 }

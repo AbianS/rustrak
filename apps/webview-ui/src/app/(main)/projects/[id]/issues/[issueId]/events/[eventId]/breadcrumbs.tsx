@@ -10,9 +10,11 @@ import {
   Navigation,
   Terminal,
 } from 'lucide-react';
+import { getSummaryBreadcrumbs } from '@/lib/breadcrumbs';
 import { cn } from '@/lib/utils';
+import { BreadcrumbsExpand } from './breadcrumbs-expand';
 
-interface Breadcrumb {
+export interface Breadcrumb {
   timestamp?: number;
   type?: string;
   category?: string;
@@ -21,7 +23,7 @@ interface Breadcrumb {
   data?: Record<string, unknown>;
 }
 
-interface GroupedBreadcrumb {
+export interface GroupedBreadcrumb {
   crumb: Breadcrumb;
   count: number;
 }
@@ -41,7 +43,9 @@ function normalizeBreadcrumbs(
   return [];
 }
 
-function groupConsecutiveBreadcrumbs(items: Breadcrumb[]): GroupedBreadcrumb[] {
+export function groupConsecutiveBreadcrumbs(
+  items: Breadcrumb[],
+): GroupedBreadcrumb[] {
   const grouped: GroupedBreadcrumb[] = [];
   for (const crumb of items) {
     const last = grouped[grouped.length - 1];
@@ -89,25 +93,23 @@ function levelColor(level?: string): string {
   }
 }
 
-export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
-  const items = normalizeBreadcrumbs(breadcrumbs);
-  const grouped = groupConsecutiveBreadcrumbs(items);
-
-  if (items.length === 0) {
-    return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        No breadcrumbs available
-      </div>
-    );
-  }
-
+/**
+ * Renders a grouped breadcrumb list. Pure/presentational (no hooks, no
+ * server-only APIs) — shared between this Server Component and
+ * `BreadcrumbsExpand` (a `'use client'` module), which is legal in Next.js
+ * as long as neither side needs directives of its own.
+ */
+export function BreadcrumbTimeline({
+  grouped,
+}: {
+  grouped: GroupedBreadcrumb[];
+}) {
   return (
     <ol className="relative">
       {grouped.map(({ crumb, count }, i) => {
         const Icon = crumbIcon(crumb);
         const isLast = i === grouped.length - 1;
         return (
-          // biome-ignore lint/suspicious/noArrayIndexKey: stable crumb order
           <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
             {!isLast && (
               <span className="absolute left-[13px] top-7 bottom-0 w-px bg-border" />
@@ -150,4 +152,20 @@ export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
       })}
     </ol>
   );
+}
+
+export function Breadcrumbs({ breadcrumbs }: BreadcrumbsProps) {
+  const items = normalizeBreadcrumbs(breadcrumbs);
+
+  if (items.length === 0) {
+    return (
+      <div className="py-8 text-center text-sm text-muted-foreground">
+        No breadcrumbs available
+      </div>
+    );
+  }
+
+  const summaryItems = getSummaryBreadcrumbs(items);
+
+  return <BreadcrumbsExpand items={items} summaryItems={summaryItems} />;
 }

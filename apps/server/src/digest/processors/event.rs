@@ -75,6 +75,15 @@ impl ErrorProcessor {
             );
         }
 
+        // 1c. Trim oversized fields (deep context windows, frame vars, huge
+        // breadcrumb trails) for events whose raw payload came in above the
+        // original per-item budget — see services::event_trim. Only runs for
+        // the (rare) events that needed the relaxed ingest ceiling, so this
+        // is a no-op for the common case.
+        if event_bytes.len() > crate::ingest::parser::TARGET_EVENT_SIZE {
+            crate::services::trim_oversized_event(&mut event_data);
+        }
+
         // 2. Parse event_id as UUID
         let event_id = Uuid::parse_str(&metadata.event_id)
             .map_err(|_| AppError::Validation("Invalid event_id".to_string()))?;
