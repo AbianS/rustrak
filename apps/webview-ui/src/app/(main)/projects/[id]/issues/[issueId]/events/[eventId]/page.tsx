@@ -17,7 +17,11 @@ import { EventChart } from '@/components/event-chart';
 import { EventHighlights } from '@/components/event-highlights';
 import { StatusIndicator } from '@/components/issue-indicators';
 import { TagDistribution } from '@/components/tag-distribution';
-import { normalizeBreadcrumbs, parseEventData } from '@/lib/event-schema';
+import {
+  normalizeBreadcrumbs,
+  normalizeThreads,
+  parseEventData,
+} from '@/lib/event-schema';
 import { formatStackTraceAsText } from '@/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
 import { IssueActions } from '../../issue-actions';
@@ -30,6 +34,7 @@ import { EventNavigationBar } from './event-navigation';
 import { EventTags } from './event-tags';
 import { RawJson } from './raw-json';
 import { StackTrace } from './stack-trace';
+import { ThreadsSection } from './threads-section';
 
 interface EventPageProps {
   params: Promise<{ id: string; issueId: string; eventId: string }>;
@@ -90,14 +95,21 @@ export default async function EventPage({ params }: EventPageProps) {
   const {
     exception,
     breadcrumbs: rawBreadcrumbs,
+    threads: rawThreads,
     contexts,
     modules,
     tags,
     user,
   } = parseEventData(eventData);
   const breadcrumbs = normalizeBreadcrumbs(rawBreadcrumbs);
+  const threads = normalizeThreads(rawThreads);
 
-  const hasStackTrace = Boolean(exception?.values?.length);
+  // A `threads` entry supersedes a bare `exception` view — same dispatch
+  // Sentry's frontend uses (crashes reported via threads carry their own
+  // exception cross-linking, so the plain exception view would be a
+  // strictly worse rendering of the same data).
+  const hasThreads = threads.length > 0;
+  const hasStackTrace = hasThreads || Boolean(exception?.values?.length);
   const hasBreadcrumbs = breadcrumbs.length > 0;
   const hasContexts = Boolean(contexts && Object.keys(contexts).length > 0);
   const hasModules = Boolean(modules && Object.keys(modules).length > 0);
@@ -346,21 +358,40 @@ export default async function EventPage({ params }: EventPageProps) {
                   id="stacktrace"
                   title="Stack Trace"
                   actions={
-                    <CopyAsDropdown
-                      formats={[
-                        {
-                          label: 'Plain Text',
-                          value: formatStackTraceAsText(exception),
-                        },
-                        {
-                          label: 'JSON',
-                          value: JSON.stringify(exception, null, 2),
-                        },
-                      ]}
-                    />
+                    // ThreadsSection owns its own copy control — the active
+                    // thread/exception pairing is client state the section
+                    // header (a Server Component) can't see.
+                    hasThreads ? undefined : (
+                      <CopyAsDropdown
+                        formats={[
+                          {
+                            label: 'Plain Text',
+                            value: formatStackTraceAsText(
+                              exception,
+                              event.platform,
+                            ),
+                          },
+                          {
+                            label: 'JSON',
+                            value: JSON.stringify(exception, null, 2),
+                          },
+                        ]}
+                      />
+                    )
                   }
                 >
-                  <StackTrace exception={exception} />
+                  {hasThreads ? (
+                    <ThreadsSection
+                      threads={threads}
+                      exception={exception}
+                      platform={event.platform}
+                    />
+                  ) : (
+                    <StackTrace
+                      exception={exception}
+                      platform={event.platform}
+                    />
+                  )}
                 </Section>
               )}
 
