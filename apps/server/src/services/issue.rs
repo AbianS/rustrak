@@ -460,12 +460,47 @@ impl IssueService {
                     .await?
                 }
             }
+
+            // list_paginated has no callers (superseded by list_offset, GH #165).
+            // IssueCursor has no event-count field, so cursor-based EventCount
+            // pagination isn't implemented — the live sort=event_count path is
+            // IssueService::list_offset.
+            (IssueSort::EventCount, _, _) => {
+                return Err(AppError::Validation(
+                    "EventCount sort is not supported for cursor-based pagination".to_string(),
+                ));
+            }
         };
 
         let has_more = issues.len() > limit as usize;
         let issues: Vec<Issue> = issues.into_iter().take(limit as usize).collect();
 
         Ok((issues, has_more))
+    }
+
+    /// Lists issues first seen in a given release, most recently introduced first.
+    /// Powers the "New Issues" section of a release detail page.
+    pub async fn top_issues_for_release(
+        pool: &DbPool,
+        project_id: i32,
+        release: &str,
+        limit: i64,
+    ) -> AppResult<Vec<Issue>> {
+        let issues = sqlx::query_as::<_, Issue>(
+            r#"
+            SELECT * FROM issues
+            WHERE project_id = $1 AND first_release = $2
+            ORDER BY first_seen DESC
+            LIMIT $3
+            "#,
+        )
+        .bind(project_id)
+        .bind(release)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(issues)
     }
 
     /// Lists issues with offset-based pagination
@@ -510,6 +545,8 @@ impl IssueService {
             (IssueSort::DigestOrder, SortOrder::Asc) => "digest_order ASC",
             (IssueSort::LastSeen, SortOrder::Desc) => "last_seen DESC, id DESC",
             (IssueSort::LastSeen, SortOrder::Asc) => "last_seen ASC, id ASC",
+            (IssueSort::EventCount, SortOrder::Desc) => "digested_event_count DESC, id DESC",
+            (IssueSort::EventCount, SortOrder::Asc) => "digested_event_count ASC, id ASC",
         };
 
         // Normalize the search term into a case-insensitive LIKE pattern (works

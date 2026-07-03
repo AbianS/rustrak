@@ -11,6 +11,7 @@ import {
   LogsResource,
   MembersResource,
   ProjectsResource,
+  ReleasesResource,
   SessionsResource,
   SourceMapsResource,
   StorageResource,
@@ -104,6 +105,11 @@ export class RustrakClient {
   public readonly sessions: SessionsResource;
 
   /**
+   * Releases API resource (data scoped to a specific release)
+   */
+  public readonly releases: ReleasesResource;
+
+  /**
    * Transactions API resource (performance monitoring)
    */
   public readonly transactions: TransactionsResource;
@@ -144,6 +150,7 @@ export class RustrakClient {
     this.invitations = new InvitationsResource(this.http);
     this.members = new MembersResource(this.http);
     this.sessions = new SessionsResource(this.http);
+    this.releases = new ReleasesResource(this.http);
     this.transactions = new TransactionsResource(this.http);
     this.logs = new LogsResource(this.http);
     this.storage = new StorageResource(this.http);

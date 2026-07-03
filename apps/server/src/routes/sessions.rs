@@ -7,33 +7,42 @@ use crate::services::access::{self, Action};
 use crate::services::session::SessionService;
 
 #[cfg(feature = "openapi")]
-use crate::models::session::ReleaseHealthRow;
+use crate::models::session::{ReleaseHealthRow, SessionSummary, SessionTimeseriesPoint};
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
+
+/// Parse a period string ("24h", "7d", or a bare integer of hours) into hours,
+/// clamped to 1 hour – 90 days. Shared by every query struct in this module
+/// that accepts a `period` field.
+fn parse_period_hours(period: Option<&str>) -> Option<i64> {
+    period
+        .and_then(|p| {
+            // Accept "24h", "48h", "7d", or bare integers (treated as hours).
+            if let Some(stripped) = p.strip_suffix('h') {
+                stripped.parse::<i64>().ok()
+            } else if let Some(stripped) = p.strip_suffix('d') {
+                stripped.parse::<i64>().ok().and_then(|d| d.checked_mul(24))
+            } else {
+                p.parse::<i64>().ok()
+            }
+        })
+        // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
+        .map(|h| h.clamp(1, 90 * 24))
+}
 
 /// Query params for the stats endpoint.
 #[derive(serde::Deserialize)]
 pub struct StatsQuery {
     /// Time window in hours (default: 24).
     pub period: Option<String>,
+    /// Scope to a single release (all environments). When omitted, every
+    /// release in the project is returned.
+    pub release: Option<String>,
 }
 
 impl StatsQuery {
     pub fn period_hours(&self) -> Option<i64> {
-        self.period
-            .as_deref()
-            .and_then(|p| {
-                // Accept "24h", "48h", "7d", or bare integers (treated as hours).
-                if let Some(stripped) = p.strip_suffix('h') {
-                    stripped.parse::<i64>().ok()
-                } else if let Some(stripped) = p.strip_suffix('d') {
-                    stripped.parse::<i64>().ok().and_then(|d| d.checked_mul(24))
-                } else {
-                    p.parse::<i64>().ok()
-                }
-            })
-            // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
-            .map(|h| h.clamp(1, 90 * 24))
+        parse_period_hours(self.period.as_deref())
     }
 }
 
@@ -44,6 +53,7 @@ impl StatsQuery {
     params(
         ("project_id" = i32, Path, description = "Project ID"),
         ("period" = Option<String>, Query, description = "Time window, e.g. '24h', '7d' (default: 24h)"),
+        ("release" = Option<String>, Query, description = "Scope to a single release (all environments)"),
     ),
     responses(
         (status = 200, description = "Per-release health stats", body = Vec<ReleaseHealthRow>),
@@ -71,19 +81,154 @@ pub async fn get_stats(
     .await?;
 
     let period_hours = query.period_hours();
-    let rows = SessionService::release_health(pool.get_ref(), project_id, period_hours).await?;
+    let rows = match query.release.as_deref() {
+        Some(release) => {
+            SessionService::release_health_for_release(
+                pool.get_ref(),
+                project_id,
+                release,
+                period_hours,
+            )
+            .await?
+        }
+        None => SessionService::release_health(pool.get_ref(), project_id, period_hours).await?,
+    };
 
     Ok(HttpResponse::Ok().json(rows))
 }
 
+/// Query params for the summary endpoint. Only `period` — unlike `StatsQuery`,
+/// this endpoint has no release scoping, so it doesn't accept `release` at all
+/// rather than silently ignoring it.
+#[derive(serde::Deserialize)]
+pub struct SummaryQuery {
+    /// Time window in hours (default: 24).
+    pub period: Option<String>,
+}
+
+impl SummaryQuery {
+    fn period_hours(&self) -> Option<i64> {
+        parse_period_hours(self.period.as_deref())
+    }
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/sessions/summary",
+    tag = "Sessions",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("period" = Option<String>, Query, description = "Time window, e.g. '24h', '7d' (default: 24h)"),
+    ),
+    responses(
+        (status = 200, description = "Project-wide session health summary", body = SessionSummary),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/sessions/summary
+pub async fn get_summary(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<SummaryQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
+
+    let period_hours = query.period_hours();
+    let summary = SessionService::project_summary(pool.get_ref(), project_id, period_hours).await?;
+
+    Ok(HttpResponse::Ok().json(summary))
+}
+
+/// Query params for the timeseries endpoint.
+#[derive(serde::Deserialize)]
+pub struct TimeseriesQuery {
+    /// Time window in hours (default: 24).
+    pub period: Option<String>,
+    /// Bucket width in hours (default: 1, clamped to 1-24).
+    pub interval: Option<i64>,
+}
+
+impl TimeseriesQuery {
+    fn period_hours(&self) -> Option<i64> {
+        parse_period_hours(self.period.as_deref())
+    }
+
+    fn interval_hours(&self) -> i64 {
+        self.interval.unwrap_or(1).clamp(1, 24)
+    }
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/sessions/timeseries",
+    tag = "Sessions",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("period" = Option<String>, Query, description = "Time window, e.g. '24h', '7d' (default: 24h)"),
+        ("interval" = Option<i64>, Query, description = "Bucket width in hours (default: 1, max: 24)"),
+    ),
+    responses(
+        (status = 200, description = "Time-bucketed session trend, project-wide", body = Vec<SessionTimeseriesPoint>),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/sessions/timeseries
+pub async fn get_timeseries(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<TimeseriesQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
+
+    let points = SessionService::session_timeseries(
+        pool.get_ref(),
+        project_id,
+        query.period_hours(),
+        query.interval_hours(),
+    )
+    .await?;
+
+    Ok(HttpResponse::Ok().json(points))
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
-#[openapi(paths(get_stats), components(schemas(ReleaseHealthRow)))]
+#[openapi(
+    paths(get_stats, get_summary, get_timeseries),
+    components(schemas(ReleaseHealthRow, SessionSummary, SessionTimeseriesPoint))
+)]
 pub struct SessionsApi;
 
 /// Configure session routes.
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/projects/{project_id}/sessions").route("/stats", web::get().to(get_stats)),
+        web::scope("/api/projects/{project_id}/sessions")
+            .route("/stats", web::get().to(get_stats))
+            .route("/summary", web::get().to(get_summary))
+            .route("/timeseries", web::get().to(get_timeseries)),
     );
 }

@@ -64,6 +64,8 @@ pub enum IssueSort {
     DigestOrder,
     /// Sort by last_seen (activity-based, may reorder)
     LastSeen,
+    /// Sort by digested_event_count (most/least frequent issues)
+    EventCount,
 }
 
 impl IssueSort {
@@ -71,6 +73,7 @@ impl IssueSort {
         match self {
             IssueSort::DigestOrder => "digest_order",
             IssueSort::LastSeen => "last_seen",
+            IssueSort::EventCount => "event_count",
         }
     }
 }

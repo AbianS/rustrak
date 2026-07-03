@@ -5,12 +5,10 @@ import type {
   AlertRule,
   Project,
   ProjectMember,
-  ReleaseHealth,
 } from '@rustrak/client';
 import { ProjectAlertsDialog } from './project-alerts-dialog';
 import { ProjectMembersDialog } from './project-members-dialog';
 import { ProjectSettingsDialog } from './project-settings-dialog';
-import { ReleaseHealthSheet } from './release-health-sheet';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -19,7 +17,6 @@ interface ProjectHeaderProps {
   members: ProjectMember[];
   currentUserId?: number;
   canManageMembers: boolean;
-  releaseHealth: ReleaseHealth;
 }
 
 export function ProjectHeader({
@@ -29,7 +26,6 @@ export function ProjectHeader({
   members,
   currentUserId,
   canManageMembers,
-  releaseHealth,
 }: ProjectHeaderProps) {
   return (
     <div className="flex items-start justify-between gap-4">
@@ -52,10 +48,6 @@ export function ProjectHeader({
           </p>
         </div>
 
-        <ReleaseHealthSheet
-          projectId={project.id}
-          initialHealth={releaseHealth}
-        />
         <ProjectAlertsDialog
           project={project}
           alertRules={alertRules}

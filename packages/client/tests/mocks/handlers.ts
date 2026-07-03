@@ -1398,11 +1398,11 @@ export const handlers = [
   // Sessions — release health stats
   http.get(
     `${BASE_URL}/api/projects/:projectId/sessions/stats`,
-    ({ params }) => {
+    ({ params, request }) => {
       if (params.projectId === '999') {
         return HttpResponse.json({ error: 'not found' }, { status: 404 });
       }
-      return HttpResponse.json([
+      const rows = [
         {
           release: '1.0.0',
           environment: 'production',
@@ -1413,6 +1413,76 @@ export const handlers = [
           healthy: 92,
           crash_free_sessions_rate: 0.98,
           crash_free_users_rate: 0.99,
+        },
+        {
+          release: '2.0.0',
+          environment: 'production',
+          total: 40,
+          errored: 1,
+          crashed: 0,
+          abnormal: 0,
+          healthy: 39,
+          crash_free_sessions_rate: 1,
+          crash_free_users_rate: 1,
+        },
+      ];
+      const url = new URL(request.url);
+      const release = url.searchParams.get('release');
+      return HttpResponse.json(
+        release ? rows.filter((r) => r.release === release) : rows,
+      );
+    },
+  ),
+
+  // Sessions — project-wide health summary
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/sessions/summary`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json({
+        total: 300,
+        errored: 15,
+        crashed: 6,
+        abnormal: 3,
+        crash_free_sessions_rate: 0.98,
+        crash_free_users_rate: 0.99,
+        active_releases: 2,
+      });
+    },
+  ),
+
+  // Releases — new issues introduced in a release
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/releases/:release/new-issues`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json(mockIssues);
+    },
+  ),
+
+  // Sessions — project-wide time-bucketed trend
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/sessions/timeseries`,
+    ({ params }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      return HttpResponse.json([
+        {
+          bucket: '2026-01-20T10:00:00.000Z',
+          total: 100,
+          crashed: 2,
+          crash_free_sessions_rate: 0.98,
+        },
+        {
+          bucket: '2026-01-20T11:00:00.000Z',
+          total: 150,
+          crashed: 3,
+          crash_free_sessions_rate: 0.98,
         },
       ]);
     },

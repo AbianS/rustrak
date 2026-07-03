@@ -1,12 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { listAlertRules, listIntegrations } from '@/actions/alerts';
-import { getCurrentUser } from '@/actions/auth';
 import { listIssues } from '@/actions/issues';
-import { listProjectMembers } from '@/actions/members';
 import { getProject } from '@/actions/projects';
-import { getReleaseHealth } from '@/actions/sessions';
-import { ProjectHeader } from '../project-header';
 import { IssuesList } from './issues-list';
 
 interface IssuesPageProps {
@@ -45,46 +40,21 @@ export default async function IssuesPage({
     notFound();
   }
 
-  const [
-    issuesResponse,
-    alertRules,
-    channels,
-    members,
-    currentUser,
-    releaseHealth,
-  ] = await Promise.all([
-    listIssues(projectId, {
-      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
-      page: currentPage,
-      per_page: 20,
-      sort: 'last_seen',
-      order: 'desc',
-    }),
-    listAlertRules(projectId).catch(() => []),
-    listIntegrations().catch(() => []),
-    listProjectMembers(projectId).catch(() => []),
-    getCurrentUser(),
-    getReleaseHealth(projectId).catch(() => []),
-  ]);
-
-  const currentMembership = currentUser
-    ? members.find((member) => member.user_id === currentUser.id)
-    : undefined;
-  const canManageMembers =
-    currentUser?.role === 'admin' || currentMembership?.role === 'admin';
+  const issuesResponse = await listIssues(projectId, {
+    filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+    page: currentPage,
+    per_page: 20,
+    sort: 'last_seen',
+    order: 'desc',
+  });
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
-        <ProjectHeader
-          project={project}
-          alertRules={alertRules}
-          channels={channels}
-          members={members}
-          currentUserId={currentUser?.id}
-          canManageMembers={canManageMembers}
-          releaseHealth={releaseHealth}
-        />
+        <h1 className="text-lg font-semibold">Issues</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          Open issues for {project.name}
+        </p>
       </div>
 
       <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6">
