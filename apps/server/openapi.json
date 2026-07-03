@@ -875,6 +875,12 @@
                           "name": {
                             "type": "string"
                           },
+                          "platform": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
                           "sentry_key": {
                             "type": "string",
                             "format": "uuid"
@@ -6967,6 +6973,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sentry_key": {
             "type": "string",

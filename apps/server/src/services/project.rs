@@ -2,7 +2,7 @@ use slug::slugify;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateProject, Project, UpdateProject};
+use crate::models::{CreateProject, Project, UpdateProject, VALID_PLATFORMS};
 use crate::pagination::SortOrder;
 
 pub struct ProjectService;
@@ -13,7 +13,7 @@ impl ProjectService {
         let projects = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at,
+                   digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
             ORDER BY created_at DESC
@@ -48,7 +48,7 @@ impl ProjectService {
         let query = format!(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at,
+                   digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
             {}
@@ -106,7 +106,7 @@ impl ProjectService {
         let query = format!(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at,
+                   digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
             WHERE id IN ({})
@@ -130,7 +130,7 @@ impl ProjectService {
         let project = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at,
+                   digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
             WHERE id = $1
@@ -153,7 +153,7 @@ impl ProjectService {
         let project = sqlx::query_as::<_, Project>(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at,
+                   digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
             WHERE sentry_key = $1
@@ -213,7 +213,7 @@ impl ProjectService {
                 UPDATE projects SET name = $1, updated_at = CURRENT_TIMESTAMP
                 WHERE id = $2
                 RETURNING id, name, slug, sentry_key, stored_event_count,
-                          digested_event_count, created_at, updated_at,
+                          digested_event_count, created_at, updated_at, platform,
                           quota_exceeded_until, quota_exceeded_reason, next_quota_check
                 "#,
             )
@@ -238,6 +238,29 @@ impl ProjectService {
 
         // If no fields to update, return project unchanged
         Self::get_by_id(pool, id).await
+    }
+
+    /// Auto-detects the project's platform from an ingested event, mirroring
+    /// Sentry's `_set_project_platform_if_needed` (event_manager.py): only
+    /// writes if the project has no platform yet, and only if
+    /// `event_platform` is one of Relay's [`VALID_PLATFORMS`]. No-op
+    /// otherwise. Never overwrites a platform once set.
+    pub async fn infer_platform_from_event(
+        pool: &DbPool,
+        project_id: i32,
+        event_platform: &str,
+    ) -> AppResult<()> {
+        if !VALID_PLATFORMS.contains(&event_platform) {
+            return Ok(());
+        }
+
+        sqlx::query("UPDATE projects SET platform = $1 WHERE id = $2 AND platform IS NULL")
+            .bind(event_platform)
+            .bind(project_id)
+            .execute(pool)
+            .await?;
+
+        Ok(())
     }
 
     /// Deletes a project (hard delete)
@@ -323,7 +346,7 @@ impl ProjectService {
             INSERT INTO projects (name, slug, sentry_key)
             VALUES ($1, $2, $3)
             RETURNING id, name, slug, sentry_key, stored_event_count,
-                      digested_event_count, created_at, updated_at,
+                      digested_event_count, created_at, updated_at, platform,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
         "#;
 

@@ -29,6 +29,7 @@ export default async function ProjectLayout({
     id: p.id,
     name: p.name,
     slug: p.slug,
+    platform: p.platform,
   }));
   const defaultOpen = cookieStore.get('sidebar_state')?.value !== 'false';
 

@@ -752,6 +752,165 @@ async fn test_digest_updates_project_counters() {
 }
 
 // =============================================================================
+// Project Platform Auto-Detection Tests (Sentry parity)
+//
+// Mirrors sentry.event_manager._set_project_platform_if_needed: set once from
+// the first event whose top-level `platform` is a valid Relay VALID_PLATFORMS
+// value, never overwritten, no manual picker.
+// =============================================================================
+
+#[actix_web::test]
+async fn test_digest_sets_project_platform_from_first_valid_event() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Platform Detect Project").await;
+    assert_eq!(project.platform, None);
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let mut event_json = create_event_json(&event_id);
+    event_json["platform"] = json!("python");
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+    store_event(ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+
+    let metadata = EventMetadata {
+        event_id: event_id.clone(),
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    process_error_event(
+        &db.pool,
+        &metadata,
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
+
+    let updated_project = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("Failed to get project");
+
+    assert_eq!(updated_project.platform, Some("python".to_string()));
+}
+
+#[actix_web::test]
+async fn test_digest_does_not_overwrite_existing_project_platform() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Platform No Overwrite Project").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    // First event sets platform to "python".
+    let event_id_1 = Uuid::new_v4().to_string().replace("-", "");
+    let mut event_json_1 = create_event_json(&event_id_1);
+    event_json_1["platform"] = json!("python");
+    store_event(
+        ingest_dir,
+        &event_id_1,
+        &serde_json::to_vec(&event_json_1).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    process_error_event(
+        &db.pool,
+        &EventMetadata {
+            event_id: event_id_1,
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        },
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process first event");
+
+    // Second event, different valid platform, must NOT change it.
+    let event_id_2 = Uuid::new_v4().to_string().replace("-", "");
+    let mut event_json_2 = create_event_json(&event_id_2);
+    event_json_2["platform"] = json!("php");
+    store_event(
+        ingest_dir,
+        &event_id_2,
+        &serde_json::to_vec(&event_json_2).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    process_error_event(
+        &db.pool,
+        &EventMetadata {
+            event_id: event_id_2,
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        },
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process second event");
+
+    let updated_project = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("Failed to get project");
+
+    assert_eq!(updated_project.platform, Some("python".to_string()));
+}
+
+#[actix_web::test]
+async fn test_digest_ignores_invalid_platform_for_project_platform_detection() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Invalid Platform Project").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    // create_event_json() already uses "platform": "rust", which is NOT in
+    // Relay's VALID_PLATFORMS (confirmed against relay-event-schema source).
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let event_json = create_event_json(&event_id);
+    store_event(
+        ingest_dir,
+        &event_id,
+        &serde_json::to_vec(&event_json).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    process_error_event(
+        &db.pool,
+        &EventMetadata {
+            event_id,
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        },
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
+
+    let updated_project = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("Failed to get project");
+
+    assert_eq!(updated_project.platform, None);
+}
+
+// =============================================================================
 // Temp File Cleanup Tests
 // =============================================================================
 

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { PlatformIcon } from 'platformicons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,7 @@ interface ProjectOption {
   id: number;
   name: string;
   slug: string;
+  platform: string | null;
 }
 
 interface ProjectSidebarProps {
@@ -49,26 +51,22 @@ interface ProjectSidebarProps {
   projects: ProjectOption[];
 }
 
-function initialOf(name: string): string {
-  return (name || '?').charAt(0).toUpperCase();
-}
-
 function ProjectAvatar({
-  name,
+  platform,
   className,
+  size = 32,
 }: {
-  name: string;
+  platform: string | null;
   className?: string;
+  size?: number;
 }) {
   return (
-    <div
-      className={cn(
-        'flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted text-sm font-semibold text-foreground',
-        className,
-      )}
-    >
-      {initialOf(name)}
-    </div>
+    <PlatformIcon
+      platform={platform ?? 'other'}
+      size={size}
+      format="lg"
+      className={cn('shrink-0', className)}
+    />
   );
 }
 
@@ -82,7 +80,12 @@ function ProjectSwitcher({
 }) {
   const current =
     projects.find((p) => p.id === projectId) ??
-    ({ id: projectId, name: 'Project', slug: '' } as ProjectOption);
+    ({
+      id: projectId,
+      name: 'Project',
+      slug: '',
+      platform: null,
+    } as ProjectOption);
 
   return (
     <DropdownMenu>
@@ -94,7 +97,7 @@ function ProjectSwitcher({
           />
         }
       >
-        <ProjectAvatar name={current.name} />
+        <ProjectAvatar platform={current.platform} />
         <div className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
           <span className="truncate text-sm font-semibold leading-tight">
             {current.name}
@@ -117,7 +120,7 @@ function ProjectSwitcher({
               render={<Link href={`/projects/${p.id}`} />}
               className="gap-2"
             >
-              <ProjectAvatar name={p.name} className="size-6 text-xs" />
+              <ProjectAvatar platform={p.platform} size={24} />
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm">{p.name}</span>
                 <span className="truncate font-mono text-xs text-muted-foreground">

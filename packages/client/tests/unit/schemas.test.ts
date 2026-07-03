@@ -24,10 +24,32 @@ describe('Schema Validation', () => {
         digested_event_count: 95,
         created_at: '2026-01-20T10:00:00.000Z',
         updated_at: '2026-01-20T10:00:00.000Z',
+        platform: null,
       };
 
       const result = projectSchema.safeParse(validProject);
       expect(result.success).toBe(true);
+    });
+
+    it('should validate project with a detected platform string', () => {
+      const validProject = {
+        id: 1,
+        name: 'Test Project',
+        slug: 'test-project',
+        sentry_key: '123e4567-e89b-12d3-a456-426614174000',
+        dsn: 'http://123e4567-e89b-12d3-a456-426614174000@localhost:8080/1',
+        stored_event_count: 100,
+        digested_event_count: 95,
+        created_at: '2026-01-20T10:00:00.000Z',
+        updated_at: '2026-01-20T10:00:00.000Z',
+        platform: 'python',
+      };
+
+      const result = projectSchema.safeParse(validProject);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.platform).toBe('python');
+      }
     });
 
     it('should reject project with invalid UUID', () => {
@@ -376,6 +398,7 @@ describe('Schema Validation', () => {
             digested_event_count: 95,
             created_at: '2026-01-20T10:00:00.000Z',
             updated_at: '2026-01-20T10:00:00.000Z',
+            platform: null,
           },
         ],
         next_cursor: 'eyJzb3J0IjoiZGlnZXN0X29yZGVyIn0=',

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { PlatformIcon } from 'platformicons';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deleteProject } from '@/actions/projects';
@@ -205,6 +206,14 @@ export function ProjectsList({
                 <Checkbox
                   checked={selectedIds.has(project.id)}
                   onCheckedChange={() => toggleSelect(project.id)}
+                />
+
+                <PlatformIcon
+                  platform={project.platform ?? 'other'}
+                  size={28}
+                  radius={5}
+                  format="lg"
+                  className="shrink-0"
                 />
 
                 <div className="flex-1 min-w-0">
