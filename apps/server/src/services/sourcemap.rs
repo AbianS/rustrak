@@ -559,6 +559,12 @@ pub async fn assemble_bundle(
 
 /// Rewrites stack frames in `event_data` using stored source maps.
 ///
+/// Walks both places Sentry's protocol allows a stack trace to live:
+/// `exception.values[*].stacktrace.frames` and `threads.values[*].stacktrace.frames`
+/// (the latter carries crashes reported via threads instead of an exception —
+/// e.g. JS worker-thread crashes). Both have the identical `values[i].stacktrace.frames`
+/// shape, so the same walk works under either root key.
+///
 /// Frame-rewriting errors are non-fatal: we `warn!` and continue.
 pub async fn rewrite_frames(
     provider: &dyn SourceMapProvider,
@@ -586,29 +592,44 @@ pub async fn rewrite_frames(
         return Ok(());
     }
 
-    // 2. Iterate by index to avoid holding a &mut borrow across .await points.
-    let exc_count = event_data["exception"]["values"]
+    rewrite_frames_under(provider, project_id, event_data, "exception", &images_map).await?;
+    rewrite_frames_under(provider, project_id, event_data, "threads", &images_map).await?;
+
+    Ok(())
+}
+
+/// Rewrites every frame under `event_data[root_key]["values"][*]["stacktrace"]["frames"]`.
+/// `root_key` is `"exception"` or `"threads"` — see [`rewrite_frames`].
+async fn rewrite_frames_under(
+    provider: &dyn SourceMapProvider,
+    project_id: i32,
+    event_data: &mut serde_json::Value,
+    root_key: &str,
+    images_map: &HashMap<String, String>,
+) -> AppResult<()> {
+    // Iterate by index to avoid holding a &mut borrow across .await points.
+    let value_count = event_data[root_key]["values"]
         .as_array()
         .map(|a| a.len())
         .unwrap_or(0);
-    if exc_count == 0 {
+    if value_count == 0 {
         return Ok(());
     }
 
-    for exc_idx in 0..exc_count {
-        let frame_count = event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"]
+    for value_idx in 0..value_count {
+        let frame_count = event_data[root_key]["values"][value_idx]["stacktrace"]["frames"]
             .as_array()
             .map(|a| a.len())
             .unwrap_or(0);
 
         for frame_idx in 0..frame_count {
             // 3a. Extract frame fields as owned values (no live borrow across .await)
-            let filename: Option<String> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+            let filename: Option<String> = event_data[root_key]["values"][value_idx]["stacktrace"]
                 ["frames"][frame_idx]
                 .get("filename")
                 .and_then(|f| f.as_str())
                 .map(|s| s.to_string());
-            let abs_path: Option<String> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+            let abs_path: Option<String> = event_data[root_key]["values"][value_idx]["stacktrace"]
                 ["frames"][frame_idx]
                 .get("abs_path")
                 .and_then(|f| f.as_str())
@@ -617,12 +638,12 @@ pub async fn rewrite_frames(
             if abs_path.is_none() && filename.is_none() {
                 continue;
             }
-            let frame_lineno: Option<u32> = event_data["exception"]["values"][exc_idx]
-                ["stacktrace"]["frames"][frame_idx]
+            let frame_lineno: Option<u32> = event_data[root_key]["values"][value_idx]["stacktrace"]
+                ["frames"][frame_idx]
                 .get("lineno")
                 .and_then(|l| l.as_u64())
                 .map(|l| l as u32);
-            let frame_colno: Option<u32> = event_data["exception"]["values"][exc_idx]["stacktrace"]
+            let frame_colno: Option<u32> = event_data[root_key]["values"][value_idx]["stacktrace"]
                 ["frames"][frame_idx]
                 .get("colno")
                 .and_then(|c| c.as_u64())
@@ -696,7 +717,7 @@ pub async fn rewrite_frames(
             let pre_start = l.saturating_sub(3);
             let post_end = lines.len().min(l + 4);
 
-            let existing_function = event_data["exception"]["values"][exc_idx]["stacktrace"]
+            let existing_function = event_data[root_key]["values"][value_idx]["stacktrace"]
                 ["frames"][frame_idx]
                 .get("function")
                 .and_then(|f| f.as_str())
@@ -725,7 +746,7 @@ pub async fn rewrite_frames(
 
             // 3l. Write rewritten fields back by index path (fresh borrow, no cross-await alias)
             let frame =
-                &mut event_data["exception"]["values"][exc_idx]["stacktrace"]["frames"][frame_idx];
+                &mut event_data[root_key]["values"][value_idx]["stacktrace"]["frames"][frame_idx];
             // Only overwrite filename/abs_path when the token has a non-empty source name.
             // A None/empty source (malformed map) must not corrupt the original filename.
             // Reference: getsentry/symbolicator symbolication.rs L246-273 (e282ec0)
@@ -817,6 +838,38 @@ mod tests {
         assert_eq!(
             frame["abs_path"], "https://example.com/app.min.js",
             "abs_path should not be cleared when source name is empty"
+        );
+    }
+
+    #[tokio::test]
+    async fn rewrite_frames_also_rewrites_thread_stacktrace_frames() {
+        let provider = mock_provider(SOURCEMAP_EMPTY_SOURCE);
+        let mut event = serde_json::json!({
+            "debug_meta": {
+                "images": [{"type": "sourcemap", "code_file": "app.min.js", "debug_id": "test-debug-id"}]
+            },
+            "threads": { "values": [{
+                "id": "0",
+                "crashed": true,
+                "stacktrace": { "frames": [{
+                    "filename": "app.min.js",
+                    "lineno": 1,
+                    "colno": 0,
+                    "function": "minifiedFn"
+                }]}
+            }]}
+        });
+
+        rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+        let frame = &event["threads"]["values"][0]["stacktrace"]["frames"][0];
+        assert_eq!(
+            frame["lineno"], 5,
+            "thread frame lineno should be remapped just like exception frames"
+        );
+        assert_eq!(
+            frame["function"], "originalFunction",
+            "thread frame function should be resolved from the source map, same as exception frames"
         );
     }
 

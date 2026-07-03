@@ -6,12 +6,16 @@ import { z } from 'zod';
 const stackFrameSchema = z.object({
   filename: z.string().optional(),
   function: z.string().optional(),
+  module: z.string().optional(),
+  package: z.string().optional(),
+  raw_function: z.string().optional(),
   lineno: z.number().optional(),
   colno: z.number().optional(),
   in_app: z.boolean().optional(),
   context_line: z.string().optional(),
   pre_context: z.array(z.string()).optional(),
   post_context: z.array(z.string()).optional(),
+  vars: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -20,6 +24,8 @@ const stackFrameSchema = z.object({
 const exceptionValueSchema = z.object({
   type: z.string().optional(),
   value: z.string().optional(),
+  /** Cross-references a `Thread.id` — links this exception to the thread that raised it. */
+  thread_id: z.union([z.string(), z.number()]).optional(),
   stacktrace: z
     .object({
       frames: z.array(stackFrameSchema).optional(),
@@ -35,6 +41,32 @@ const exceptionSchema = z
     values: z.array(exceptionValueSchema).optional(),
   })
   .optional();
+
+/**
+ * Schema for a single thread entry (native crashes, Go panics, JVM thread
+ * dumps — stack traces that arrive outside the `exception` object).
+ */
+const threadSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  name: z.string().optional(),
+  crashed: z.boolean().optional(),
+  current: z.boolean().optional(),
+  main: z.boolean().optional(),
+  state: z.string().optional(),
+  stacktrace: z
+    .object({
+      frames: z.array(stackFrameSchema).optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Schema for `threads` (can be array or object with values, same shape as breadcrumbs).
+ */
+const threadsSchema = z.union([
+  z.array(threadSchema),
+  z.object({ values: z.array(threadSchema).optional() }),
+]);
 
 /**
  * Schema for a breadcrumb entry.
@@ -91,6 +123,7 @@ const modulesSchema = z.record(z.string(), z.string()).optional();
  * Parsed and validated event data types.
  */
 type ValidatedEventBreadcrumbs = z.infer<typeof breadcrumbsSchema>;
+type ValidatedEventThreads = z.infer<typeof threadsSchema>;
 
 /**
  * Parse and validate event data from the Sentry event JSON.
@@ -99,6 +132,7 @@ type ValidatedEventBreadcrumbs = z.infer<typeof breadcrumbsSchema>;
 export function parseEventData(eventData: Record<string, unknown>) {
   const exception = exceptionSchema.safeParse(eventData.exception);
   const breadcrumbs = breadcrumbsSchema.safeParse(eventData.breadcrumbs);
+  const threads = threadsSchema.safeParse(eventData.threads);
   const contexts = contextsSchema.safeParse(eventData.contexts);
   const modules = modulesSchema.safeParse(eventData.modules);
   const tagsResult = tagsSchema.safeParse(eventData.tags);
@@ -114,6 +148,7 @@ export function parseEventData(eventData: Record<string, unknown>) {
   return {
     exception: exception.success ? exception.data : undefined,
     breadcrumbs: breadcrumbs.success ? breadcrumbs.data : undefined,
+    threads: threads.success ? threads.data : undefined,
     contexts: contexts.success ? contexts.data : undefined,
     modules: modules.success ? modules.data : undefined,
     tags,
@@ -138,3 +173,18 @@ export function normalizeBreadcrumbs(
   if (Array.isArray(breadcrumbs)) return breadcrumbs;
   return breadcrumbs.values ?? [];
 }
+
+/**
+ * Normalize threads to always be an array.
+ */
+export function normalizeThreads(
+  threads: ValidatedEventThreads | undefined,
+): z.infer<typeof threadSchema>[] {
+  if (!threads) return [];
+  if (Array.isArray(threads)) return threads;
+  return threads.values ?? [];
+}
+
+export type ParsedThread = z.infer<typeof threadSchema>;
+export type ParsedStackFrame = z.infer<typeof stackFrameSchema>;
+export type ParsedExceptionValue = z.infer<typeof exceptionValueSchema>;
