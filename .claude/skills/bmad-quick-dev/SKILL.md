@@ -20,6 +20,8 @@ A specification is "Ready for Development" when:
 - **Logical**: Tasks ordered by dependency.
 - **Testable**: All ACs use Given/When/Then.
 - **Complete**: No placeholders or TBDs.
+- **Sufficient**: No known requirement, acceptance, dependency, or implementation gaps remain unresolved.
+- **Coherent**: No unresolved ambiguities or internal contradictions.
 
 ## SCOPE STANDARD
 
@@ -69,7 +71,6 @@ Load config from `{project-root}/_bmad/bmm/config.yaml` and resolve:
 - `date` as system-generated current datetime
 - `sprint_status` = `{implementation_artifacts}/sprint-status.yaml`
 - `project_context` = `**/project-context.md` (load if exists)
-- CLAUDE.md / memory files (load if exist)
 - YOU MUST ALWAYS SPEAK OUTPUT in your Agent communication style with the config `{communication_language}`
 - Language MUST be tailored to `{user_skill_level}`
 - Generate all documents in `{document_output_language}`
