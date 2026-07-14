@@ -646,6 +646,7 @@ Environment variables:
 HOST=0.0.0.0
 PORT=8080
 RUST_LOG=info
+RUSTRAK_LOG_TIMEZONE=Asia/Shanghai # Optional. IANA zone name for log timestamp display only (falls back to UTC if unset/unrecognized; event/issue timestamps stay UTC everywhere else)
 
 # Database
 DATABASE_URL=postgres://user:pass@localhost:5432/rustrak
