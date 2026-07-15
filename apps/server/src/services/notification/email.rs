@@ -119,7 +119,7 @@ impl EmailNotifier {
             level_color = level_color,
             alert_type_display = alert_type_display,
             project_name = html_escape(&payload.project.name),
-            issue_url = &payload.issue_url,
+            issue_url = payload.issue_url,
             short_id = html_escape(&payload.issue.short_id),
             title = html_escape(&payload.issue.title),
             event_count = payload.issue.event_count,
@@ -158,13 +158,13 @@ View issue: {issue_url}
 --
 This alert was sent by Rustrak for project {project_name}."#,
             alert_type_display = alert_type_display,
-            project_name = &payload.project.name,
-            short_id = &payload.issue.short_id,
-            title = &payload.issue.title,
+            project_name = payload.project.name,
+            short_id = payload.issue.short_id,
+            title = payload.issue.title,
             event_count = payload.issue.event_count,
             first_seen = payload.issue.first_seen.format("%Y-%m-%d %H:%M UTC"),
             last_seen = payload.issue.last_seen.format("%Y-%m-%d %H:%M UTC"),
-            issue_url = &payload.issue_url,
+            issue_url = payload.issue_url,
         )
     }
 
