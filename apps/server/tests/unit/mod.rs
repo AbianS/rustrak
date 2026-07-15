@@ -8,6 +8,7 @@ mod decompression_test;
 mod envelope_parser_test;
 mod grouping_test;
 mod log_test;
+mod logging_test;
 mod notification_test;
 mod sourcemap_store_test;
 mod sourcemap_test;

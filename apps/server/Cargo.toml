@@ -33,6 +33,7 @@ dotenvy = "0.15.7"
 
 # Time
 chrono = { version = "0.4.45", features = ["serde"] }
+chrono-tz = "0.10.4"
 # time 0.3.48 broke cookie 0.16.2 (E0119 blanket impl conflict); fixed upstream by 0.3.53 with cookie still on 0.16.
 time = "=0.3.53"
 
