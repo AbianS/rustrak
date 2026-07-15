@@ -1,5 +1,14 @@
 # webview-ui
 
+## 0.8.2
+
+### Patch Changes
+
+- [`50314dc`](https://github.com/rustrak/rustrak/commit/50314dc42960f5d5ddbd29cbc2d9111b7abfeae9) Thanks [@AbianS](https://github.com/AbianS)! - Added RUSTRAK_LOG_TIMEZONE environment variable for configuring server log timestamp display timezone. Updated dependencies across all packages. Fixed clippy compliance issue in notification service.
+
+- Updated dependencies [[`50314dc`](https://github.com/rustrak/rustrak/commit/50314dc42960f5d5ddbd29cbc2d9111b7abfeae9)]:
+  - @rustrak/client@0.3.13
+
 ## 0.8.1
 
 ### Patch Changes
