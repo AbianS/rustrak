@@ -29,14 +29,14 @@
     "demo:logs": "tsx demo/src/logs.ts"
   },
   "dependencies": {
-    "@sentry/node": "10.63.0"
+    "@sentry/node": "10.65.0"
   },
   "devDependencies": {
-    "@sentry/esbuild-plugin": "5.3.0",
-    "@types/node": "26.1.0",
+    "@sentry/esbuild-plugin": "5.4.0",
+    "@types/node": "26.1.1",
     "esbuild": "0.28.1",
     "tsup": "8.5.1",
-    "tsx": "4.22.4",
+    "tsx": "4.23.1",
     "typescript": "6.0.3"
   }
 }
