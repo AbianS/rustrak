@@ -21,9 +21,10 @@ fn test_resolve_log_timezone_unset_returns_none() {
 fn test_resolve_log_timezone_valid_iana_name_returns_tz() {
     std::env::set_var("RUSTRAK_LOG_TIMEZONE", "Asia/Shanghai");
 
-    assert_eq!(resolve_log_timezone(), Some(Tz::Asia__Shanghai));
-
+    let result = resolve_log_timezone();
     std::env::remove_var("RUSTRAK_LOG_TIMEZONE");
+
+    assert_eq!(result, Some(Tz::Asia__Shanghai));
 }
 
 #[test]
@@ -48,11 +49,25 @@ fn test_format_log_timestamp_applies_zone_offset() {
 }
 
 #[test]
+fn test_format_log_timestamp_applies_dst_zone_offset() {
+    // America/New_York: summer is UTC-4 (EDT), winter is UTC-5 (EST).
+    let summer = Utc.with_ymd_and_hms(2026, 7, 14, 4, 30, 0).unwrap();
+    let winter = Utc.with_ymd_and_hms(2026, 1, 14, 4, 30, 0).unwrap();
+
+    let summer_formatted = format_log_timestamp(summer, Some(Tz::America__New_York));
+    let winter_formatted = format_log_timestamp(winter, Some(Tz::America__New_York));
+
+    assert_eq!(summer_formatted, "2026-07-14T00:30:00-04:00");
+    assert_eq!(winter_formatted, "2026-01-13T23:30:00-05:00");
+}
+
+#[test]
 #[serial]
 fn test_resolve_log_timezone_invalid_name_returns_none() {
     std::env::set_var("RUSTRAK_LOG_TIMEZONE", "Not/AZone");
 
-    assert_eq!(resolve_log_timezone(), None);
-
+    let result = resolve_log_timezone();
     std::env::remove_var("RUSTRAK_LOG_TIMEZONE");
+
+    assert_eq!(result, None);
 }

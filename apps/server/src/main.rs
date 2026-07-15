@@ -33,9 +33,10 @@ async fn main() -> std::io::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info"))
         .format(move |buf, record| {
             use std::io::Write;
+            let level_style = buf.default_level_style(record.level());
             writeln!(
                 buf,
-                "[{} {} {}] {}",
+                "[{} {level_style}{}{level_style:#} {}] {}",
                 rustrak::logging::format_log_timestamp(chrono::Utc::now(), log_timezone),
                 record.level(),
                 record.target(),
