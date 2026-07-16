@@ -28,9 +28,9 @@ _Keep under 200 lines. Every token here loads every session — make each one co
 
 **`/projects/:projectId/` is a dashboard in Sentry, never a redirect to issues** — and the issue stream itself is org-scoped (`/organizations/:orgId/issues/`), not nested under a project route. Two separate IA facts, easy to conflate.
 
-## Span Protocol Facts (verified 2026-07-14, SHA f42b1c8a1)
+## Span Protocol Facts (verified 2026-07-14, corrected 2026-07-16, SHA f42b1c8a1)
 
-**Two live span schemas, picked by feature flag not version.** Legacy `Span` (span.rs) is authoritative for standalone span ingestion by default; `SpanV2` (OTel-attribute-style, container wire format) only activates per-project via `projects:span-v2-experimental-processing`. For "what does a Sentry SDK send today," target legacy `Span`.
+**Two live span schemas — but the feature flag governs Relay's server-side processor choice, NOT what SDKs send.** ~~For "what does a Sentry SDK send today," target legacy `Span`.~~ **This was wrong, disproven by real-SDK capture 2026-07-16** (`@sentry/node@10.65.0` + `ai`/Vercel AI SDK, `vercelAIIntegration()`): the client unconditionally emits `application/vnd.sentry.items.span.v2+json` (SpanV2Container, batched, typed attributes, no top-level `op`) for OTel-instrumented spans — legacy `Span` items still exist and Relay still accepts them (`legacy_spans` module), but current SDKs don't send them for this class of span. `projects:span-v2-experimental-processing` only controls which Relay pipeline *claims* an already-v2 item; it has no bearing on wire format. **Target BOTH schemas** — legacy for whatever still sends it, v2 for anything OTel-instrumented (all current AI/agent tracing). See `story-span-v2-protocol.md` for the full spec, `BOND.md` for the corrected gap entry.
 
 **`SpanData` is a fixed ~80-field typed struct (gen_ai_*/db_*/http_*/etc.), not a generic bag** — plus a catch-all `other: Object<Value>` for unknowns. PII scrubbing is resolved per-named-field via `relay_conventions`, defaulting to `Pii::True` for anything in `other`.
 
