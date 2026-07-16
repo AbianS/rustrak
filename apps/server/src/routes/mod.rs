@@ -11,6 +11,7 @@ pub mod projects;
 pub mod releases;
 pub mod sessions;
 pub mod sourcemaps;
+pub mod spans;
 pub mod storage;
 pub mod team;
 pub mod tokens;

@@ -43,11 +43,16 @@ pub struct TransactionDetailResponse {
     pub data: serde_json::Value,
 }
 
-/// A single indexed span extracted from a transaction.
+/// A single indexed span — extracted from a transaction, OR standalone
+/// (Sentry "span" item type). Both origins write into the same `spans`
+/// table, so `transaction_id` is the only thing that distinguishes them.
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SpanResponse {
     pub id: Uuid,
+    /// The parent transaction, if this span was extracted from one.
+    /// `None` for a standalone span.
+    pub transaction_id: Option<Uuid>,
     pub span_id: Option<String>,
     pub trace_id: Option<String>,
     pub parent_span_id: Option<String>,
@@ -62,6 +67,11 @@ pub struct SpanResponse {
     pub exclusive_time_ms: Option<f64>,
     pub is_segment: bool,
     pub segment_id: Option<String>,
+    /// Only ever set for standalone spans — a transaction-embedded span
+    /// inherits these from its parent transaction row instead.
+    pub platform: Option<String>,
+    pub release: Option<String>,
+    pub environment: Option<String>,
 }
 
 /// Aggregate performance stats for one (transaction_name, op) group.

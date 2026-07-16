@@ -27,3 +27,13 @@ _Keep under 200 lines. Every token here loads every session — make each one co
 **"Release Health" is a dataset, not a destination, in Sentry's real frontend.** No page, tab, or button anywhere in `static/app/views/` is called "Release Health". It's embedded in: project dashboard score cards, the releases list (with a CTA to enable it), and a release's default "Overview" detail tab. When auditing whether Rustrak put a concept "in the right place," check first whether Sentry treats it as a navigable destination at all — often it doesn't, and the real fix is de-emphasizing a standalone UI element rather than relocating it.
 
 **`/projects/:projectId/` is a dashboard in Sentry, never a redirect to issues** — and the issue stream itself is org-scoped (`/organizations/:orgId/issues/`), not nested under a project route. Two separate IA facts, easy to conflate.
+
+## Span Protocol Facts (verified 2026-07-14, SHA f42b1c8a1)
+
+**Two live span schemas, picked by feature flag not version.** Legacy `Span` (span.rs) is authoritative for standalone span ingestion by default; `SpanV2` (OTel-attribute-style, container wire format) only activates per-project via `projects:span-v2-experimental-processing`. For "what does a Sentry SDK send today," target legacy `Span`.
+
+**`SpanData` is a fixed ~80-field typed struct (gen_ai_*/db_*/http_*/etc.), not a generic bag** — plus a catch-all `other: Object<Value>` for unknowns. PII scrubbing is resolved per-named-field via `relay_conventions`, defaulting to `Pii::True` for anything in `other`.
+
+**`Span.duration` doesn't exist on the wire — always `timestamp - start_timestamp`, computed.** `description` has no schema-level max length (op/origin do, 128 chars); truncation is downstream in tag_extraction.rs, default 200 bytes (only confirmed via test scaffolding, canonical default lives in `relay-config`, outside current sparse checkout).
+
+**`relay-config` and `relay-spans` crates are NOT in the sparse checkout** — use `git show <sha>:relay-spans/src/...` for read-only one-off reads of them rather than assuming they're absent from the repo entirely.

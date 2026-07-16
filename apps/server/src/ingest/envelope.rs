@@ -58,6 +58,11 @@ pub enum EnvelopeItemKind {
     /// body (`{"items":[OurLog, ...]}`) — expanded into individual logs in the
     /// processor, mirroring Relay's `LogsProcessor`.
     Log(Vec<u8>),
+    /// Standalone spans (Sentry "span" item type, OTel-style — not attached to
+    /// a parent transaction). Unlike `Log`, this is NOT a container: each
+    /// envelope item holds exactly one flat span JSON object, mirroring
+    /// Relay's legacy (default) `Span` schema.
+    Span(Vec<u8>),
     Other(String, Vec<u8>),
 }
 
@@ -79,6 +84,7 @@ impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
             "event" => Self::Event(payload),
             "transaction" => Self::Transaction(payload),
             "log" => Self::Log(payload),
+            "span" => Self::Span(payload),
             "session" => match serde_json::from_slice(&payload) {
                 Ok(s) => Self::Session(s),
                 Err(e) => {

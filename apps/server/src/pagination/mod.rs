@@ -220,6 +220,31 @@ pub struct ListLogsQuery {
     pub trace_id: Option<String>,
 }
 
+/// Query parameters for listing spans (offset-based)
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct ListSpansQuery {
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
+
+    /// Filter by span operation, e.g. `http.client`.
+    pub op: Option<String>,
+
+    /// Filter by span status.
+    pub status: Option<String>,
+
+    /// Filter by trace id — matches spans regardless of origin (standalone
+    /// or extracted from a transaction), since both share this table.
+    pub trace_id: Option<String>,
+}
+
 /// Query parameters for the transaction stats overview (offset-based)
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]

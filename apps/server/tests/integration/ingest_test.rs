@@ -142,6 +142,156 @@ async fn test_ingest_log_envelope_stores_rows() {
 }
 
 // =============================================================================
+// Standalone span item ingestion (Sentry "span" item type — story-span-ingestion.md)
+// =============================================================================
+
+#[actix_web::test]
+async fn test_ingest_standalone_span_envelope_without_trace_header_stores_row() {
+    // AC #3: a standalone span must be accepted WITHOUT a `trace` envelope
+    // header (DSC) present — matches Relay's default legacy_spans pipeline,
+    // which real SDKs rely on today (unlike the opt-in SpanV2 pipeline).
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Spans Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    // No `trace` field anywhere in the envelope headers — DSC intentionally absent.
+    let span_json = r#"{"span_id":"9fd17741416e8e4e","trace_id":"d3d20f000885466b8c8f947c9b92b8d3","op":"http.client","start_timestamp":1234567890.0,"timestamp":1234567890.5}"#;
+    let envelope = format!(
+        "{{}}\n{{\"type\":\"span\",\"length\":{}}}\n{}",
+        span_json.len(),
+        span_json
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(
+        resp.status().is_success(),
+        "standalone span envelope without a trace header must be accepted"
+    );
+
+    // The processor runs in a spawned task — give it a beat to land.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    #[cfg(feature = "postgres")]
+    const COUNT_QUERY: &str =
+        "SELECT COUNT(*) FROM spans WHERE project_id = $1 AND transaction_id IS NULL";
+    #[cfg(not(feature = "postgres"))]
+    const COUNT_QUERY: &str =
+        "SELECT COUNT(*) FROM spans WHERE project_id = ? AND transaction_id IS NULL";
+
+    let count: i64 = sqlx::query_scalar(COUNT_QUERY)
+        .bind(project_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 1,
+        "standalone span must be stored with no transaction_id"
+    );
+}
+
+#[actix_web::test]
+async fn test_ingest_multiple_standalone_spans_in_one_envelope() {
+    // Standalone spans are NOT containerized like logs — an envelope may
+    // carry several separate "span" items, each one flat span object.
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Multi Span Project").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let span1 = r#"{"span_id":"1111111111111111","trace_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","op":"http.client","start_timestamp":1.0,"timestamp":1.5}"#;
+    let span2 = r#"{"span_id":"2222222222222222","trace_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","op":"db.query","start_timestamp":1.5,"timestamp":1.8}"#;
+    let envelope = format!(
+        "{{}}\n{{\"type\":\"span\",\"length\":{}}}\n{}\n{{\"type\":\"span\",\"length\":{}}}\n{}",
+        span1.len(),
+        span1,
+        span2.len(),
+        span2
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope.into_bytes())
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    #[cfg(feature = "postgres")]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+    #[cfg(not(feature = "postgres"))]
+    const COUNT_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+
+    let count: i64 = sqlx::query_scalar(COUNT_QUERY)
+        .bind(project_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 2, "both standalone span items must be stored");
+}
+
+// =============================================================================
 // Basic Ingestion Tests
 // =============================================================================
 
