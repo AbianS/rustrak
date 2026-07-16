@@ -456,4 +456,171 @@ mod level2 {
             "standalone span response must report no parent transaction"
         );
     }
+
+    // =========================================================================
+    // gen_ai.* normalization on standalone spans (story-ai-agent-monitoring.md)
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_standalone_ai_span_normalized_and_cost_calculated() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-gen-ai".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "span_id": "5555555555555555",
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+            "data": {
+                "gen_ai.operation.name": "invoke_agent",
+                "gen_ai.request.model": "gpt-4o",
+                "gen_ai.usage.input_tokens": 1000,
+                "gen_ai.usage.output_tokens": 500
+            }
+        }))
+        .unwrap();
+
+        SpanProcessor
+            .process(payload, &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+        let response_model: Option<String> = row.get("gen_ai_response_model");
+        let total_tokens: Option<f64> = row.get("gen_ai_usage_total_tokens");
+        let cost_total: Option<f64> = row.get("gen_ai_cost_total_tokens");
+
+        assert_eq!(operation_type.as_deref(), Some("agent"));
+        assert_eq!(response_model.as_deref(), Some("gpt-4o"));
+        assert_eq!(total_tokens, Some(1500.0));
+        assert!(
+            cost_total.is_some_and(|c| c > 0.0),
+            "gpt-4o is a known model with real usage — cost must be calculated"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_non_ai_standalone_span_leaves_gen_ai_columns_null() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-not-ai".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "span_id": "6666666666666666",
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "op": "http.client",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0
+        }))
+        .unwrap();
+
+        SpanProcessor
+            .process(payload, &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT gen_ai_operation_type, gen_ai_cost_total_tokens FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT gen_ai_operation_type, gen_ai_cost_total_tokens FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+        let cost_total: Option<f64> = row.get("gen_ai_cost_total_tokens");
+
+        assert!(
+            operation_type.is_none(),
+            "non-AI span must not get gen_ai columns populated"
+        );
+        assert!(cost_total.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_standalone_ai_span_unknown_model_no_cost() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-unknown-model".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "span_id": "7777777777777777",
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+            "data": {
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.request.model": "some-totally-unreleased-model",
+                "gen_ai.usage.input_tokens": 10,
+                "gen_ai.usage.output_tokens": 5
+            }
+        }))
+        .unwrap();
+
+        SpanProcessor
+            .process(payload, &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT gen_ai_response_model, gen_ai_cost_total_tokens FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT gen_ai_response_model, gen_ai_cost_total_tokens FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let response_model: Option<String> = row.get("gen_ai_response_model");
+        let cost_total: Option<f64> = row.get("gen_ai_cost_total_tokens");
+
+        assert_eq!(
+            response_model.as_deref(),
+            Some("some-totally-unreleased-model")
+        );
+        assert!(
+            cost_total.is_none(),
+            "unrecognized model must not produce a cost, not an error"
+        );
+    }
 }

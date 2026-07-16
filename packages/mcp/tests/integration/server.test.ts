@@ -69,6 +69,16 @@ const EXPECTED_TOOLS = [
   'execute_storage_cleanup',
   'preview_storage_source_maps_gc',
   'gc_storage_source_maps',
+  // Spans (1)
+  'list_spans',
+  // AI Agent Monitoring (7)
+  'get_agent_runs',
+  'get_agent_cost',
+  'get_agent_duration',
+  'get_agent_models_by_calls',
+  'get_agent_models_by_tokens',
+  'get_agent_tools',
+  'list_agent_traces',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -106,6 +116,18 @@ describe('MCP server integration', () => {
         executeCleanup: vi.fn(),
         previewGcSourceMaps: vi.fn(),
         gcSourceMaps: vi.fn(),
+      },
+      spans: {
+        list: vi.fn(),
+      },
+      agents: {
+        getRuns: vi.fn(),
+        getCost: vi.fn(),
+        getDuration: vi.fn(),
+        getModelsByCalls: vi.fn(),
+        getModelsByTokens: vi.fn(),
+        getTools: vi.fn(),
+        getTraces: vi.fn(),
       },
     };
     testEnv = await createTestEnv(mockClient);

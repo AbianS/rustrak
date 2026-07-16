@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  Bot,
   Check,
   ChevronsLeft,
   ChevronsUpDown,
@@ -181,6 +182,11 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
       href: `/projects/${projectId}/performance`,
       label: 'Performance',
       icon: Zap,
+    },
+    {
+      href: `/projects/${projectId}/agents`,
+      label: 'Agents',
+      icon: Bot,
     },
     {
       href: `/projects/${projectId}/logs`,

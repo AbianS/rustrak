@@ -1,6 +1,7 @@
 import type { KyInstance } from 'ky';
 import type { ClientConfig } from './config.js';
 import {
+  AgentsResource,
   AlertIntegrationsResource,
   AlertRulesResource,
   AuthResource,
@@ -14,6 +15,7 @@ import {
   ReleasesResource,
   SessionsResource,
   SourceMapsResource,
+  SpansResource,
   StorageResource,
   TeamResource,
   TokensResource,
@@ -120,6 +122,16 @@ export class RustrakClient {
   public readonly logs: LogsResource;
 
   /**
+   * Spans API resource (standalone + transaction-embedded spans, shared table)
+   */
+  public readonly spans: SpansResource;
+
+  /**
+   * AI Agent Monitoring dashboard API resource
+   */
+  public readonly agents: AgentsResource;
+
+  /**
    * Storage API resource (usage + retention cleanup, admin only)
    */
   public readonly storage: StorageResource;
@@ -153,6 +165,8 @@ export class RustrakClient {
     this.releases = new ReleasesResource(this.http);
     this.transactions = new TransactionsResource(this.http);
     this.logs = new LogsResource(this.http);
+    this.spans = new SpansResource(this.http);
+    this.agents = new AgentsResource(this.http);
     this.storage = new StorageResource(this.http);
     this.health = new HealthResource(this.http);
   }
