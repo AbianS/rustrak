@@ -15,5 +15,6 @@ mod notification_test;
 mod sourcemap_store_test;
 mod sourcemap_test;
 mod span_test;
+mod span_v2_test;
 mod storage_test;
 mod transaction_processor_test;

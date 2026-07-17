@@ -63,6 +63,12 @@ pub enum EnvelopeItemKind {
     /// envelope item holds exactly one flat span JSON object, mirroring
     /// Relay's legacy (default) `Span` schema.
     Span(Vec<u8>),
+    /// Standalone spans, Spans Protocol v2 (`"type":"span"` +
+    /// `content_type: application/vnd.sentry.items.span.v2+json`). Unlike
+    /// [`Self::Span`], this IS a batched container — one envelope item can
+    /// carry many spans. Modern Sentry SDKs (verified: `@sentry/node` 10.65 +
+    /// Vercel AI SDK) send AI-instrumented spans this way, not as `Span`.
+    SpanV2Batch(Vec<u8>),
     Other(String, Vec<u8>),
 }
 
@@ -78,13 +84,24 @@ impl EnvelopeItemKind {
     }
 }
 
+/// `content_type` of a Spans Protocol v2 item — distinguishes it from the
+/// legacy standalone-span item, which shares the same `"type":"span"` header
+/// but no (or a plain `application/json`) content type.
+pub const SPAN_V2_CONTENT_TYPE: &str = "application/vnd.sentry.items.span.v2+json";
+
 impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
     fn from((headers, payload): (ItemHeaders, Vec<u8>)) -> Self {
         match headers.item_type.as_str() {
             "event" => Self::Event(payload),
             "transaction" => Self::Transaction(payload),
             "log" => Self::Log(payload),
-            "span" => Self::Span(payload),
+            "span" => {
+                if headers.content_type.as_deref() == Some(SPAN_V2_CONTENT_TYPE) {
+                    Self::SpanV2Batch(payload)
+                } else {
+                    Self::Span(payload)
+                }
+            }
             "session" => match serde_json::from_slice(&payload) {
                 Ok(s) => Self::Session(s),
                 Err(e) => {

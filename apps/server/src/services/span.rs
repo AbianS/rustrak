@@ -339,10 +339,16 @@ impl SpanService {
         .fetch_one(pool)
         .await?;
 
+        // total_tokens excludes operation_type='agent' rows: an 'agent' span
+        // represents orchestration, not token consumption — its own
+        // gen_ai.usage.* attributes, when present, are a client-side ROLLUP
+        // of its 'ai_client' children (Sentry's SDKs accumulate child totals
+        // onto the trace root — see story-span-v2-protocol.md's
+        // root-span-promotion follow-up). Summing both would double-count.
         let group_rows = sqlx::query(
             r#"
             SELECT trace_id,
-                   SUM(COALESCE(gen_ai_usage_total_tokens, 0)) AS total_tokens,
+                   SUM(CASE WHEN gen_ai_operation_type != 'agent' THEN COALESCE(gen_ai_usage_total_tokens, 0) ELSE 0 END) AS total_tokens,
                    SUM(CASE WHEN gen_ai_operation_type = 'tool' THEN 1 ELSE 0 END) AS tool_call_count,
                    MIN(start_timestamp) AS started_at
             FROM spans

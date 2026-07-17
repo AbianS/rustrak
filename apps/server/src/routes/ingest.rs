@@ -69,6 +69,7 @@ pub async fn ingest_envelope(
     let mut event_item: Option<Vec<u8>> = None;
     let mut transaction_item: Option<Vec<u8>> = None;
     let mut span_items: Vec<Vec<u8>> = Vec::new();
+    let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
     let mut requires_event_id = false;
     for item_kind in envelope.items {
         if item_kind.requires_event() {
@@ -119,6 +120,12 @@ pub async fn ingest_envelope(
                 // span items (Relay: one flat span object per item, no per-envelope
                 // count cap) — collect them all instead of first-wins.
                 span_items.push(payload);
+            }
+            EnvelopeItemKind::SpanV2Batch(payload) => {
+                // Each item is already a batch (one container can hold many
+                // spans) — an envelope may still carry more than one such
+                // container item, so collect them all.
+                span_v2_items.push(payload);
             }
             EnvelopeItemKind::Other(t, _) => {
                 log::debug!("envelope item '{}' ignored", t);
@@ -189,6 +196,31 @@ pub async fn ingest_envelope(
             for span_payload in span_items {
                 if let Err(e) = processors.spans.process(span_payload, &ctx).await {
                     log::warn!("Failed to store standalone span: {:?}", e);
+                }
+            }
+        });
+    }
+
+    // 6c. Spawn Spans Protocol v2 batch processing — same rationale as 6b,
+    //     just a different (batched, typed-attribute) wire format. Must
+    //     happen BEFORE the early-return so v2-span-only envelopes are stored.
+    if !span_v2_items.is_empty() {
+        let processors = processors.clone();
+        let pool_clone = pool.get_ref().clone();
+        let project_id = auth.project.id;
+        let ingested = ingested_at;
+        let remote = remote_addr.clone();
+        tokio::spawn(async move {
+            let ctx = ProcessorCtx {
+                pool: pool_clone,
+                project_id,
+                event_id: uuid::Uuid::nil(),
+                ingested_at: ingested,
+                remote_addr: remote,
+            };
+            for batch_payload in span_v2_items {
+                if let Err(e) = processors.spans_v2.process(batch_payload, &ctx).await {
+                    log::warn!("Failed to store span v2 batch: {:?}", e);
                 }
             }
         });
