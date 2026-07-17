@@ -11,10 +11,6 @@ ALTER TABLE spans ADD COLUMN gen_ai_usage_input_tokens  REAL;
 ALTER TABLE spans ADD COLUMN gen_ai_usage_output_tokens REAL;
 ALTER TABLE spans ADD COLUMN gen_ai_usage_total_tokens  REAL;
 
-ALTER TABLE spans ADD COLUMN gen_ai_cost_input_tokens  REAL;
-ALTER TABLE spans ADD COLUMN gen_ai_cost_output_tokens REAL;
-ALTER TABLE spans ADD COLUMN gen_ai_cost_total_tokens  REAL;
-
 CREATE INDEX idx_spans_project_gen_ai_op_type ON spans(project_id, gen_ai_operation_type);
 CREATE INDEX idx_spans_project_gen_ai_model   ON spans(project_id, gen_ai_response_model);
 CREATE INDEX idx_spans_project_gen_ai_tool    ON spans(project_id, gen_ai_tool_name);

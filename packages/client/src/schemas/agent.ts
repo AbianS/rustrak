@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { dateTimeSchema } from './common.js';
 
 /**
- * One time-bucketed value (count or sum) — Agent Runs / Estimated Cost widgets.
+ * One time-bucketed value (count or sum) — Agent Runs widget.
  */
 export const agentTimeseriesPointSchema = z.object({
   bucket: dateTimeSchema,
@@ -35,7 +35,6 @@ export const agentTraceSummarySchema = z.object({
   agent_name: z.string().nullable(),
   duration_ms: z.number().nullable(),
   total_tokens: z.number(),
-  total_cost: z.number(),
   tool_call_count: z.number().int(),
   started_at: dateTimeSchema,
 });

@@ -1,7 +1,13 @@
 //! AI Agent Monitoring dashboard API (story-ai-agent-monitoring.md, GH #180).
 //!
-//! Powers the 7 dashboard widgets: Agent Runs, Estimated Cost, Duration,
-//! LLM Calls by Model, Tokens Used by Model, Tool Calls by Tool, Traces.
+//! Powers the 6 dashboard widgets: Agent Runs, Duration, LLM Calls by
+//! Model, Tokens Used by Model, Tool Calls by Tool, Traces.
+//!
+//! Deliberately no cost/spend widget: an accurate per-model pricing table
+//! across dozens of fast-changing models is more ongoing maintenance
+//! (would need a release every time a provider updates pricing) than a
+//! self-hosted, single-maintainer project can promise. Token counts (exact,
+//! straight from the SDK) are shown instead.
 
 use actix_web::{web, HttpResponse};
 
@@ -55,39 +61,6 @@ pub async fn agent_runs(
     require_view_access(pool.get_ref(), project_id, &actor).await?;
 
     let points = SpanService::agent_runs_timeseries(
-        pool.get_ref(),
-        project_id,
-        query.period_hours,
-        query.interval_hours,
-    )
-    .await?;
-
-    Ok(HttpResponse::Ok().json(points))
-}
-
-#[cfg_attr(feature = "openapi", utoipa::path(
-    get,
-    path = "/api/projects/{project_id}/agents/cost",
-    tag = "Agents",
-    params(("project_id" = i32, Path, description = "Project ID"), AgentTimeseriesQuery),
-    responses(
-        (status = 200, description = "Estimated LLM cost over time", body = Vec<AgentTimeseriesPoint>),
-        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
-    ),
-    security(("bearer_auth" = [])),
-))]
-/// GET /api/projects/{project_id}/agents/cost
-/// Time-bucketed sum of estimated LLM call cost (`gen_ai.operation.type:ai_client`).
-pub async fn agent_cost(
-    pool: web::Data<DbPool>,
-    path: web::Path<i32>,
-    query: web::Query<AgentTimeseriesQuery>,
-    actor: ApiActor,
-) -> AppResult<HttpResponse> {
-    let project_id = path.into_inner();
-    require_view_access(pool.get_ref(), project_id, &actor).await?;
-
-    let points = SpanService::estimated_cost_timeseries(
         pool.get_ref(),
         project_id,
         query.period_hours,
@@ -238,8 +211,8 @@ pub async fn agent_tools(
     security(("bearer_auth" = [])),
 ))]
 /// GET /api/projects/{project_id}/agents/traces
-/// Paginated per-trace_id aggregate (duration, tokens, cost, tool usage)
-/// across all AI spans sharing that trace, regardless of origin.
+/// Paginated per-trace_id aggregate (duration, tokens, tool usage) across
+/// all AI spans sharing that trace, regardless of origin.
 pub async fn agent_traces(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
@@ -267,7 +240,6 @@ pub async fn agent_traces(
 #[derive(OpenApi)]
 #[openapi(paths(
     agent_runs,
-    agent_cost,
     agent_duration,
     agent_models_calls,
     agent_models_tokens,
@@ -281,7 +253,6 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::scope("/api/projects/{project_id}/agents")
             .route("/runs", web::get().to(agent_runs))
-            .route("/cost", web::get().to(agent_cost))
             .route("/duration", web::get().to(agent_duration))
             .route("/models/calls", web::get().to(agent_models_calls))
             .route("/models/tokens", web::get().to(agent_models_tokens))

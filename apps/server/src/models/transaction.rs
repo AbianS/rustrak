@@ -83,9 +83,6 @@ pub struct SpanResponse {
     pub gen_ai_usage_input_tokens: Option<f64>,
     pub gen_ai_usage_output_tokens: Option<f64>,
     pub gen_ai_usage_total_tokens: Option<f64>,
-    pub gen_ai_cost_input_tokens: Option<f64>,
-    pub gen_ai_cost_output_tokens: Option<f64>,
-    pub gen_ai_cost_total_tokens: Option<f64>,
 }
 
 /// Aggregate performance stats for one (transaction_name, op) group.

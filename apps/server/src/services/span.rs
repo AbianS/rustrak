@@ -71,8 +71,7 @@ impl SpanService {
                    gen_ai_operation_type, gen_ai_agent_name,
                    gen_ai_request_model, gen_ai_response_model,
                    gen_ai_tool_name, gen_ai_conversation_id,
-                   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
-                   gen_ai_cost_input_tokens, gen_ai_cost_output_tokens, gen_ai_cost_total_tokens
+                   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
             FROM spans
             WHERE project_id = $1
               AND ($2 IS NULL OR op = $3)
@@ -126,9 +125,6 @@ impl SpanService {
                 gen_ai_usage_input_tokens: row.get("gen_ai_usage_input_tokens"),
                 gen_ai_usage_output_tokens: row.get("gen_ai_usage_output_tokens"),
                 gen_ai_usage_total_tokens: row.get("gen_ai_usage_total_tokens"),
-                gen_ai_cost_input_tokens: row.get("gen_ai_cost_input_tokens"),
-                gen_ai_cost_output_tokens: row.get("gen_ai_cost_output_tokens"),
-                gen_ai_cost_total_tokens: row.get("gen_ai_cost_total_tokens"),
             })
             .collect();
 
@@ -146,27 +142,6 @@ impl SpanService {
         interval_hours: i64,
     ) -> AppResult<Vec<AgentTimeseriesPoint>> {
         count_timeseries(pool, project_id, "agent", period_hours, interval_hours).await
-    }
-
-    /// Time-bucketed sum of `gen_ai.cost.total_tokens` for
-    /// `gen_ai.operation.type = 'ai_client'` spans — powers the "Estimated
-    /// Cost" widget (the field is a dollar total despite the "tokens" name,
-    /// matching Sentry's own naming).
-    pub async fn estimated_cost_timeseries(
-        pool: &DbPool,
-        project_id: i32,
-        period_hours: Option<i64>,
-        interval_hours: i64,
-    ) -> AppResult<Vec<AgentTimeseriesPoint>> {
-        sum_timeseries(
-            pool,
-            project_id,
-            "ai_client",
-            "gen_ai_cost_total_tokens",
-            period_hours,
-            interval_hours,
-        )
-        .await
     }
 
     /// Time-bucketed avg/p95 duration for `agent`/`ai_client` spans — powers
@@ -368,7 +343,6 @@ impl SpanService {
             r#"
             SELECT trace_id,
                    SUM(COALESCE(gen_ai_usage_total_tokens, 0)) AS total_tokens,
-                   SUM(COALESCE(gen_ai_cost_total_tokens, 0)) AS total_cost,
                    SUM(CASE WHEN gen_ai_operation_type = 'tool' THEN 1 ELSE 0 END) AS tool_call_count,
                    MIN(start_timestamp) AS started_at
             FROM spans
@@ -388,7 +362,6 @@ impl SpanService {
         for row in &group_rows {
             let trace_id: String = row.get("trace_id");
             let total_tokens: f64 = row.get("total_tokens");
-            let total_cost: f64 = row.get("total_cost");
             let tool_call_count: i64 = row.get("tool_call_count");
             let started_at: DateTime<Utc> = row.get("started_at");
 
@@ -400,7 +373,6 @@ impl SpanService {
                 agent_name,
                 duration_ms,
                 total_tokens,
-                total_cost,
                 tool_call_count,
                 started_at,
             });
@@ -495,34 +467,13 @@ async fn count_timeseries(
     .await
 }
 
-/// Time-bucketed `SUM(column)` of spans matching `operation_type`.
-async fn sum_timeseries(
-    pool: &DbPool,
-    project_id: i32,
-    operation_type: &str,
-    column: &str,
-    period_hours: Option<i64>,
-    interval_hours: i64,
-) -> AppResult<Vec<AgentTimeseriesPoint>> {
-    let aggregate = format!("CAST(SUM(COALESCE({column}, 0)) AS DOUBLE PRECISION)");
-    bucketed_aggregate(
-        pool,
-        project_id,
-        operation_type,
-        &aggregate,
-        period_hours,
-        interval_hours,
-    )
-    .await
-}
-
-/// Shared time-bucketing core for the 2 simple time-series widgets (Agent
-/// Runs, Estimated Cost) — `aggregate_expr` is a pre-cast SQL expression
-/// (`CAST(... AS DOUBLE PRECISION)`) so both dialects decode into `f64`
-/// uniformly. Mirrors `services::session::query_session_timeseries`'s
-/// dual-backend bucketing exactly (same `floor(extract(epoch...))` /
-/// `strftime` approach), just scoped to `spans.start_timestamp` and gated
-/// by `gen_ai_operation_type` instead of `session_counts.bucket`.
+/// Shared time-bucketing core for the "Agent Runs" widget —
+/// `aggregate_expr` is a pre-cast SQL expression (`CAST(... AS DOUBLE
+/// PRECISION)`) so both dialects decode into `f64` uniformly. Mirrors
+/// `services::session::query_session_timeseries`'s dual-backend bucketing
+/// exactly (same `floor(extract(epoch...))` / `strftime` approach), just
+/// scoped to `spans.start_timestamp` and gated by `gen_ai_operation_type`
+/// instead of `session_counts.bucket`.
 async fn bucketed_aggregate(
     pool: &DbPool,
     project_id: i32,

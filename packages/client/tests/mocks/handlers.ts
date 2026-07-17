@@ -1629,9 +1629,6 @@ export const handlers = [
           gen_ai_usage_input_tokens: null,
           gen_ai_usage_output_tokens: null,
           gen_ai_usage_total_tokens: null,
-          gen_ai_cost_input_tokens: null,
-          gen_ai_cost_output_tokens: null,
-          gen_ai_cost_total_tokens: null,
         },
       ]);
     },
@@ -1712,9 +1709,6 @@ export const handlers = [
               gen_ai_usage_input_tokens: null,
               gen_ai_usage_output_tokens: null,
               gen_ai_usage_total_tokens: null,
-              gen_ai_cost_input_tokens: null,
-              gen_ai_cost_output_tokens: null,
-              gen_ai_cost_total_tokens: null,
             },
           ];
     return HttpResponse.json({
@@ -1730,13 +1724,6 @@ export const handlers = [
   http.get(`${BASE_URL}/api/projects/:projectId/agents/runs`, () => {
     return HttpResponse.json([
       { bucket: '2026-07-16T12:00:00.000Z', value: 3 },
-    ]);
-  }),
-
-  // AI Agent Monitoring — Estimated Cost over time
-  http.get(`${BASE_URL}/api/projects/:projectId/agents/cost`, () => {
-    return HttpResponse.json([
-      { bucket: '2026-07-16T12:00:00.000Z', value: 0.0123 },
     ]);
   }),
 
@@ -1771,7 +1758,6 @@ export const handlers = [
           agent_name: 'planner',
           duration_ms: 1000.0,
           total_tokens: 150,
-          total_cost: 0.0123,
           tool_call_count: 1,
           started_at: '2026-07-16T12:00:00.000Z',
         },

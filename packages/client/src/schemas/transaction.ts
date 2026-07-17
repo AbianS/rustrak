@@ -74,9 +74,6 @@ export const spanSchema = z.object({
   gen_ai_usage_input_tokens: z.number().nullable(),
   gen_ai_usage_output_tokens: z.number().nullable(),
   gen_ai_usage_total_tokens: z.number().nullable(),
-  gen_ai_cost_input_tokens: z.number().nullable(),
-  gen_ai_cost_output_tokens: z.number().nullable(),
-  gen_ai_cost_total_tokens: z.number().nullable(),
 });
 
 /**

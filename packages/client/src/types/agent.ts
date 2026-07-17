@@ -27,7 +27,7 @@ export type GenAiBreakdownRow = z.infer<typeof genAiBreakdownRowSchema>;
 export type AgentTraceSummary = z.infer<typeof agentTraceSummarySchema>;
 
 /**
- * Options shared by the Agent Runs / Estimated Cost / Duration time-series endpoints.
+ * Options shared by the Agent Runs / Duration time-series endpoints.
  */
 export interface AgentTimeseriesOptions {
   /** Lookback window in hours (default: all time, no filter). */

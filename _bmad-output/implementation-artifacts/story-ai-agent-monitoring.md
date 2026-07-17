@@ -5,6 +5,8 @@ Status: ready-for-dev
 <!-- Standalone story (no epic/PRD numbering — implementation-artifacts uses flat spec-*.md/story-*.md files, no sprint-status.yaml in this project). -->
 <!-- Full-scope story per explicit owner decision: backend + frontend in one story, not split into phases, despite the size/review-risk tradeoff being called out and accepted. -->
 
+> **Amendment (2026-07-17): cost/spend tracking removed from this story's first shipped version.** Owner decision: an accurate per-model pricing table across dozens of fast-moving models is more ongoing maintenance (a release every time a provider changes pricing) than a self-hosted, single-maintainer project can promise, and a stale cost estimate is worse than none. Everything below that mentions "Estimated Cost", `gen_ai_cost_*` columns, `gen_ai_pricing.rs`, or a cost/pricing table (AC #8, part of AC #7/#14/#15, Task 4, the pricing-table Dev Notes section) was **implemented, then removed** before merge — kept in this doc as history of what was built and why, not as a description of the current state. Token counts (exact, straight from the SDK) ship instead. See `services/gen_ai.rs`'s `GenAiColumns` doc-comment for the current rationale in code.
+
 > **Implementation workflow — backend: TDD mandatory, strict red→green→refactor per task, vertical-sliced.** `apps/webview-ui` has **no test framework configured today** (verified: no `vitest`/`jest`/`playwright`/`testing-library` in `apps/webview-ui/package.json`, no `test` script). Frontend tasks (7–10) proceed **without automated tests** — this is a deliberate, explicitly-flagged exception, not a silent skip. Setting up frontend test infra is a separate scoping decision, out of this story.
 
 ## Story

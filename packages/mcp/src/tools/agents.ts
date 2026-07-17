@@ -61,28 +61,6 @@ export function registerAgentTools(
   );
 
   server.registerTool(
-    'get_agent_cost',
-    {
-      description:
-        'Get a time-bucketed sum of estimated LLM call cost (gen_ai.operation.type:ai_client spans) for a Rustrak project — the "Estimated Cost" AI Agent Monitoring widget.',
-      inputSchema: timeseriesInput,
-    },
-    async ({ project_id, period_hours, interval_hours }) => {
-      try {
-        const result = await client.agents.getCost(project_id, {
-          period_hours,
-          interval_hours,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
-    },
-  );
-
-  server.registerTool(
     'get_agent_duration',
     {
       description:
@@ -174,7 +152,7 @@ export function registerAgentTools(
     'list_agent_traces',
     {
       description:
-        'List AI agent traces for a Rustrak project — one row per trace_id with duration, total tokens, total cost, and tool call count aggregated across every AI span in that trace (standalone or transaction-embedded). Offset-paginated, newest trace first. This is the AI Agent Monitoring "Traces" table — use list_spans with trace_id to drill into one trace\'s individual spans.',
+        'List AI agent traces for a Rustrak project — one row per trace_id with duration, total tokens, and tool call count aggregated across every AI span in that trace (standalone or transaction-embedded). Offset-paginated, newest trace first. This is the AI Agent Monitoring "Traces" table — use list_spans with trace_id to drill into one trace\'s individual spans.',
       inputSchema: {
         project_id: z.number().int().describe('Project ID'),
         page: z

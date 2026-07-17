@@ -197,8 +197,7 @@ impl TransactionService {
                    gen_ai_operation_type, gen_ai_agent_name,
                    gen_ai_request_model, gen_ai_response_model,
                    gen_ai_tool_name, gen_ai_conversation_id,
-                   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
-                   gen_ai_cost_input_tokens, gen_ai_cost_output_tokens, gen_ai_cost_total_tokens
+                   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
             FROM spans
             WHERE transaction_id = $1
               AND project_id = $2
@@ -239,9 +238,6 @@ impl TransactionService {
                 gen_ai_usage_input_tokens: row.get("gen_ai_usage_input_tokens"),
                 gen_ai_usage_output_tokens: row.get("gen_ai_usage_output_tokens"),
                 gen_ai_usage_total_tokens: row.get("gen_ai_usage_total_tokens"),
-                gen_ai_cost_input_tokens: row.get("gen_ai_cost_input_tokens"),
-                gen_ai_cost_output_tokens: row.get("gen_ai_cost_output_tokens"),
-                gen_ai_cost_total_tokens: row.get("gen_ai_cost_total_tokens"),
             })
             .collect();
 

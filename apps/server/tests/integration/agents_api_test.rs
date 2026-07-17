@@ -140,36 +140,6 @@ async fn test_agent_runs_endpoint_returns_timeseries() {
 }
 
 #[actix_web::test]
-async fn test_agent_cost_endpoint_returns_timeseries() {
-    let db = TestDb::new().await;
-    let pool = db.pool.clone();
-    let config = create_test_config();
-    let token = create_test_token(&pool).await;
-    let project_id = create_test_project(&pool).await;
-    store_agent_run_with_llm_call(&pool, project_id).await;
-
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(pool.clone()))
-            .app_data(web::Data::new(config.clone()))
-            .configure(routes::agents::configure),
-    )
-    .await;
-
-    let req = test::TestRequest::get()
-        .uri(&format!("/api/projects/{}/agents/cost", project_id))
-        .insert_header(("Authorization", format!("Bearer {}", token)))
-        .to_request();
-    let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 200);
-
-    let body: Value = test::read_body_json(resp).await;
-    let points = body.as_array().expect("array response");
-    let total: f64 = points.iter().map(|p| p["value"].as_f64().unwrap()).sum();
-    assert!(total > 0.0, "gpt-4o with usage must produce cost > 0");
-}
-
-#[actix_web::test]
 async fn test_agent_duration_endpoint_returns_timeseries() {
     let db = TestDb::new().await;
     let pool = db.pool.clone();

@@ -6,19 +6,15 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 
 interface AgentTimeseriesChartProps {
   points: AgentTimeseriesPoint[];
-  /** Formats the tooltip value, e.g. as a dollar amount for the cost chart. */
-  formatValue?: (value: number) => string;
   height?: number;
 }
 
 function ChartTooltip({
   active,
   payload,
-  formatValue,
 }: {
   active?: boolean;
   payload?: Array<{ payload: { t: number; value: number } }>;
-  formatValue: (value: number) => string;
 }) {
   if (!active || !payload?.length) {
     return null;
@@ -27,7 +23,7 @@ function ChartTooltip({
   return (
     <div className="rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <p className="font-medium text-popover-foreground">
-        {formatValue(point.value)}
+        {point.value.toLocaleString()}
       </p>
       <p className="text-muted-foreground">
         {format(new Date(point.t), 'PP p')}
@@ -36,16 +32,13 @@ function ChartTooltip({
   );
 }
 
-const defaultFormatValue = (value: number) => value.toLocaleString();
-
 /**
- * A time-bucketed bar chart — Agent Runs / Estimated Cost widgets. Mirrors
- * `EventChart`'s styling exactly (hidden axis lines, CSS-var colors, no
- * animation) so it matches the rest of the dashboard's chart language.
+ * A time-bucketed bar chart — the Agent Runs widget. Mirrors `EventChart`'s
+ * styling exactly (hidden axis lines, CSS-var colors, no animation) so it
+ * matches the rest of the dashboard's chart language.
  */
 export function AgentTimeseriesChart({
   points,
-  formatValue = defaultFormatValue,
   height = 130,
 }: AgentTimeseriesChartProps) {
   const chartData = points.map((p) => ({
@@ -83,7 +76,7 @@ export function AgentTimeseriesChart({
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.5 }}
-          content={<ChartTooltip formatValue={formatValue} />}
+          content={<ChartTooltip />}
         />
         <Bar
           dataKey="value"

@@ -237,7 +237,7 @@ async fn test_tool_calls_by_tool_counts() {
 }
 
 // =============================================================================
-// Time-series widgets: Agent Runs / Estimated Cost / Duration avg+p95
+// Time-series widgets: Agent Runs / Duration avg+p95
 // =============================================================================
 
 #[tokio::test]
@@ -283,43 +283,6 @@ async fn test_agent_runs_timeseries_counts_agent_spans() {
 
     let total: f64 = points.iter().map(|p| p.value).sum();
     assert_eq!(total, 2.0, "only the 2 agent-type spans count as runs");
-}
-
-#[tokio::test]
-async fn test_estimated_cost_timeseries_sums_ai_client_cost() {
-    let db = TestDb::new().await;
-    let project = ProjectService::create(
-        &db.pool,
-        CreateProject {
-            name: "gen-ai-cost-ts".to_string(),
-            slug: None,
-        },
-    )
-    .await
-    .unwrap();
-
-    store_span(
-        &db.pool,
-        project.id,
-        json!({
-            "span_id": "dddd111111111111", "trace_id": "t",
-            "start_timestamp": 1.0, "timestamp": 2.0,
-            "data": {
-                "gen_ai.operation.type": "ai_client",
-                "gen_ai.request.model": "gpt-4o",
-                "gen_ai.usage.input_tokens": 1000,
-                "gen_ai.usage.output_tokens": 500
-            }
-        }),
-    )
-    .await;
-
-    let points = SpanService::estimated_cost_timeseries(&db.pool, project.id, None, 1)
-        .await
-        .unwrap();
-
-    let total: f64 = points.iter().map(|p| p.value).sum();
-    assert!(total > 0.0, "known model with usage must produce cost > 0");
 }
 
 #[tokio::test]
@@ -436,12 +399,11 @@ async fn test_agent_traces_aggregates_per_trace_id() {
     assert_eq!(trace.agent_name.as_deref(), Some("research-agent"));
     assert_eq!(trace.tool_call_count, 1);
     assert_eq!(trace.total_tokens, 150.0);
-    assert!(trace.total_cost > 0.0);
 }
 
 // =============================================================================
 // SpanResponse exposes gen_ai.* fields (needed by the Agents trace waterfall
-// drill-down to show model/tokens/cost per span)
+// drill-down to show model/tokens per span)
 // =============================================================================
 
 #[tokio::test]
@@ -482,7 +444,6 @@ async fn test_list_spans_response_includes_gen_ai_fields() {
     assert_eq!(span.gen_ai_operation_type.as_deref(), Some("ai_client"));
     assert_eq!(span.gen_ai_response_model.as_deref(), Some("gpt-4o"));
     assert_eq!(span.gen_ai_usage_total_tokens, Some(150.0));
-    assert!(span.gen_ai_cost_total_tokens.unwrap_or(0.0) > 0.0);
 }
 
 #[tokio::test]
@@ -515,5 +476,5 @@ async fn test_list_spans_response_non_ai_span_has_null_gen_ai_fields() {
 
     assert_eq!(list.len(), 1);
     assert!(list[0].gen_ai_operation_type.is_none());
-    assert!(list[0].gen_ai_cost_total_tokens.is_none());
+    assert!(list[0].gen_ai_usage_total_tokens.is_none());
 }

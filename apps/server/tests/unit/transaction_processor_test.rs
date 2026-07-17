@@ -1099,7 +1099,7 @@ mod level2 {
     // =========================================================================
 
     #[tokio::test]
-    async fn test_transaction_embedded_ai_span_normalized_and_cost_calculated() {
+    async fn test_transaction_embedded_ai_span_normalized() {
         let db = TestDb::new().await;
         let project = ProjectService::create(
             &db.pool,
@@ -1142,9 +1142,9 @@ mod level2 {
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
         #[cfg(feature = "postgres")]
-        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
         #[cfg(not(feature = "postgres"))]
-        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = ? AND span_id = ?";
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = ? AND span_id = ?";
 
         let row = sqlx::query(QUERY)
             .bind(project.id)
@@ -1156,17 +1156,12 @@ mod level2 {
         let operation_type: Option<String> = row.get("gen_ai_operation_type");
         let response_model: Option<String> = row.get("gen_ai_response_model");
         let total_tokens: Option<f64> = row.get("gen_ai_usage_total_tokens");
-        let cost_total: Option<f64> = row.get("gen_ai_cost_total_tokens");
 
         // op "gen_ai.chat.completions" doesn't match any infer_operation_type
         // pattern, and there's no operation.name/type set → defaults to "ai_client".
         assert_eq!(operation_type.as_deref(), Some("ai_client"));
         assert_eq!(response_model.as_deref(), Some("claude-3-5-sonnet"));
         assert_eq!(total_tokens, Some(300.0));
-        assert!(
-            cost_total.is_some_and(|c| c > 0.0),
-            "claude-3-5-sonnet is a known model with real usage — cost must be calculated"
-        );
     }
 
     #[tokio::test]

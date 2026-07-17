@@ -71,9 +71,8 @@ const EXPECTED_TOOLS = [
   'gc_storage_source_maps',
   // Spans (1)
   'list_spans',
-  // AI Agent Monitoring (7)
+  // AI Agent Monitoring (6)
   'get_agent_runs',
-  'get_agent_cost',
   'get_agent_duration',
   'get_agent_models_by_calls',
   'get_agent_models_by_tokens',
@@ -122,7 +121,6 @@ describe('MCP server integration', () => {
       },
       agents: {
         getRuns: vi.fn(),
-        getCost: vi.fn(),
         getDuration: vi.fn(),
         getModelsByCalls: vi.fn(),
         getModelsByTokens: vi.fn(),

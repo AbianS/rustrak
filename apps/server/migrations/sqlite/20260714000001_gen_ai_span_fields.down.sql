@@ -2,10 +2,6 @@ DROP INDEX IF EXISTS idx_spans_project_gen_ai_tool;
 DROP INDEX IF EXISTS idx_spans_project_gen_ai_model;
 DROP INDEX IF EXISTS idx_spans_project_gen_ai_op_type;
 
-ALTER TABLE spans DROP COLUMN gen_ai_cost_total_tokens;
-ALTER TABLE spans DROP COLUMN gen_ai_cost_output_tokens;
-ALTER TABLE spans DROP COLUMN gen_ai_cost_input_tokens;
-
 ALTER TABLE spans DROP COLUMN gen_ai_usage_total_tokens;
 ALTER TABLE spans DROP COLUMN gen_ai_usage_output_tokens;
 ALTER TABLE spans DROP COLUMN gen_ai_usage_input_tokens;

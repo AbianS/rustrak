@@ -102,7 +102,6 @@ impl Modify for SecurityAddon {
         crate::routes::logs::list_logs,
         crate::routes::spans::list_spans,
         crate::routes::agents::agent_runs,
-        crate::routes::agents::agent_cost,
         crate::routes::agents::agent_duration,
         crate::routes::agents::agent_models_calls,
         crate::routes::agents::agent_models_tokens,

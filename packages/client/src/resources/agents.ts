@@ -45,9 +45,9 @@ function breakdownSearchParams(
 }
 
 /**
- * AI Agent Monitoring dashboard API resource — powers the 7 dashboard
- * widgets (Agent Runs, Estimated Cost, Duration, LLM Calls by Model, Tokens
- * Used by Model, Tool Calls by Tool, Traces).
+ * AI Agent Monitoring dashboard API resource — powers the 6 dashboard
+ * widgets (Agent Runs, Duration, LLM Calls by Model, Tokens Used by Model,
+ * Tool Calls by Tool, Traces).
  */
 export class AgentsResource extends BaseResource {
   /**
@@ -59,23 +59,6 @@ export class AgentsResource extends BaseResource {
   ): Promise<AgentTimeseriesPoint[]> {
     const data = await this.http
       .get(`api/projects/${projectId}/agents/runs`, {
-        searchParams: timeseriesSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(agentTimeseriesPointSchema));
-  }
-
-  /**
-   * Time-bucketed sum of estimated LLM call cost
-   * (`gen_ai.operation.type:ai_client`).
-   */
-  async getCost(
-    projectId: number,
-    options?: AgentTimeseriesOptions,
-  ): Promise<AgentTimeseriesPoint[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/cost`, {
         searchParams: timeseriesSearchParams(options),
       })
       .json();
@@ -148,8 +131,8 @@ export class AgentsResource extends BaseResource {
   }
 
   /**
-   * Paginated per-trace_id aggregate (duration, tokens, cost, tool usage)
-   * across all AI spans sharing that trace, regardless of origin.
+   * Paginated per-trace_id aggregate (duration, tokens, tool usage) across
+   * all AI spans sharing that trace, regardless of origin.
    */
   async getTraces(
     projectId: number,

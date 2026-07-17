@@ -24,12 +24,6 @@ function formatDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function formatCost(value: number): string {
-  if (value === 0) return '$0.00';
-  if (value < 0.01) return '<$0.01';
-  return `$${value.toFixed(2)}`;
-}
-
 export default async function AgentTraceDetailPage({
   params,
 }: AgentTraceDetailPageProps) {
@@ -66,10 +60,6 @@ export default async function AgentTraceDetailPage({
     (sum, s) => sum + (s.gen_ai_usage_total_tokens ?? 0),
     0,
   );
-  const totalCost = spans.reduce(
-    (sum, s) => sum + (s.gen_ai_cost_total_tokens ?? 0),
-    0,
-  );
   const toolCallCount = spans.filter(
     (s) => s.gen_ai_operation_type === 'tool',
   ).length;
@@ -95,7 +85,6 @@ export default async function AgentTraceDetailPage({
           <Badge variant="secondary">
             {totalTokens.toLocaleString()} tokens
           </Badge>
-          <Badge variant="secondary">{formatCost(totalCost)}</Badge>
           {toolCallCount > 0 && (
             <Badge variant="outline">
               {toolCallCount} tool call{toolCallCount === 1 ? '' : 's'}

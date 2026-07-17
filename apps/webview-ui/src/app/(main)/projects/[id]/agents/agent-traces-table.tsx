@@ -22,12 +22,6 @@ function formatMs(ms: number | null): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function formatCost(cost: number): string {
-  if (cost === 0) return '$0.00';
-  if (cost < 0.01) return `<$0.01`;
-  return `$${cost.toFixed(2)}`;
-}
-
 /**
  * The AI Agent Monitoring "Traces" table: one row per trace_id, aggregating
  * every AI span in that trace regardless of origin (standalone or
@@ -61,7 +55,6 @@ export function AgentTracesTable({
           <span className="flex-1">Agent</span>
           <span className="w-24 text-right">Duration</span>
           <span className="w-20 text-right">Tokens</span>
-          <span className="w-20 text-right">Cost</span>
           <span className="w-16 text-right">Tools</span>
         </div>
         <div className="flex-1 overflow-auto divide-y">
@@ -84,9 +77,6 @@ export function AgentTracesTable({
               </span>
               <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
                 {t.total_tokens.toLocaleString()}
-              </span>
-              <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                {formatCost(t.total_cost)}
               </span>
               <span className="w-16 text-right font-mono tabular-nums text-muted-foreground">
                 {t.tool_call_count.toLocaleString()}

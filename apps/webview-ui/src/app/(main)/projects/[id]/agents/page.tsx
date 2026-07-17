@@ -2,7 +2,6 @@ import { Bot } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import {
-  getAgentCost,
   getAgentDuration,
   getAgentModelsByCalls,
   getAgentModelsByTokens,
@@ -44,12 +43,6 @@ export async function generateMetadata({
   };
 }
 
-function formatCost(value: number): string {
-  if (value === 0) return '$0.00';
-  if (value < 0.01) return '<$0.01';
-  return `$${value.toFixed(2)}`;
-}
-
 export default async function AgentsPage({
   params,
   searchParams,
@@ -67,10 +60,9 @@ export default async function AgentsPage({
 
   // No catch: a fetch/auth failure must surface to the error boundary, not be
   // disguised as the "no agent activity yet" onboarding state.
-  const [runs, cost, duration, modelsByCalls, modelsByTokens, tools, traces] =
+  const [runs, duration, modelsByCalls, modelsByTokens, tools, traces] =
     await Promise.all([
       getAgentRuns(projectId),
-      getAgentCost(projectId),
       getAgentDuration(projectId),
       getAgentModelsByCalls(projectId),
       getAgentModelsByTokens(projectId),
@@ -83,7 +75,7 @@ export default async function AgentsPage({
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <h1 className="text-lg font-semibold">Agents</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          AI agent runs, cost, and tool usage for {project.name}
+          AI agent runs, tokens, and tool usage for {project.name}
         </p>
       </div>
 
@@ -101,7 +93,7 @@ export default async function AgentsPage({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>Agent Runs</CardTitle>
@@ -109,21 +101,6 @@ export default async function AgentsPage({
                 </CardHeader>
                 <CardContent>
                   <AgentTimeseriesChart points={runs} />
-                </CardContent>
-              </Card>
-
-              <Card size="sm">
-                <CardHeader>
-                  <CardTitle>Estimated Cost</CardTitle>
-                  <CardDescription>
-                    LLM spend per interval, by token pricing
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <AgentTimeseriesChart
-                    points={cost}
-                    formatValue={formatCost}
-                  />
                 </CardContent>
               </Card>
 

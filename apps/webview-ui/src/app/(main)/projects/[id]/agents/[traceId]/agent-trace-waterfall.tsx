@@ -66,13 +66,6 @@ function formatTokens(n: number | null): string {
   return n.toLocaleString();
 }
 
-function formatCost(n: number | null): string {
-  if (n == null) return '—';
-  if (n === 0) return '$0.00';
-  if (n < 0.01) return '<$0.01';
-  return `$${n.toFixed(2)}`;
-}
-
 /**
  * Builds the span tree from `parent_span_id` links. Orphan spans (parent not
  * found in this trace) attach to a synthetic root — unlike the transaction
@@ -358,7 +351,6 @@ function SpanDetail({ span, selfMs }: { span: Span; selfMs: number | null }) {
     ['input tokens', formatTokens(span.gen_ai_usage_input_tokens)],
     ['output tokens', formatTokens(span.gen_ai_usage_output_tokens)],
     ['total tokens', formatTokens(span.gen_ai_usage_total_tokens)],
-    ['cost', formatCost(span.gen_ai_cost_total_tokens)],
   ];
 
   return (

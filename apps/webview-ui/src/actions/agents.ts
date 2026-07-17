@@ -30,14 +30,6 @@ export async function getAgentRuns(
   return client.agents.getRuns(projectId, options);
 }
 
-export async function getAgentCost(
-  projectId: number,
-  options?: AgentTimeseriesOptions,
-): Promise<AgentTimeseriesPoint[]> {
-  const client = await createClient();
-  return client.agents.getCost(projectId, options);
-}
-
 export async function getAgentDuration(
   projectId: number,
   options?: AgentTimeseriesOptions,

@@ -39,7 +39,6 @@ pub struct AgentTraceSummary {
     /// Duration of the root/longest AI span in this trace, in milliseconds.
     pub duration_ms: Option<f64>,
     pub total_tokens: f64,
-    pub total_cost: f64,
     pub tool_call_count: i64,
     pub started_at: DateTime<Utc>,
 }

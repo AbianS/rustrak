@@ -1176,81 +1176,6 @@
         ]
       }
     },
-    "/api/projects/{project_id}/agents/cost": {
-      "get": {
-        "tags": [
-          "Agents"
-        ],
-        "summary": "GET /api/projects/{project_id}/agents/cost\nTime-bucketed sum of estimated LLM call cost (`gen_ai.operation.type:ai_client`).",
-        "operationId": "agent_cost",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "period_hours",
-            "in": "query",
-            "description": "Lookback window in hours (default: all time, no filter).",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          },
-          {
-            "name": "interval_hours",
-            "in": "query",
-            "description": "Bucket width in hours (default: 1).",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 1
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Estimated LLM cost over time",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AgentTimeseriesPoint"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer_auth": []
-          }
-        ]
-      }
-    },
     "/api/projects/{project_id}/agents/duration": {
       "get": {
         "tags": [
@@ -1634,7 +1559,7 @@
         "tags": [
           "Agents"
         ],
-        "summary": "GET /api/projects/{project_id}/agents/traces\nPaginated per-trace_id aggregate (duration, tokens, cost, tool usage)\nacross all AI spans sharing that trace, regardless of origin.",
+        "summary": "GET /api/projects/{project_id}/agents/traces\nPaginated per-trace_id aggregate (duration, tokens, tool usage) across\nall AI spans sharing that trace, regardless of origin.",
         "operationId": "agent_traces",
         "parameters": [
           {
@@ -1695,7 +1620,6 @@
                         "required": [
                           "trace_id",
                           "total_tokens",
-                          "total_cost",
                           "tool_call_count",
                           "started_at"
                         ],
@@ -1722,10 +1646,6 @@
                           "tool_call_count": {
                             "type": "integer",
                             "format": "int64"
-                          },
-                          "total_cost": {
-                            "type": "number",
-                            "format": "double"
                           },
                           "total_tokens": {
                             "type": "number",
@@ -4648,27 +4568,6 @@
                               "null"
                             ]
                           },
-                          "gen_ai_cost_input_tokens": {
-                            "type": [
-                              "number",
-                              "null"
-                            ],
-                            "format": "double"
-                          },
-                          "gen_ai_cost_output_tokens": {
-                            "type": [
-                              "number",
-                              "null"
-                            ],
-                            "format": "double"
-                          },
-                          "gen_ai_cost_total_tokens": {
-                            "type": [
-                              "number",
-                              "null"
-                            ],
-                            "format": "double"
-                          },
                           "gen_ai_operation_type": {
                             "type": [
                               "string",
@@ -5459,27 +5358,6 @@
                           "string",
                           "null"
                         ]
-                      },
-                      "gen_ai_cost_input_tokens": {
-                        "type": [
-                          "number",
-                          "null"
-                        ],
-                        "format": "double"
-                      },
-                      "gen_ai_cost_output_tokens": {
-                        "type": [
-                          "number",
-                          "null"
-                        ],
-                        "format": "double"
-                      },
-                      "gen_ai_cost_total_tokens": {
-                        "type": [
-                          "number",
-                          "null"
-                        ],
-                        "format": "double"
                       },
                       "gen_ai_operation_type": {
                         "type": [
@@ -6754,7 +6632,6 @@
         "required": [
           "trace_id",
           "total_tokens",
-          "total_cost",
           "tool_call_count",
           "started_at"
         ],
@@ -6781,10 +6658,6 @@
           "tool_call_count": {
             "type": "integer",
             "format": "int64"
-          },
-          "total_cost": {
-            "type": "number",
-            "format": "double"
           },
           "total_tokens": {
             "type": "number",
@@ -8483,27 +8356,6 @@
               "string",
               "null"
             ]
-          },
-          "gen_ai_cost_input_tokens": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "gen_ai_cost_output_tokens": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "gen_ai_cost_total_tokens": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
           },
           "gen_ai_operation_type": {
             "type": [

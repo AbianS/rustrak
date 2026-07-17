@@ -230,8 +230,7 @@ where
             gen_ai_operation_type, gen_ai_agent_name,
             gen_ai_request_model, gen_ai_response_model,
             gen_ai_tool_name, gen_ai_conversation_id,
-            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
-            gen_ai_cost_input_tokens, gen_ai_cost_output_tokens, gen_ai_cost_total_tokens
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
@@ -241,8 +240,7 @@ where
             $18, $19,
             $20, $21,
             $22, $23,
-            $24, $25, $26,
-            $27, $28, $29
+            $24, $25, $26
         )
         "#,
     )
@@ -272,9 +270,6 @@ where
     .bind(gen_ai.usage_input_tokens)
     .bind(gen_ai.usage_output_tokens)
     .bind(gen_ai.usage_total_tokens)
-    .bind(gen_ai.cost_input_tokens)
-    .bind(gen_ai.cost_output_tokens)
-    .bind(gen_ai.cost_total_tokens)
     .execute(executor)
     .await?;
 

@@ -7,7 +7,6 @@ mod config_test;
 mod decompression_test;
 mod envelope_parser_test;
 mod gen_ai_aggregation_test;
-mod gen_ai_pricing_test;
 mod gen_ai_test;
 mod grouping_test;
 mod log_test;

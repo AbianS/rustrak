@@ -8,7 +8,6 @@
 //! `TransactionProcessor::insert_span` (transaction-embedded spans) so a
 //! gen_ai span is normalized the same way regardless of origin.
 
-use crate::services::gen_ai_pricing::{calculate_cost, UsedTokens};
 use serde_json::Value;
 
 /// Default operation type for a recognized AI span with no other match.
@@ -16,6 +15,13 @@ pub const DEFAULT_AI_OPERATION: &str = "ai_client";
 
 /// Denormalized gen_ai.* column values, ready to bind into a `spans` INSERT.
 /// All `None` for a non-AI span (see [`is_ai_span`]).
+///
+/// No cost fields: a self-hosted, single-maintainer project can't keep an
+/// accurate per-model pricing table current (dozens of models, prices change
+/// without notice) without shipping a release every time a provider updates
+/// pricing. Token counts are exact (come straight from the SDK); a derived
+/// cost estimate would be a stale approximation, which is worse than no
+/// number at all.
 #[derive(Debug, Default, Clone)]
 pub struct GenAiColumns {
     pub operation_type: Option<String>,
@@ -27,16 +33,12 @@ pub struct GenAiColumns {
     pub usage_input_tokens: Option<f64>,
     pub usage_output_tokens: Option<f64>,
     pub usage_total_tokens: Option<f64>,
-    pub cost_input_tokens: Option<f64>,
-    pub cost_output_tokens: Option<f64>,
-    pub cost_total_tokens: Option<f64>,
 }
 
-/// Normalizes a span's `data` attributes bag (see [`normalize_gen_ai_attributes`])
-/// and computes cost (see `gen_ai_pricing::calculate_cost`), returning the
-/// denormalized column values to store. Mutates `span_data` in place so the
-/// raw `data` JSONB column stays consistent with what was normalized/costed
-/// — mirrors Relay overwriting the attributes bag in `normalize_ai()`.
+/// Normalizes a span's `data` attributes bag (see [`normalize_gen_ai_attributes`]),
+/// returning the denormalized column values to store. Mutates `span_data` in
+/// place so the raw `data` JSONB column stays consistent with what was
+/// normalized — mirrors Relay overwriting the attributes bag in `normalize_ai()`.
 ///
 /// This is the single entry point both `SpanProcessor` (standalone spans)
 /// and `TransactionProcessor::insert_span` (transaction-embedded spans) call
@@ -52,7 +54,7 @@ pub fn extract_gen_ai_columns(span_data: &mut Value, op: Option<&str>) -> GenAiC
         |data: &Value, key: &str| data.get(key).and_then(|v| v.as_str()).map(String::from);
     let get_f64 = |data: &Value, key: &str| data.get(key).and_then(|v| v.as_f64());
 
-    let mut columns = GenAiColumns {
+    GenAiColumns {
         operation_type: get_str(span_data, "gen_ai.operation.type"),
         agent_name: get_str(span_data, "gen_ai.agent.name"),
         request_model: get_str(span_data, "gen_ai.request.model"),
@@ -62,33 +64,7 @@ pub fn extract_gen_ai_columns(span_data: &mut Value, op: Option<&str>) -> GenAiC
         usage_input_tokens: get_f64(span_data, "gen_ai.usage.input_tokens"),
         usage_output_tokens: get_f64(span_data, "gen_ai.usage.output_tokens"),
         usage_total_tokens: get_f64(span_data, "gen_ai.usage.total_tokens"),
-        cost_input_tokens: None,
-        cost_output_tokens: None,
-        cost_total_tokens: None,
-    };
-
-    if let Some(model) = columns.response_model.as_deref() {
-        let tokens = UsedTokens {
-            input_tokens: columns.usage_input_tokens.unwrap_or(0.0),
-            input_cached_tokens: get_f64(span_data, "gen_ai.usage.input_tokens.cached")
-                .unwrap_or(0.0),
-            input_cache_write_tokens: get_f64(span_data, "gen_ai.usage.input_tokens.cache_write")
-                .unwrap_or(0.0),
-            output_tokens: columns.usage_output_tokens.unwrap_or(0.0),
-            output_reasoning_tokens: get_f64(span_data, "gen_ai.usage.output_tokens.reasoning")
-                .unwrap_or(0.0),
-        };
-        if let Some(cost) = calculate_cost(model, &tokens) {
-            span_data["gen_ai.cost.input_tokens"] = serde_json::json!(cost.input);
-            span_data["gen_ai.cost.output_tokens"] = serde_json::json!(cost.output);
-            span_data["gen_ai.cost.total_tokens"] = serde_json::json!(cost.total());
-            columns.cost_input_tokens = Some(cost.input);
-            columns.cost_output_tokens = Some(cost.output);
-            columns.cost_total_tokens = Some(cost.total());
-        }
     }
-
-    columns
 }
 
 /// Returns true if `data`/`op` indicate an AI span (Relay's `is_ai_item`).

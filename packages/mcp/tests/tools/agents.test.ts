@@ -18,7 +18,6 @@ describe('agent tools', () => {
         agent_name: 'planner',
         duration_ms: 1000,
         total_tokens: 150,
-        total_cost: 0.0123,
         tool_call_count: 1,
         started_at: '2026-07-16T12:00:00.000Z',
       },
@@ -33,7 +32,6 @@ describe('agent tools', () => {
     mockClient = {
       agents: {
         getRuns: vi.fn(),
-        getCost: vi.fn(),
         getDuration: vi.fn(),
         getModelsByCalls: vi.fn(),
         getModelsByTokens: vi.fn(),
@@ -87,34 +85,6 @@ describe('agent tools', () => {
 
       const result = await callTool({
         name: 'get_agent_runs',
-        arguments: { project_id: 1 },
-      });
-
-      expect(result.isError).toBe(true);
-    });
-  });
-
-  describe('get_agent_cost', () => {
-    it('returns a timeseries of estimated cost', async () => {
-      mockClient.agents.getCost.mockResolvedValue(mockTimeseries);
-
-      const result = await callTool({
-        name: 'get_agent_cost',
-        arguments: { project_id: 1 },
-      });
-
-      expect(result.isError).toBeFalsy();
-      expect(mockClient.agents.getCost).toHaveBeenCalledWith(
-        1,
-        expect.any(Object),
-      );
-    });
-
-    it('returns error content on API failure', async () => {
-      mockClient.agents.getCost.mockRejectedValue(new Error('API error'));
-
-      const result = await callTool({
-        name: 'get_agent_cost',
         arguments: { project_id: 1 },
       });
 

@@ -23,14 +23,6 @@ describe('AgentsResource', () => {
     });
   });
 
-  describe('getCost()', () => {
-    it('returns a timeseries of estimated cost', async () => {
-      const points = await client.agents.getCost(1);
-      expect(points).toHaveLength(1);
-      expect(points[0].value).toBeCloseTo(0.0123, 4);
-    });
-  });
-
   describe('getDuration()', () => {
     it('returns a timeseries of avg/p95 duration', async () => {
       const points = await client.agents.getDuration(1);
