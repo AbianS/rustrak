@@ -33,24 +33,24 @@ impl Processor for SpanProcessor {
             .map(str::to_string)
             .ok_or_else(|| AppError::Validation("span missing trace_id".to_string()))?;
 
-        let start_timestamp = extract_timestamp(&data, "start_timestamp");
-        let timestamp = extract_timestamp(&data, "timestamp");
+        // Both timestamps are required for a standalone span — Relay's
+        // `validate_standalone_span` rejects the span outright when either is
+        // absent, so accepting it here would store rows Sentry would discard.
+        let start_timestamp = extract_timestamp(&data, "start_timestamp")
+            .ok_or_else(|| AppError::Validation("span missing start_timestamp".to_string()))?;
+        let timestamp = extract_timestamp(&data, "timestamp")
+            .ok_or_else(|| AppError::Validation("span missing timestamp".to_string()))?;
 
         // Mirrors Relay's DiscardReason::Timestamp.
-        if let (Some(st), Some(ts)) = (start_timestamp, timestamp) {
-            if st > ts {
-                return Err(AppError::Validation(
-                    "span start_timestamp is after timestamp".to_string(),
-                ));
-            }
+        if start_timestamp > timestamp {
+            return Err(AppError::Validation(
+                "span start_timestamp is after timestamp".to_string(),
+            ));
         }
 
-        let duration_ms = match (start_timestamp, timestamp) {
-            (Some(st), Some(ts)) => (ts - st)
-                .num_microseconds()
-                .map(|us| (us as f64 / 1000.0).max(0.0)),
-            _ => None,
-        };
+        let duration_ms = (timestamp - start_timestamp)
+            .num_microseconds()
+            .map(|us| (us as f64 / 1000.0).max(0.0));
         // Relay's exclusive_time is already in milliseconds.
         let exclusive_time_ms = data.get("exclusive_time").and_then(|v| v.as_f64());
 

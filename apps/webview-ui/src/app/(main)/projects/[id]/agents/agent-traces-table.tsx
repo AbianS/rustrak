@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 interface AgentTracesTableProps {
@@ -52,7 +53,7 @@ export function AgentTracesTable({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          <span className="flex-1">Agent</span>
+          <span className="flex-1">Agents</span>
           <span className="w-24 text-right">Duration</span>
           <span className="w-20 text-right">Tokens</span>
           <span className="w-16 text-right">Tools</span>
@@ -65,10 +66,20 @@ export function AgentTracesTable({
               className="flex items-center gap-4 px-4 py-3 text-sm hover:bg-muted/30 transition-colors group"
             >
               <div className="flex-1 min-w-0">
-                <span className="block font-mono truncate group-hover:text-primary transition-colors">
-                  {t.agent_name || '(unnamed agent)'}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
+                {t.agent_names.length > 0 ? (
+                  <span className="flex flex-wrap items-center gap-1">
+                    {t.agent_names.map((name) => (
+                      <Badge key={name} variant="secondary" className="font-mono font-normal">
+                        {name}
+                      </Badge>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="block font-mono truncate text-muted-foreground">
+                    (unnamed agent)
+                  </span>
+                )}
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                   {t.trace_id}
                 </span>
               </div>

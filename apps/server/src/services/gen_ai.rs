@@ -120,6 +120,12 @@ pub fn normalize_gen_ai_attributes(data: &mut Value, op: Option<&str>) {
     if !is_ai_span(data, op) {
         return;
     }
+    // `is_ai_span` can pass on `op` alone, so a malformed payload whose
+    // attributes bag isn't an object still reaches here — and `data[key] = ..`
+    // panics on any Value other than Object/Null.
+    if !data.is_object() && !data.is_null() {
+        return;
+    }
 
     normalize_model(data);
     normalize_operation_type(data, op);
@@ -136,15 +142,25 @@ fn normalize_model(data: &mut Value) {
     }
 }
 
+/// Unlike the other normalizers, this one overwrites an existing value rather
+/// than only filling a gap: `operation.type` is Sentry's own derived field,
+/// not SDK data, so Relay recomputes it from `operation.name`/`op` to keep one
+/// consistent vocabulary for the product.
+///
+/// It only does so when there is something authoritative to derive from. With
+/// neither an `operation.name` nor an AI `op`, Relay's span pipeline would not
+/// classify the span as AI at all and would leave it untouched — recomputing
+/// here would just clobber a good value with the default.
 fn normalize_operation_type(data: &mut Value, op: Option<&str>) {
-    if data.get("gen_ai.operation.type").is_some() {
+    let op_name = data.get("gen_ai.operation.name").and_then(|v| v.as_str());
+    let ai_op = op.filter(|o| o.starts_with("ai.") || o.starts_with("gen_ai."));
+
+    if op_name.is_none() && ai_op.is_none() {
         return;
     }
-    let op_name = data
-        .get("gen_ai.operation.name")
-        .and_then(|v| v.as_str())
-        .or(op);
+
     let operation_type = op_name
+        .or(op)
         .and_then(infer_operation_type)
         .unwrap_or(DEFAULT_AI_OPERATION);
     data["gen_ai.operation.type"] = Value::String(operation_type.to_string());

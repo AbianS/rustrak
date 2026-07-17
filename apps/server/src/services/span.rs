@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Utc};
 use sqlx::Row;
 
@@ -348,7 +350,16 @@ impl SpanService {
         let group_rows = sqlx::query(
             r#"
             SELECT trace_id,
-                   SUM(CASE WHEN gen_ai_operation_type != 'agent' THEN COALESCE(gen_ai_usage_total_tokens, 0) ELSE 0 END) AS total_tokens,
+                   -- An agent span carries the aggregate usage of its own
+                   -- children, so counting it alongside them doubles the
+                   -- trace's tokens. Sentry's Traces table excludes agent
+                   -- runs from this sum for the same reason.
+                   -- CAST keeps the sum floating even when every arm is a
+                   -- zero literal: SQLite would otherwise infer INTEGER for a
+                   -- trace whose spans report no usage and fail to decode.
+                   CAST(SUM(CASE WHEN gen_ai_operation_type = 'agent' THEN 0
+                                 ELSE COALESCE(gen_ai_usage_total_tokens, 0) END)
+                        AS DOUBLE PRECISION) AS total_tokens,
                    SUM(CASE WHEN gen_ai_operation_type = 'tool' THEN 1 ELSE 0 END) AS tool_call_count,
                    MIN(start_timestamp) AS started_at
             FROM spans
@@ -364,6 +375,10 @@ impl SpanService {
         .fetch_all(pool)
         .await?;
 
+        let trace_ids: Vec<String> = group_rows.iter().map(|row| row.get("trace_id")).collect();
+        let mut durations = Self::representative_durations(pool, project_id, &trace_ids).await?;
+        let mut agent_names = Self::trace_agent_names(pool, project_id, &trace_ids).await?;
+
         let mut traces = Vec::with_capacity(group_rows.len());
         for row in &group_rows {
             let trace_id: String = row.get("trace_id");
@@ -371,12 +386,12 @@ impl SpanService {
             let tool_call_count: i64 = row.get("tool_call_count");
             let started_at: DateTime<Utc> = row.get("started_at");
 
-            let (agent_name, duration_ms) =
-                Self::representative_span(pool, project_id, &trace_id).await?;
+            let duration_ms = durations.remove(&trace_id).unwrap_or(None);
+            let agent_names = agent_names.remove(&trace_id).unwrap_or_default();
 
             traces.push(AgentTraceSummary {
                 trace_id,
-                agent_name,
+                agent_names,
                 duration_ms,
                 total_tokens,
                 tool_call_count,
@@ -387,49 +402,110 @@ impl SpanService {
         Ok((traces, total.0))
     }
 
-    /// The span used to represent a trace's name/duration in the Traces
-    /// table: the earliest `agent`-type span if one exists, else the
-    /// earliest AI span of any type in the trace.
-    async fn representative_span(
+    /// Duration of the span representing each trace: the earliest
+    /// `agent`-type span if one exists, else the earliest AI span of any type.
+    /// Batched over a whole page of traces — one query, not two per row.
+    async fn representative_durations(
         pool: &DbPool,
         project_id: i32,
-        trace_id: &str,
-    ) -> AppResult<(Option<String>, Option<f64>)> {
-        let agent_row = sqlx::query(
-            r#"
-            SELECT gen_ai_agent_name, duration_ms FROM spans
-            WHERE project_id = $1 AND trace_id = $2 AND gen_ai_operation_type = 'agent'
-            ORDER BY start_timestamp ASC
-            LIMIT 1
-            "#,
-        )
+        trace_ids: &[String],
+    ) -> AppResult<HashMap<String, Option<f64>>> {
+        if trace_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        // ROW_NUMBER partitioned per trace reproduces the agent-first,
+        // then-earliest preference that the two LIMIT 1 queries encoded.
+        const RANKED: &str = r#"
+            SELECT trace_id, duration_ms FROM (
+                SELECT trace_id, duration_ms,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY trace_id
+                           ORDER BY CASE WHEN gen_ai_operation_type = 'agent' THEN 0 ELSE 1 END ASC,
+                                    start_timestamp ASC
+                       ) AS rn
+                FROM spans
+                WHERE project_id = "#;
+
+        #[cfg(feature = "postgres")]
+        let rows: Vec<(String, Option<f64>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "{RANKED}$1 AND gen_ai_operation_type IS NOT NULL AND trace_id = ANY($2)
+            ) t WHERE rn = 1"
+        )))
         .bind(project_id)
-        .bind(trace_id)
-        .fetch_optional(pool)
+        .bind(trace_ids)
+        .fetch_all(pool)
         .await?;
 
-        let row = match agent_row {
-            Some(row) => Some(row),
-            None => {
-                sqlx::query(
-                    r#"
-                    SELECT gen_ai_agent_name, duration_ms FROM spans
-                    WHERE project_id = $1 AND trace_id = $2 AND gen_ai_operation_type IS NOT NULL
-                    ORDER BY start_timestamp ASC
-                    LIMIT 1
-                    "#,
-                )
-                .bind(project_id)
-                .bind(trace_id)
-                .fetch_optional(pool)
-                .await?
+        #[cfg(not(feature = "postgres"))]
+        let rows: Vec<(String, Option<f64>)> = {
+            use sqlx::QueryBuilder;
+            let mut qb = QueryBuilder::new(RANKED);
+            qb.push_bind(project_id);
+            qb.push(" AND gen_ai_operation_type IS NOT NULL AND trace_id IN (");
+            let mut sep = qb.separated(", ");
+            for trace_id in trace_ids {
+                sep.push_bind(trace_id.clone());
             }
+            qb.push(")) t WHERE rn = 1");
+            qb.build_query_as().fetch_all(pool).await?
         };
 
-        Ok(match row {
-            Some(row) => (row.get("gen_ai_agent_name"), row.get("duration_ms")),
-            None => (None, None),
-        })
+        Ok(rows.into_iter().collect())
+    }
+
+    /// Every distinct agent name per trace, earliest first — a trace with
+    /// handoffs runs more than one agent, and Sentry's Traces table lists
+    /// them all. `gen_ai_agent_name` already carries the `function_id`
+    /// fallback, resolved during gen_ai normalization at ingestion.
+    async fn trace_agent_names(
+        pool: &DbPool,
+        project_id: i32,
+        trace_ids: &[String],
+    ) -> AppResult<HashMap<String, Vec<String>>> {
+        if trace_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        const SELECT: &str = r#"
+            SELECT trace_id, gen_ai_agent_name
+            FROM spans
+            WHERE gen_ai_operation_type = 'agent'
+              AND gen_ai_agent_name IS NOT NULL
+              AND project_id = "#;
+
+        #[cfg(feature = "postgres")]
+        let rows: Vec<(String, String)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            "{SELECT}$1 AND trace_id = ANY($2) ORDER BY start_timestamp ASC"
+        )))
+        .bind(project_id)
+        .bind(trace_ids)
+        .fetch_all(pool)
+        .await?;
+
+        #[cfg(not(feature = "postgres"))]
+        let rows: Vec<(String, String)> = {
+            use sqlx::QueryBuilder;
+            let mut qb = QueryBuilder::new(SELECT);
+            qb.push_bind(project_id);
+            qb.push(" AND trace_id IN (");
+            let mut sep = qb.separated(", ");
+            for trace_id in trace_ids {
+                sep.push_bind(trace_id.clone());
+            }
+            qb.push(") ORDER BY start_timestamp ASC");
+            qb.build_query_as().fetch_all(pool).await?
+        };
+
+        let mut out: HashMap<String, Vec<String>> = HashMap::new();
+        for (trace_id, agent_name) in rows {
+            let names = out.entry(trace_id).or_default();
+            // The same agent can span many rows; keep first-seen order.
+            if !names.contains(&agent_name) {
+                names.push(agent_name);
+            }
+        }
+        Ok(out)
     }
 }
 
@@ -564,6 +640,10 @@ async fn breakdown_query(
     period_hours: Option<i64>,
     limit: i64,
 ) -> AppResult<Vec<GenAiBreakdownRow>> {
+    // The `param(minimum/maximum)` on AgentBreakdownQuery is OpenAPI docs only
+    // — Postgres rejects a negative LIMIT and SQLite reads it as "no cap".
+    let limit = limit.clamp(1, 100);
+
     #[cfg(feature = "postgres")]
     let time_filter = pg_span_time_filter(period_hours);
     #[cfg(not(feature = "postgres"))]

@@ -396,9 +396,146 @@ async fn test_agent_traces_aggregates_per_trace_id() {
     assert_eq!(traces.len(), 1);
     let trace = &traces[0];
     assert_eq!(trace.trace_id, trace_id);
-    assert_eq!(trace.agent_name.as_deref(), Some("research-agent"));
+    assert_eq!(trace.agent_names, vec!["research-agent"]);
     assert_eq!(trace.tool_call_count, 1);
     assert_eq!(trace.total_tokens, 150.0);
+}
+
+#[tokio::test]
+async fn test_agent_traces_lists_every_agent_in_a_handoff_trace() {
+    // A handoff runs several agents under one trace. Sentry's Traces table
+    // shows them all; reporting only the first hides the handoff entirely.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gen-ai-traces-handoff".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let trace_id = "trace-with-handoff";
+
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "3000000000000001", "trace_id": trace_id,
+            "start_timestamp": 1.0, "timestamp": 3.0,
+            "data": {"gen_ai.operation.type": "agent", "gen_ai.agent.name": "triage-agent"}
+        }),
+    )
+    .await;
+    // Same agent again — must not appear twice.
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "3000000000000002", "trace_id": trace_id,
+            "start_timestamp": 1.5, "timestamp": 2.0,
+            "data": {"gen_ai.operation.type": "agent", "gen_ai.agent.name": "triage-agent"}
+        }),
+    )
+    .await;
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "3000000000000003", "trace_id": trace_id,
+            "start_timestamp": 2.0, "timestamp": 3.0,
+            "data": {"gen_ai.operation.type": "agent", "gen_ai.agent.name": "billing-agent"}
+        }),
+    )
+    .await;
+
+    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
+        .await
+        .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(
+        traces[0].agent_names,
+        vec!["triage-agent", "billing-agent"],
+        "every distinct agent, earliest first, no duplicates"
+    );
+}
+
+#[tokio::test]
+async fn test_agent_traces_excludes_agent_span_usage_from_token_sum() {
+    // An agent span reports the aggregate usage of its own children. Summing
+    // it alongside them double-counts the trace's tokens, which is why
+    // Sentry's Traces table filters agent runs out of this sum.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gen-ai-traces-no-double-count".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let trace_id = "trace-with-aggregating-agent";
+
+    // Agent span carrying the aggregate of both LLM calls below (150 + 30).
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2000000000000001", "trace_id": trace_id,
+            "start_timestamp": 1.0, "timestamp": 3.0,
+            "data": {
+                "gen_ai.operation.type": "agent",
+                "gen_ai.agent.name": "research-agent",
+                "gen_ai.usage.total_tokens": 180
+            }
+        }),
+    )
+    .await;
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2000000000000002", "trace_id": trace_id,
+            "parent_span_id": "2000000000000001",
+            "start_timestamp": 1.2, "timestamp": 1.8,
+            "data": {
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50
+            }
+        }),
+    )
+    .await;
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2000000000000003", "trace_id": trace_id,
+            "parent_span_id": "2000000000000001",
+            "start_timestamp": 1.9, "timestamp": 2.5,
+            "data": {
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.usage.input_tokens": 20,
+                "gen_ai.usage.output_tokens": 10
+            }
+        }),
+    )
+    .await;
+
+    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
+        .await
+        .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(
+        traces[0].total_tokens, 180.0,
+        "tokens must come from the child LLM calls only — counting the \
+         agent span's aggregate too would report 360"
+    );
 }
 
 #[tokio::test]
@@ -416,7 +553,7 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
     let project = ProjectService::create(
         &db.pool,
         CreateProject {
-            name: "gen-ai-traces-no-double-count".to_string(),
+            name: "gen-ai-traces-root-rollup".to_string(),
             slug: None,
         },
     )
@@ -431,7 +568,7 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
         &db.pool,
         project.id,
         json!({
-            "span_id": "2000000000000001", "trace_id": trace_id,
+            "span_id": "2100000000000001", "trace_id": trace_id,
             "start_timestamp": 1.0, "timestamp": 3.0,
             "data": {
                 "gen_ai.operation.type": "agent",
@@ -448,8 +585,8 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
         &db.pool,
         project.id,
         json!({
-            "span_id": "2000000000000002", "trace_id": trace_id,
-            "parent_span_id": "2000000000000001",
+            "span_id": "2100000000000002", "trace_id": trace_id,
+            "parent_span_id": "2100000000000001",
             "start_timestamp": 1.2, "timestamp": 1.8,
             "data": {
                 "gen_ai.operation.type": "ai_client",

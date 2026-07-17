@@ -70,7 +70,7 @@ describe('AgentsResource', () => {
       const result = await client.agents.getTraces(1);
       expect(result.total_count).toBe(1);
       expect(result.items[0].trace_id).toBe('ffffffffffffffffffffffffffffffff');
-      expect(result.items[0].agent_name).toBe('planner');
+      expect(result.items[0].agent_names).toEqual(['planner', 'executor']);
       expect(result.items[0].tool_call_count).toBe(1);
     });
 

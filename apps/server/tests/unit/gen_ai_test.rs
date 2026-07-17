@@ -41,9 +41,9 @@ fn test_is_ai_span_false_for_unrelated_span() {
 
 #[test]
 fn test_is_ai_span_false_for_op_containing_ai_not_as_prefix() {
-    // "database" contains no "ai." prefix at the start — must not false-positive.
+    // "ai." appears, but not at the start — must not false-positive.
     let data = json!({});
-    assert!(!is_ai_span(&data, Some("db.query")));
+    assert!(!is_ai_span(&data, Some("custom.ai.operation")));
 }
 
 // =============================================================================
@@ -166,13 +166,29 @@ fn test_normalize_defaults_operation_type_to_ai_client_when_no_match() {
 }
 
 #[test]
-fn test_normalize_does_not_overwrite_existing_operation_type() {
+fn test_normalize_overwrites_existing_operation_type() {
+    // operation.type is Sentry's derived field: Relay recomputes it from
+    // operation.name even when the SDK already supplied a (disagreeing) one.
     let mut data = json!({
         "gen_ai.operation.type": "tool",
         "gen_ai.operation.name": "invoke_agent"
     });
     normalize_gen_ai_attributes(&mut data, None);
+    assert_eq!(data["gen_ai.operation.type"], "agent");
+}
+
+#[test]
+fn test_normalize_keeps_operation_type_when_nothing_to_infer_from() {
+    // No operation.name and no AI op: Relay's span pipeline wouldn't treat
+    // this as an AI span at all, so the existing type must survive rather
+    // than be clobbered with the ai_client default.
+    let mut data = json!({"gen_ai.operation.type": "tool"});
+    normalize_gen_ai_attributes(&mut data, None);
     assert_eq!(data["gen_ai.operation.type"], "tool");
+
+    let mut data = json!({"gen_ai.operation.type": "agent"});
+    normalize_gen_ai_attributes(&mut data, Some("db.query"));
+    assert_eq!(data["gen_ai.operation.type"], "agent");
 }
 
 #[test]
@@ -231,4 +247,13 @@ fn test_normalize_is_noop_for_non_ai_span() {
     let mut data = json!({"foo": "bar"});
     normalize_gen_ai_attributes(&mut data, Some("http.client"));
     assert_eq!(data, json!({"foo": "bar"}));
+}
+
+#[test]
+fn test_normalize_is_noop_when_data_is_not_an_object() {
+    // An AI `op` alone passes is_ai_span, so a payload whose attributes bag
+    // isn't an object still reaches normalization — it must not panic.
+    for mut data in [json!("oops"), json!(42), json!([1, 2]), json!(true)] {
+        normalize_gen_ai_attributes(&mut data, Some("gen_ai.invoke_agent"));
+    }
 }

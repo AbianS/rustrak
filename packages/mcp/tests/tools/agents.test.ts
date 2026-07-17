@@ -15,7 +15,7 @@ describe('agent tools', () => {
     items: [
       {
         trace_id: 'ffffffffffffffffffffffffffffffff',
-        agent_name: 'planner',
+        agent_names: ['planner', 'executor'],
         duration_ms: 1000,
         total_tokens: 150,
         tool_call_count: 1,
@@ -231,7 +231,7 @@ describe('agent tools', () => {
       expect(result.isError).toBeFalsy();
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.items[0].trace_id).toBe('ffffffffffffffffffffffffffffffff');
-      expect(parsed.items[0].agent_name).toBe('planner');
+      expect(parsed.items[0].agent_names).toEqual(['planner', 'executor']);
       expect(mockClient.agents.getTraces).toHaveBeenCalledWith(
         1,
         expect.any(Object),
