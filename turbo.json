@@ -31,6 +31,9 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
+    "doctor": {
+      "cache": false
+    },
     "check-types": {
       "dependsOn": ["^check-types"]
     },

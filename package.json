@@ -10,6 +10,7 @@
     "dev:docs": "turbo run dev --filter=docs",
     "test": "turbo run test",
     "lint": "turbo run lint",
+    "doctor": "turbo run doctor",
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "check-types": "turbo run check-types",
