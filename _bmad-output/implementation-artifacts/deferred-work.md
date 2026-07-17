@@ -132,3 +132,20 @@ The Postgres stats query filters `session_counts` by `bucket >= NOW() - interval
 **What "do it like Sentry" means concretely:** a separate quota track for spans (own config vars, e.g. `MAX_SPANS_PER_MINUTE`/`_HOUR`; own `quota_exceeded_until`/`next_quota_check` state, either new columns on `projects`/`installation` or a small per-category quota table; own COUNT query against `spans` instead of `events`) so span volume can never rate-limit errors and vice versa. Until that lands, an unbounded/misbehaving span-emitting SDK has no ingestion-side protection against flooding the `spans` table/disk — only the existing per-item 1MB size cap applies.
 
 Source: `apps/server/src/digest/processors/span.rs`, `apps/server/src/services/rate_limit.rs`
+
+---
+
+## 2026-07-17 — from PR #186 review verification (span v2 protocol)
+
+**Source:** Greptile bot flagged the shape divergence on PR #186; verdict and direction re-derived from Relay source (SHA `40bc3d240`) during `/analyze-pr-feedback`. The bot's proposed fix pointed the wrong way and was rejected — this entry records the real, deferred version.
+
+### D-24: `spans.data` JSONB shape diverges between v2 and legacy producers (low)
+`SpanV2Processor` stores the unwrapped attribute bag directly (`data` = `{gen_ai.*, sentry.*, ...}`, gen_ai at `$.gen_ai.*`). Every other producer — `SpanProcessor`, `TransactionProcessor::insert_span`, `insert_root_span` — stores the whole parent object (span JSON or `contexts.trace`), putting gen_ai at `$.data.gen_ai.*`. Any raw JSONB query assuming one shape silently returns NULL for the other.
+
+**Not urgent:** nothing reads a JSONB path out of `spans.data` today. The list/detail queries (`services/span.rs:65`, `:354`) don't select the column at all; the only other use is `length(CAST(s.data AS TEXT))` for storage stats (`services/storage.rs:363`). The dedicated `gen_ai_*` columns are unaffected, so dashboards and aggregations are correct either way. The exposure is future ad-hoc SQL or a JSONB projection.
+
+**Fix direction — flatten the legacy producers toward v2, NOT the reverse.** v2-flat is the canonical shape, and this is the one thing to get right if anyone revisits it. Relay's v1→v2 conversion hoists `data.{k}` to attribute `{k}` and deletes the `data` wrapper ([`relay-spans/src/v1_to_v2.rs#L206`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-spans/src/v1_to_v2.rs#L206), fixture at [`#L319`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-spans/src/v1_to_v2.rs#L319)); its own Kafka message is flat too (`SpanKafkaMessage` serde-flattens `SpanV2`, [`store.rs#L1618`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-server/src/services/store.rs#L1618)). Relay converts **every** span to v2 before storing, so flat is what everything lands in. Nesting the v2 bag under `data` to match the legacy producers would invent a wrapper the protocol explicitly removes.
+
+**What the work would be:** legacy producers store `data["data"]` (the attribute bag) as the `data` column instead of the whole span object, promoting any needed top-level fields to their existing columns first. Needs a backfill decision for existing rows — an unmigrated table would then hold both shapes, which is strictly worse than today's consistent-per-producer split. That migration cost is the main reason this is deferred, not the code change.
+
+Source: `apps/server/src/digest/processors/span_v2.rs`, `span.rs`, `transaction.rs`
