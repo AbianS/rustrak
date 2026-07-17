@@ -158,7 +158,10 @@ export default async function AgentsPage({
                 <AgentTracesTable
                   projectId={projectId}
                   traces={traces.items}
-                  currentPage={currentPage}
+                  currentPage={Math.min(
+                    currentPage,
+                    Math.max(1, traces.total_pages),
+                  )}
                   totalPages={traces.total_pages}
                   totalCount={traces.total_count}
                   perPage={traces.per_page}

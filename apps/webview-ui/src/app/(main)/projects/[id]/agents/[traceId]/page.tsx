@@ -1,3 +1,4 @@
+import type { OffsetPaginatedResponse, Span } from '@rustrak/client';
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -18,6 +19,34 @@ export async function generateMetadata({
   return { title: `${traceId} | Agents | Rustrak` };
 }
 
+const PER_PAGE = 100;
+
+/**
+ * A trace can hold more spans than one page: the totals and the waterfall are
+ * only correct over the whole trace, so pull the remaining pages too.
+ */
+async function collectAllSpans(
+  projectId: number,
+  traceId: string,
+  firstPage: OffsetPaginatedResponse<Span>,
+): Promise<Span[]> {
+  if (firstPage.total_pages <= 1) {
+    return firstPage.items;
+  }
+
+  const rest = await Promise.all(
+    Array.from({ length: firstPage.total_pages - 1 }, (_, i) =>
+      listSpans(projectId, {
+        trace_id: traceId,
+        per_page: PER_PAGE,
+        page: i + 2,
+      }),
+    ),
+  );
+
+  return [firstPage, ...rest].flatMap((r) => r.items);
+}
+
 function formatDuration(ms: number | null): string {
   if (ms == null) return '—';
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -32,14 +61,14 @@ export default async function AgentTraceDetailPage({
 
   const [project, spansResponse] = await Promise.all([
     getProject(projectId),
-    listSpans(projectId, { trace_id: traceId, per_page: 100 }),
+    listSpans(projectId, { trace_id: traceId, per_page: PER_PAGE }),
   ]);
 
   if (!project) {
     notFound();
   }
 
-  const spans = spansResponse.items;
+  const spans = await collectAllSpans(projectId, traceId, spansResponse);
 
   if (spans.length === 0) {
     notFound();
@@ -56,10 +85,11 @@ export default async function AgentTraceDetailPage({
     starts.length > 0 && ends.length > 0
       ? Math.max(...ends) - Math.min(...starts)
       : null;
-  const totalTokens = spans.reduce(
-    (sum, s) => sum + (s.gen_ai_usage_total_tokens ?? 0),
-    0,
-  );
+  // Agent spans aggregate their children's usage, so including them here
+  // would count the same tokens twice — the Traces query excludes them too.
+  const totalTokens = spans
+    .filter((s) => s.gen_ai_operation_type !== 'agent')
+    .reduce((sum, s) => sum + (s.gen_ai_usage_total_tokens ?? 0), 0);
   const toolCallCount = spans.filter(
     (s) => s.gen_ai_operation_type === 'tool',
   ).length;

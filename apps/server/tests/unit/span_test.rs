@@ -193,6 +193,74 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_span_missing_start_timestamp_is_rejected() {
+        // Relay's validate_standalone_span: "span is missing start_timestamp".
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-missing-start".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "span_id": "9fd17741416e8e4e",
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "timestamp": 2.0
+        }))
+        .unwrap();
+
+        let res = SpanProcessor
+            .process(payload, &ctx(&db.pool, project.id))
+            .await;
+        assert!(
+            res.is_err(),
+            "span without start_timestamp must be rejected"
+        );
+
+        #[cfg(feature = "postgres")]
+        const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+        let count: i64 = sqlx::query_scalar(COUNT)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 0, "no row may be stored for a rejected span");
+    }
+
+    #[tokio::test]
+    async fn test_span_missing_end_timestamp_is_rejected() {
+        // Relay's validate_standalone_span: "span is missing timestamp".
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-missing-end".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "span_id": "9fd17741416e8e4e",
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "start_timestamp": 1.0
+        }))
+        .unwrap();
+
+        let res = SpanProcessor
+            .process(payload, &ctx(&db.pool, project.id))
+            .await;
+        assert!(res.is_err(), "span without timestamp must be rejected");
+    }
+
+    #[tokio::test]
     async fn test_span_start_after_end_is_rejected() {
         // Relay: DiscardReason::Timestamp when start_timestamp > timestamp.
         let db = TestDb::new().await;

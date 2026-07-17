@@ -295,7 +295,7 @@ async fn test_agent_traces_endpoint_returns_paginated_traces() {
     let items = body["items"].as_array().expect("items is array");
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["trace_id"], "agent-trace");
-    assert_eq!(items[0]["agent_name"], "planner");
+    assert_eq!(items[0]["agent_names"], serde_json::json!(["planner"]));
     assert_eq!(items[0]["tool_call_count"], 1);
 }
 

@@ -46,6 +46,7 @@ async fn require_view_access(pool: &DbPool, project_id: i32, actor: &ApiActor) -
     responses(
         (status = 200, description = "Agent runs over time", body = Vec<AgentTimeseriesPoint>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
@@ -79,6 +80,7 @@ pub async fn agent_runs(
     responses(
         (status = 200, description = "Avg/p95 duration over time for agent runs and LLM calls", body = Vec<AgentDurationPoint>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
@@ -112,6 +114,7 @@ pub async fn agent_duration(
     responses(
         (status = 200, description = "Top LLM call counts by response model", body = Vec<GenAiBreakdownRow>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
@@ -145,6 +148,7 @@ pub async fn agent_models_calls(
     responses(
         (status = 200, description = "Top total tokens used by response model", body = Vec<GenAiBreakdownRow>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
@@ -174,6 +178,7 @@ pub async fn agent_models_tokens(
     responses(
         (status = 200, description = "Top tool call counts by tool name", body = Vec<GenAiBreakdownRow>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]
@@ -207,6 +212,7 @@ pub async fn agent_tools(
     responses(
         (status = 200, description = "Paginated agent traces", body = inline(crate::pagination::OffsetPaginatedResponse<AgentTraceSummary>)),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
     ),
     security(("bearer_auth" = [])),
 ))]

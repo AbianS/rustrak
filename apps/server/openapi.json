@@ -1242,6 +1242,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1311,6 +1321,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1394,6 +1414,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1462,6 +1492,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1545,6 +1585,16 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1619,17 +1669,18 @@
                         "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
                         "required": [
                           "trace_id",
+                          "agent_names",
                           "total_tokens",
                           "tool_call_count",
                           "started_at"
                         ],
                         "properties": {
-                          "agent_name": {
-                            "type": [
-                              "string",
-                              "null"
-                            ],
-                            "description": "Name of the root agent span in this trace, if any."
+                          "agent_names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
                           },
                           "duration_ms": {
                             "type": [
@@ -1680,6 +1731,16 @@
           },
           "401": {
             "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -4492,7 +4553,7 @@
           {
             "name": "operation_type",
             "in": "query",
-            "description": "Filter by gen_ai.operation.type (`agent`/`tool`/`handoff`/`ai_client`).",
+            "description": "Filter by gen_ai.operation.type\n(`agent`/`tool`/`handoff`/`ai_client`/`other`).",
             "required": false,
             "schema": {
               "type": [
@@ -6631,17 +6692,18 @@
         "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
         "required": [
           "trace_id",
+          "agent_names",
           "total_tokens",
           "tool_call_count",
           "started_at"
         ],
         "properties": {
-          "agent_name": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Name of the root agent span in this trace, if any."
+          "agent_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
           },
           "duration_ms": {
             "type": [

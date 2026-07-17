@@ -1755,7 +1755,7 @@ export const handlers = [
       items: [
         {
           trace_id: 'ffffffffffffffffffffffffffffffff',
-          agent_name: 'planner',
+          agent_names: ['planner', 'executor'],
           duration_ms: 1000.0,
           total_tokens: 150,
           tool_call_count: 1,

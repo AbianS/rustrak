@@ -34,8 +34,10 @@ pub struct GenAiBreakdownRow {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AgentTraceSummary {
     pub trace_id: String,
-    /// Name of the root agent span in this trace, if any.
-    pub agent_name: Option<String>,
+    /// Every distinct agent that ran in this trace, earliest first. A trace
+    /// with handoffs involves more than one, so this is a list rather than a
+    /// single root name — Sentry's own Traces table shows them all.
+    pub agent_names: Vec<String>,
     /// Duration of the root/longest AI span in this trace, in milliseconds.
     pub duration_ms: Option<f64>,
     pub total_tokens: f64,

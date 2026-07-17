@@ -32,7 +32,8 @@ export const genAiBreakdownRowSchema = z.object({
  */
 export const agentTraceSummarySchema = z.object({
   trace_id: z.string(),
-  agent_name: z.string().nullable(),
+  /** Every distinct agent that ran in this trace, earliest first. */
+  agent_names: z.array(z.string()),
   duration_ms: z.number().nullable(),
   total_tokens: z.number(),
   tool_call_count: z.number().int(),

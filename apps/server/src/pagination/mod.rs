@@ -244,7 +244,8 @@ pub struct ListSpansQuery {
     /// or extracted from a transaction), since both share this table.
     pub trace_id: Option<String>,
 
-    /// Filter by gen_ai.operation.type (`agent`/`tool`/`handoff`/`ai_client`).
+    /// Filter by gen_ai.operation.type
+    /// (`agent`/`tool`/`handoff`/`ai_client`/`other`).
     pub operation_type: Option<String>,
 }
 
