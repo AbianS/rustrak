@@ -292,7 +292,7 @@ mod level2 {
     }
 
     #[tokio::test]
-    async fn test_v2_ai_span_normalized_and_cost_calculated() {
+    async fn test_v2_ai_span_normalized() {
         // AC #4: extract_gen_ai_columns is the same shared entry point as
         // the legacy/transaction producers — the AI span in the real
         // fixture must get gen_ai columns populated.
@@ -316,9 +316,9 @@ mod level2 {
             .unwrap();
 
         #[cfg(feature = "postgres")]
-        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_agent_name, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_agent_name, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
         #[cfg(not(feature = "postgres"))]
-        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_agent_name, gen_ai_response_model, gen_ai_usage_total_tokens, gen_ai_cost_total_tokens FROM spans WHERE project_id = ? AND span_id = ?";
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_agent_name, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = ? AND span_id = ?";
 
         let row = sqlx::query(QUERY)
             .bind(project.id)
@@ -331,7 +331,6 @@ mod level2 {
         let agent_name: Option<String> = row.get("gen_ai_agent_name");
         let response_model: Option<String> = row.get("gen_ai_response_model");
         let total_tokens: Option<f64> = row.get("gen_ai_usage_total_tokens");
-        let cost_total: Option<f64> = row.get("gen_ai_cost_total_tokens");
 
         // "gen_ai.generate_content" isn't in infer_operation_type's match
         // table (only the JS-raw "ai.generateText.doGenerate" form is) so it
@@ -349,10 +348,6 @@ mod level2 {
             "must default from gen_ai.request.model"
         );
         assert_eq!(total_tokens, Some(244.0), "210 input + 34 output");
-        assert!(
-            cost_total.is_some_and(|c| c > 0.0),
-            "gpt-4o is a known model with real usage — cost must be calculated"
-        );
     }
 
     #[tokio::test]
@@ -393,75 +388,6 @@ mod level2 {
 
         assert_eq!(operation_type.as_deref(), Some("tool"));
         assert_eq!(tool_name.as_deref(), Some("webSearch"));
-    }
-
-    #[tokio::test]
-    async fn test_v2_cache_and_reasoning_token_keys_are_costed() {
-        // Regression test for the bug found alongside the v2 protocol gap:
-        // v2/EAP-sourced spans use DIFFERENT attribute key names for
-        // cache/reasoning tokens than the legacy format
-        // (gen_ai.usage.cache_read.input_tokens, not
-        // gen_ai.usage.input_tokens.cached). Before the fix in
-        // services/gen_ai.rs, this silently computed $0 extra cost.
-        let db = TestDb::new().await;
-        let project = ProjectService::create(
-            &db.pool,
-            CreateProject {
-                name: "span-v2-cache-tokens".to_string(),
-                slug: None,
-            },
-        )
-        .await
-        .unwrap();
-
-        let payload = json!({
-            "version": 2,
-            "items": [{
-                "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
-                "span_id": "cccccccccccccccc",
-                "start_timestamp": 1.0,
-                "end_timestamp": 2.0,
-                "attributes": {
-                    "sentry.op": { "value": "gen_ai.generate_content", "type": "string" },
-                    "gen_ai.operation.type": { "value": "ai_client", "type": "string" },
-                    "gen_ai.request.model": { "value": "claude-3-5-sonnet", "type": "string" },
-                    "gen_ai.usage.input_tokens": { "value": 1000, "type": "integer" },
-                    "gen_ai.usage.output_tokens": { "value": 500, "type": "integer" },
-                    "gen_ai.usage.cache_read.input_tokens": { "value": 200, "type": "integer" },
-                    "gen_ai.usage.cache_creation.input_tokens": { "value": 100, "type": "integer" }
-                }
-            }]
-        })
-        .to_string();
-
-        SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
-            .await
-            .unwrap();
-
-        #[cfg(feature = "postgres")]
-        const QUERY: &str = "SELECT gen_ai_cost_input_tokens FROM spans WHERE project_id = $1";
-        #[cfg(not(feature = "postgres"))]
-        const QUERY: &str = "SELECT gen_ai_cost_input_tokens FROM spans WHERE project_id = ?";
-
-        let cost_input: Option<f64> = sqlx::query_scalar(QUERY)
-            .bind(project.id)
-            .fetch_one(&db.pool)
-            .await
-            .unwrap();
-
-        // claude-3-5-sonnet: input_per_token=3.00/1e6, cached=0.30/1e6, cache_write=3.75/1e6
-        // raw_input = 1000 - 200 - 100 = 700
-        // cost = 700*3.00/1e6 + 200*0.30/1e6 + 100*3.75/1e6
-        let expected = 700.0 * (3.00 / 1_000_000.0)
-            + 200.0 * (0.30 / 1_000_000.0)
-            + 100.0 * (3.75 / 1_000_000.0);
-        assert!(
-            cost_input.is_some_and(|c| (c - expected).abs() < 1e-9),
-            "cache/cache-write tokens under v2 key names must be costed: got {:?}, expected {}",
-            cost_input,
-            expected
-        );
     }
 
     #[tokio::test]

@@ -147,7 +147,7 @@ impl Processor for TransactionProcessor {
         // Vercel AI SDK's vercelAIIntegration()) send the trace's root span
         // ("invoke_agent") inline on the transaction event's contexts.trace
         // — never as its own span item in `spans[]` — carrying
-        // client-accumulated token/cost totals in contexts.trace.data. Without
+        // client-accumulated token totals in contexts.trace.data. Without
         // this, gen_ai_operation_type='agent' aggregations (the "Agent Runs"
         // widget) never see it, even though other AI spans in the same trace
         // do. Gated on is_ai_span (via extract_gen_ai_columns's own check) so
@@ -251,8 +251,8 @@ where
 
     let tags = span.get("tags").cloned();
 
-    // gen_ai.* normalization + cost, on the span's own `data` attributes bag
-    // — same shared function `SpanProcessor` calls for standalone spans, so
+    // gen_ai.* normalization, on the span's own `data` attributes bag —
+    // same shared function `SpanProcessor` calls for standalone spans, so
     // a transaction-embedded LLM-call child span is normalized identically.
     let gen_ai = match span.get_mut("data") {
         Some(span_data) => extract_gen_ai_columns(span_data, op.as_deref()),
@@ -352,8 +352,7 @@ where
             gen_ai_operation_type, gen_ai_agent_name,
             gen_ai_request_model, gen_ai_response_model,
             gen_ai_tool_name, gen_ai_conversation_id,
-            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
-            gen_ai_cost_input_tokens, gen_ai_cost_output_tokens, gen_ai_cost_total_tokens
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
@@ -363,8 +362,7 @@ where
             $15, $16,
             $17, $18,
             $19, $20,
-            $21, $22, $23,
-            $24, $25, $26
+            $21, $22, $23
         )
         "#,
     )
@@ -391,9 +389,6 @@ where
     .bind(gen_ai.usage_input_tokens)
     .bind(gen_ai.usage_output_tokens)
     .bind(gen_ai.usage_total_tokens)
-    .bind(gen_ai.cost_input_tokens)
-    .bind(gen_ai.cost_output_tokens)
-    .bind(gen_ai.cost_total_tokens)
     .execute(executor)
     .await?;
 

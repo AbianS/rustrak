@@ -39,10 +39,10 @@ impl Processor for SpanV2Processor {
             let mut flat = entry.flat_attributes();
             let op = SpanV2Entry::op(&flat);
 
-            // gen_ai.* normalization + cost — same shared entry point as the
-            // legacy standalone-span and transaction-embedded producers.
-            // Mutates `flat` in place so the raw `data` JSONB column stays
-            // consistent with what was normalized/costed.
+            // gen_ai.* normalization — same shared entry point as the legacy
+            // standalone-span and transaction-embedded producers. Mutates
+            // `flat` in place so the raw `data` JSONB column stays
+            // consistent with what was normalized.
             let gen_ai = extract_gen_ai_columns(&mut flat, op.as_deref());
 
             let start_timestamp = epoch_to_datetime(entry.start_timestamp);
@@ -71,8 +71,7 @@ impl Processor for SpanV2Processor {
                     gen_ai_operation_type, gen_ai_agent_name,
                     gen_ai_request_model, gen_ai_response_model,
                     gen_ai_tool_name, gen_ai_conversation_id,
-                    gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
-                    gen_ai_cost_input_tokens, gen_ai_cost_output_tokens, gen_ai_cost_total_tokens
+                    gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
                 ) VALUES (
                     $1, NULL, $2,
                     $3, $4, $5,
@@ -84,8 +83,7 @@ impl Processor for SpanV2Processor {
                     $20, $21,
                     $22, $23,
                     $24, $25,
-                    $26, $27, $28,
-                    $29, $30, $31
+                    $26, $27, $28
                 )
                 "#,
             )
@@ -117,9 +115,6 @@ impl Processor for SpanV2Processor {
             .bind(gen_ai.usage_input_tokens)
             .bind(gen_ai.usage_output_tokens)
             .bind(gen_ai.usage_total_tokens)
-            .bind(gen_ai.cost_input_tokens)
-            .bind(gen_ai.cost_output_tokens)
-            .bind(gen_ai.cost_total_tokens)
             .execute(&mut *tx)
             .await?;
         }
