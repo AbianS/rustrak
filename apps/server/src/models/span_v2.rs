@@ -33,10 +33,14 @@ pub struct SpanV2Entry {
     pub status: Option<String>,
     #[serde(default)]
     pub is_segment: bool,
+    /// Required on the wire. `None` (absent) is a discard condition, not a
+    /// default — mirrors Relay's `validate_timestamps`, which rejects a span
+    /// with a missing start or end
+    /// (relay-server/src/processing/spans/process.rs:367).
     #[serde(default)]
-    pub start_timestamp: f64,
+    pub start_timestamp: Option<f64>,
     #[serde(default)]
-    pub end_timestamp: f64,
+    pub end_timestamp: Option<f64>,
     /// Typed attribute map: `{"key": {"value": ..., "type": "string"|...}}`.
     /// Use [`Self::flat_attributes`] to unwrap into the plain `{key: value}`
     /// shape the rest of Rustrak's span-storage/gen_ai code expects.
@@ -75,6 +79,54 @@ impl SpanV2Entry {
                     .and_then(|v| v.as_str())
             })
             .map(str::to_string)
+    }
+
+    /// Reads a string-valued `sentry.*` attribute.
+    ///
+    /// v2 carries as attributes what the legacy schema kept as top-level span
+    /// fields: Relay's own v1→v2 conversion promotes them with a `sentry.`
+    /// prefix (relay-spans/src/v1_to_v2.rs:55-61), and the OTel→v2 path passes
+    /// the same keys straight through (relay-spans/src/otel_to_sentry_v2.rs).
+    fn attr_str(flat_attributes: &Value, key: &str) -> Option<String> {
+        flat_attributes
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+    }
+
+    /// Self time in milliseconds, from `sentry.exclusive_time`.
+    ///
+    /// Relay never *computes* this for v2 — the v1-only
+    /// `compute_span_exclusive_time` has no EAP counterpart — so an absent
+    /// attribute simply means no self time, never a value to derive.
+    pub fn exclusive_time_ms(flat_attributes: &Value) -> Option<f64> {
+        flat_attributes
+            .get("sentry.exclusive_time")
+            .and_then(|v| v.as_f64())
+    }
+
+    pub fn platform(flat_attributes: &Value) -> Option<String> {
+        Self::attr_str(flat_attributes, "sentry.platform")
+    }
+
+    pub fn release(flat_attributes: &Value) -> Option<String> {
+        Self::attr_str(flat_attributes, "sentry.release")
+    }
+
+    pub fn environment(flat_attributes: &Value) -> Option<String> {
+        Self::attr_str(flat_attributes, "sentry.environment")
+    }
+
+    /// Segment root this span belongs to.
+    ///
+    /// Prefers the SDK-sent `sentry.segment.id` — v2 has no `segment_id` field,
+    /// so a non-root span's link to its segment lives only here. Falls back to
+    /// self-identification for a root, matching the legacy pipeline's
+    /// "if is_segment { segment_id = span_id }"
+    /// (relay-server/src/processing/legacy_spans/normalize.rs).
+    pub fn segment_id(&self, flat_attributes: &Value) -> Option<String> {
+        Self::attr_str(flat_attributes, "sentry.segment.id")
+            .or_else(|| self.is_segment.then(|| self.span_id.clone()))
     }
 }
 

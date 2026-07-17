@@ -581,4 +581,243 @@ mod level2 {
             "malformed span v2 container JSON must be rejected"
         );
     }
+
+    #[tokio::test]
+    async fn test_v2_entry_missing_timestamps_is_skipped() {
+        // Relay's `validate_timestamps` discards a span whose start or end is
+        // absent (DiscardReason::Timestamp) — a missing timestamp is not a
+        // zero timestamp. Without this, serde's default collapses both to 0.0,
+        // `0.0 > 0.0` is false, and the entry is stored with NULL timestamps.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-v2-no-timestamps".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = json!({
+            "version": 2,
+            "items": [
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "aaaaaaaaaaaaaaaa",
+                    "attributes": {}
+                },
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "start_timestamp": 1.0,
+                    "attributes": {}
+                },
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "cccccccccccccccc",
+                    "start_timestamp": 1.0,
+                    "end_timestamp": 2.0,
+                    "attributes": {}
+                }
+            ]
+        })
+        .to_string();
+
+        SpanV2Processor
+            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT span_id FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT span_id FROM spans WHERE project_id = ?";
+        let rows = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_all(&db.pool)
+            .await
+            .unwrap();
+
+        let stored: Vec<String> = rows.iter().map(|r| r.get("span_id")).collect();
+        assert_eq!(
+            stored,
+            vec!["cccccccccccccccc"],
+            "entries with a missing start or end timestamp must be skipped, \
+             not stored with NULL timestamps"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_v2_entry_start_equal_to_end_is_accepted() {
+        // Relay's check is `start <= end` — a zero-duration span is valid.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-v2-zero-duration".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = json!({
+            "version": 2,
+            "items": [{
+                "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                "span_id": "0f0f0f0f0f0f0f0f",
+                "start_timestamp": 1784231017.5,
+                "end_timestamp": 1784231017.5,
+                "attributes": {}
+            }]
+        })
+        .to_string();
+
+        SpanV2Processor
+            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT duration_ms FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT duration_ms FROM spans WHERE project_id = ?";
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let duration_ms: Option<f64> = row.get("duration_ms");
+        assert_eq!(
+            duration_ms,
+            Some(0.0),
+            "start == end is a valid zero-duration span, not a discard"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_v2_sentry_attributes_are_promoted_to_columns() {
+        // v2 carries as `sentry.*` attributes what the legacy schema kept as
+        // top-level span fields — Relay's OTel->v2 path passes these exact keys
+        // through (relay-spans/src/otel_to_sentry_v2.rs), so a real
+        // OTel-instrumented SDK span arrives with them.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-v2-sentry-attrs".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = json!({
+            "version": 2,
+            "items": [{
+                "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                "span_id": "1a1a1a1a1a1a1a1a",
+                "start_timestamp": 1.0,
+                "end_timestamp": 3.0,
+                "attributes": {
+                    "sentry.exclusive_time": { "value": 1000.0, "type": "double" },
+                    "sentry.platform": { "value": "javascript", "type": "string" },
+                    "sentry.release": { "value": "v1.2.3", "type": "string" },
+                    "sentry.environment": { "value": "production", "type": "string" }
+                }
+            }]
+        })
+        .to_string();
+
+        SpanV2Processor
+            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT exclusive_time_ms, platform, release, environment FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT exclusive_time_ms, platform, release, environment FROM spans WHERE project_id = ?";
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let exclusive_time_ms: Option<f64> = row.get("exclusive_time_ms");
+        let platform: Option<String> = row.get("platform");
+        let release: Option<String> = row.get("release");
+        let environment: Option<String> = row.get("environment");
+
+        assert_eq!(
+            exclusive_time_ms,
+            Some(1000.0),
+            "sentry.exclusive_time is the v2 wire equivalent of legacy exclusive_time"
+        );
+        assert_eq!(platform.as_deref(), Some("javascript"));
+        assert_eq!(release.as_deref(), Some("v1.2.3"));
+        assert_eq!(environment.as_deref(), Some("production"));
+    }
+
+    #[tokio::test]
+    async fn test_v2_child_span_takes_segment_id_from_attribute() {
+        // v2 has no `segment_id` field: a non-root span's link to its segment
+        // lives only in the `sentry.segment.id` attribute. Deriving segment_id
+        // from `is_segment` alone drops that link for every child.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-v2-child-segment".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = json!({
+            "version": 2,
+            "items": [{
+                "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                "span_id": "2b2b2b2b2b2b2b2b",
+                "parent_span_id": "9999999999999999",
+                "start_timestamp": 1.0,
+                "end_timestamp": 2.0,
+                "is_segment": false,
+                "attributes": {
+                    "sentry.segment.id": { "value": "9999999999999999", "type": "string" }
+                }
+            }]
+        })
+        .to_string();
+
+        SpanV2Processor
+            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT is_segment, segment_id FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT is_segment, segment_id FROM spans WHERE project_id = ?";
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let is_segment: bool = row.get("is_segment");
+        let segment_id: Option<String> = row.get("segment_id");
+
+        assert!(!is_segment, "this span is a child, not a segment root");
+        assert_eq!(
+            segment_id.as_deref(),
+            Some("9999999999999999"),
+            "a child span must keep its link to the segment root"
+        );
+    }
 }

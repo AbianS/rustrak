@@ -31,7 +31,16 @@ impl Processor for SpanV2Processor {
                 log::warn!("span v2 entry missing span_id/trace_id, skipping");
                 continue;
             }
-            if entry.start_timestamp > entry.end_timestamp {
+            // Both timestamps are required on the wire, and start must not be
+            // after end. Mirrors Relay's `validate_timestamps` exactly,
+            // including that `start == end` is valid
+            // (relay-server/src/processing/spans/process.rs:367).
+            let (Some(start_epoch), Some(end_epoch)) = (entry.start_timestamp, entry.end_timestamp)
+            else {
+                log::warn!("span v2 entry missing start_timestamp/end_timestamp, skipping");
+                continue;
+            };
+            if start_epoch > end_epoch {
                 log::warn!("span v2 entry start_timestamp is after end_timestamp, skipping");
                 continue;
             }
@@ -45,8 +54,8 @@ impl Processor for SpanV2Processor {
             // consistent with what was normalized.
             let gen_ai = extract_gen_ai_columns(&mut flat, op.as_deref());
 
-            let start_timestamp = epoch_to_datetime(entry.start_timestamp);
-            let timestamp = epoch_to_datetime(entry.end_timestamp);
+            let start_timestamp = epoch_to_datetime(start_epoch);
+            let timestamp = epoch_to_datetime(end_epoch);
             let duration_ms = match (start_timestamp, timestamp) {
                 (Some(st), Some(ts)) => (ts - st)
                     .num_microseconds()
@@ -54,9 +63,14 @@ impl Processor for SpanV2Processor {
                 _ => None,
             };
 
-            // v2 has no dedicated `segment_id` field — a segment root is
-            // self-identifying via `is_segment`.
-            let segment_id = entry.is_segment.then(|| entry.span_id.clone());
+            // What the legacy schema kept as top-level span fields, v2 carries
+            // as `sentry.*` attributes — read after gen_ai normalization so the
+            // columns agree with the stored `data` bag.
+            let segment_id = entry.segment_id(&flat);
+            let exclusive_time_ms = SpanV2Entry::exclusive_time_ms(&flat);
+            let platform = SpanV2Entry::platform(&flat);
+            let release = SpanV2Entry::release(&flat);
+            let environment = SpanV2Entry::environment(&flat);
 
             sqlx::query(
                 r#"
@@ -98,12 +112,12 @@ impl Processor for SpanV2Processor {
             .bind(start_timestamp)
             .bind(timestamp)
             .bind(duration_ms)
-            .bind(None::<f64>) // exclusive_time_ms — no v2 wire equivalent found; consumers already fall back to duration_ms when null
+            .bind(exclusive_time_ms)
             .bind(entry.is_segment)
             .bind(segment_id)
-            .bind(None::<String>) // platform — not present as a span-level v2 attribute
-            .bind(None::<String>) // release
-            .bind(None::<String>) // environment
+            .bind(platform)
+            .bind(release)
+            .bind(environment)
             .bind(None::<serde_json::Value>) // tags — v2 has no separate tags concept, everything lives in attributes
             .bind(serde_json::json!(flat))
             .bind(gen_ai.operation_type)

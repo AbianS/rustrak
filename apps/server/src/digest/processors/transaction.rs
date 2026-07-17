@@ -317,10 +317,12 @@ where
 }
 
 /// Inserts a synthesized root/segment span row from an AI-recognized
-/// `contexts.trace`, linked to its parent transaction. `gen_ai` and
-/// `trace_context` (the already gen_ai-normalized `data` column payload)
-/// must be computed by the caller — this function only performs the INSERT.
-/// Generic over the executor so it can run inside the parent's DB transaction.
+/// `contexts.trace`, linked to its parent transaction. `trace_context` is the
+/// whole `contexts.trace` object — stored verbatim as the `data` column, so
+/// gen_ai fields sit at `$.data.gen_ai.*` — and `gen_ai` holds the columns
+/// already extracted from its nested `data` bag. Both must be computed by the
+/// caller; this function only performs the INSERT. Generic over the executor
+/// so it can run inside the parent's DB transaction.
 #[allow(clippy::too_many_arguments)]
 async fn insert_root_span<'e, E>(
     span_id: &str,
