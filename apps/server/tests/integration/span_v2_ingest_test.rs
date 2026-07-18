@@ -62,11 +62,42 @@ async fn create_test_project(pool: &rustrak::db::DbPool, name: &str) -> (i32, St
     (project.id, project.sentry_key.to_string())
 }
 
-/// Real wire fixture: a `research_agent` trace's non-root spans, as actually
-/// sent by @sentry/node 10.65 + Vercel AI SDK's `vercelAIIntegration()` —
-/// two `generate_content` LLM-call spans and one `execute_tool` span,
-/// batched in a single Spans Protocol v2 container item.
+/// Real wire fixture: a `research_agent` trace, as actually sent by
+/// @sentry/node 10.65 + Vercel AI SDK's `vercelAIIntegration()` — the trace
+/// root ("invoke_agent") arrives inline on a `transaction` item's
+/// `contexts.trace` (never as its own span item, see
+/// `digest/processors/transaction.rs`'s root-span promotion), while its two
+/// `generate_content` LLM-call spans and one `execute_tool` span arrive
+/// batched in a single Spans Protocol v2 container item. Both items share
+/// one envelope and one `trace_id`, and the root's `span_id`
+/// (`8efc25d3729c267c`) matches the children's `parent_span_id`.
 fn span_v2_envelope(trace_id: &str) -> Vec<u8> {
+    let transaction = json!({
+        "type": "transaction",
+        "transaction": "invoke_agent research_agent",
+        "start_timestamp": 1784231017.89,
+        "timestamp": 1784231017.90,
+        "contexts": {
+            "trace": {
+                "trace_id": trace_id,
+                "span_id": "8efc25d3729c267c",
+                "op": "gen_ai.invoke_agent",
+                "status": "ok",
+                "data": {
+                    "gen_ai.function_id": "research_agent",
+                    "gen_ai.usage.input_tokens": 512,
+                    "gen_ai.usage.output_tokens": 130
+                }
+            }
+        },
+        "spans": []
+    });
+    let transaction_str = transaction.to_string();
+    let transaction_header = json!({
+        "type": "transaction",
+        "length": transaction_str.len()
+    });
+
     let container = json!({
         "version": 2,
         "items": [
@@ -135,7 +166,15 @@ fn span_v2_envelope(trace_id: &str) -> Vec<u8> {
         "length": container_str.len()
     });
 
-    format!("{}\n{}\n{}\n", json!({}), item_header, container_str).into_bytes()
+    format!(
+        "{}\n{}\n{}\n{}\n{}\n",
+        json!({}),
+        transaction_header,
+        transaction_str,
+        item_header,
+        container_str
+    )
+    .into_bytes()
 }
 
 /// Full pipeline: real captured wire format -> POST /envelope/ -> spawned
@@ -201,12 +240,15 @@ async fn test_real_sdk_span_v2_envelope_populates_agents_dashboard() {
             .fetch_one(&db.pool)
             .await
             .unwrap();
-        if count >= 3 || tokio::time::Instant::now() >= deadline {
+        if count >= 4 || tokio::time::Instant::now() >= deadline {
             break count;
         }
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     };
-    assert_eq!(stored, 3, "all 3 spans in the batch must be stored");
+    assert_eq!(
+        stored, 4,
+        "3 spans from the v2 batch plus the promoted transaction root span"
+    );
 
     // Before the fix, this exact wire format hit `SpanProcessor` (wrong
     // format) and was rejected with "span missing span_id" — the regression
@@ -221,8 +263,8 @@ async fn test_real_sdk_span_v2_envelope_populates_agents_dashboard() {
     assert_eq!(total, 1, "all 3 spans share one trace_id -> one agent run");
     assert_eq!(traces.len(), 1);
     assert_eq!(
-        traces[0].agent_name.as_deref(),
-        Some("research_agent"),
+        traces[0].agent_names,
+        vec!["research_agent".to_string()],
         "agent name must come from gen_ai.function_id, defaulted onto gen_ai.agent.name"
     );
     assert_eq!(
