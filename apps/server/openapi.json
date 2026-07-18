@@ -1176,6 +1176,587 @@
         ]
       }
     },
+    "/api/projects/{project_id}/agents/duration": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/duration\nTime-bucketed avg/p95 duration for `agent`/`ai_client` spans.",
+        "operationId": "agent_duration",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "interval_hours",
+            "in": "query",
+            "description": "Bucket width in hours (default: 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avg/p95 duration over time for agent runs and LLM calls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentDurationPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/models/calls": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/models/calls\nTop models by LLM call count (`gen_ai.operation.type:ai_client`).",
+        "operationId": "agent_models_calls",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top LLM call counts by response model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/models/tokens": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/models/tokens\nTop models by total tokens used (`gen_ai.operation.type:ai_client`).",
+        "operationId": "agent_models_tokens",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top total tokens used by response model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/runs": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/runs\nTime-bucketed count of agent-run spans (`gen_ai.operation.type:agent`).",
+        "operationId": "agent_runs",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "interval_hours",
+            "in": "query",
+            "description": "Bucket width in hours (default: 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent runs over time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentTimeseriesPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/tools": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/tools\nTop tools by call count (`gen_ai.operation.type:tool`).",
+        "operationId": "agent_tools",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top tool call counts by tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/traces": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/traces\nPaginated per-trace_id aggregate (duration, tokens, tool usage) across\nall AI spans sharing that trace, regardless of origin.",
+        "operationId": "agent_traces",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated agent traces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
+                        "required": [
+                          "trace_id",
+                          "agent_names",
+                          "total_tokens",
+                          "tool_call_count",
+                          "started_at"
+                        ],
+                        "properties": {
+                          "agent_names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
+                          },
+                          "duration_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+                          },
+                          "started_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "tool_call_count": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "total_tokens": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "trace_id": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/alert-history": {
       "get": {
         "tags": [
@@ -3968,6 +4549,18 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "operation_type",
+            "in": "query",
+            "description": "Filter by gen_ai.operation.type\n(`agent`/`tool`/`handoff`/`ai_client`/`other`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -4023,6 +4616,64 @@
                             ],
                             "format": "double",
                             "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                          },
+                          "gen_ai_agent_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_conversation_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_operation_type": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+                          },
+                          "gen_ai_request_model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_response_model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_tool_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_usage_input_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "gen_ai_usage_output_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "gen_ai_usage_total_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
                           },
                           "id": {
                             "type": "string",
@@ -4756,6 +5407,64 @@
                         ],
                         "format": "double",
                         "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                      },
+                      "gen_ai_agent_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_conversation_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_operation_type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+                      },
+                      "gen_ai_request_model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_response_model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_tool_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_usage_input_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
+                      },
+                      "gen_ai_usage_output_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
+                      },
+                      "gen_ai_usage_total_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
                       },
                       "id": {
                         "type": "string",
@@ -5937,6 +6646,90 @@
           }
         }
       },
+      "AgentDurationPoint": {
+        "type": "object",
+        "description": "avg/p95 duration for one time bucket.",
+        "required": [
+          "bucket",
+          "avg_ms",
+          "p95_ms"
+        ],
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "bucket": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "p95_ms": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentTimeseriesPoint": {
+        "type": "object",
+        "description": "One time-bucketed value (count or sum) — mirrors `SessionTimeseriesPoint`.",
+        "required": [
+          "bucket",
+          "value"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentTraceSummary": {
+        "type": "object",
+        "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
+        "required": [
+          "trace_id",
+          "agent_names",
+          "total_tokens",
+          "tool_call_count",
+          "started_at"
+        ],
+        "properties": {
+          "agent_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tool_call_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "trace_id": {
+            "type": "string"
+          }
+        }
+      },
       "AlertHistory": {
         "type": "object",
         "description": "Alert delivery history record (audit log and retry queue)",
@@ -6786,6 +7579,23 @@
           }
         }
       },
+      "GenAiBreakdownRow": {
+        "type": "object",
+        "description": "One row of a \"top N by X\" breakdown (model or tool name).",
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "Grouping": {
         "type": "object",
         "description": "Grouping model - maps a grouping key to an issue",
@@ -7596,6 +8406,64 @@
             ],
             "format": "double",
             "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+          },
+          "gen_ai_agent_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_operation_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+          },
+          "gen_ai_request_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_response_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_tool_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_usage_input_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "gen_ai_usage_output_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "gen_ai_usage_total_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           },
           "id": {
             "type": "string",

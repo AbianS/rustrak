@@ -1091,4 +1091,130 @@ mod level2 {
             "TransactionProcessor must not create any groupings"
         );
     }
+
+    // =========================================================================
+    // gen_ai.* normalization on transaction-embedded spans
+    // (story-ai-agent-monitoring.md) — must match standalone-span behavior
+    // exactly (shared normalization function, not duplicated logic).
+    // =========================================================================
+
+    #[tokio::test]
+    async fn test_transaction_embedded_ai_span_normalized() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-gen-ai-child".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "/api/chat",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "spans": [
+                {
+                    "span_id": "8888888888888888",
+                    "op": "gen_ai.chat.completions",
+                    "start_timestamp": 1.5,
+                    "timestamp": 2.5,
+                    "data": {
+                        "gen_ai.request.model": "claude-3-5-sonnet",
+                        "gen_ai.usage.input_tokens": 200,
+                        "gen_ai.usage.output_tokens": 100
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = ? AND span_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .bind("8888888888888888")
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+        let response_model: Option<String> = row.get("gen_ai_response_model");
+        let total_tokens: Option<f64> = row.get("gen_ai_usage_total_tokens");
+
+        // op "gen_ai.chat.completions" doesn't match any infer_operation_type
+        // pattern, and there's no operation.name/type set → defaults to "ai_client".
+        assert_eq!(operation_type.as_deref(), Some("ai_client"));
+        assert_eq!(response_model.as_deref(), Some("claude-3-5-sonnet"));
+        assert_eq!(total_tokens, Some(300.0));
+    }
+
+    #[tokio::test]
+    async fn test_transaction_non_ai_child_span_leaves_gen_ai_columns_null() {
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-not-ai-child".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "/api/x",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+            "spans": [
+                { "span_id": "9999999999999999", "op": "db.query",
+                  "start_timestamp": 1.0, "timestamp": 1.5 }
+            ]
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT gen_ai_operation_type FROM spans WHERE project_id = $1 AND span_id = $2";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str =
+            "SELECT gen_ai_operation_type FROM spans WHERE project_id = ? AND span_id = ?";
+
+        let operation_type: Option<String> = sqlx::query_scalar(QUERY)
+            .bind(project.id)
+            .bind("9999999999999999")
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        assert!(
+            operation_type.is_none(),
+            "non-AI transaction-child span must not get gen_ai columns populated"
+        );
+    }
 }

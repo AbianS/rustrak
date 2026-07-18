@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod auth_token;
 pub mod event;
+pub mod gen_ai;
 pub mod grouping;
 pub mod installation;
 pub mod invitation;
@@ -48,6 +49,7 @@ pub use alert::{
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};
+pub use gen_ai::{AgentDurationPoint, AgentTimeseriesPoint, AgentTraceSummary, GenAiBreakdownRow};
 pub use grouping::Grouping;
 pub use installation::Installation;
 pub use invitation::{

@@ -25,3 +25,18 @@ export type Span = z.infer<typeof spanSchema>;
  * Aggregate performance stats for one (transaction_name, op) group.
  */
 export type TransactionStats = z.infer<typeof transactionStatsSchema>;
+
+/**
+ * Options for listing spans (offset-based pagination + filters). Matches
+ * spans regardless of origin (standalone or transaction-embedded), since
+ * both share the same table.
+ */
+export interface ListSpansOptions {
+  page?: number;
+  per_page?: number;
+  op?: string;
+  status?: string;
+  trace_id?: string;
+  /** Filter by gen_ai.operation.type (`agent`/`tool`/`handoff`/`ai_client`). */
+  operation_type?: string;
+}

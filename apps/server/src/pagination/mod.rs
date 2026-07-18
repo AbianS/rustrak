@@ -243,6 +243,61 @@ pub struct ListSpansQuery {
     /// Filter by trace id — matches spans regardless of origin (standalone
     /// or extracted from a transaction), since both share this table.
     pub trace_id: Option<String>,
+
+    /// Filter by gen_ai.operation.type
+    /// (`agent`/`tool`/`handoff`/`ai_client`/`other`).
+    pub operation_type: Option<String>,
+}
+
+/// Query parameters for AI Agent Monitoring time-series widgets (Agent Runs,
+/// Estimated Cost, Duration).
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct AgentTimeseriesQuery {
+    /// Lookback window in hours (default: all time, no filter).
+    pub period_hours: Option<i64>,
+
+    /// Bucket width in hours (default: 1).
+    #[serde(default = "default_interval_hours")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub interval_hours: i64,
+}
+
+fn default_interval_hours() -> i64 {
+    1
+}
+
+/// Query parameters for AI Agent Monitoring breakdown widgets (LLM Calls by
+/// Model, Tokens Used by Model, Tool Calls by Tool).
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct AgentBreakdownQuery {
+    /// Lookback window in hours (default: all time, no filter).
+    pub period_hours: Option<i64>,
+
+    /// Max rows returned (default: 3, matching Sentry's own widget cap).
+    #[serde(default = "default_breakdown_limit")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub limit: i64,
+}
+
+fn default_breakdown_limit() -> i64 {
+    3
+}
+
+/// Query parameters for the AI Agent Monitoring Traces table (offset-based).
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct AgentTracesQuery {
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
 }
 
 /// Query parameters for the transaction stats overview (offset-based)

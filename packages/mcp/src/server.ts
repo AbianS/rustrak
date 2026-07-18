@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
+import { registerAgentTools } from './tools/agents.js';
 import { registerAlertTools } from './tools/alerts.js';
 import { registerEventTools } from './tools/events.js';
 import { registerHealthTools } from './tools/health.js';
@@ -7,6 +8,7 @@ import { registerIssueTools } from './tools/issues.js';
 import { registerLogTools } from './tools/logs.js';
 import { registerProjectTools } from './tools/projects.js';
 import { registerSessionTools } from './tools/sessions.js';
+import { registerSpanTools } from './tools/spans.js';
 import { registerStorageTools } from './tools/storage.js';
 import { registerTeamTools } from './tools/team.js';
 import { registerTokenTools } from './tools/tokens.js';
@@ -29,6 +31,8 @@ export function createServer(client: RustrakClient): McpServer {
   registerTransactionTools(server, client);
   registerLogTools(server, client);
   registerStorageTools(server, client);
+  registerSpanTools(server, client);
+  registerAgentTools(server, client);
 
   return server;
 }

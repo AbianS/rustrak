@@ -193,7 +193,11 @@ impl TransactionService {
             SELECT id, transaction_id, span_id, trace_id, parent_span_id,
                    op, description, status,
                    start_timestamp, timestamp, duration_ms, exclusive_time_ms,
-                   is_segment, segment_id, platform, release, environment
+                   is_segment, segment_id, platform, release, environment,
+                   gen_ai_operation_type, gen_ai_agent_name,
+                   gen_ai_request_model, gen_ai_response_model,
+                   gen_ai_tool_name, gen_ai_conversation_id,
+                   gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
             FROM spans
             WHERE transaction_id = $1
               AND project_id = $2
@@ -225,6 +229,15 @@ impl TransactionService {
                 platform: row.get("platform"),
                 release: row.get("release"),
                 environment: row.get("environment"),
+                gen_ai_operation_type: row.get("gen_ai_operation_type"),
+                gen_ai_agent_name: row.get("gen_ai_agent_name"),
+                gen_ai_request_model: row.get("gen_ai_request_model"),
+                gen_ai_response_model: row.get("gen_ai_response_model"),
+                gen_ai_tool_name: row.get("gen_ai_tool_name"),
+                gen_ai_conversation_id: row.get("gen_ai_conversation_id"),
+                gen_ai_usage_input_tokens: row.get("gen_ai_usage_input_tokens"),
+                gen_ai_usage_output_tokens: row.get("gen_ai_usage_output_tokens"),
+                gen_ai_usage_total_tokens: row.get("gen_ai_usage_total_tokens"),
             })
             .collect();
 
@@ -389,7 +402,11 @@ fn build_group_stats(
 
 /// Continuous percentile over a pre-sorted slice (linear interpolation between
 /// closest ranks), matching Postgres `percentile_cont`. `p` is in [0.0, 1.0].
-fn percentile_cont(sorted: &[f64], p: f64) -> f64 {
+///
+/// `pub(crate)` so other services needing the same dual-backend-portable
+/// percentile math (e.g. `services::span`) can reuse it instead of
+/// re-deriving it.
+pub(crate) fn percentile_cont(sorted: &[f64], p: f64) -> f64 {
     match sorted.len() {
         0 => 0.0,
         1 => sorted[0],

@@ -224,6 +224,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::logs::configure)
             // Spans API (more specific than generic projects scope)
             .configure(routes::spans::configure)
+            // AI Agent Monitoring dashboard API (more specific than generic projects scope)
+            .configure(routes::agents::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)

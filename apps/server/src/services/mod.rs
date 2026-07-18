@@ -3,6 +3,7 @@ pub mod alert;
 pub mod auth_token;
 pub mod event;
 pub mod event_trim;
+pub mod gen_ai;
 pub mod generic_trim;
 pub mod grouping;
 pub mod invitation;
@@ -25,6 +26,10 @@ pub use alert::AlertService;
 pub use auth_token::AuthTokenService;
 pub use event::EventService;
 pub use event_trim::trim_oversized_event;
+pub use gen_ai::{
+    extract_gen_ai_columns, infer_operation_type, is_ai_span, normalize_gen_ai_attributes,
+    GenAiColumns,
+};
 pub use grouping::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, DenormalizedFields,
 };

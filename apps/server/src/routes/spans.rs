@@ -56,6 +56,7 @@ pub async fn list_spans(
         op: query.op.clone(),
         status: query.status.clone(),
         trace_id: query.trace_id.clone(),
+        operation_type: query.operation_type.clone(),
     };
 
     let (spans, total_count) =

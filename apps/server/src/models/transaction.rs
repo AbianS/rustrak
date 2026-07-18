@@ -72,6 +72,17 @@ pub struct SpanResponse {
     pub platform: Option<String>,
     pub release: Option<String>,
     pub environment: Option<String>,
+    /// gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).
+    /// All `None` unless the span was recognized as an AI span.
+    pub gen_ai_operation_type: Option<String>,
+    pub gen_ai_agent_name: Option<String>,
+    pub gen_ai_request_model: Option<String>,
+    pub gen_ai_response_model: Option<String>,
+    pub gen_ai_tool_name: Option<String>,
+    pub gen_ai_conversation_id: Option<String>,
+    pub gen_ai_usage_input_tokens: Option<f64>,
+    pub gen_ai_usage_output_tokens: Option<f64>,
+    pub gen_ai_usage_total_tokens: Option<f64>,
 }
 
 /// Aggregate performance stats for one (transaction_name, op) group.

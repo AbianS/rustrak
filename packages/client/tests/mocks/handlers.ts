@@ -1604,6 +1604,7 @@ export const handlers = [
       return HttpResponse.json([
         {
           id: 'c3d4e5f6-e89b-12d3-a456-426614174000',
+          transaction_id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
           span_id: 'cccccccccccccccc',
           trace_id: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           parent_span_id: 'bbbbbbbbbbbbbbbb',
@@ -1616,6 +1617,18 @@ export const handlers = [
           exclusive_time_ms: 500.0,
           is_segment: false,
           segment_id: null,
+          platform: null,
+          release: null,
+          environment: null,
+          gen_ai_operation_type: null,
+          gen_ai_agent_name: null,
+          gen_ai_request_model: null,
+          gen_ai_response_model: null,
+          gen_ai_tool_name: null,
+          gen_ai_conversation_id: null,
+          gen_ai_usage_input_tokens: null,
+          gen_ai_usage_output_tokens: null,
+          gen_ai_usage_total_tokens: null,
         },
       ]);
     },
@@ -1660,6 +1673,101 @@ export const handlers = [
       });
     },
   ),
+
+  // Spans — list spans for project (shared table: standalone + transaction-embedded)
+  http.get(`${BASE_URL}/api/projects/:projectId/spans`, ({ request }) => {
+    const url = new URL(request.url);
+    const operationType = url.searchParams.get('operation_type');
+    const items =
+      operationType && operationType !== 'agent'
+        ? []
+        : [
+            {
+              id: 'd4e5f6a7-e89b-12d3-a456-426614174000',
+              transaction_id: null,
+              span_id: 'eeeeeeeeeeeeeeee',
+              trace_id: 'ffffffffffffffffffffffffffffffff',
+              parent_span_id: null,
+              op: 'gen_ai.invoke_agent',
+              description: null,
+              status: null,
+              start_timestamp: '2026-07-16T12:00:00.000Z',
+              timestamp: '2026-07-16T12:00:01.000Z',
+              duration_ms: 1000.0,
+              exclusive_time_ms: null,
+              is_segment: true,
+              segment_id: 'eeeeeeeeeeeeeeee',
+              platform: null,
+              release: null,
+              environment: null,
+              gen_ai_operation_type: 'agent',
+              gen_ai_agent_name: 'planner',
+              gen_ai_request_model: null,
+              gen_ai_response_model: null,
+              gen_ai_tool_name: null,
+              gen_ai_conversation_id: null,
+              gen_ai_usage_input_tokens: null,
+              gen_ai_usage_output_tokens: null,
+              gen_ai_usage_total_tokens: null,
+            },
+          ];
+    return HttpResponse.json({
+      items,
+      total_count: items.length,
+      page: 1,
+      per_page: 20,
+      total_pages: items.length > 0 ? 1 : 0,
+    });
+  }),
+
+  // AI Agent Monitoring — Agent Runs over time
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/runs`, () => {
+    return HttpResponse.json([
+      { bucket: '2026-07-16T12:00:00.000Z', value: 3 },
+    ]);
+  }),
+
+  // AI Agent Monitoring — Duration avg/p95 over time
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/duration`, () => {
+    return HttpResponse.json([
+      { bucket: '2026-07-16T12:00:00.000Z', avg_ms: 200.0, p95_ms: 290.0 },
+    ]);
+  }),
+
+  // AI Agent Monitoring — LLM Calls by Model
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/models/calls`, () => {
+    return HttpResponse.json([{ label: 'gpt-4o', value: 5 }]);
+  }),
+
+  // AI Agent Monitoring — Tokens Used by Model
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/models/tokens`, () => {
+    return HttpResponse.json([{ label: 'gpt-4o', value: 1500 }]);
+  }),
+
+  // AI Agent Monitoring — Tool Calls by Tool
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/tools`, () => {
+    return HttpResponse.json([{ label: 'search', value: 4 }]);
+  }),
+
+  // AI Agent Monitoring — Traces table
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/traces`, () => {
+    return HttpResponse.json({
+      items: [
+        {
+          trace_id: 'ffffffffffffffffffffffffffffffff',
+          agent_names: ['planner', 'executor'],
+          duration_ms: 1000.0,
+          total_tokens: 150,
+          tool_call_count: 1,
+          started_at: '2026-07-16T12:00:00.000Z',
+        },
+      ],
+      total_count: 1,
+      page: 1,
+      per_page: 20,
+      total_pages: 1,
+    });
+  }),
 
   // Source Maps — list source maps for project
   http.get(

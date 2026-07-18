@@ -39,10 +39,15 @@ export const transactionDetailSchema = z.object({
 });
 
 /**
- * A single indexed span extracted from a transaction (waterfall row).
+ * A span row from the shared `spans` table — covers both origins
+ * (transaction-embedded AND standalone "span" envelope items share this
+ * table and this exact response shape), including gen_ai.* denormalized
+ * fields when the span is recognized as an AI span.
  */
 export const spanSchema = z.object({
   id: uuidSchema,
+  /** Parent transaction, if this span was extracted from one. `null` for a standalone span. */
+  transaction_id: uuidSchema.nullable(),
   span_id: z.string().nullable(),
   trace_id: z.string().nullable(),
   parent_span_id: z.string().nullable(),
@@ -55,6 +60,20 @@ export const spanSchema = z.object({
   exclusive_time_ms: z.number().nullable(),
   is_segment: z.boolean(),
   segment_id: z.string().nullable(),
+  /** Only ever set for standalone spans — a transaction-embedded span has no parent row to inherit these from. */
+  platform: z.string().nullable(),
+  release: z.string().nullable(),
+  environment: z.string().nullable(),
+  /** gen_ai.* denormalized fields — all null unless recognized as an AI span. */
+  gen_ai_operation_type: z.string().nullable(),
+  gen_ai_agent_name: z.string().nullable(),
+  gen_ai_request_model: z.string().nullable(),
+  gen_ai_response_model: z.string().nullable(),
+  gen_ai_tool_name: z.string().nullable(),
+  gen_ai_conversation_id: z.string().nullable(),
+  gen_ai_usage_input_tokens: z.number().nullable(),
+  gen_ai_usage_output_tokens: z.number().nullable(),
+  gen_ai_usage_total_tokens: z.number().nullable(),
 });
 
 /**
