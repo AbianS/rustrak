@@ -538,6 +538,125 @@ async fn test_agent_traces_excludes_agent_span_usage_from_token_sum() {
     );
 }
 
+#[tokio::test]
+async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
+    // Regression guard for the root-span-promotion fix (story-span-v2-protocol.md
+    // follow-up, verified live 2026-07-17): real Sentry SDKs (e.g. Vercel AI
+    // SDK's vercelAiEventProcessor) accumulate child token/cost totals onto
+    // the trace ROOT span's own gen_ai.usage.* attributes client-side. Once
+    // TransactionProcessor promotes that root into its own `spans` row
+    // (operation_type='agent'), naively SUMing gen_ai_usage_total_tokens
+    // across every gen_ai span in the trace double-counts: the root's
+    // already-rolled-up total gets added ON TOP of the same tokens counted
+    // again from its 'ai_client' children.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gen-ai-traces-root-rollup".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let trace_id = "root-rollup-trace";
+
+    // The root/agent span carries the ACCUMULATED total (100+50=150) on its
+    // own gen_ai.usage attributes — mirrors what a real SDK sends.
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2100000000000001", "trace_id": trace_id,
+            "start_timestamp": 1.0, "timestamp": 3.0,
+            "data": {
+                "gen_ai.operation.type": "agent",
+                "gen_ai.agent.name": "research-agent",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50
+            }
+        }),
+    )
+    .await;
+    // Its child ai_client span carries the SAME 100+50 tokens as its own
+    // distinct usage — this is the actual, non-duplicated usage.
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2100000000000002", "trace_id": trace_id,
+            "parent_span_id": "2100000000000001",
+            "start_timestamp": 1.2, "timestamp": 1.8,
+            "data": {
+                "gen_ai.operation.type": "ai_client",
+                "gen_ai.request.model": "gpt-4o",
+                "gen_ai.usage.input_tokens": 100,
+                "gen_ai.usage.output_tokens": 50
+            }
+        }),
+    )
+    .await;
+
+    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
+        .await
+        .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(
+        traces[0].total_tokens, 150.0,
+        "must count the real 150 tokens once, not 300 (root rollup + child, double-counted)"
+    );
+}
+
+#[tokio::test]
+async fn test_agent_traces_reports_zero_tokens_for_root_only_trace() {
+    // A root-only trace (promoted root/agent span, no non-agent 'ai_client'
+    // children ever ingested) reports 0 tokens — matches real Sentry's
+    // Traces table exactly: its query unconditionally excludes agent-type
+    // spans from the token sum with no root-only fallback
+    // (tracesTable.tsx's `getAgentRunsFilter({negated: true})`), so an
+    // agent span's own rolled-up gen_ai.usage.* is never counted, even when
+    // it's the only gen_ai span in the trace.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gen-ai-traces-root-only".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let trace_id = "root-only-trace";
+
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2200000000000001", "trace_id": trace_id,
+            "start_timestamp": 1.0, "timestamp": 3.0,
+            "data": {
+                "gen_ai.operation.type": "agent",
+                "gen_ai.agent.name": "research-agent",
+                "gen_ai.usage.total_tokens": 15
+            }
+        }),
+    )
+    .await;
+
+    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
+        .await
+        .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(
+        traces[0].total_tokens, 0.0,
+        "agent-type rows are always excluded from the token sum, root-only or not"
+    );
+}
+
 // =============================================================================
 // SpanResponse exposes gen_ai.* fields (needed by the Agents trace waterfall
 // drill-down to show model/tokens per span)

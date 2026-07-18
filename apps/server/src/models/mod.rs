@@ -11,6 +11,7 @@ pub mod project;
 pub mod project_member;
 pub mod session;
 pub mod source_file;
+pub mod span_v2;
 pub mod storage;
 pub mod transaction;
 pub mod user;
@@ -62,6 +63,7 @@ pub use issue::{
 pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject, VALID_PLATFORMS};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
+pub use span_v2::{parse_span_v2_container, SpanV2Entry};
 pub use storage::{
     CleanupCounts, CleanupFilter, CleanupRequest, ProjectStorage, SourceMapGcResult,
     SourceMapStorage, StorageSummary,

@@ -1165,6 +1165,288 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_transaction_ai_root_span_promoted_to_own_span_row() {
+        // Real-SDK gap (story-span-v2-protocol.md follow-up): with
+        // @sentry/node + Vercel AI SDK's vercelAIIntegration(), the trace's
+        // ROOT span ("invoke_agent") is sent inline on the transaction
+        // event's contexts.trace — never as its own span item — carrying
+        // client-side-accumulated token/cost totals in contexts.trace.data.
+        // Confirmed live: without promoting it to a `spans` row,
+        // SpanService::agent_runs_timeseries (which counts
+        // gen_ai_operation_type='agent' rows) sees nothing, even though the
+        // Traces widget (which sums across ALL spans in a trace_id) works.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-ai-root-span".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "invoke_agent research_agent",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "span_id": "bbbbbbbbbbbbbbbb",
+                    "op": "gen_ai.invoke_agent",
+                    "status": "ok",
+                    "data": {
+                        "gen_ai.function_id": "research_agent",
+                        "gen_ai.usage.input_tokens": 512,
+                        "gen_ai.usage.output_tokens": 130
+                    }
+                }
+            },
+            "spans": []
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str = "SELECT span_id, trace_id, op, description, status, is_segment, segment_id, transaction_id, start_timestamp, timestamp, gen_ai_operation_type, gen_ai_agent_name, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT span_id, trace_id, op, description, status, is_segment, segment_id, transaction_id, start_timestamp, timestamp, gen_ai_operation_type, gen_ai_agent_name, gen_ai_usage_total_tokens FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let span_id: Option<String> = row.get("span_id");
+        let trace_id: Option<String> = row.get("trace_id");
+        let op: Option<String> = row.get("op");
+        let description: Option<String> = row.get("description");
+        let status: Option<String> = row.get("status");
+        let is_segment: bool = row.get("is_segment");
+        let segment_id: Option<String> = row.get("segment_id");
+        let transaction_id: Option<Uuid> = row.get("transaction_id");
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+        let agent_name: Option<String> = row.get("gen_ai_agent_name");
+        let total_tokens: Option<f64> = row.get("gen_ai_usage_total_tokens");
+
+        assert_eq!(span_id.as_deref(), Some("bbbbbbbbbbbbbbbb"));
+        assert_eq!(
+            trace_id.as_deref(),
+            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+        assert_eq!(op.as_deref(), Some("gen_ai.invoke_agent"));
+        assert_eq!(
+            description.as_deref(),
+            Some("invoke_agent research_agent"),
+            "description must come from the transaction name"
+        );
+        assert_eq!(status.as_deref(), Some("ok"));
+        assert!(
+            is_segment,
+            "the trace root must be marked as its own segment"
+        );
+        assert_eq!(segment_id.as_deref(), Some("bbbbbbbbbbbbbbbb"));
+        assert!(
+            transaction_id.is_some(),
+            "the promoted root span is still linked to its parent transaction, unlike a standalone span"
+        );
+        assert_eq!(
+            operation_type.as_deref(),
+            Some("agent"),
+            "gen_ai.invoke_agent infers to \"agent\""
+        );
+        assert_eq!(agent_name.as_deref(), Some("research_agent"));
+        assert_eq!(total_tokens, Some(642.0), "512 input + 130 output");
+    }
+
+    #[tokio::test]
+    async fn test_transaction_non_ai_contexts_trace_does_not_promote_extra_span_row() {
+        // Regression guard: ordinary (non-AI) transactions must keep
+        // today's exact span count — do not synthesize a root span row
+        // unless contexts.trace is actually recognized as an AI span.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-non-ai-root-no-promote".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "/api/checkout",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "cccccccccccccccccccccccccccccc",
+                    "span_id": "dddddddddddddddd",
+                    "op": "http.server",
+                    "status": "ok"
+                }
+            }
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+        let count: i64 = sqlx::query_scalar(COUNT)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            count, 0,
+            "a non-AI contexts.trace must not create any spans row (no spans[] either here)"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_transaction_ai_root_span_promoted_without_trace_data() {
+        // Regression guard: a tool-only agent run (or an agent span that
+        // failed before accumulating token data) can send
+        // contexts.trace.op = "gen_ai.invoke_agent" with no `data` key at
+        // all. `is_ai_span` recognizes the op alone, so the root must still
+        // be promoted even though there's nothing to normalize in `data`.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-ai-root-span-no-data".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "invoke_agent research_agent",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                    "span_id": "ffffffffffffffff",
+                    "op": "gen_ai.invoke_agent",
+                    "status": "ok"
+                }
+            },
+            "spans": []
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT span_id, gen_ai_operation_type FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT span_id, gen_ai_operation_type FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let span_id: Option<String> = row.get("span_id");
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+
+        assert_eq!(span_id.as_deref(), Some("ffffffffffffffff"));
+        assert_eq!(
+            operation_type.as_deref(),
+            Some("agent"),
+            "op alone (no contexts.trace.data) must still promote and classify as \"agent\""
+        );
+    }
+
+    #[tokio::test]
+    async fn test_agent_runs_timeseries_counts_promoted_root_span() {
+        // The actual widget this fixes: before promotion, an AI trace whose
+        // root only exists in contexts.trace was invisible to "Agent Runs".
+        use rustrak::services::span::SpanService;
+
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-agent-runs-widget".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "invoke_agent research_agent",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                    "span_id": "ffffffffffffffff",
+                    "op": "gen_ai.invoke_agent",
+                    "data": { "gen_ai.usage.input_tokens": 10, "gen_ai.usage.output_tokens": 5 }
+                }
+            }
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        let points = SpanService::agent_runs_timeseries(&db.pool, project.id, None, 1)
+            .await
+            .unwrap();
+
+        let total: f64 = points.iter().map(|p| p.value).sum();
+        assert_eq!(
+            total, 1.0,
+            "the promoted root span must be counted by the Agent Runs widget"
+        );
+    }
+
+    #[tokio::test]
     async fn test_transaction_non_ai_child_span_leaves_gen_ai_columns_null() {
         let db = TestDb::new().await;
         let project = ProjectService::create(
