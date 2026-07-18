@@ -16,13 +16,12 @@
 --
 -- CONCURRENTLY (hence `-- no-transaction`) lets ingestion keep writing while
 -- the index builds; spans is the hottest table in the system.
+--
+-- Postgres implicitly wraps multiple statements sent in one query message in
+-- a transaction block even with no explicit BEGIN, and CONCURRENTLY cannot
+-- run inside any transaction block, implicit or not. So this file holds only
+-- this single statement; the transactions index lives in the next migration.
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_spans_gen_ai_trace
     ON spans (project_id, trace_id, start_timestamp)
     WHERE gen_ai_operation_type IS NOT NULL AND trace_id IS NOT NULL;
-
--- Covers the (name, op) grouping and the per-group duration scan behind
--- `TransactionService::stats`.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_group_duration
-    ON transactions (project_id, transaction_name, op)
-    WHERE duration_ms IS NOT NULL;

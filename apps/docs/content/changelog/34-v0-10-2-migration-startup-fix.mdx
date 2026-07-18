@@ -1,0 +1,14 @@
+---
+version: v0.10.2
+title: Migration Startup Fix
+description: Fixed a server startup failure caused by combining two CONCURRENTLY index migrations in one file
+date: 2026-07-18
+tags: [server, docs]
+---
+
+## Migration Startup Fix
+
+Fixed a bug introduced in v0.10.1 that could prevent the server from starting against Postgres. The `20260718000000_agent_perf_indexes` migration combined two `CREATE INDEX CONCURRENTLY` statements in a single file. Postgres implicitly wraps multiple statements sent together in a transaction block, even without an explicit `BEGIN`, and `CONCURRENTLY` cannot run inside any transaction block — so the migration failed with `CREATE INDEX CONCURRENTLY cannot run inside a transaction block` and the server refused to boot.
+
+- Split the migration into two single-statement migrations, one per index, so each `CREATE INDEX CONCURRENTLY` runs on its own
+- No data or index changes: installations that never got past the failing migration will now apply both indexes cleanly on the next boot
