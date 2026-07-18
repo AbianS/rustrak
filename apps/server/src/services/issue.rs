@@ -817,18 +817,21 @@ impl IssueService {
 
     /// Clears the "resolved in next release" marker on issues whose
     /// `last_release` maps to a release that shipped *before*
-    /// `new_release_date_created`, in the same project. This is the
-    /// chronological equivalent of Sentry's `post_save` signal on `Release`
-    /// (`clear_expired_resolutions`, compared on `Release.date_added`) —
-    /// it replaces a previous implementation that compared `last_release`
-    /// to the new version by string inequality, which cannot tell "older"
-    /// from "different". Returns the number of issues finalized.
+    /// `new_release_date_created`, in the same project. The comparison
+    /// (`date_created <`, project-scoped) is the chronological equivalent of
+    /// Sentry's `post_save` signal on `Release` (`clear_expired_resolutions`,
+    /// compared on `Release.date_added`) — it replaces a previous
+    /// implementation that compared `last_release` to the new version by
+    /// string inequality, which cannot tell "older" from "different".
+    /// Returns the number of issues finalized.
     ///
-    /// Called automatically when a new release is created (`POST
-    /// .../releases/`, not on the idempotent 208 branch) and manually via
-    /// `POST /api/projects/{project_id}/deploys`, which resolves `version`
-    /// to its release's `date_created` before calling this. Both paths run
-    /// the same query — there is one source of truth.
+    /// Called on every `POST .../releases/` call, including the idempotent
+    /// 208 branch (see `routes::releases::create_release`) — unlike Sentry,
+    /// whose signal only fires on first creation. This is deliberate: the
+    /// query above is naturally idempotent (a repeat run affects 0 rows once
+    /// nothing is left to clear), so calling it unconditionally self-heals a
+    /// prior call that created the release row but crashed before clearing
+    /// ran, which Sentry's fire-and-forget task cannot do.
     pub async fn finalize_release(
         pool: &DbPool,
         project_id: i32,

@@ -6,7 +6,7 @@ CREATE TABLE releases (
     version VARCHAR(200) NOT NULL,
     ref TEXT,
     url TEXT,
-    date_created TEXT NOT NULL DEFAULT (datetime('now')),
+    date_created TEXT NOT NULL,
     date_released TEXT,
 
     UNIQUE(project_id, version)
