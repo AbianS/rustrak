@@ -1,0 +1,34 @@
+---
+version: v0.10.0
+title: AI Agent Monitoring
+description: New Agents dashboard tracks LLM spans from any Sentry SDK, powered by a new Spans Protocol v2 ingestion pipeline and standalone span support
+date: 2026-07-18
+tags: [server, webview-ui, client, mcp, agents]
+---
+
+## AI Agent Monitoring
+
+Track LLM-instrumented spans from any Sentry SDK: agent runs, duration, models by calls/tokens, tool calls, and a per-trace waterfall. Turn on your SDK's AI integration and it shows up automatically, nothing else to install.
+
+- New **Agents** page: runs over time, duration percentiles, top models by calls/tokens, top tools, and a paginated traces table
+- Click a trace to open its waterfall: every LLM call, tool call, and handoff laid out in order
+- Handoffs between agents show every agent involved in a trace, not just the first
+- Deliberately no cost/spend widget, since per-model pricing tables go stale too fast to promise; exact token counts are shown instead
+- New client/MCP resources: `SpansResource`, `AgentsResource`, and 7 MCP agent tools
+
+## Sentry Spans Protocol v2
+
+Server now recognizes Spans Protocol v2, the batched wire format real Sentry SDKs (verified against @sentry/node + Vercel AI SDK) use for AI-instrumented spans. Previously only the legacy standalone-span format was parsed, so AI Agent Monitoring received no data from real SDKs.
+
+- New `EnvelopeItemKind::SpanV2Batch` dispatch, keeping the legacy standalone-span format working unchanged
+- Fixed cache/reasoning token cost lookup for v2-sourced spans
+- Trace-root `invoke_agent` spans sent inline on transaction events are now promoted into their own spans row
+
+## Standalone Span Ingestion
+
+Server accepts Sentry's standalone `span` envelope item, OTel-style spans without a parent transaction. Query them directly via `GET /api/projects/{id}/spans`, filterable by op/status/trace_id.
+
+## Improvements
+
+- Source maps guide corrected for project/org resolution behavior; SvelteKit setup added
+- Docs build pinned to zod 4.3.5, fixing a CI-only shallow-clone failure with nextra
