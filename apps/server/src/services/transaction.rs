@@ -246,10 +246,18 @@ impl TransactionService {
 
     /// Aggregate latency/throughput/failure stats per (transaction_name, op).
     ///
-    /// Percentiles are computed in Rust (continuous, linear-interpolated —
-    /// matching Postgres `percentile_cont`) so the same code path works on both
-    /// Postgres and SQLite, which lacks `percentile_cont`. Groups are returned
-    /// most-frequent first, ready for the performance overview table.
+    /// Groups are returned most-frequent first, ready for the performance
+    /// overview table. Percentiles are continuous (linear-interpolated); the
+    /// two backends reach that same definition by different routes — see the
+    /// per-backend implementations below.
+    ///
+    /// Postgres computes the percentiles in SQL as ordered-set aggregates, so
+    /// the whole page is one round trip. The previous shared implementation
+    /// looped over the page calling `group_durations`, which streamed *every*
+    /// matching row back to compute percentiles in Rust: 20 groups × 100k rows
+    /// was over a million floats on the wire per request, and it saturated the
+    /// connection pool under normal dashboard traffic.
+    #[cfg(feature = "postgres")]
     pub async fn stats(
         pool: &DbPool,
         project_id: i32,
@@ -259,21 +267,51 @@ impl TransactionService {
         let per_page = per_page.clamp(1, 100);
         let offset = (page.max(1) - 1) * per_page;
 
-        // Count + sort + paginate the (name, op) groups in SQL — only the page's
-        // groups are then materialized in Rust. ORDER BY includes op so the tie
-        // order is deterministic across requests (stable offset pagination).
-        let total: (i64,) = sqlx::query_as(
+        let total = Self::group_count(pool, project_id).await?;
+
+        // ORDER BY includes op so the tie order is deterministic across
+        // requests (stable offset pagination).
+        let group_rows = sqlx::query(
             r#"
-            SELECT COUNT(*) FROM (
-                SELECT 1 FROM transactions
-                WHERE project_id = $1 AND duration_ms IS NOT NULL
-                GROUP BY transaction_name, op
-            ) g
+            SELECT transaction_name, op,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN status IS NOT NULL AND status <> 'ok' THEN 1 ELSE 0 END) AS fails,
+                   percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms) AS p50,
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95,
+                   percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms) AS p99
+            FROM transactions
+            WHERE project_id = $1 AND duration_ms IS NOT NULL
+            GROUP BY transaction_name, op
+            ORDER BY cnt DESC, transaction_name ASC, op ASC
+            LIMIT $2 OFFSET $3
             "#,
         )
         .bind(project_id)
-        .fetch_one(pool)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
         .await?;
+
+        let stats = group_rows.iter().map(row_to_group_stats).collect();
+
+        Ok((stats, total))
+    }
+
+    /// SQLite has no `percentile_cont`, so the durations come back to Rust and
+    /// `percentile_cont` here reproduces the ordered-set aggregate. Acceptable
+    /// because SQLite deployments are single-node and small by definition; the
+    /// Postgres path above carries the production load.
+    #[cfg(feature = "sqlite")]
+    pub async fn stats(
+        pool: &DbPool,
+        project_id: i32,
+        page: i64,
+        per_page: i64,
+    ) -> AppResult<(Vec<TransactionStatsResponse>, i64)> {
+        let per_page = per_page.clamp(1, 100);
+        let offset = (page.max(1) - 1) * per_page;
+
+        let total = Self::group_count(pool, project_id).await?;
 
         let group_rows = sqlx::query(
             r#"
@@ -303,12 +341,72 @@ impl TransactionService {
             stats.push(build_group_stats(name, op, count, fails, durations));
         }
 
-        Ok((stats, total.0))
+        Ok((stats, total))
+    }
+
+    /// Total number of (transaction_name, op) groups — the pagination total,
+    /// shared by both backends' `stats`.
+    async fn group_count(pool: &DbPool, project_id: i32) -> AppResult<i64> {
+        let total: (i64,) = sqlx::query_as(
+            r#"
+            SELECT COUNT(*) FROM (
+                SELECT 1 FROM transactions
+                WHERE project_id = $1 AND duration_ms IS NOT NULL
+                GROUP BY transaction_name, op
+            ) g
+            "#,
+        )
+        .bind(project_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(total.0)
     }
 
     /// Aggregate stats for a single (transaction_name, op) group — a direct
     /// lookup so the summary header works regardless of how many groups exist.
     /// Returns `None` when the group has no transactions.
+    ///
+    /// One aggregate query: the count, failure count and all three percentiles
+    /// collapse in the database, so a group with 100k samples costs one row on
+    /// the wire rather than 100k.
+    #[cfg(feature = "postgres")]
+    pub async fn stats_for_group(
+        pool: &DbPool,
+        project_id: i32,
+        name: &str,
+        op: Option<&str>,
+    ) -> AppResult<Option<TransactionStatsResponse>> {
+        // GROUP BY (not a bare aggregate) so an empty group yields zero rows
+        // and maps to `None`, rather than one all-NULL row.
+        let row = sqlx::query(
+            r#"
+            SELECT transaction_name, op,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN status IS NOT NULL AND status <> 'ok' THEN 1 ELSE 0 END) AS fails,
+                   percentile_cont(0.50) WITHIN GROUP (ORDER BY duration_ms) AS p50,
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95,
+                   percentile_cont(0.99) WITHIN GROUP (ORDER BY duration_ms) AS p99
+            FROM transactions
+            WHERE project_id = $1 AND transaction_name = $2
+              AND (op = $3 OR (op IS NULL AND $4 IS NULL))
+              AND duration_ms IS NOT NULL
+            GROUP BY transaction_name, op
+            "#,
+        )
+        .bind(project_id)
+        .bind(name)
+        .bind(op)
+        .bind(op)
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(row.as_ref().map(row_to_group_stats))
+    }
+
+    /// SQLite counterpart — see the note on `stats` for why the percentile math
+    /// happens in Rust here.
+    #[cfg(feature = "sqlite")]
     pub async fn stats_for_group(
         pool: &DbPool,
         project_id: i32,
@@ -348,6 +446,7 @@ impl TransactionService {
 
     /// Fetches the durations of one (name, op) group. The NULL-safe op match
     /// avoids reusing a placeholder, keeping the SQL portable across dialects.
+    #[cfg(feature = "sqlite")]
     async fn group_durations(
         pool: &DbPool,
         project_id: i32,
@@ -376,7 +475,32 @@ impl TransactionService {
     }
 }
 
+/// Builds one group's response from a row whose percentiles were already
+/// computed by the database (Postgres path). `p50`/`p95`/`p99` are nullable in
+/// the row type only because `percentile_cont` is; the `duration_ms IS NOT
+/// NULL` filter means a group that produced a row always has values.
+#[cfg(feature = "postgres")]
+fn row_to_group_stats(row: &<crate::db::Db as sqlx::Database>::Row) -> TransactionStatsResponse {
+    let count: i64 = row.get("cnt");
+    let failures: i64 = row.get("fails");
+
+    TransactionStatsResponse {
+        transaction_name: row.get("transaction_name"),
+        op: row.get("op"),
+        count,
+        p50_ms: row.get::<Option<f64>, _>("p50").unwrap_or(0.0),
+        p95_ms: row.get::<Option<f64>, _>("p95").unwrap_or(0.0),
+        p99_ms: row.get::<Option<f64>, _>("p99").unwrap_or(0.0),
+        failure_rate: if count > 0 {
+            failures as f64 / count as f64
+        } else {
+            0.0
+        },
+    }
+}
+
 /// Builds one group's response from its durations + failure count.
+#[cfg(feature = "sqlite")]
 fn build_group_stats(
     transaction_name: String,
     op: Option<String>,
