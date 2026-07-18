@@ -9,6 +9,7 @@ pub mod issue;
 pub mod log;
 pub mod project;
 pub mod project_member;
+pub mod release;
 pub mod session;
 pub mod source_file;
 pub mod span_v2;
@@ -63,6 +64,7 @@ pub use issue::{
 pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject, VALID_PLATFORMS};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
+pub use release::{is_valid_version, CreateRelease, Release, ReleaseResponse, UpdateRelease};
 pub use span_v2::{parse_span_v2_container, SpanV2Entry};
 pub use storage::{
     CleanupCounts, CleanupFilter, CleanupRequest, ProjectStorage, SourceMapGcResult,

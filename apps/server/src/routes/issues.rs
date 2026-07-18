@@ -515,47 +515,6 @@ pub async fn bulk_delete_issues(
     Ok(HttpResponse::Ok().json(json!({ "deleted": deleted })))
 }
 
-/// Body for recording a deploy.
-#[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct DeployRequest {
-    pub version: String,
-}
-
-#[cfg_attr(feature = "openapi", utoipa::path(
-    post,
-    path = "/api/projects/{project_id}/deploys",
-    tag = "Issues",
-    params(("project_id" = i32, Path, description = "Project ID")),
-    request_body = DeployRequest,
-    responses(
-        (status = 200, description = "Issues finalized by the deploy", body = resp::DeployResponse),
-        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
-    ),
-    security(("bearer_auth" = [])),
-))]
-/// POST /api/projects/{project_id}/deploys — record a release deploy, which
-/// finalizes issues that were "resolved in the next release".
-pub async fn create_deploy(
-    pool: web::Data<DbPool>,
-    path: web::Path<i32>,
-    body: web::Json<DeployRequest>,
-    actor: ApiActor,
-) -> AppResult<HttpResponse> {
-    let project_id = path.into_inner();
-    access::require(
-        pool.get_ref(),
-        actor.is_admin(),
-        actor.user_id(),
-        project_id,
-        Action::MutateIssue,
-    )
-    .await?;
-    let finalized =
-        IssueService::finalize_release(pool.get_ref(), project_id, &body.version).await?;
-    Ok(HttpResponse::Ok().json(json!({ "version": body.version, "finalized": finalized })))
-}
-
 /// Loads an issue and verifies it belongs to the project (helper for sub-routes).
 async fn require_issue_in_project(pool: &DbPool, project_id: i32, issue_id: Uuid) -> AppResult<()> {
     let issue = IssueService::get_by_id(pool, issue_id).await?;
@@ -913,11 +872,6 @@ pub mod resp {
         pub deleted: i64,
     }
     #[derive(ToSchema)]
-    pub struct DeployResponse {
-        pub version: String,
-        pub finalized: i64,
-    }
-    #[derive(ToSchema)]
     pub struct BookmarkResponse {
         pub is_bookmarked: bool,
     }
@@ -952,7 +906,6 @@ pub mod resp {
         create_issue_user_report,
         bulk_update_issues,
         bulk_delete_issues,
-        create_deploy,
     ),
     components(schemas(
         crate::models::IssueResponse,
@@ -969,11 +922,9 @@ pub mod resp {
         CommentRequest,
         ToggleRequest,
         UserReportRequest,
-        DeployRequest,
         resp::IssueStatsResponse,
         resp::BulkUpdateResponse,
         resp::BulkDeleteResponse,
-        resp::DeployResponse,
         resp::BookmarkResponse,
         resp::SubscriptionResponse,
         resp::SeenResponse,
@@ -1018,9 +969,5 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/{issue_id}", web::patch().to(update_issue))
             .route("/{issue_id}", web::put().to(update_issue))
             .route("/{issue_id}", web::delete().to(delete_issue)),
-    );
-    cfg.route(
-        "/api/projects/{project_id}/deploys",
-        web::post().to(create_deploy),
     );
 }

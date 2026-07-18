@@ -6,7 +6,7 @@ const EXPECTED_TOOLS = [
   'list_projects',
   'get_project',
   'create_project',
-  // Issues (22)
+  // Issues (21)
   'list_issues',
   'get_issue',
   'resolve_issue',
@@ -28,7 +28,6 @@ const EXPECTED_TOOLS = [
   'mark_issue_seen',
   'list_user_reports',
   'submit_user_report',
-  'record_deploy',
   // Events (2)
   'list_events',
   'get_event',

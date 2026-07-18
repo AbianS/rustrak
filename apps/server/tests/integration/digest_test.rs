@@ -7,8 +7,8 @@ use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
 use rustrak::ingest::{store_event, EventMetadata};
-use rustrak::models::CreateProject;
-use rustrak::services::{EventService, IssueService, ProjectService};
+use rustrak::models::{CreateProject, CreateRelease};
+use rustrak::services::{EventService, IssueService, ProjectService, ReleaseService};
 use serde_json::json;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -2201,10 +2201,28 @@ async fn test_finalize_release_clears_marker() {
         .await
         .unwrap();
 
-    // Deploy a different version → marker cleared.
-    let finalized = IssueService::finalize_release(&db.pool, project.id, "v2.0.0")
-        .await
-        .unwrap();
+    // Register the release the issue's last_release denormalizes to, so
+    // finalize_release has a `releases` row to chronologically compare against.
+    let (v1, _) = ReleaseService::create(
+        &db.pool,
+        project.id,
+        CreateRelease {
+            version: "v1.0.0".to_string(),
+            reference: None,
+            url: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Deploy a newer release (created strictly after v1.0.0) → marker cleared.
+    let finalized = IssueService::finalize_release(
+        &db.pool,
+        project.id,
+        v1.date_created + chrono::Duration::seconds(1),
+    )
+    .await
+    .unwrap();
     assert_eq!(finalized, 1);
     let i = IssueService::get_by_id(&db.pool, issue_id).await.unwrap();
     assert!(!i.status_details.contains("in_next_release"));

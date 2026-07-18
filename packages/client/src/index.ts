@@ -56,7 +56,6 @@ export type {
   CreateAlertRule,
   CreateAuthToken,
   CreateComment,
-  CreateDeploy,
   CreateInvitation,
   /** @deprecated Use CreateAlertIntegration */
   CreateNotificationChannel,

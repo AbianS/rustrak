@@ -30,7 +30,9 @@
 - ✅ **API** — PATCH/PUT (status canonical + legacy aliases), bulk PUT/DELETE,
   `/hashes`, `/tags/{key}`, `/aggregates` (top tags + userCount), `/stats`
   (24h/30d), `/activity`, `/comments`, `/bookmark`, `/subscription`, `/seen`,
-  `/user-reports`, `POST /deploys` (resolve-in-next-release finalization).
+  `/user-reports`, `POST /deploys` (resolve-in-next-release finalization;
+  removed in GH #191 once `POST .../releases/` took over triggering the same
+  clearing automatically — see `spec-gh-191-releases-api.md`).
 - ✅ **Search** — `?q=` free-text (LOWER LIKE, dialect-safe).
 - ✅ **Tables** — `issue_activity` (comments as notes), `issue_bookmarks`,
   `issue_subscriptions`, `issue_seen` (hasSeen/seenBy), `user_reports`.

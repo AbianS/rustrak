@@ -815,11 +815,25 @@ impl IssueService {
         })
     }
 
-    /// Records a deploy of `version` for a project: clears the
-    /// "resolved in next release" marker on issues whose last_release differs
-    /// from the new version (the awaited release has now shipped). Returns the
-    /// number of issues finalized.
-    pub async fn finalize_release(pool: &DbPool, project_id: i32, version: &str) -> AppResult<u64> {
+    /// Clears the "resolved in next release" marker on issues whose
+    /// `last_release` maps to a release that shipped *before*
+    /// `new_release_date_created`, in the same project. This is the
+    /// chronological equivalent of Sentry's `post_save` signal on `Release`
+    /// (`clear_expired_resolutions`, compared on `Release.date_added`) —
+    /// it replaces a previous implementation that compared `last_release`
+    /// to the new version by string inequality, which cannot tell "older"
+    /// from "different". Returns the number of issues finalized.
+    ///
+    /// Called automatically when a new release is created (`POST
+    /// .../releases/`, not on the idempotent 208 branch) and manually via
+    /// `POST /api/projects/{project_id}/deploys`, which resolves `version`
+    /// to its release's `date_created` before calling this. Both paths run
+    /// the same query — there is one source of truth.
+    pub async fn finalize_release(
+        pool: &DbPool,
+        project_id: i32,
+        new_release_date_created: DateTime<Utc>,
+    ) -> AppResult<u64> {
         let res = sqlx::query(
             r#"
             UPDATE issues
@@ -827,11 +841,14 @@ impl IssueService {
             WHERE project_id = $1
               AND status = 'resolved'
               AND status_details LIKE '%"in_next_release":true%'
-              AND last_release <> $2
+              AND last_release IN (
+                  SELECT version FROM releases
+                  WHERE project_id = $1 AND date_created < $2
+              )
             "#,
         )
         .bind(project_id)
-        .bind(version)
+        .bind(new_release_date_created)
         .execute(pool)
         .await?;
         Ok(res.rows_affected())

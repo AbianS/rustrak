@@ -23,7 +23,6 @@ This is the Rust API server for Rustrak, an error tracking system compatible wit
 - Session tracking (SDK sessions)
 - Performance monitoring (transactions)
 - Tags extraction
-- Releases and regression detection
 - Email verification
 - Password reset flow
 - Multi-factor authentication

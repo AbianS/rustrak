@@ -539,28 +539,4 @@ export function registerIssueTools(
       }
     },
   );
-
-  server.registerTool(
-    'record_deploy',
-    {
-      description:
-        'Record a release deploy, finalizing issues resolved in the next release.',
-      inputSchema: {
-        project_id: z.number().int().describe('Project ID'),
-        version: z.string().describe('Release version that was deployed'),
-      },
-    },
-    async ({ project_id, version }) => {
-      try {
-        const result = await client.issues.createDeploy(project_id, {
-          version,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
-    },
-  );
 }

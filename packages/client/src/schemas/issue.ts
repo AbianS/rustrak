@@ -198,10 +198,3 @@ export const bulkUpdateIssuesSchema = z.object({
 export const bulkDeleteIssuesSchema = z.object({
   ids: z.array(uuidSchema),
 });
-
-/**
- * Request to record a deploy (finalizes resolve-in-next-release).
- */
-export const createDeploySchema = z.object({
-  version: z.string(),
-});

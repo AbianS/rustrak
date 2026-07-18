@@ -4,7 +4,6 @@ import type {
   bulkDeleteIssuesSchema,
   bulkUpdateIssuesSchema,
   createCommentSchema,
-  createDeploySchema,
   createUserReportSchema,
   issueAggregatesSchema,
   issueHashSchema,
@@ -67,9 +66,6 @@ export type BulkUpdateIssues = z.infer<typeof bulkUpdateIssuesSchema>;
 
 /** Request to bulk-delete issues */
 export type BulkDeleteIssues = z.infer<typeof bulkDeleteIssuesSchema>;
-
-/** Request to record a deploy */
-export type CreateDeploy = z.infer<typeof createDeploySchema>;
 
 /** Time window for issue stats */
 export type IssueStatsWindow = z.infer<typeof issueStatsWindowSchema>;
