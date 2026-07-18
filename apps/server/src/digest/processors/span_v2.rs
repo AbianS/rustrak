@@ -54,14 +54,17 @@ impl Processor for SpanV2Processor {
             // consistent with what was normalized.
             let gen_ai = extract_gen_ai_columns(&mut flat, op.as_deref());
 
-            let start_timestamp = epoch_to_datetime(start_epoch);
-            let timestamp = epoch_to_datetime(end_epoch);
-            let duration_ms = match (start_timestamp, timestamp) {
-                (Some(st), Some(ts)) => (ts - st)
-                    .num_microseconds()
-                    .map(|us| (us as f64 / 1000.0).max(0.0)),
-                _ => None,
+            let Some(start_timestamp) = epoch_to_datetime(start_epoch) else {
+                log::warn!("span v2 entry has invalid start_timestamp, skipping");
+                continue;
             };
+            let Some(timestamp) = epoch_to_datetime(end_epoch) else {
+                log::warn!("span v2 entry has invalid end_timestamp, skipping");
+                continue;
+            };
+            let duration_ms = (timestamp - start_timestamp)
+                .num_microseconds()
+                .map(|us| (us as f64 / 1000.0).max(0.0));
 
             // What the legacy schema kept as top-level span fields, v2 carries
             // as `sentry.*` attributes — read after gen_ai normalization so the

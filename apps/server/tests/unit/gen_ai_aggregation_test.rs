@@ -609,6 +609,54 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
     );
 }
 
+#[tokio::test]
+async fn test_agent_traces_reports_zero_tokens_for_root_only_trace() {
+    // A root-only trace (promoted root/agent span, no non-agent 'ai_client'
+    // children ever ingested) reports 0 tokens — matches real Sentry's
+    // Traces table exactly: its query unconditionally excludes agent-type
+    // spans from the token sum with no root-only fallback
+    // (tracesTable.tsx's `getAgentRunsFilter({negated: true})`), so an
+    // agent span's own rolled-up gen_ai.usage.* is never counted, even when
+    // it's the only gen_ai span in the trace.
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "gen-ai-traces-root-only".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let trace_id = "root-only-trace";
+
+    store_span(
+        &db.pool,
+        project.id,
+        json!({
+            "span_id": "2200000000000001", "trace_id": trace_id,
+            "start_timestamp": 1.0, "timestamp": 3.0,
+            "data": {
+                "gen_ai.operation.type": "agent",
+                "gen_ai.agent.name": "research-agent",
+                "gen_ai.usage.total_tokens": 15
+            }
+        }),
+    )
+    .await;
+
+    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
+        .await
+        .unwrap();
+
+    assert_eq!(traces.len(), 1);
+    assert_eq!(
+        traces[0].total_tokens, 0.0,
+        "agent-type rows are always excluded from the token sum, root-only or not"
+    );
+}
+
 // =============================================================================
 // SpanResponse exposes gen_ai.* fields (needed by the Agents trace waterfall
 // drill-down to show model/tokens per span)

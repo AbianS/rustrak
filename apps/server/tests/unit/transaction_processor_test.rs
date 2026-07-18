@@ -1327,6 +1327,73 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_transaction_ai_root_span_promoted_without_trace_data() {
+        // Regression guard: a tool-only agent run (or an agent span that
+        // failed before accumulating token data) can send
+        // contexts.trace.op = "gen_ai.invoke_agent" with no `data` key at
+        // all. `is_ai_span` recognizes the op alone, so the root must still
+        // be promoted even though there's nothing to normalize in `data`.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "txn-ai-root-span-no-data".to_string(),
+                slug: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "type": "transaction",
+            "transaction": "invoke_agent research_agent",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                    "span_id": "ffffffffffffffff",
+                    "op": "gen_ai.invoke_agent",
+                    "status": "ok"
+                }
+            },
+            "spans": []
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::new_v4(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        #[cfg(feature = "postgres")]
+        const QUERY: &str =
+            "SELECT span_id, gen_ai_operation_type FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const QUERY: &str = "SELECT span_id, gen_ai_operation_type FROM spans WHERE project_id = ?";
+
+        let row = sqlx::query(QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+
+        let span_id: Option<String> = row.get("span_id");
+        let operation_type: Option<String> = row.get("gen_ai_operation_type");
+
+        assert_eq!(span_id.as_deref(), Some("ffffffffffffffff"));
+        assert_eq!(
+            operation_type.as_deref(),
+            Some("agent"),
+            "op alone (no contexts.trace.data) must still promote and classify as \"agent\""
+        );
+    }
+
+    #[tokio::test]
     async fn test_agent_runs_timeseries_counts_promoted_root_span() {
         // The actual widget this fixes: before promotion, an AI trace whose
         // root only exists in contexts.trace was invisible to "Agent Runs".

@@ -160,6 +160,23 @@ fn test_parse_container_with_no_items_returns_empty_vec() {
     assert!(entries.is_empty());
 }
 
+#[test]
+fn test_parse_container_missing_version_is_still_accepted() {
+    // `version` is optional and advisory in the real protocol (Relay's
+    // ContainerMetadata.version: Option<u16>) — a missing version is a
+    // documented-valid state, not a rejection condition.
+    let entries = parse_span_v2_container(br#"{"items":[]}"#).unwrap();
+    assert!(entries.is_empty());
+}
+
+#[test]
+fn test_parse_container_with_unrecognized_version_is_still_accepted() {
+    // Relay's own tests round-trip arbitrary version values (e.g. 123)
+    // unrejected — version never gates whether items[] parses.
+    let entries = parse_span_v2_container(br#"{"version":99,"items":[]}"#).unwrap();
+    assert!(entries.is_empty());
+}
+
 // =============================================================================
 // Level 2 — SpanV2Processor DB behavior (#[tokio::test] + TestDb)
 // =============================================================================

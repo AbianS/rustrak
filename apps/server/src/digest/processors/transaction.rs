@@ -154,8 +154,14 @@ impl Processor for TransactionProcessor {
         // an ordinary, non-AI transaction's span count is unaffected —
         // verified live against a real captured trace, 2026-07-17.
         if let (Some(root_span_id), Some(root_trace_id)) = (&span_id, &trace_id) {
-            let gen_ai = match trace_context.as_mut().and_then(|t| t.get_mut("data")) {
-                Some(trace_data) => extract_gen_ai_columns(trace_data, op.as_deref()),
+            let gen_ai = match trace_context
+                .as_mut()
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                Some(trace) => {
+                    let trace_data = trace.entry("data").or_insert_with(|| serde_json::json!({}));
+                    extract_gen_ai_columns(trace_data, op.as_deref())
+                }
                 None => GenAiColumns::default(),
             };
             if gen_ai.operation_type.is_some() {

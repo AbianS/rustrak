@@ -347,6 +347,10 @@ impl SpanService {
         // of its 'ai_client' children (Sentry's SDKs accumulate child totals
         // onto the trace root — see story-span-v2-protocol.md's
         // root-span-promotion follow-up). Summing both would double-count.
+        // This exclusion is unconditional (matches real Sentry's Traces
+        // table query exactly — no root-only fallback: a trace with only a
+        // promoted root/agent span and no ai_client children legitimately
+        // reports 0 tokens in Sentry too, see tracesTable.tsx).
         let group_rows = sqlx::query(
             r#"
             SELECT trace_id,

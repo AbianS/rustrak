@@ -131,6 +131,14 @@ impl SpanV2Entry {
 }
 
 /// Wire shape of a Spans Protocol v2 container: `{"version":2,"items":[...]}`.
+///
+/// `version` is intentionally not modeled: Relay's own `ContainerMetadata`
+/// treats it as optional and purely advisory (client-IP/UA inference hints),
+/// never a rejection gate — a missing `version` is a documented-valid state,
+/// and Relay's own tests round-trip arbitrary values (e.g. `123`) unrejected
+/// (relay-event-schema/src/protocol/span_v2/container.rs). The content-type
+/// (`application/vnd.sentry.items.span.v2+json`) is what pins this item to
+/// the v2 wire format, not the inner field.
 #[derive(Debug, Deserialize)]
 struct SpanV2Container {
     #[serde(default)]
