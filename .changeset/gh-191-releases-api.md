@@ -1,7 +1,8 @@
 ---
 "@rustrak/server": minor
-"@rustrak/client": minor
-"@rustrak/mcp": minor
+"@rustrak/client": patch
+"@rustrak/mcp": patch
+"docs": patch
 ---
 
 ## Sentry Releases API
