@@ -690,15 +690,6 @@ export const handlers = [
     },
   ),
 
-  // Deploys (#165)
-  http.post(
-    `${BASE_URL}/api/projects/:projectId/deploys`,
-    async ({ request }) => {
-      const body = (await request.json()) as { version: string };
-      return HttpResponse.json({ version: body.version, finalized: 1 });
-    },
-  ),
-
   // Events
   http.get(`${BASE_URL}/api/projects/:projectId/issues/:issueId/events`, () => {
     return HttpResponse.json({

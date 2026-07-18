@@ -309,12 +309,6 @@ describe('IssuesResource Integration', () => {
       expect(res.deleted).toBe(2);
     });
 
-    it('should record a deploy', async () => {
-      const res = await client.issues.createDeploy(1, { version: 'v2.0.0' });
-      expect(res.version).toBe('v2.0.0');
-      expect(res.finalized).toBe(1);
-    });
-
     it('should resolve in next release', async () => {
       const issue = await client.issues.resolveInNextRelease(
         1,

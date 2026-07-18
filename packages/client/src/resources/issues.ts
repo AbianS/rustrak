@@ -4,7 +4,6 @@ import {
   bulkDeleteIssuesSchema,
   bulkUpdateIssuesSchema,
   createCommentSchema,
-  createDeploySchema,
   createUserReportSchema,
   issueAggregatesSchema,
   issueHashSchema,
@@ -20,7 +19,6 @@ import type {
   BulkDeleteIssues,
   BulkUpdateIssues,
   CreateComment,
-  CreateDeploy,
   CreateUserReport,
   Issue,
   IssueAggregates,
@@ -310,22 +308,5 @@ export class IssuesResource extends BaseResource {
       })
       .json();
     return this.validate(data, userReportSchema);
-  }
-
-  /**
-   * Record a deploy of a release, finalizing resolve-in-next-release issues.
-   */
-  async createDeploy(
-    projectId: number,
-    input: CreateDeploy,
-  ): Promise<{ version: string; finalized: number }> {
-    const validatedInput = this.validate(input, createDeploySchema);
-    const data = await this.http
-      .post(`api/projects/${projectId}/deploys`, { json: validatedInput })
-      .json();
-    return this.validate(
-      data,
-      z.object({ version: z.string(), finalized: z.number().int() }),
-    );
   }
 }

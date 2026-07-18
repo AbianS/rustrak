@@ -14,6 +14,7 @@ pub mod notification;
 pub mod project;
 pub mod project_member;
 pub mod rate_limit;
+pub mod release;
 pub mod session;
 pub mod sourcemap;
 pub mod sourcemap_store;
@@ -41,6 +42,7 @@ pub use notification::{create_dispatcher, NotificationDispatcher, NotificationRe
 pub use project::ProjectService;
 pub use project_member::ProjectMemberService;
 pub use rate_limit::RateLimitService;
+pub use release::ReleaseService;
 pub use sourcemap::{rewrite_frames, DbSourceMapProvider, SourceMapEntry, SourceMapProvider};
 pub use sourcemap_store::{LocalSourceMapStore, SourceMapStore, StoreError};
 pub use span::{SpanFilters, SpanService};

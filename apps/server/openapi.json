@@ -283,6 +283,189 @@
         ]
       }
     },
+    "/api/0/projects/{org_slug}/{project_slug}/releases/": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "POST /api/0/projects/{org_slug}/{project_slug}/releases/",
+        "description": "Sentry-compatible release creation. Idempotent: repeating the same\n`(project, version)` returns 208 rather than erroring — sentry-cli and JS\nbundler plugins call this on every build. Triggers date-based regression\nclearing (see [`crate::services::issue::IssueService::finalize_release`])\non every call, not just the new-row branch: `finalize_release`'s own\n`UPDATE ... WHERE` is idempotent (a repeat run affects 0 rows once nothing\nis left to clear), so this also self-heals a prior call that created the\nrow but failed before clearing ran — a plain `if created` gate would\notherwise skip clearing forever once a retry lands on the 208 branch.",
+        "operationId": "create_release",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug (synthetic — accepted and ignored)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Release created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "208": {
+            "description": "Release already exists — no duplicate created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/projects/{org_slug}/{project_slug}/releases/{version}/": {
+      "put": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "PUT /api/0/projects/{org_slug}/{project_slug}/releases/{version}/",
+        "description": "Generic partial update (`ref`, `url`, `dateReleased`). Setting\n`dateReleased` IS \"finalize\" — there is no separate status flag.",
+        "operationId": "finalize_release",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug (synthetic — accepted and ignored)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "description": "Release version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRelease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Release updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or release not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/integrations": {
       "get": {
         "tags": [
@@ -2142,64 +2325,6 @@
           },
           "404": {
             "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer_auth": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{project_id}/deploys": {
-      "post": {
-        "tags": [
-          "Issues"
-        ],
-        "summary": "POST /api/projects/{project_id}/deploys — record a release deploy, which\nfinalizes issues that were \"resolved in the next release\".",
-        "operationId": "create_deploy",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeployRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Issues finalized by the deploy",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeployResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -7380,6 +7505,30 @@
           }
         }
       },
+      "CreateRelease": {
+        "type": "object",
+        "description": "DTO for `POST .../releases/`.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "CreateUserRequest": {
         "type": "object",
         "required": [
@@ -7391,34 +7540,6 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
-          }
-        }
-      },
-      "DeployRequest": {
-        "type": "object",
-        "description": "Body for recording a deploy.",
-        "required": [
-          "version"
-        ],
-        "properties": {
-          "version": {
-            "type": "string"
-          }
-        }
-      },
-      "DeployResponse": {
-        "type": "object",
-        "required": [
-          "version",
-          "finalized"
-        ],
-        "properties": {
-          "finalized": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "version": {
             "type": "string"
           }
         }
@@ -8233,6 +8354,42 @@
           }
         }
       },
+      "ReleaseResponse": {
+        "type": "object",
+        "description": "API response for a release.",
+        "required": [
+          "version",
+          "dateCreated"
+        ],
+        "properties": {
+          "dateCreated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dateReleased": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "SeenResponse": {
         "type": "object",
         "required": [
@@ -8983,6 +9140,31 @@
         "description": "DTO for updating a project",
         "properties": {
           "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UpdateRelease": {
+        "type": "object",
+        "description": "DTO for `PUT .../releases/{version}/` — generic partial update.\nSetting `date_released` IS \"finalize\": there is no separate status flag.\nAbsent fields (including an explicit `null`) leave the stored value\nunchanged, matching Sentry's own partial-update semantics for this endpoint.",
+        "properties": {
+          "dateReleased": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
             "type": [
               "string",
               "null"

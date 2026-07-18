@@ -27,7 +27,6 @@ describe('issue tools', () => {
         markSeen: vi.fn(),
         listUserReports: vi.fn(),
         createUserReport: vi.fn(),
-        createDeploy: vi.fn(),
       },
       projects: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
       events: { list: vi.fn(), get: vi.fn() },
@@ -201,7 +200,7 @@ describe('issue tools', () => {
     });
   });
 
-  describe('bulk operations & deploys (#165)', () => {
+  describe('bulk operations (#165)', () => {
     it('bulk_update_issues forwards ids + status', async () => {
       mockClient.issues.bulkUpdate.mockResolvedValue({ updated: 2 });
       const result = await callTool({
@@ -224,20 +223,6 @@ describe('issue tools', () => {
       });
       expect(mockClient.issues.bulkDelete).toHaveBeenCalledWith(1, {
         ids: ['a', 'b'],
-      });
-    });
-
-    it('record_deploy forwards version', async () => {
-      mockClient.issues.createDeploy.mockResolvedValue({
-        version: 'v2',
-        finalized: 1,
-      });
-      await callTool({
-        name: 'record_deploy',
-        arguments: { project_id: 1, version: 'v2' },
-      });
-      expect(mockClient.issues.createDeploy).toHaveBeenCalledWith(1, {
-        version: 'v2',
       });
     });
   });
