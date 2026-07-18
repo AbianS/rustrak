@@ -1,5 +1,19 @@
 # @rustrak/client
 
+## 0.4.0
+
+### Minor Changes
+
+- [#194](https://github.com/rustrak/rustrak/pull/194) [`9a8b1bb`](https://github.com/rustrak/rustrak/commit/9a8b1bb34c815a6d2ffe23129f42a9cae2f5dc9b) Thanks [@AbianS](https://github.com/AbianS)! - ## Sentry Releases API
+
+  Server implements `POST`/`PUT .../releases/...`, the endpoints `sentry-cli` and the Sentry JS bundler plugins (Next.js, SvelteKit, Nuxt, Remix) call on every build to create and finalize a release. Previously these 404'd, showing up in every build log for most self-hosted JS users. Adds a `releases` table (`project_id` + `version`, unique) backing the new endpoints.
+
+  Regression clearing for issues resolved "in the next release" now compares real release creation dates instead of a string-inequality check, and runs automatically whenever a release is created — matching Sentry's own behavior of clearing pending resolutions on release creation.
+
+  ## Removed: `POST /api/projects/{id}/deploys`
+
+  This project-invented endpoint (and `@rustrak/client`'s `createDeploy` / `@rustrak/mcp`'s `record_deploy`) is removed. It existed only as a manual workaround to trigger the regression-clearing logic before release creation could do it automatically — creating a release now has the same effect, matching real Sentry (which has no such endpoint either; Sentry's own Deploy object is unrelated deploy-tracking metadata, not a regression-clearing trigger).
+
 ## 0.3.14
 
 ### Patch Changes
