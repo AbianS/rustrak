@@ -13,6 +13,7 @@ fn item_type(kind: &EnvelopeItemKind) -> &str {
         EnvelopeItemKind::Session(_) => "session",
         EnvelopeItemKind::Sessions(_) => "sessions",
         EnvelopeItemKind::Log(_) => "log",
+        EnvelopeItemKind::Span(_) => "span",
         EnvelopeItemKind::Other(t, _) => t,
     }
 }
@@ -22,7 +23,8 @@ fn raw_payload(kind: &EnvelopeItemKind) -> Option<&[u8]> {
     match kind {
         EnvelopeItemKind::Event(p)
         | EnvelopeItemKind::Transaction(p)
-        | EnvelopeItemKind::Log(p) => Some(p),
+        | EnvelopeItemKind::Log(p)
+        | EnvelopeItemKind::Span(p) => Some(p),
         EnvelopeItemKind::Other(_, p) => Some(p),
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => None,
     }

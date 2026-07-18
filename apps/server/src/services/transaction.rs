@@ -190,10 +190,10 @@ impl TransactionService {
 
         let rows = sqlx::query(
             r#"
-            SELECT id, span_id, trace_id, parent_span_id,
+            SELECT id, transaction_id, span_id, trace_id, parent_span_id,
                    op, description, status,
                    start_timestamp, timestamp, duration_ms, exclusive_time_ms,
-                   is_segment, segment_id
+                   is_segment, segment_id, platform, release, environment
             FROM spans
             WHERE transaction_id = $1
               AND project_id = $2
@@ -209,6 +209,7 @@ impl TransactionService {
             .iter()
             .map(|row| SpanResponse {
                 id: row.get("id"),
+                transaction_id: row.get("transaction_id"),
                 span_id: row.get("span_id"),
                 trace_id: row.get("trace_id"),
                 parent_span_id: row.get("parent_span_id"),
@@ -221,6 +222,9 @@ impl TransactionService {
                 exclusive_time_ms: row.get("exclusive_time_ms"),
                 is_segment: row.get("is_segment"),
                 segment_id: row.get("segment_id"),
+                platform: row.get("platform"),
+                release: row.get("release"),
+                environment: row.get("environment"),
             })
             .collect();
 

@@ -1,11 +1,13 @@
 pub mod event;
 pub mod logs;
 pub mod session;
+pub mod span;
 pub mod transaction;
 
 pub use event::ErrorProcessor;
 pub use logs::LogsProcessor;
 pub use session::{SessionItem, SessionProcessor};
+pub use span::SpanProcessor;
 pub use transaction::TransactionProcessor;
 
 use crate::config::RateLimitConfig;
@@ -32,6 +34,7 @@ pub struct Processors {
     pub transactions: TransactionProcessor,
     pub sessions: SessionProcessor,
     pub logs: LogsProcessor,
+    pub spans: SpanProcessor,
 }
 
 impl Processors {
@@ -46,6 +49,7 @@ impl Processors {
             transactions: TransactionProcessor,
             sessions: SessionProcessor::new(session_aggregator),
             logs: LogsProcessor,
+            spans: SpanProcessor,
         }
     }
 }
@@ -86,6 +90,8 @@ pub enum Route {
     Session,
     /// Standalone logs — direct store, no grouping.
     Log,
+    /// Standalone spans — direct store, no grouping.
+    Span,
     /// Forward-compatible catch-all: logged and dropped, never processed.
     Ignored,
 }
@@ -100,6 +106,7 @@ pub fn route(item: &EnvelopeItemKind) -> Route {
         EnvelopeItemKind::Transaction(_) => Route::Transaction,
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => Route::Session,
         EnvelopeItemKind::Log(_) => Route::Log,
+        EnvelopeItemKind::Span(_) => Route::Span,
         EnvelopeItemKind::Other(_, _) => Route::Ignored,
     }
 }

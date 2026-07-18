@@ -119,3 +119,16 @@ On every call to `ingest_session` / `ingest_aggregates`, `apply_cardinality_cap`
 
 ### D-22: Postgres `session_users` JOIN window granularity mismatch (low)
 The Postgres stats query filters `session_counts` by `bucket >= NOW() - interval` (precise) but `session_users` by `day >= (NOW() - interval)::date` (day-truncated). User counts can span a slightly wider window than session counts, producing a small asymmetry in crash-free-users rate near day boundaries. Pre-existing by design (day-bucketed users); document explicitly in the query comment. Source: `apps/server/src/services/session.rs` Postgres branch.
+
+---
+
+## 2026-07-14 — from story-span-ingestion.md (Task 8 decision)
+
+**Source:** owner decision during standalone-span-ingestion implementation, not a review.
+
+### D-23: Standalone spans have no rate-limit protection — should eventually match Sentry's per-DataCategory model (medium)
+`SpanProcessor` never calls `RateLimitService` — standalone spans are fully exempt from quota, same as `TransactionProcessor`/`LogsProcessor` today. Deliberate for this story: Rustrak's quota system is a single shared counter (`MAX_EVENTS_PER_MINUTE`/`_HOUR`, driven by `events` table COUNT), not per-category like Relay's (`DataCategory::Span` hard-reject vs `DataCategory::SpanIndexed` soft-downgrade, fully isolated from `DataCategory::Error`). Making spans share the existing counter risks starving legitimate error-event quota once span volume dominates (every HTTP call/DB query/agent tool-call becomes a span) — a noisy-neighbor regression, not a safe default.
+
+**What "do it like Sentry" means concretely:** a separate quota track for spans (own config vars, e.g. `MAX_SPANS_PER_MINUTE`/`_HOUR`; own `quota_exceeded_until`/`next_quota_check` state, either new columns on `projects`/`installation` or a small per-category quota table; own COUNT query against `spans` instead of `events`) so span volume can never rate-limit errors and vice versa. Until that lands, an unbounded/misbehaving span-emitting SDK has no ingestion-side protection against flooding the `spans` table/disk — only the existing per-item 1MB size cap applies.
+
+Source: `apps/server/src/digest/processors/span.rs`, `apps/server/src/services/rate_limit.rs`

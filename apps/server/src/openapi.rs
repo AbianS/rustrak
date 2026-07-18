@@ -100,6 +100,7 @@ impl Modify for SecurityAddon {
         crate::routes::transactions::get_transaction_stats,
         crate::routes::transactions::get_transaction_stat_group,
         crate::routes::logs::list_logs,
+        crate::routes::spans::list_spans,
         crate::routes::storage::get_summary,
         crate::routes::storage::get_projects,
         crate::routes::storage::preview_cleanup,

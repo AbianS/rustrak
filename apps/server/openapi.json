@@ -3892,6 +3892,268 @@
         ]
       }
     },
+    "/api/projects/{project_id}/spans": {
+      "get": {
+        "tags": [
+          "Spans"
+        ],
+        "summary": "GET /api/projects/{project_id}/spans\nLists spans for a project with offset-based pagination (newest by\nstart_timestamp first), optionally filtered by op/status/trace_id.\nReturns spans regardless of origin — standalone or extracted from a\ntransaction — since both are stored in the same table.",
+        "operationId": "list_spans",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "Filter by span operation, e.g. `http.client`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by span status.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "query",
+            "description": "Filter by trace id — matches spans regardless of origin (standalone\nor extracted from a transaction), since both share this table.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated span list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
+                        "required": [
+                          "id",
+                          "is_segment"
+                        ],
+                        "properties": {
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "duration_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration in milliseconds (timestamp - start_timestamp)."
+                          },
+                          "environment": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "exclusive_time_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "is_segment": {
+                            "type": "boolean"
+                          },
+                          "op": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "parent_span_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "platform": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                          },
+                          "release": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "segment_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "span_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "start_timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "status": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "trace_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "transaction_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid",
+                            "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/transactions": {
       "get": {
         "tags": [
@@ -4461,7 +4723,7 @@
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "description": "A single indexed span extracted from a transaction.",
+                    "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
                     "required": [
                       "id",
                       "is_segment"
@@ -4480,6 +4742,12 @@
                         ],
                         "format": "double",
                         "description": "Duration in milliseconds (timestamp - start_timestamp)."
+                      },
+                      "environment": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
                       },
                       "exclusive_time_ms": {
                         "type": [
@@ -4503,6 +4771,19 @@
                         ]
                       },
                       "parent_span_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "platform": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                      },
+                      "release": {
                         "type": [
                           "string",
                           "null"
@@ -4545,6 +4826,14 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "transaction_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "uuid",
+                        "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
                       }
                     }
                   }
@@ -7274,7 +7563,7 @@
       },
       "SpanResponse": {
         "type": "object",
-        "description": "A single indexed span extracted from a transaction.",
+        "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
         "required": [
           "id",
           "is_segment"
@@ -7293,6 +7582,12 @@
             ],
             "format": "double",
             "description": "Duration in milliseconds (timestamp - start_timestamp)."
+          },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "exclusive_time_ms": {
             "type": [
@@ -7316,6 +7611,19 @@
             ]
           },
           "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+          },
+          "release": {
             "type": [
               "string",
               "null"
@@ -7358,6 +7666,14 @@
               "string",
               "null"
             ]
+          },
+          "transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
           }
         }
       },
