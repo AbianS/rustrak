@@ -126,19 +126,22 @@ jobs:
           # GitHub picks the previous release, which is ambiguous here: releases
           # before v0.12.0 were tagged per package, five per version. Resolve it
           # explicitly, preferring a previous v* tag and falling back to the old
-          # per-package scheme. Must run before the new tag exists.
+          # per-package scheme.
           PREV_TAG=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
           if [[ -z "$PREV_TAG" ]]; then
             PREV_TAG=$(git tag -l '@rustrak/server@*' --sort=-v:refname | head -1)
           fi
 
-          git tag "$TAG"
-          git push origin "$TAG"
-
+          # --target makes the API create the tag together with the release, so a
+          # failed call leaves no orphaned ref and the next run retries cleanly.
+          # Tagging separately beforehand would strand the tag on failure, and the
+          # guard above would then read it as "already released" and skip forever.
+          #
           # --generate-notes appends GitHub's own PR and contributor list after
           # the body above, per the Releases API.
           GH_ARGS=(
             "$TAG"
+            --target "${{ github.sha }}"
             --title "$RELEASE_TITLE"
             --notes-file "$NOTES_FILE"
             --generate-notes
