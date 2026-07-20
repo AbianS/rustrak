@@ -329,6 +329,19 @@ The Issues and Events APIs use cursor-based (keyset) pagination for efficient ha
 - `digest_order` (default) - Order of first occurrence
 - `last_seen` - Most recently seen first
 
+### Event Ordering
+
+The Events API (`GET /api/projects/{id}/issues/{issue_id}/events`) paginates
+within an issue on a `(timestamp, id)` keyset — `timestamp` is the
+SDK-reported event time, matching Sentry's own per-event ordering, not
+`ingested_at`. There is no `sort` option (only `order=asc|desc`): unlike
+Issues, events have no separate digest_order-style counter to sort by. `id`
+is the tiebreaker for a burst of same-timestamp events, so pages never skip
+or repeat a row, though sub-order among same-timestamp events is not
+necessarily arrival order (matches Sentry's own documented trade-off). The
+`EventCursor` shape is `{order, last_timestamp, last_id}`, backed by
+`idx_events_issue_timestamp`.
+
 ---
 
 ## Event Data Structure
@@ -604,7 +617,6 @@ CREATE TABLE events (
     timestamp TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     digested_at TIMESTAMPTZ,
-    digest_order INTEGER NOT NULL DEFAULT 1,
     calculated_type VARCHAR(128),
     calculated_value TEXT,
     transaction VARCHAR(200),
@@ -616,8 +628,14 @@ CREATE TABLE events (
     UNIQUE(project_id, event_id)
 );
 
-CREATE INDEX idx_events_issue_digest_order ON events(issue_id, digest_order DESC)
-    WHERE issue_id IS NOT NULL;
+-- Events order/paginate within an issue by (timestamp, id) -- `timestamp` is
+-- the SDK-reported event time (matches Sentry), not `ingested_at`. There is
+-- no per-event digest_order counter: an earlier version derived it from
+-- issues.digested_event_count, but retention cleanup decrements that same
+-- counter when purging old events, so a new event's derived digest_order
+-- could collide with a surviving row's -- a 23505 unique-violation storm in
+-- production. (timestamp, id) needs no counter, so nothing can desync.
+CREATE INDEX idx_events_issue_timestamp ON events(issue_id, timestamp DESC, id DESC);
 ```
 
 ### groupings

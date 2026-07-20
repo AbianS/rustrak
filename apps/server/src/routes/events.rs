@@ -78,7 +78,7 @@ pub async fn list_events(
     let next_cursor = if has_more {
         events
             .last()
-            .map(|last| EventCursor::new(query.order.as_str(), last.digest_order).encode())
+            .map(|last| EventCursor::new(query.order.as_str(), last.timestamp, last.id).encode())
             .transpose()?
     } else {
         None

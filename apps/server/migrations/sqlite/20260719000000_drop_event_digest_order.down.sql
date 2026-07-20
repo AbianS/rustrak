@@ -1,0 +1,26 @@
+-- Reverse of the up migration -- intentionally NOT safe to run against a
+-- populated table with any issue that has more than one event. Mirrors the
+-- Postgres down-migration's fail-safe behavior (see that file for the full
+-- rationale), using a SQLite-native mechanism instead of a RAISE(ABORT)
+-- trigger: no RAISE-based precedent exists anywhere in this repo's
+-- migrations (checked), and a trigger would only guard future writes, not
+-- validate data that already exists at migration time.
+--
+-- SQLite's ALTER TABLE ADD COLUMN cannot declare a UNIQUE constraint inline
+-- (documented restriction: "the column may not have a UNIQUE or PRIMARY KEY
+-- constraint"), so the column is added plain first, then the
+-- UNIQUE(issue_id, digest_order) constraint is rebuilt as a separate
+-- CREATE UNIQUE INDEX. Building a unique index scans every existing row, and
+-- SQLite (like Postgres's ADD CONSTRAINT UNIQUE) aborts the statement the
+-- moment it finds two rows sharing the same (issue_id, digest_order) pair --
+-- which happens immediately for any issue with more than one event, since
+-- every pre-existing row defaults to the same placeholder digest_order (1).
+-- An issue with at most one event rolls back cleanly, because there's no
+-- ambiguity to collapse -- its one event's digest_order really was 1.
+-- sqlx wraps this migration file in a transaction, so a failed CREATE UNIQUE
+-- INDEX rolls back the ADD COLUMN too -- no partial state either way.
+--
+-- This down-migration is for fresh/empty-test-db rollbacks only, not for
+-- reverting a database with real event history.
+ALTER TABLE events ADD COLUMN digest_order INTEGER NOT NULL DEFAULT 1;
+CREATE UNIQUE INDEX events_issue_id_digest_order_key ON events(issue_id, digest_order);
