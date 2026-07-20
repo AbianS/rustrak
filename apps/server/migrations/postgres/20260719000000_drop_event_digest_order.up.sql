@@ -1,0 +1,23 @@
+-- Fixes a production 23505 unique-violation storm on events(issue_id, digest_order).
+--
+-- events.digest_order was derived from issues.digested_event_count at digest
+-- time (digest/processors/event.rs), but retention cleanup
+-- (services/storage.rs) decrements that same counter when purging old
+-- events. Purging low-digest_order rows while high-digest_order rows survive
+-- lets the decremented counter fall back into territory a surviving row
+-- already occupies -- every subsequent event for that issue then collides on
+-- UNIQUE(issue_id, digest_order) and is silently lost.
+--
+-- events are now ordered/paginated within an issue by (timestamp, id) --
+-- see the companion idx_events_issue_timestamp index migration -- which
+-- needs no dense per-issue sequence, so nothing can ever desync. This
+-- mirrors how Sentry itself orders events within a Group (no dense sequence
+-- at all). issues.digest_order (the short-id counter) is untouched -- it has
+-- no known active bug and hardening it is explicitly out of scope here (see
+-- the spec's Spec Change Log for why a counter-table approach to that was
+-- tried and reverted).
+--
+-- Dropping the column also drops the UNIQUE(issue_id, digest_order)
+-- constraint that was built on it (Postgres drops single-table constraints
+-- that reference a dropped column automatically, no CASCADE needed).
+ALTER TABLE events DROP COLUMN digest_order;

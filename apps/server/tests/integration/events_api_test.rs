@@ -4,7 +4,7 @@
 
 use crate::common::TestDb;
 use actix_web::{test, web, App};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::models::{CreateProject, Grouping};
 use rustrak::routes;
@@ -130,16 +130,25 @@ async fn create_test_grouping(
     .expect("Failed to create test grouping")
 }
 
+/// Creates a test event with an explicit `timestamp`, overriding whatever
+/// `timestamp` field `event_data` carries (see `EventService::create`, which
+/// prefers the payload's embedded `timestamp` over `ingested_at`). Events now
+/// order within an issue by `(timestamp, id)`, not a `digest_order` counter,
+/// so callers that care about ordering must give each event a distinct
+/// timestamp.
 async fn create_test_event(
     pool: &rustrak::db::DbPool,
     project_id: i32,
     issue_id: Uuid,
     grouping_id: i32,
     event_data: &Value,
-    digest_order: i32,
+    timestamp: DateTime<Utc>,
 ) -> rustrak::models::Event {
     let event_id = Uuid::new_v4();
     let denormalized = create_denormalized_fields("TypeError", "Test error", "/api/test");
+
+    let mut data = event_data.clone();
+    data["timestamp"] = json!(timestamp.timestamp() as f64);
 
     EventService::create(
         pool,
@@ -147,10 +156,9 @@ async fn create_test_event(
         project_id,
         issue_id,
         grouping_id,
-        event_data,
-        Utc::now(),
+        &data,
+        timestamp,
         &denormalized,
-        digest_order,
         None,
     )
     .await
@@ -236,8 +244,24 @@ async fn test_list_events_with_data() {
 
     // Create some test events
     let event_data = create_event_data();
-    create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
-    create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 2).await;
+    create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
+    create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -369,12 +393,33 @@ async fn test_list_events_order_desc() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    let event1 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
-    let event2 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 2).await;
-    let event3 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 3).await;
+    let event1 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now() - chrono::Duration::seconds(2),
+    )
+    .await;
+    let event2 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now() - chrono::Duration::seconds(1),
+    )
+    .await;
+    let event3 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -386,7 +431,7 @@ async fn test_list_events_order_desc() {
     )
     .await;
 
-    // Default order is DESC (newest first / highest digest_order first)
+    // Default order is DESC (newest first, by timestamp then id)
     let req = test::TestRequest::get()
         .uri(&format!(
             "/api/projects/{}/issues/{}/events?order=desc",
@@ -428,12 +473,33 @@ async fn test_list_events_order_asc() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    let event1 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
-    let event2 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 2).await;
-    let event3 =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 3).await;
+    let event1 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now() - chrono::Duration::seconds(2),
+    )
+    .await;
+    let event2 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now() - chrono::Duration::seconds(1),
+    )
+    .await;
+    let event3 = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -490,8 +556,15 @@ async fn test_get_event_success() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    let event =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
+    let event = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -564,8 +637,15 @@ async fn test_get_event_wrong_issue() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    let event =
-        create_test_event(&db.pool, project.id, issue1.id, grouping.id, &event_data, 1).await;
+    let event = create_test_event(
+        &db.pool,
+        project.id,
+        issue1.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -629,8 +709,15 @@ async fn test_get_event_includes_full_data() {
         }
     });
 
-    let event =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
+    let event = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -681,7 +768,15 @@ async fn test_list_events_pagination() {
     // (actual page size is 250, so we test with fewer items and verify cursor mechanics)
     let event_data = create_event_data();
     for i in 1..=25 {
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, i).await;
+        create_test_event(
+            &db.pool,
+            project.id,
+            issue.id,
+            grouping.id,
+            &event_data,
+            Utc::now() + chrono::Duration::seconds(i as i64),
+        )
+        .await;
     }
 
     let app = test::init_service(
@@ -761,7 +856,15 @@ async fn test_event_list_response_format() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
+    create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()
@@ -809,8 +912,15 @@ async fn test_event_detail_response_format() {
     let config = create_test_config();
 
     let event_data = create_event_data();
-    let event =
-        create_test_event(&db.pool, project.id, issue.id, grouping.id, &event_data, 1).await;
+    let event = create_test_event(
+        &db.pool,
+        project.id,
+        issue.id,
+        grouping.id,
+        &event_data,
+        Utc::now(),
+    )
+    .await;
 
     let app = test::init_service(
         App::new()

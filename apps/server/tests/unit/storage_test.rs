@@ -111,8 +111,8 @@ async fn seed_event_at(
 
     sqlx::query(
         "INSERT INTO events \
-         (id, event_id, project_id, issue_id, grouping_id, data, timestamp, ingested_at, digested_at, digest_order) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+         (id, event_id, project_id, issue_id, grouping_id, data, timestamp, ingested_at, digested_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
     )
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
@@ -123,7 +123,6 @@ async fn seed_event_at(
     .bind(now)
     .bind(now)
     .bind(now)
-    .bind(1_i32)
     .execute(pool)
     .await
     .unwrap();
@@ -143,8 +142,8 @@ async fn seed_issueless_event_at(
     let now = ingested_at;
     sqlx::query(
         "INSERT INTO events \
-         (id, event_id, project_id, data, timestamp, ingested_at, digested_at, digest_order, event_type) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+         (id, event_id, project_id, data, timestamp, ingested_at, digested_at, event_type) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     )
     .bind(Uuid::new_v4())
     .bind(Uuid::new_v4())
@@ -153,7 +152,6 @@ async fn seed_issueless_event_at(
     .bind(now)
     .bind(now)
     .bind(now)
-    .bind(1_i32)
     .bind(event_type)
     .execute(pool)
     .await

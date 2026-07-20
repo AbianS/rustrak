@@ -116,13 +116,9 @@ impl ErrorProcessor {
             )
             .await?;
 
-        // 7. Create Event
-        let digest_order = if issue_created {
-            1
-        } else {
-            issue.digested_event_count
-        };
-
+        // 7. Create Event. No digest_order to compute -- events order within
+        // an issue by (timestamp, id) (see idx_events_issue_timestamp), which
+        // needs no per-issue counter to derive or keep in sync.
         EventService::create(
             pool,
             event_id,
@@ -132,7 +128,6 @@ impl ErrorProcessor {
             &event_data,
             metadata.ingested_at,
             &denormalized,
-            digest_order,
             metadata.remote_addr.as_deref(),
         )
         .await?;

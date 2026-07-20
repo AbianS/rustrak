@@ -197,7 +197,6 @@ CREATE TABLE events (
     timestamp TIMESTAMPTZ NOT NULL,
     ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     digested_at TIMESTAMPTZ,
-    digest_order INTEGER NOT NULL DEFAULT 1,
     calculated_type VARCHAR(128),
     calculated_value TEXT,
     transaction VARCHAR(200),
@@ -207,9 +206,18 @@ CREATE TABLE events (
     environment VARCHAR(100),
     UNIQUE(project_id, event_id)
 );
-CREATE INDEX idx_events_issue_digest_order ON events(issue_id, digest_order DESC)
-    WHERE issue_id IS NOT NULL;
+CREATE INDEX idx_events_issue_timestamp ON events(issue_id, timestamp DESC, id DESC);
 ```
+
+Events order/paginate within an issue on `(timestamp, id)` — `timestamp` is
+the SDK-reported event time (matches Sentry), not `ingested_at`; `id` breaks
+ties for same-timestamp bursts. There is no per-event `digest_order` counter
+— an earlier version derived one from `issues.digested_event_count`, but
+retention cleanup decrements that same counter when purging old events,
+which could make a new event's derived value collide with a surviving row's
+(`23505` unique-violation). `(timestamp, id)` needs no counter, so nothing
+can desync. `issues.digest_order` (the per-project short-id counter) is
+unrelated and unaffected.
 
 ---
 
@@ -327,7 +335,10 @@ CREATE TABLE alert_history (
 
 ## Concurrency Control
 
-PostgreSQL advisory locks prevent duplicate `digest_order` during concurrent event ingestion:
+PostgreSQL advisory locks prevent duplicate `issues.digest_order` (the
+per-project short-id counter) when concurrent event ingestion creates new
+issues. This is unrelated to event ordering, which uses `(timestamp, id)`
+and needs no counter or lock at all — see the `events` table section above.
 
 ```rust
 // Acquire transaction-scoped advisory lock per project

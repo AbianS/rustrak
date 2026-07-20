@@ -31,7 +31,6 @@ pub struct Event {
     pub sdk_name: String,
     pub sdk_version: String,
     pub remote_addr: Option<String>,
-    pub digest_order: i32,
     /// "error" for error events, "transaction" for performance events
     pub event_type: String,
 }

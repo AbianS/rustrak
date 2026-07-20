@@ -37,6 +37,9 @@ _What the owner has told me about Rustrak's current Sentry compatibility._
 - Attachment items — silently ignored
 - Releases create/finalize API (`POST`/`PUT .../releases/...`) — see gap table below, GH #191
 
+### Active Production Bug (not a Sentry-compat gap — a Rustrak-internal bug)
+- **`events.digest_order` collisions after retention cleanup runs (23505 unique-violation storms, silent event loss)** — confirmed 2026-07-18, unfixed. `digest/processors/event.rs:120-124` derives a new event's `digest_order` from `issues.digested_event_count` (a counter meant to be atomically incremented per-event). `services/storage.rs:195-199` (retention cleanup, `POST /api/storage/cleanup`) decrements that same counter by the number of purged old events. Since old (low-`digest_order`) events get purged while recent (high-`digest_order`) events survive, the decremented counter falls below digest_order values still occupied by surviving rows — every subsequent new event for that issue collides on insert until the counter climbs back past the max surviving value. Every collision = one permanently lost event (no retry path). Verified against real Sentry (sentry-repo a32a33a5): Sentry structurally avoids this class of bug entirely — see MEMORY.md "Counter vs. Sequence" entry. Recommended fix (not applied, source-investigation only): derive digest_order from `SELECT MAX(digest_order) FROM events WHERE issue_id = $1` inside the existing per-project advisory-lock transaction instead of from the driftable counter; leave `digested_event_count` as a pure stat retention can keep decrementing freely.
+
 ### Transaction/Performance Implementation Status (verified 2026-06-23)
 **State**: Basic MVP exists. Envelope parsing → TransactionProcessor → events table (event_type='transaction') → read-only GET endpoints. Missing significant Relay-level processing.
 
