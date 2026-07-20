@@ -3,7 +3,6 @@
 import type { Project } from '@rustrak/client';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { PlatformIcon } from 'platformicons';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deleteProject, updateProject } from '@/actions/projects';
@@ -21,14 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { platformLabel, VALID_PLATFORMS } from '@/lib/platforms';
+import { PlatformPicker } from './platform-picker';
 
 interface GeneralSettingsFormProps {
   project: Project;
@@ -127,32 +119,11 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Select
-            value={project.platform ?? undefined}
-            onValueChange={(value) => value && handlePlatformChange(value)}
+          <PlatformPicker
+            value={project.platform}
+            onValueChange={handlePlatformChange}
             disabled={isPending}
-          >
-            <SelectTrigger className="w-full sm:w-72" aria-label="Platform">
-              <SelectValue placeholder="Select a platform">
-                {(value) => (
-                  <span className="flex items-center gap-2">
-                    <PlatformIcon platform={value} size={16} />
-                    {platformLabel(value)}
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {VALID_PLATFORMS.map((platform) => (
-                <SelectItem key={platform} value={platform}>
-                  <span className="flex items-center gap-2">
-                    <PlatformIcon platform={platform} size={16} />
-                    {platformLabel(platform)}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          />
           <p className="mt-2 text-xs text-muted-foreground">
             Auto-detected from the first ingested event. You can override it
             manually here.
