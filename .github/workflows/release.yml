@@ -57,86 +57,101 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
 
-      # If there are NO changesets, we just merged a version PR - create releases
-      - name: Get changed packages and create releases
+      # If there are NO changesets, we just merged a version PR - cut the release.
+      # All packages are a `fixed` group in .changeset/config.json, so they share
+      # one version and ship together: one tag, one GitHub release.
+      - name: Create release
         if: steps.check.outputs.has_changesets == 'false'
         run: |
-          # Get the packages that might have new versions
-          # We check if there's a git tag for the current version, if not, create a release
+          set -euo pipefail
 
-          # Server
-          SERVER_VERSION=$(node -p "require('./apps/server/package.json').version")
-          SERVER_TAG="@rustrak/server@$SERVER_VERSION"
-          if ! git tag -l | grep -q "^$SERVER_TAG$"; then
-            echo "Creating release for $SERVER_TAG"
-            git tag "$SERVER_TAG"
-            git push origin "$SERVER_TAG"
-            gh release create "$SERVER_TAG" \
-              --title "🚀 @rustrak/server v$SERVER_VERSION" \
-              --notes "Release of @rustrak/server version $SERVER_VERSION" \
-              --latest=false
-          else
-            echo "Tag $SERVER_TAG already exists, skipping"
+          VERSION=$(node -p "require('./apps/server/package.json').version")
+          TAG="v$VERSION"
+
+          if git tag -l | grep -qx "$TAG"; then
+            echo "Tag $TAG already exists, nothing to release"
+            exit 0
           fi
 
-          # UI
-          UI_VERSION=$(node -p "require('./apps/webview-ui/package.json').version")
-          UI_TAG="webview-ui@$UI_VERSION"
-          if ! git tag -l | grep -q "^$UI_TAG$"; then
-            echo "Creating release for $UI_TAG"
-            git tag "$UI_TAG"
-            git push origin "$UI_TAG"
-            gh release create "$UI_TAG" \
-              --title "🎨 webview-ui v$UI_VERSION" \
-              --notes "Release of webview-ui version $UI_VERSION" \
-              --latest=false
+          # Sanity check: the fixed group must be aligned. If it drifted, the
+          # single tag would be a lie about what the other images contain.
+          for pkg in apps/webview-ui apps/docs packages/client packages/mcp; do
+            PKG_VERSION=$(node -p "require('./$pkg/package.json').version")
+            if [[ "$PKG_VERSION" != "$VERSION" ]]; then
+              echo "::error::$pkg is at $PKG_VERSION but the release is $VERSION."
+              echo "::error::The fixed group in .changeset/config.json is out of sync."
+              exit 1
+            fi
+          done
+
+          # Release body: prefer the curated changelog entry written for the docs
+          # site, fall back to the changesets-generated server CHANGELOG section.
+          NOTES_FILE=$(mktemp)
+          ENTRY=$(ls apps/docs/content/changelog/*-v${VERSION//./-}-*.mdx 2>/dev/null | head -1 || true)
+
+          if [[ -n "$ENTRY" ]]; then
+            echo "Using changelog entry: $ENTRY"
+            # Strip the key rather than splitting on ':', so titles that
+            # themselves contain a colon survive intact.
+            TITLE=$(awk '/^title: /{sub(/^title: */, ""); print; exit}' "$ENTRY")
+            # Drop the MDX frontmatter, keep the prose.
+            awk 'BEGIN{n=0} /^---[[:space:]]*$/ && n<2 {n++; next} n>=2' "$ENTRY" > "$NOTES_FILE"
           else
-            echo "Tag $UI_TAG already exists, skipping"
+            echo "No changelog entry for $VERSION, falling back to CHANGELOG.md"
+            TITLE=""
+            awk -v v="$VERSION" '$0=="## "v{f=1;next} f&&/^## /{exit} f' \
+              apps/server/CHANGELOG.md > "$NOTES_FILE"
           fi
 
-          # Docs
-          DOCS_VERSION=$(node -p "require('./apps/docs/package.json').version")
-          DOCS_TAG="docs@$DOCS_VERSION"
-          if ! git tag -l | grep -q "^$DOCS_TAG$"; then
-            echo "Creating release for $DOCS_TAG"
-            git tag "$DOCS_TAG"
-            git push origin "$DOCS_TAG"
-            gh release create "$DOCS_TAG" \
-              --title "📚 docs v$DOCS_VERSION" \
-              --notes "Release of docs version $DOCS_VERSION" \
-              --latest=false
+          if [[ -n "$TITLE" ]]; then
+            RELEASE_TITLE="Rustrak v$VERSION: $TITLE"
           else
-            echo "Tag $DOCS_TAG already exists, skipping"
+            RELEASE_TITLE="Rustrak v$VERSION"
           fi
 
-          # Client
-          CLIENT_VERSION=$(node -p "require('./packages/client/package.json').version")
-          CLIENT_TAG="@rustrak/client@$CLIENT_VERSION"
-          if ! git tag -l | grep -q "^$CLIENT_TAG$"; then
-            echo "Creating release for $CLIENT_TAG"
-            git tag "$CLIENT_TAG"
-            git push origin "$CLIENT_TAG"
-            gh release create "$CLIENT_TAG" \
-              --title "📦 @rustrak/client v$CLIENT_VERSION" \
-              --notes "Release of @rustrak/client version $CLIENT_VERSION" \
-              --latest=false
-          else
-            echo "Tag $CLIENT_TAG already exists, skipping"
+          {
+            echo
+            echo "## Artifacts"
+            echo
+            echo '```'
+            echo "rustrak/rustrak-server:v$VERSION"
+            echo "rustrak/rustrak-server:v$VERSION-postgres"
+            echo "rustrak/rustrak-ui:v$VERSION"
+            echo '```'
+            echo
+            echo "\`@rustrak/client@$VERSION\` and \`@rustrak/mcp@$VERSION\` on npm."
+          } >> "$NOTES_FILE"
+
+          # Pin where the generated "Full Changelog" range starts. Left to itself
+          # GitHub picks the previous release, which is ambiguous here: releases
+          # before v0.12.0 were tagged per package, five per version. Resolve it
+          # explicitly, preferring a previous v* tag and falling back to the old
+          # per-package scheme.
+          PREV_TAG=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+          if [[ -z "$PREV_TAG" ]]; then
+            PREV_TAG=$(git tag -l '@rustrak/server@*' --sort=-v:refname | head -1)
           fi
 
-          # MCP
-          MCP_VERSION=$(node -p "require('./packages/mcp/package.json').version")
-          MCP_TAG="@rustrak/mcp@$MCP_VERSION"
-          if ! git tag -l | grep -q "^$MCP_TAG$"; then
-            echo "Creating release for $MCP_TAG"
-            git tag "$MCP_TAG"
-            git push origin "$MCP_TAG"
-            gh release create "$MCP_TAG" \
-              --title "🤖 @rustrak/mcp v$MCP_VERSION" \
-              --notes "Release of @rustrak/mcp version $MCP_VERSION" \
-              --latest=false
-          else
-            echo "Tag $MCP_TAG already exists, skipping"
+          # --target makes the API create the tag together with the release, so a
+          # failed call leaves no orphaned ref and the next run retries cleanly.
+          # Tagging separately beforehand would strand the tag on failure, and the
+          # guard above would then read it as "already released" and skip forever.
+          #
+          # --generate-notes appends GitHub's own PR and contributor list after
+          # the body above, per the Releases API.
+          GH_ARGS=(
+            "$TAG"
+            --target "${{ github.sha }}"
+            --title "$RELEASE_TITLE"
+            --notes-file "$NOTES_FILE"
+            --generate-notes
+            --latest
+          )
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Generating notes since $PREV_TAG"
+            GH_ARGS+=(--notes-start-tag "$PREV_TAG")
           fi
+
+          gh release create "${GH_ARGS[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}

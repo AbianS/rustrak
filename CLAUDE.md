@@ -161,6 +161,20 @@ openssl rand -hex 32
 - Prefer `async/await` over blocking code
 - Use `log` crate with `env_logger` (RUST_LOG env var)
 
+### Versioning
+
+Rustrak uses **lockstep versioning**. `@rustrak/server`, `webview-ui`, `@rustrak/client`, `@rustrak/mcp` and `docs` form a `fixed` group in `.changeset/config.json`: they always share one version number and bump together, even when a package has no changes.
+
+The number identifies the **Rustrak release**, not the semver of one artifact. This is what lets a user answer "which version of Rustrak am I running?" and lets `@rustrak/client@X.Y.Z` be known-compatible with server `X.Y.Z` without a compatibility matrix.
+
+- A changeset only needs to name `@rustrak/server`; the group propagates the bump.
+- The group takes the **highest** bump present.
+- **While on `0.x`, never write a `major` changeset.** Use `minor` for breaking changes, per the 0.x convention. A `major` would push the product to 1.0.0 as a side effect.
+- `@rustrak/test-sentry` and `@rustrak/benchmarks` are internal and excluded via `ignore`.
+- `scripts/sync-version.sh` propagates the version from `apps/server/package.json` to `Cargo.toml` after `changeset version`.
+
+Post-1.0 the management API should get its own `api_version` in `/health/version`, which would allow decoupling the client from the product version if needed.
+
 ### General
 - Commit messages: `type: description` (feat, fix, docs, refactor, test)
 - Keep functions small and focused

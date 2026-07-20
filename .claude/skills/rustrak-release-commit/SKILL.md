@@ -37,17 +37,23 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    - Commit count since then
    - Breakdown by type
    - Notable changes (features, fixes, breaking changes)
-6. **Suggest a bump level** based on the analysis:
-   - `major` if any commit message contains `BREAKING CHANGE` or `!:` after the type
-   - `minor` if there are `feat:` commits
+6. **Suggest a single bump level** for the release based on the analysis:
+   - `minor` if any commit message contains `BREAKING CHANGE` or `!:` after the type, or if there are `feat:` commits
    - `patch` if only `fix:`, `docs:`, `chore:`, `refactor:`, `test:` commits
-7. **Interactive:** Ask the user to confirm or override the bump for each package. Present the list of packages that had changes:
-   - `@rustrak/server` (apps/server)
-   - `webview-ui` (apps/webview-ui)
-   - `@rustrak/client` (packages/client)
-   - `@rustrak/mcp` (packages/mcp)
-   - `docs` (apps/docs) — always `patch` since a changelog entry is created in docs
-8. **Headless:** Use the suggested bump for all packages, skip confirmation.
+   - Never suggest `major` while the product is on `0.x`. See "Versioning Policy" below.
+7. **Interactive:** Ask the user to confirm or override the single release bump. Do not ask per package, the fixed group makes that irrelevant.
+8. **Headless:** Use the suggested bump, skip confirmation.
+
+### Versioning Policy
+
+Rustrak uses **lockstep versioning**: `@rustrak/server`, `webview-ui`, `@rustrak/client`, `@rustrak/mcp` and `docs` are declared as a `fixed` group in `.changeset/config.json`. They always share one version number and are bumped together even when a given package has no changes.
+
+Consequences for this workflow:
+
+- One changeset naming one package bumps all five. There is no per-package bump decision.
+- The group takes the **highest** bump present, so a `major` anywhere drags the whole product to the next major.
+- **While on `0.x`, never write a `major` changeset.** Use `minor` to signal a breaking change, per the standard 0.x convention. A `major` would push the product to 1.0.0 as a side effect.
+- The version number identifies the Rustrak release, not the semver of an individual artifact. The changelog is what tells users which part actually changed.
 
 ## Stage 2: Create Changeset
 
@@ -62,7 +68,7 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
    <description of changes>
    ```
 
-   Only include packages that are being bumped (docs is always included as `patch` since a changelog entry is created). The description should be a concise bullet-free summary of what changed, written for the changelog audience. For changes made by external contributors, append `(@github_username)` after the relevant change description.
+   Name only `"@rustrak/server"` with the agreed bump. The fixed group propagates it to `webview-ui`, `@rustrak/client`, `@rustrak/mcp` and `docs` automatically, so listing them is redundant and risks a mismatched bump level. The description should be a concise bullet-free summary of what changed, written for the changelog audience. For changes made by external contributors, append `(@github_username)` after the relevant change description.
 
 3. **Interactive:** Show the generated changeset to the user and ask for approval before writing.
 4. **Headless:** Write directly without confirmation.
@@ -70,7 +76,7 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
 ## Stage 3: Create Changelog Entry
 
 1. List existing changelog files in `{project-root}/apps/docs/content/changelog/` to find the next sequential number.
-2. Determine the new version string. Read the current version from `{project-root}/apps/server/Cargo.toml` and apply the bump for `@rustrak/server`. For other packages, read their respective `package.json`.
+2. Determine the new version string. Read the current version from `{project-root}/apps/server/Cargo.toml` and apply the agreed bump. Because of the fixed group this is the version for every package in the release, so there is nothing to compute per package.
 3. Generate a slug from the release title (kebab-case, matching existing convention like `session-tracking`).
 4. Create the file at `{project-root}/apps/docs/content/changelog/<NN>-v<version>-<slug>.mdx` with full frontmatter and content:
 
@@ -104,13 +110,15 @@ Act as release manager for the Rustrak monorepo. This workflow prepares a new ve
 ## Finalize
 
 1. Suggest the release commit message. Derive it from the release version and title:
-   - Format: `release: v<version> — <Release Title>`
-   - Example: `release: v0.8.0 — Logs Ingestion Pipeline`
+   - Format: `release: v<version> - <Release Title>`
+   - Example: `release: v0.8.0 - Logs Ingestion Pipeline`
    - Include the changeset, changelog, and any files modified during the release workflow (including this skill) in the commit.
+
+   The changelog MDX from Stage 3 is not just docs: `.github/workflows/release.yml` reads it to build the GitHub release body, matching on the `<NN>-v<version-with-dashes>-<slug>.mdx` filename and stripping the frontmatter. Keep that naming exact, and keep the `title:` field meaningful since it becomes the release title (`Rustrak v0.12.0: <title>`). If no entry matches, the workflow falls back to the generated `apps/server/CHANGELOG.md` section.
 2. Summarize what was created:
    - Changeset file path
    - Changelog file path
-   - Version bumps applied per package
+   - The single version the whole fixed group moves to
    - Suggested commit message
 3. Remind the user of next steps:
    - Review the changeset and changelog
