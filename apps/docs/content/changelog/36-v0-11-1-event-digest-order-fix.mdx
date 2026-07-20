@@ -1,0 +1,15 @@
+---
+version: v0.11.1
+title: Event Digest Order Fix
+description: Fixed a bug that could silently drop events when retention cleanup collided with digest_order assignment
+date: 2026-07-20
+tags: [server]
+---
+
+## Event Digest Order Fix
+
+Fixed a bug where retention cleanup could cause new events to be silently dropped instead of digested. Purging old, low-`digest_order` events decremented the same `digested_event_count` counter used to derive a new event's `digest_order`, which could push that counter back into a range still occupied by a surviving event and collide on `UNIQUE(issue_id, digest_order)`.
+
+- Removed `events.digest_order` entirely — events within an issue now paginate on a `(timestamp, id)` keyset instead of a dense sequence, matching Sentry's own per-group event ordering
+- `issues.digest_order` (the short-id counter used for issue numbering) is unaffected
+- Added a regression test that purges old events via the real cleanup path and digests a new event on the same issue, verifying no collision in both cursor directions
