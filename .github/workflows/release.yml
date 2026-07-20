@@ -91,7 +91,9 @@ jobs:
 
           if [[ -n "$ENTRY" ]]; then
             echo "Using changelog entry: $ENTRY"
-            TITLE=$(awk -F': *' '/^title: /{print $2; exit}' "$ENTRY")
+            # Strip the key rather than splitting on ':', so titles that
+            # themselves contain a colon survive intact.
+            TITLE=$(awk '/^title: /{sub(/^title: */, ""); print; exit}' "$ENTRY")
             # Drop the MDX frontmatter, keep the prose.
             awk 'BEGIN{n=0} /^---[[:space:]]*$/ && n<2 {n++; next} n>=2' "$ENTRY" > "$NOTES_FILE"
           else
@@ -120,15 +122,33 @@ jobs:
             echo "\`@rustrak/client@$VERSION\` and \`@rustrak/mcp@$VERSION\` on npm."
           } >> "$NOTES_FILE"
 
+          # Pin where the generated "Full Changelog" range starts. Left to itself
+          # GitHub picks the previous release, which is ambiguous here: releases
+          # before v0.12.0 were tagged per package, five per version. Resolve it
+          # explicitly, preferring a previous v* tag and falling back to the old
+          # per-package scheme. Must run before the new tag exists.
+          PREV_TAG=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+          if [[ -z "$PREV_TAG" ]]; then
+            PREV_TAG=$(git tag -l '@rustrak/server@*' --sort=-v:refname | head -1)
+          fi
+
           git tag "$TAG"
           git push origin "$TAG"
 
           # --generate-notes appends GitHub's own PR and contributor list after
           # the body above, per the Releases API.
-          gh release create "$TAG" \
-            --title "$RELEASE_TITLE" \
-            --notes-file "$NOTES_FILE" \
-            --generate-notes \
+          GH_ARGS=(
+            "$TAG"
+            --title "$RELEASE_TITLE"
+            --notes-file "$NOTES_FILE"
+            --generate-notes
             --latest
+          )
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Generating notes since $PREV_TAG"
+            GH_ARGS+=(--notes-start-tag "$PREV_TAG")
+          fi
+
+          gh release create "${GH_ARGS[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
