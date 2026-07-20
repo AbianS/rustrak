@@ -25,6 +25,7 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
   );
   const [highlighterStyle, setHighlighterStyle] =
     useState<HighlighterStyle | null>(null);
+  const [highlighterFailed, setHighlighterFailed] = useState(false);
   const isDark = resolvedTheme === 'dark';
 
   // Loaded lazily: the highlighter is far larger than this page's own code,
@@ -34,13 +35,19 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     Promise.all([
       import('react-syntax-highlighter').then((mod) => mod.Prism),
       import('react-syntax-highlighter/dist/esm/styles/prism'),
-    ]).then(([component, styles]) => {
-      if (cancelled) return;
-      setHighlighter(() => component);
-      setHighlighterStyle(
-        (isDark ? styles.vscDarkPlus : styles.vs) as HighlighterStyle,
-      );
-    });
+    ])
+      .then(([component, styles]) => {
+        if (cancelled) return;
+        setHighlighter(() => component);
+        setHighlighterStyle(
+          (isDark ? styles.vscDarkPlus : styles.vs) as HighlighterStyle,
+        );
+      })
+      .catch(() => {
+        // Chunk failed to load. Fall back to the plain <pre> below rather than
+        // spinning forever, and don't leave the rejection unhandled.
+        if (!cancelled) setHighlighterFailed(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -132,6 +139,10 @@ Sentry.init({
               >
                 {codeExample}
               </Highlighter>
+            ) : highlighterFailed ? (
+              <pre className="overflow-x-auto p-4 font-mono text-xs">
+                {codeExample}
+              </pre>
             ) : (
               <div className="flex h-24 animate-pulse items-center justify-center bg-muted p-4">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />

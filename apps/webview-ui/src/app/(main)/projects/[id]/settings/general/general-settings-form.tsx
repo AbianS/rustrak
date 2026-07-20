@@ -38,7 +38,11 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
 
     startTransition(async () => {
       try {
-        await updateProject(project.id, { name: name.trim() });
+        const trimmed = name.trim();
+        await updateProject(project.id, { name: trimmed });
+        // Keep local state on the value that was actually persisted, otherwise
+        // stray whitespace leaves the Save button looking permanently dirty.
+        setName(trimmed);
         toast.success('Project updated');
         router.refresh();
       } catch (err) {

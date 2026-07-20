@@ -7,6 +7,16 @@ import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { removeProjectMember, upsertProjectMember } from '@/actions/members';
 import { listTeam } from '@/actions/team';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,6 +70,9 @@ export function MembersSettings({
   const [isPending, startTransition] = useTransition();
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [removingMember, setRemovingMember] = useState<ProjectMember | null>(
+    null,
+  );
 
   const memberIds = new Set(members.map((m) => m.user_id));
   // Exclude users who are already members, and global admins — admins (including
@@ -105,11 +118,16 @@ export function MembersSettings({
     });
   };
 
-  const handleRemove = (member: ProjectMember) => {
+  const handleRemove = () => {
+    if (!removingMember) return;
     startTransition(async () => {
-      const result = await removeProjectMember(projectId, member.user_id);
+      const result = await removeProjectMember(
+        projectId,
+        removingMember.user_id,
+      );
       if (result.success) {
         toast.success('Member removed');
+        setRemovingMember(null);
         router.refresh();
       } else {
         toast.error('Failed to remove member', { description: result.error });
@@ -207,7 +225,7 @@ export function MembersSettings({
                             variant="ghost"
                             size="icon"
                             className="size-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleRemove(member)}
+                            onClick={() => setRemovingMember(member)}
                             disabled={isPending}
                             aria-label={`Remove ${member.email}`}
                           >
@@ -234,6 +252,32 @@ export function MembersSettings({
           router.refresh();
         }}
       />
+
+      {/* Remove confirmation */}
+      <AlertDialog
+        open={!!removingMember}
+        onOpenChange={(open) => !open && setRemovingMember(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove {removingMember?.email} from this project? They will lose
+              access until they are added again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemove}
+              disabled={isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending ? 'Removing...' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
