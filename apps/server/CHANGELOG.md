@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.11.1
+
+### Patch Changes
+
+- [`c6d7eee`](https://github.com/rustrak/rustrak/commit/c6d7eee6b61da252fd4195f1c6f5fbc90248f0ae) Thanks [@AbianS](https://github.com/AbianS)! - Fix events.digest_order collision after retention purge that could silently drop events. Retention cleanup decremented the digested_event_count counter used to derive new digest_order values, letting it collide with a surviving event's row. Removed events.digest_order entirely — events now paginate within an issue on a (timestamp, id) keyset, matching Sentry's own per-group event ordering.
+
 ## 0.11.0
 
 ### Minor Changes
