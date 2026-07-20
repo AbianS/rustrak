@@ -17,9 +17,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { SettingRow, SettingSection } from '../setting-row';
 import { PlatformPicker } from './platform-picker';
 
 interface GeneralSettingsFormProps {
@@ -82,18 +81,14 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
   };
 
   return (
-    <div className="space-y-4">
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Project Name
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <div className="max-w-3xl">
+      <SettingSection title="Project Details">
+        <SettingRow
+          title="Name"
+          description="How this project appears across the dashboard."
+          htmlFor="project-name"
+        >
           <div className="flex items-center gap-2">
-            <Label htmlFor="project-name" className="sr-only">
-              Project name
-            </Label>
             <Input
               id="project-name"
               value={name}
@@ -109,55 +104,36 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
               {isPending ? <Loader2 className="size-4 animate-spin" /> : 'Save'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </SettingRow>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Platform
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <SettingRow
+          title="Platform"
+          description="Detected from the first event received. Change it if the detected value is wrong or too broad."
+        >
           <PlatformPicker
             value={project.platform}
             onValueChange={handlePlatformChange}
             disabled={isPending}
           />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Auto-detected from the first ingested event. You can override it
-            manually here.
-          </p>
-        </CardContent>
-      </Card>
+        </SettingRow>
+      </SettingSection>
 
-      <Card size="sm" className="border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-destructive">
-            Danger Zone
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">Remove Project</p>
-              <p className="text-xs text-muted-foreground">
-                Permanently deletes this project and all its issues and events.
-                This cannot be undone.
-              </p>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={() => setIsDeleteOpen(true)}
-              disabled={isPending}
-              className="shrink-0"
-            >
-              <Trash2 className="mr-2 size-4" />
-              Remove Project
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <SettingSection title="Danger Zone" destructive>
+        <SettingRow
+          title="Remove Project"
+          description="Permanently deletes this project and all of its issues and events. This cannot be undone."
+        >
+          <Button
+            variant="destructive"
+            onClick={() => setIsDeleteOpen(true)}
+            disabled={isPending}
+            className="w-full sm:w-auto"
+          >
+            <Trash2 className="mr-2 size-4" />
+            Remove Project
+          </Button>
+        </SettingRow>
+      </SettingSection>
 
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>

@@ -57,7 +57,7 @@ export function PlatformPicker({
       itemToStringLabel={(platform: Platform) => platform.name}
       disabled={disabled}
     >
-      <div className="relative w-full sm:w-72">
+      <div className="relative w-full">
         <Combobox.Input
           placeholder="Search platforms..."
           aria-label="Platform"
