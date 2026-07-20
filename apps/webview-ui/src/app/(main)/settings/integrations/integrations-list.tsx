@@ -14,7 +14,7 @@ import {
   Webhook,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -1157,6 +1157,18 @@ function EmailConfigDialog({
   const isLoading = isPending || parentPending;
   const [testRecipients, setTestRecipients] = useState('');
 
+  // Parsed once so the button's enabled state and its payload can never
+  // disagree: input that is only commas or spaces yields an empty list, which
+  // the server rejects with "must include at least one recipient".
+  const parsedRecipients = useMemo(
+    () =>
+      testRecipients
+        .split(',')
+        .map((a) => a.trim())
+        .filter(Boolean),
+    [testRecipients],
+  );
+
   const form = useForm<EmailFormData>({
     resolver: zodResolver(emailFormSchema),
     defaultValues: {
@@ -1423,6 +1435,7 @@ function EmailConfigDialog({
               </p>
               <div className="flex gap-2">
                 <Input
+                  aria-label="Test recipients"
                   placeholder="test@example.com"
                   value={testRecipients}
                   onChange={(e) => setTestRecipients(e.target.value)}
@@ -1434,15 +1447,17 @@ function EmailConfigDialog({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (!existingIntegration || !testRecipients.trim()) return;
-                    const recipients = testRecipients
-                      .split(',')
-                      .map((a) => a.trim())
-                      .filter(Boolean);
-                    onTest(existingIntegration, { recipients });
+                    if (!existingIntegration || parsedRecipients.length === 0) {
+                      return;
+                    }
+                    onTest(existingIntegration, {
+                      recipients: parsedRecipients,
+                    });
                   }}
                   disabled={
-                    isLoading || !existingIntegration || !testRecipients.trim()
+                    isLoading ||
+                    !existingIntegration ||
+                    parsedRecipients.length === 0
                   }
                 >
                   <Play className="size-3.5 mr-1" />
