@@ -73,6 +73,13 @@ pub struct CreateProject {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateProject {
     pub name: Option<String>,
+    /// Manual override of the project's platform. Unlike
+    /// [`super::super::services::ProjectService::infer_platform_from_event`]'s
+    /// auto-detection (which only ever writes when the column is still NULL),
+    /// a manual update through this DTO is allowed to overwrite an existing
+    /// value — matching Sentry's own General Settings platform picker, which
+    /// lets you correct an auto-detected platform.
+    pub platform: Option<String>,
 }
 
 /// Response with DSN included

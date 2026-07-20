@@ -7803,6 +7803,13 @@
               "string",
               "null"
             ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Manual override of the project's platform. Unlike\n[`super::super::services::ProjectService::infer_platform_from_event`]'s\nauto-detection (which only ever writes when the column is still NULL),\na manual update through this DTO is allowed to overwrite an existing\nvalue — matching Sentry's own General Settings platform picker, which\nlets you correct an auto-detected platform."
           }
         }
       },

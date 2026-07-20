@@ -756,7 +756,9 @@ async fn test_digest_updates_project_counters() {
 //
 // Mirrors sentry.event_manager._set_project_platform_if_needed: set once from
 // the first event whose top-level `platform` is a valid Relay VALID_PLATFORMS
-// value, never overwritten, no manual picker.
+// value, never overwritten by later events. A manual override IS possible via
+// ProjectService::update() (see projects_api_test.rs) — that's a distinct,
+// user-driven path and intentionally bypasses this "never overwritten" rule.
 // =============================================================================
 
 #[actix_web::test]

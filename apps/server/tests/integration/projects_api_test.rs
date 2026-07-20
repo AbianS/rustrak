@@ -7,7 +7,7 @@ use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
-use rustrak::models::{CreateAuthToken, CreateProject};
+use rustrak::models::{CreateAuthToken, CreateProject, UpdateProject};
 use rustrak::routes;
 use rustrak::services::{AuthTokenService, ProjectService};
 use std::time::Duration;
@@ -226,4 +226,145 @@ async fn test_slug_toctou_retries_with_next_candidate() {
 
     assert_eq!(project.slug, "my-project-1");
     assert_eq!(project.name, "My-Project");
+}
+
+// =============================================================================
+// Manual Platform Override Tests
+//
+// HTTP-level update_project tests are marked #[ignore] above (session cookies
+// aren't preserved in actix's test framework), so these exercise
+// ProjectService::update() directly — same approach as the slug TOCTOU test.
+// =============================================================================
+
+#[actix_web::test]
+async fn test_update_project_platform_sets_valid_platform() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Platform Update Project".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+    assert_eq!(project.platform, None);
+
+    let updated = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: Some("python".to_string()),
+        },
+    )
+    .await
+    .expect("manual platform update must succeed");
+
+    assert_eq!(updated.platform, Some("python".to_string()));
+}
+
+#[actix_web::test]
+async fn test_update_project_platform_rejects_invalid_value() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Invalid Platform Project".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let result = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: Some("not-a-real-platform".to_string()),
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Validation(_))),
+        "expected a Validation error, got: {result:?}"
+    );
+
+    // Rejected update must not have persisted anything.
+    let unchanged = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("get must succeed");
+    assert_eq!(unchanged.platform, None);
+}
+
+#[actix_web::test]
+async fn test_update_project_sets_name_and_platform_together() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Old Name".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let updated = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: Some("New Name".to_string()),
+            platform: Some("go".to_string()),
+        },
+    )
+    .await
+    .expect("combined update must succeed");
+
+    assert_eq!(updated.name, "New Name");
+    assert_eq!(updated.platform, Some("go".to_string()));
+}
+
+#[actix_web::test]
+async fn test_update_project_platform_overwrites_existing_value() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Overwrite Platform Project".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    // Simulate an already auto-detected platform (infer_platform_from_event
+    // only writes when NULL, so this seeds the "already set" state directly).
+    ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: Some("javascript".to_string()),
+        },
+    )
+    .await
+    .expect("seed update must succeed");
+
+    // A manual update must be able to overwrite it — unlike
+    // infer_platform_from_event, which would no-op here.
+    let updated = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: Some("ruby".to_string()),
+        },
+    )
+    .await
+    .expect("manual overwrite must succeed");
+
+    assert_eq!(updated.platform, Some("ruby".to_string()));
 }
