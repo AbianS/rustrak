@@ -1,0 +1,30 @@
+---
+version: v0.12.0
+title: Project Settings and Platform Override
+description: Project configuration becomes a real settings area instead of stacked dialogs, and projects can now have their platform set by hand
+date: 2026-07-20
+tags: [server, client, webview-ui, settings, platforms]
+---
+
+## Project settings as routes
+
+Project configuration used to live in modal dialogs launched from the project header. It now has its own settings area under `/projects/{id}/settings`, matching the layout and navigation already used by the app-level settings.
+
+- General, Members, Alerts and Client Keys each get a dedicated route, so they are linkable, refreshable, and navigable with the browser's back button
+- Sidebar and mobile navigation follow the same pattern as the rest of the app
+- The Client Keys page brings back SDK onboarding, showing the DSN and setup snippet for a project in one place
+
+## Manual platform override
+
+Rustrak infers a project's platform from incoming events. That inference is right most of the time and wrong in a way you could not correct. Projects can now have their platform set explicitly.
+
+- `PATCH /api/projects/{id}` accepts a `platform` field, validated server-side against the known platform list
+- A manual override wins over event-based detection, so digest no longer overwrites a deliberate choice
+- The dashboard ships a searchable picker over the full platform list rather than the short hardcoded subset it had before
+- `@rustrak/client` accepts `platform` in `updateProjectSchema`
+
+## Improvements
+
+- Lockstep versioning: `@rustrak/server`, `webview-ui`, `@rustrak/client`, `@rustrak/mcp` and `docs` now share a single version number, so "which version of Rustrak am I running?" has one answer
+- Releases now publish as a single unified GitHub release with the changelog entry as its body, tagged atomically instead of in a separate step
+- Release titles containing colons are no longer truncated
