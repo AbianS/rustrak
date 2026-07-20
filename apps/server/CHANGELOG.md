@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.12.1
+
+### Patch Changes
+
+- [#205](https://github.com/rustrak/rustrak/pull/205) [`2211a5e`](https://github.com/rustrak/rustrak/commit/2211a5eb2d35401b82deeb6922c737f6c4c59a32) Thanks [@AbianS](https://github.com/AbianS)! - Fixed the "Send a test" action on email integrations. The recipients typed into the dialog were dropped before reaching the test endpoint, so the test either failed or sent to the integration's configured addresses instead of the ones entered. The test panel also moved out of the dialog footer into its own section, is now visible (disabled) while creating an integration, and validates the parsed recipient list so input of only commas or spaces can no longer be submitted.
+
 ## 0.12.0
 
 ### Minor Changes

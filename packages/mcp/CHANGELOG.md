@@ -1,5 +1,12 @@
 # @rustrak/mcp
 
+## 0.12.1
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @rustrak/client@0.12.1
+
 ## 0.12.0
 
 ### Patch Changes
