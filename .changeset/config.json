@@ -2,10 +2,12 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
   "changelog": ["@changesets/changelog-github", { "repo": "rustrak/rustrak" }],
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    ["@rustrak/server", "webview-ui", "@rustrak/client", "@rustrak/mcp", "docs"]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@rustrak/test-sentry"]
+  "ignore": ["@rustrak/test-sentry", "@rustrak/benchmarks"]
 }

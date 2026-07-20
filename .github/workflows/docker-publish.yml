@@ -12,65 +12,32 @@ permissions:
   # id-token: write is also required for npm provenance attestation
 
 jobs:
-  detect-package:
+  # All packages are a `fixed` group in .changeset/config.json: one version, one
+  # tag, one release, everything ships together. So there is nothing to detect,
+  # we only need the version off the tag.
+  version:
     runs-on: ubuntu-latest
     outputs:
-      is_server: ${{ steps.check.outputs.is_server }}
-      is_ui: ${{ steps.check.outputs.is_ui }}
-      is_docs: ${{ steps.check.outputs.is_docs }}
-      is_npm_client: ${{ steps.check.outputs.is_npm_client }}
-      is_npm_mcp: ${{ steps.check.outputs.is_npm_mcp }}
       version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Detect package from release tag
+      - name: Extract version from release tag
         id: check
         run: |
           TAG="${{ github.event.release.tag_name }}"
           echo "Release tag: $TAG"
 
-          VERSION=$(echo "$TAG" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+          VERSION=$(echo "$TAG" | grep -oE '^v([0-9]+\.[0-9]+\.[0-9]+)$' | sed 's/^v//')
           if [[ -z "$VERSION" ]]; then
-            echo "::error::Could not extract semver version from tag '$TAG'. Expected format: package@X.Y.Z"
+            echo "::error::Could not extract semver version from tag '$TAG'. Expected format: vX.Y.Z"
             exit 1
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          if [[ "$TAG" == *"server"* ]] || [[ "$TAG" == *"@rustrak/server"* ]]; then
-            echo "is_server=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_server=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [[ "$TAG" == *"webview-ui"* ]] || [[ "$TAG" == *"ui"* ]]; then
-            echo "is_ui=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_ui=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [[ "$TAG" == *"docs"* ]]; then
-            echo "is_docs=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_docs=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [[ "$TAG" == "@rustrak/client@"* ]]; then
-            echo "is_npm_client=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_npm_client=false" >> $GITHUB_OUTPUT
-          fi
-
-          if [[ "$TAG" == "@rustrak/mcp@"* ]]; then
-            echo "is_npm_mcp=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_npm_mcp=false" >> $GITHUB_OUTPUT
-          fi
 
   # ── SQLite image (default: latest) ───────────────────────────────────────────
   # Build on native runners (no QEMU). Each platform pushes by digest only.
 
   docker-server-sqlite-build:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_server == 'true'
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -121,8 +88,7 @@ jobs:
           retention-days: 1
 
   docker-server-sqlite-manifest:
-    needs: [detect-package, docker-server-sqlite-build]
-    if: needs.detect-package.outputs.is_server == 'true'
+    needs: [version, docker-server-sqlite-build]
     runs-on: ubuntu-latest
     steps:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -141,7 +107,7 @@ jobs:
       - name: Create manifest list and push (SQLite — latest)
         working-directory: ${{ runner.temp }}/digests
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools create \
             -t rustrak/rustrak-server:v${VERSION} \
             -t rustrak/rustrak-server:latest \
@@ -149,14 +115,13 @@ jobs:
 
       - name: Inspect image
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools inspect rustrak/rustrak-server:v${VERSION}
 
   # ── PostgreSQL image ──────────────────────────────────────────────────────────
 
   docker-server-postgres-build:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_server == 'true'
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -207,8 +172,7 @@ jobs:
           retention-days: 1
 
   docker-server-postgres-manifest:
-    needs: [detect-package, docker-server-postgres-build]
-    if: needs.detect-package.outputs.is_server == 'true'
+    needs: [version, docker-server-postgres-build]
     runs-on: ubuntu-latest
     steps:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -227,7 +191,7 @@ jobs:
       - name: Create manifest list and push (PostgreSQL)
         working-directory: ${{ runner.temp }}/digests
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools create \
             -t rustrak/rustrak-server:v${VERSION}-postgres \
             -t rustrak/rustrak-server:postgres \
@@ -235,14 +199,13 @@ jobs:
 
       - name: Inspect image
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools inspect rustrak/rustrak-server:v${VERSION}-postgres
 
   # ── UI image ──────────────────────────────────────────────────────────────────
 
   docker-ui-build:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_ui == 'true'
+    needs: version
     strategy:
       fail-fast: false
       matrix:
@@ -293,8 +256,7 @@ jobs:
           retention-days: 1
 
   docker-ui-manifest:
-    needs: [detect-package, docker-ui-build]
-    if: needs.detect-package.outputs.is_ui == 'true'
+    needs: [version, docker-ui-build]
     runs-on: ubuntu-latest
     steps:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -313,7 +275,7 @@ jobs:
       - name: Create manifest list and push
         working-directory: ${{ runner.temp }}/digests
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools create \
             -t rustrak/rustrak-ui:v${VERSION} \
             -t rustrak/rustrak-ui:latest \
@@ -321,14 +283,13 @@ jobs:
 
       - name: Inspect image
         run: |
-          VERSION="${{ needs.detect-package.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools inspect rustrak/rustrak-ui:v${VERSION}
 
   # ── Docs ──────────────────────────────────────────────────────────────────────
 
   deploy-docs:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_docs == 'true'
+    needs: version
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -362,8 +323,7 @@ jobs:
   # ── npm publish ───────────────────────────────────────────────────────────────
 
   publish-npm:
-    needs: detect-package
-    if: needs.detect-package.outputs.is_npm_client == 'true' || needs.detect-package.outputs.is_npm_mcp == 'true'
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -377,22 +337,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Build @rustrak/client
-        if: needs.detect-package.outputs.is_npm_client == 'true'
-        run: pnpm --filter @rustrak/client build
-
-      - name: Build @rustrak/mcp
-        if: needs.detect-package.outputs.is_npm_mcp == 'true'
+      # mcp depends on client, so client must build first.
+      - name: Build packages
         run: pnpm --filter @rustrak/client build && pnpm --filter @rustrak/mcp build
 
       - name: Publish @rustrak/client
-        if: needs.detect-package.outputs.is_npm_client == 'true'
         run: pnpm --filter @rustrak/client publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @rustrak/mcp
-        if: needs.detect-package.outputs.is_npm_mcp == 'true'
         run: pnpm --filter @rustrak/mcp publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
