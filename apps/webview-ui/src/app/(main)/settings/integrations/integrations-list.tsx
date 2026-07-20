@@ -423,7 +423,8 @@ export function IntegrationsList({
         open={configureType === 'email'}
         onOpenChange={(open) => !open && closeConfigure()}
         existingIntegration={editIntegration}
-        onTest={(integration) => handleTest(integration)}
+        // Must forward routingOverride — Email carries its recipients there.
+        onTest={handleTest}
         onDelete={(integration) => setDeleteIntegrationItem(integration)}
         isPending={isPending}
       />
@@ -1414,47 +1415,59 @@ function EmailConfigDialog({
               )}
             />
 
+            {/* Shown while creating too, disabled — the test endpoint needs a
+                persisted integration id, so it only becomes usable on save. */}
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Send a test
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="test@example.com"
+                  value={testRecipients}
+                  onChange={(e) => setTestRecipients(e.target.value)}
+                  className="h-8 text-xs"
+                  disabled={isLoading || !existingIntegration}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!existingIntegration || !testRecipients.trim()) return;
+                    const recipients = testRecipients
+                      .split(',')
+                      .map((a) => a.trim())
+                      .filter(Boolean);
+                    onTest(existingIntegration, { recipients });
+                  }}
+                  disabled={
+                    isLoading || !existingIntegration || !testRecipients.trim()
+                  }
+                >
+                  <Play className="size-3.5 mr-1" />
+                  Test
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {existingIntegration
+                  ? 'Comma-separate multiple addresses. The test uses the SMTP settings you last saved, not unsaved edits above.'
+                  : 'Save this integration first to send a test email.'}
+              </p>
+            </div>
+
             <DialogFooter className="gap-2 sm:gap-0">
               {existingIntegration && (
-                <div className="flex gap-2 mr-auto">
-                  <div className="flex gap-1 items-center">
-                    <Input
-                      placeholder="test@example.com"
-                      value={testRecipients}
-                      onChange={(e) => setTestRecipients(e.target.value)}
-                      className="h-8 w-36 text-xs"
-                      disabled={isLoading}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (!testRecipients.trim()) return;
-                        const recipients = testRecipients
-                          .split(',')
-                          .map((a) => a.trim())
-                          .filter(Boolean);
-                        onTest(existingIntegration, { recipients });
-                      }}
-                      disabled={isLoading || !testRecipients.trim()}
-                    >
-                      <Play className="size-4 mr-1" />
-                      Test
-                    </Button>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(existingIntegration)}
-                    disabled={isLoading}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="size-4 mr-1" />
-                    Delete
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onDelete(existingIntegration)}
+                  disabled={isLoading}
+                >
+                  <Trash2 className="size-4 mr-1" />
+                  Delete
+                </Button>
               )}
               <Button
                 type="button"
