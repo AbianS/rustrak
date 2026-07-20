@@ -50,7 +50,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -63,6 +62,14 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
@@ -179,19 +186,18 @@ function validateRoutingForIntegration(
   return null;
 }
 
-interface ProjectAlertsDialogProps {
+interface AlertsSettingsProps {
   project: Project;
   alertRules: AlertRule[];
   channels: AlertIntegration[];
 }
 
-export function ProjectAlertsDialog({
+export function AlertsSettings({
   project,
   alertRules,
   channels,
-}: ProjectAlertsDialogProps) {
+}: AlertsSettingsProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
   const [deletingRule, setDeletingRule] = useState<AlertRule | null>(null);
@@ -242,73 +248,77 @@ export function ProjectAlertsDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
-          render={
-            <Button variant="outline" size="icon" title="Project Alerts" />
-          }
-        >
-          <Bell className="size-4" />
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Alert Rules</DialogTitle>
-            <DialogDescription>
-              Configure when to send notifications for this project.
-            </DialogDescription>
-          </DialogHeader>
+      <div className="mb-6 flex items-start justify-between gap-4 md:mb-8">
+        <div>
+          <h1 className="text-xl font-extrabold tracking-tight md:text-2xl">
+            Alert Settings
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            Configure when to send notifications for this project.
+          </p>
+        </div>
+        {enabledIntegrations.length > 0 && (
+          <Button onClick={() => setShowAddForm(true)} className="shrink-0">
+            <Plus className="mr-2 size-4" />
+            Add Alert Rule
+          </Button>
+        )}
+      </div>
 
-          {enabledIntegrations.length === 0 ? (
-            <div className="py-10 text-center">
-              <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
-                <Bell className="size-5 text-muted-foreground" />
-              </div>
-              <p className="text-sm font-medium">No integrations configured</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Go to{' '}
-                <a
-                  href="/settings/integrations"
-                  className="text-primary underline"
-                >
-                  Settings → Integrations
-                </a>{' '}
-                to add integrations first.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {alertRules.length === 0 && (
-                <p className="text-sm text-muted-foreground py-2">
-                  No alert rules yet. Create one to start receiving
-                  notifications.
-                </p>
-              )}
-
+      {enabledIntegrations.length === 0 ? (
+        <div className="rounded-lg border border-dashed py-16 text-center">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
+            <Bell className="size-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No integrations configured</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Go to{' '}
+            <a href="/settings/integrations" className="text-primary underline">
+              Settings → Integrations
+            </a>{' '}
+            to add integrations first.
+          </p>
+        </div>
+      ) : alertRules.length === 0 ? (
+        <div className="rounded-lg border border-dashed py-16 text-center">
+          <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
+            <Bell className="size-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No alert rules yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Create one to start receiving notifications.
+          </p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Rule</TableHead>
+                <TableHead>Trigger</TableHead>
+                <TableHead>Channels</TableHead>
+                <TableHead>Enabled</TableHead>
+                <TableHead className="w-24 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {alertRules.map((rule) => {
                 const typeInfo = getAlertTypeInfo(rule.alert_type);
                 const TypeIcon = typeInfo.icon;
                 return (
-                  <div
+                  <TableRow
                     key={rule.id}
-                    className={cn(
-                      'flex items-center gap-3 rounded-lg border bg-card p-3 transition-opacity',
-                      !rule.is_enabled && 'opacity-50',
-                    )}
+                    className={cn(!rule.is_enabled && 'opacity-50')}
                   >
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted">
-                      <TypeIcon className="size-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {rule.name}
-                      </p>
-                      <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                        <span className="text-[11px] text-muted-foreground">
-                          {typeInfo.name}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                          ·
-                        </span>
+                    <TableCell className="font-medium">{rule.name}</TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <TypeIcon className="size-3.5" />
+                        {typeInfo.name}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
                         {rule.integration_ids.map((integrationId) => {
                           const integration = getIntegrationById(integrationId);
                           if (!integration) return null;
@@ -316,7 +326,7 @@ export function ProjectAlertsDialog({
                             <Badge
                               key={integrationId}
                               variant="outline"
-                              className="text-[10px] gap-1 py-0"
+                              className="gap-1 py-0 text-[10px]"
                             >
                               <ProviderIcon
                                 type={integration.provider_type}
@@ -327,51 +337,46 @@ export function ProjectAlertsDialog({
                           );
                         })}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    </TableCell>
+                    <TableCell>
                       <Switch
                         checked={rule.is_enabled}
                         onCheckedChange={() => handleToggleEnabled(rule)}
                         disabled={isPending}
                         size="sm"
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Edit rule"
-                        className="size-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => setEditingRule(rule)}
-                        disabled={isPending}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        aria-label="Delete rule"
-                        className="size-7"
-                        onClick={() => setDeletingRule(rule)}
-                        disabled={isPending}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Edit rule"
+                          className="size-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => setEditingRule(rule)}
+                          disabled={isPending}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          aria-label="Delete rule"
+                          className="size-7"
+                          onClick={() => setDeletingRule(rule)}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-
-              <Button
-                variant="outline"
-                className="w-full border-dashed"
-                onClick={() => setShowAddForm(true)}
-              >
-                <Plus className="size-4 mr-2" />
-                Add Alert Rule
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Form dialog — create */}
       <AlertRuleFormDialog

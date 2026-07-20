@@ -43,7 +43,16 @@ apps/webview-ui/
 │   │       │   └── [id]/      # Project detail
 │   │       │       ├── page.tsx
 │   │       │       ├── project-header.tsx
-│   │       │       ├── project-settings-dialog.tsx
+│   │       │       ├── project-sidebar.tsx
+│   │       │       ├── settings/          # Per-project settings
+│   │       │       │   ├── layout.tsx     # w-64 nav + content
+│   │       │       │   ├── settings-nav.tsx
+│   │       │       │   ├── settings-mobile-nav.tsx
+│   │       │       │   ├── setting-row.tsx  # SettingRow/SettingSection
+│   │       │       │   ├── general/
+│   │       │       │   ├── client-keys/
+│   │       │       │   ├── alerts/
+│   │       │       │   └── members/
 │   │       │       ├── issues-list.tsx
 │   │       │       └── issues/[issueId]/
 │   │       │           ├── page.tsx
@@ -224,6 +233,11 @@ const { theme, setTheme } = useTheme();
 | `/projects/[id]` | Project detail + issues list |
 | `/projects/[id]/issues/[issueId]` | Issue detail (redirects to latest event) |
 | `/projects/[id]/issues/[issueId]/events/[eventId]` | Event detail with tabs |
+| `/projects/[id]/settings` | Redirect to `/projects/[id]/settings/general` |
+| `/projects/[id]/settings/general` | Name, platform, danger zone |
+| `/projects/[id]/settings/client-keys` | DSN + SDK setup example |
+| `/projects/[id]/settings/alerts` | Alert rules for the project |
+| `/projects/[id]/settings/members` | Project membership + roles |
 | `/settings` | Redirect to `/settings/tokens` |
 | `/settings/tokens` | API token management |
 | `/settings/account` | Account info (read-only) |

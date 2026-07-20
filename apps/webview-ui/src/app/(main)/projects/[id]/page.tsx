@@ -1,9 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { listAlertRules, listIntegrations } from '@/actions/alerts';
-import { getCurrentUser } from '@/actions/auth';
 import { listIssues } from '@/actions/issues';
-import { listProjectMembers } from '@/actions/members';
 import { getProject } from '@/actions/projects';
 import { getSessionSummary, getSessionTimeseries } from '@/actions/sessions';
 import { IssueListCard } from '@/components/issue-list-card';
@@ -42,15 +39,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
-  const [
-    summary,
-    timeseries,
-    topIssuesResponse,
-    alertRules,
-    channels,
-    members,
-    currentUser,
-  ] = await Promise.all([
+  const [summary, timeseries, topIssuesResponse] = await Promise.all([
     getSessionSummary(projectId),
     getSessionTimeseries(projectId),
     listIssues(projectId, {
@@ -66,29 +55,12 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
       per_page: 5,
       total_pages: 0,
     })),
-    listAlertRules(projectId).catch(() => []),
-    listIntegrations().catch(() => []),
-    listProjectMembers(projectId).catch(() => []),
-    getCurrentUser(),
   ]);
-
-  const currentMembership = currentUser
-    ? members.find((member) => member.user_id === currentUser.id)
-    : undefined;
-  const canManageMembers =
-    currentUser?.role === 'admin' || currentMembership?.role === 'admin';
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-auto">
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
-        <ProjectHeader
-          project={project}
-          alertRules={alertRules}
-          channels={channels}
-          members={members}
-          currentUserId={currentUser?.id}
-          canManageMembers={canManageMembers}
-        />
+        <ProjectHeader project={project} />
       </div>
 
       <div className="flex-1 w-full px-4 md:px-8 py-4 md:py-6 flex flex-col gap-4">

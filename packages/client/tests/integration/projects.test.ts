@@ -169,6 +169,14 @@ describe('ProjectsResource Integration', () => {
         new Date(original.updated_at).getTime(),
       );
     });
+
+    it('should update project platform', async () => {
+      const updated = await client.projects.update(1, {
+        platform: 'python',
+      });
+
+      expect(updated.platform).toBe('python');
+    });
   });
 
   describe('delete()', () => {

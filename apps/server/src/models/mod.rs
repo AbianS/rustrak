@@ -62,7 +62,9 @@ pub use issue::{
     UpdateIssueState, STATUS_IGNORED, STATUS_RESOLVED, STATUS_UNRESOLVED,
 };
 pub use log::LogResponse;
-pub use project::{CreateProject, Project, ProjectResponse, UpdateProject, VALID_PLATFORMS};
+pub use project::{
+    CreateProject, Project, ProjectResponse, UpdateProject, SELECTABLE_PLATFORMS, VALID_PLATFORMS,
+};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
 pub use release::{is_valid_version, CreateRelease, Release, ReleaseResponse, UpdateRelease};
 pub use span_v2::{parse_span_v2_container, SpanV2Entry};

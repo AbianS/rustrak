@@ -2,7 +2,7 @@ use slug::slugify;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateProject, Project, UpdateProject, VALID_PLATFORMS};
+use crate::models::{CreateProject, Project, UpdateProject, SELECTABLE_PLATFORMS, VALID_PLATFORMS};
 use crate::pagination::SortOrder;
 
 pub struct ProjectService;
@@ -196,48 +196,74 @@ impl ProjectService {
         // Verify it exists
         Self::get_by_id(pool, id).await?;
 
-        // Build query dynamically based on present fields
-        if let Some(ref name) = input.name {
-            let name = name.trim();
-            if name.is_empty() {
-                return Err(AppError::Validation("Name cannot be empty".to_string()));
+        let name = match input.name {
+            Some(ref name) => {
+                let name = name.trim();
+                if name.is_empty() {
+                    return Err(AppError::Validation("Name cannot be empty".to_string()));
+                }
+                if name.len() > 255 {
+                    return Err(AppError::Validation(
+                        "Name cannot exceed 255 characters".to_string(),
+                    ));
+                }
+                Some(name)
             }
-            if name.len() > 255 {
-                return Err(AppError::Validation(
-                    "Name cannot exceed 255 characters".to_string(),
-                ));
-            }
+            None => None,
+        };
 
-            let project = sqlx::query_as::<_, Project>(
-                r#"
-                UPDATE projects SET name = $1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2
-                RETURNING id, name, slug, sentry_key, stored_event_count,
-                          digested_event_count, created_at, updated_at, platform,
-                          quota_exceeded_until, quota_exceeded_reason, next_quota_check
-                "#,
-            )
-            .bind(name)
-            .bind(id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| {
-                if let sqlx::Error::Database(ref db_err) = e {
-                    if db_err.is_unique_violation() {
+        let platform = match input.platform {
+            Some(ref platform) => {
+                if !SELECTABLE_PLATFORMS.contains(&platform.as_str()) {
+                    return Err(AppError::Validation(format!(
+                        "'{}' is not a valid platform",
+                        platform
+                    )));
+                }
+                Some(platform.as_str())
+            }
+            None => None,
+        };
+
+        if name.is_none() && platform.is_none() {
+            // If no fields to update, return project unchanged
+            return Self::get_by_id(pool, id).await;
+        }
+
+        // COALESCE keeps whichever field wasn't provided at its current value,
+        // so a single query handles name-only, platform-only, or both together.
+        let project = sqlx::query_as::<_, Project>(
+            r#"
+            UPDATE projects
+            SET name = COALESCE($1, name),
+                platform = COALESCE($2, platform),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $3
+            RETURNING id, name, slug, sentry_key, stored_event_count,
+                      digested_event_count, created_at, updated_at, platform,
+                      quota_exceeded_until, quota_exceeded_reason, next_quota_check
+            "#,
+        )
+        .bind(name)
+        .bind(platform)
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| {
+            if let sqlx::Error::Database(ref db_err) = e {
+                if db_err.is_unique_violation() {
+                    if let Some(name) = name {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
                             name
                         ));
                     }
                 }
-                AppError::Database(e)
-            })?;
+            }
+            AppError::Database(e)
+        })?;
 
-            return Ok(project);
-        }
-
-        // If no fields to update, return project unchanged
-        Self::get_by_id(pool, id).await
+        Ok(project)
     }
 
     /// Auto-detects the project's platform from an ingested event, mirroring

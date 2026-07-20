@@ -6,12 +6,12 @@ use uuid::Uuid;
 /// A list of all valid Sentry `platform` identifiers, mirrored verbatim from
 /// Relay: <https://github.com/getsentry/relay/blob/f42b1c8a15bba8cb96d1dfd3bd2b3158c7817c5f/relay-event-schema/src/protocol/constants.rs#L2-L22>
 ///
-/// This is deliberately coarse (language-level only, e.g. "javascript", not
-/// "javascript-nextjs") — real Sentry's own project-platform auto-inference
-/// (`_set_project_platform_if_needed` in `event_manager.py`) only ever writes
-/// one of these 19 values, never a framework-specific id. Framework-specific
-/// platform ids only ever come from the manual project-creation picker, which
-/// Rustrak does not implement, so it is intentionally out of scope here.
+/// These constrain an *event*'s `platform` field, and by extension what
+/// [`super::super::services::ProjectService::infer_platform_from_event`] may
+/// copy onto a project. Real Sentry's auto-inference
+/// (`_set_project_platform_if_needed` in `event_manager.py`) filters on this
+/// same list. For what a user may pick manually, see [`SELECTABLE_PLATFORMS`]
+/// — a deliberately different, much longer list.
 pub const VALID_PLATFORMS: &[&str] = &[
     "as3",
     "c",
@@ -34,6 +34,146 @@ pub const VALID_PLATFORMS: &[&str] = &[
     "ruby",
 ];
 
+/// Every platform id a **user** may pick for a project in settings.
+///
+/// This is a different domain from [`VALID_PLATFORMS`], which constrains the
+/// `platform` field of an *event*. A project's platform is product
+/// configuration chosen by a human, so it may name a specific framework
+/// (`javascript-nextjs`, `python-django`) that could never appear on an
+/// event: Relay deletes any event platform outside `VALID_PLATFORMS` and
+/// replaces it with `"other"`
+/// (<https://github.com/getsentry/relay/blob/c455da18abe020311b7b4abf41a86b8503d72be9/relay-event-normalization/src/event.rs#L1188-L1199>).
+///
+/// Real Sentry validates this field against `GETTING_STARTED_DOCS_PLATFORMS`
+/// (<https://github.com/getsentry/sentry/blob/a32a33a5106ce9350ccb33b406695f53067c4a9f/src/sentry/models/project.py#L927-L928>),
+/// a list it keeps in sync by hand with its frontend's `platforms.tsx`. This
+/// list is that one plus the 10 `VALID_PLATFORMS` entries Sentry omits from
+/// it (`perl`, `cfml`, `as3`, ...). Sentry's omission means auto-detection
+/// can write a platform its own settings picker then refuses to re-select;
+/// including them here keeps the invariant that anything Rustrak can
+/// auto-detect stays selectable.
+pub const SELECTABLE_PLATFORMS: &[&str] = &[
+    "android",
+    "apple",
+    "apple-ios",
+    "apple-macos",
+    "as3",
+    "bun",
+    "c",
+    "capacitor",
+    "cfml",
+    "cocoa",
+    "cordova",
+    "csharp",
+    "dart",
+    "deno",
+    "dotnet",
+    "dotnet-aspnet",
+    "dotnet-aspnetcore",
+    "dotnet-awslambda",
+    "dotnet-gcpfunctions",
+    "dotnet-maui",
+    "dotnet-uwp",
+    "dotnet-winforms",
+    "dotnet-wpf",
+    "dotnet-xamarin",
+    "electron",
+    "elixir",
+    "flutter",
+    "go",
+    "go-echo",
+    "go-fasthttp",
+    "go-fiber",
+    "go-gin",
+    "go-http",
+    "go-iris",
+    "go-martini",
+    "go-negroni",
+    "godot",
+    "groovy",
+    "haskell",
+    "ionic",
+    "java",
+    "java-log4j2",
+    "java-logback",
+    "java-spring",
+    "java-spring-boot",
+    "javascript",
+    "javascript-angular",
+    "javascript-astro",
+    "javascript-ember",
+    "javascript-gatsby",
+    "javascript-nextjs",
+    "javascript-nuxt",
+    "javascript-react",
+    "javascript-react-router",
+    "javascript-remix",
+    "javascript-solid",
+    "javascript-solidstart",
+    "javascript-svelte",
+    "javascript-sveltekit",
+    "javascript-tanstackstart-react",
+    "javascript-vue",
+    "kotlin",
+    "minidump",
+    "native",
+    "native-qt",
+    "nintendo-switch",
+    "node",
+    "node-awslambda",
+    "node-azurefunctions",
+    "node-cloudflare-pages",
+    "node-cloudflare-workers",
+    "node-connect",
+    "node-express",
+    "node-fastify",
+    "node-gcpfunctions",
+    "node-hapi",
+    "node-hono",
+    "node-koa",
+    "node-nestjs",
+    "objc",
+    "other",
+    "perl",
+    "php",
+    "php-laravel",
+    "php-symfony",
+    "playstation",
+    "powershell",
+    "python",
+    "python-aiohttp",
+    "python-asgi",
+    "python-awslambda",
+    "python-bottle",
+    "python-celery",
+    "python-chalice",
+    "python-django",
+    "python-falcon",
+    "python-fastapi",
+    "python-flask",
+    "python-gcpfunctions",
+    "python-litestar",
+    "python-pylons",
+    "python-pymongo",
+    "python-pyramid",
+    "python-quart",
+    "python-rq",
+    "python-sanic",
+    "python-serverless",
+    "python-starlette",
+    "python-tornado",
+    "python-tryton",
+    "python-wsgi",
+    "react-native",
+    "ruby",
+    "ruby-rack",
+    "ruby-rails",
+    "rust",
+    "unity",
+    "unreal",
+    "xbox",
+];
+
 /// Project model for reading from the database
 #[derive(Debug, Clone, Serialize, FromRow)]
 pub struct Project {
@@ -46,8 +186,10 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     /// Auto-detected from the first ingested event whose `platform` field is
-    /// a valid Sentry platform (see [`VALID_PLATFORMS`]). Set once, never
-    /// overwritten — same semantics as real Sentry.
+    /// a valid event platform (see [`VALID_PLATFORMS`]), then never
+    /// overwritten by later events, matching real Sentry. A user may still
+    /// change it manually in settings, which accepts the wider
+    /// [`SELECTABLE_PLATFORMS`].
     pub platform: Option<String>,
     // Rate limiting fields
     #[serde(skip_serializing)]
@@ -73,6 +215,17 @@ pub struct CreateProject {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateProject {
     pub name: Option<String>,
+    /// Manual override of the project's platform, validated against
+    /// [`SELECTABLE_PLATFORMS`]. That list is wider than the one
+    /// auto-detection uses: it includes framework-specific ids such as
+    /// `javascript-nextjs`, which are legal for a project but never for an
+    /// event.
+    ///
+    /// Unlike auto-detection (which only writes when the column is still
+    /// NULL), a manual update is allowed to overwrite an existing value, so a
+    /// user can correct what was detected. Sending `null` leaves the current
+    /// value untouched rather than clearing it.
+    pub platform: Option<String>,
 }
 
 /// Response with DSN included

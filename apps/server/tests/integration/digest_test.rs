@@ -998,7 +998,9 @@ async fn test_digest_updates_project_counters() {
 //
 // Mirrors sentry.event_manager._set_project_platform_if_needed: set once from
 // the first event whose top-level `platform` is a valid Relay VALID_PLATFORMS
-// value, never overwritten, no manual picker.
+// value, never overwritten by later events. A manual override IS possible via
+// ProjectService::update() (see projects_api_test.rs) — that's a distinct,
+// user-driven path and intentionally bypasses this "never overwritten" rule.
 // =============================================================================
 
 #[actix_web::test]
@@ -1123,6 +1125,53 @@ async fn test_digest_ignores_invalid_platform_for_project_platform_detection() {
     // Relay's VALID_PLATFORMS (confirmed against relay-event-schema source).
     let event_id = Uuid::new_v4().to_string().replace("-", "");
     let event_json = create_event_json(&event_id);
+    store_event(
+        ingest_dir,
+        &event_id,
+        &serde_json::to_vec(&event_json).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    process_error_event(
+        &db.pool,
+        &EventMetadata {
+            event_id,
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        },
+        ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
+
+    let updated_project = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("Failed to get project");
+
+    assert_eq!(updated_project.platform, None);
+}
+
+/// Guards the boundary between the two platform lists. `javascript-nextjs` is
+/// a legal *project* platform (`SELECTABLE_PLATFORMS`, chosen by a user in
+/// settings) but never a legal *event* platform: Relay strips anything outside
+/// `VALID_PLATFORMS` from an event and substitutes `"other"`. Auto-detection
+/// reads event platforms, so it must keep using the narrow list. This test
+/// fails the moment someone points `infer_platform_from_event` at the
+/// selectable list.
+#[actix_web::test]
+async fn test_digest_ignores_framework_specific_platform_for_detection() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Framework Platform Detect Project").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let mut event_json = create_event_json(&event_id);
+    event_json["platform"] = json!("javascript-nextjs");
     store_event(
         ingest_dir,
         &event_id,

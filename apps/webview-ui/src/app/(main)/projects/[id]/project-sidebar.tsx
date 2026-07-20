@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Rocket,
   ScrollText,
+  Settings,
   Zap,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -192,6 +193,11 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
       href: `/projects/${projectId}/logs`,
       label: 'Logs',
       icon: ScrollText,
+    },
+    {
+      href: `/projects/${projectId}/settings`,
+      label: 'Settings',
+      icon: Settings,
     },
   ];
 
