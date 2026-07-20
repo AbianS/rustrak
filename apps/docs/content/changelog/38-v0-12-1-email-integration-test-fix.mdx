@@ -1,0 +1,21 @@
+---
+version: v0.12.1
+title: Email Integration Test Fix
+description: The "Send a test" action on email integrations now uses the recipients you type instead of dropping them
+date: 2026-07-20
+tags: [webview-ui, alerts, bugfix]
+---
+
+## Email Integration Test Fix
+
+Testing an email integration ignored the addresses typed into the dialog. The email config dialog passes its recipients through the routing override, but the parent list dropped that second argument before calling the test handler, so the request reached the server without them.
+
+- Forward the routing override from the email dialog to the test handler, so the test goes to the addresses you actually typed
+- Moved the test panel out of the dialog footer into its own section, where the helper text has room to explain that the test uses the last saved SMTP settings, not unsaved edits
+- The panel is now visible while creating an integration, disabled with a hint that the integration must be saved first, instead of appearing out of nowhere after the first save
+- Validate the parsed recipient list rather than the raw string, so input of only commas or whitespace no longer produces a request the server rejects
+- Labelled the recipients input for screen readers
+
+## Improvements
+
+- Delete is now a `destructive` button in the email dialog footer, matching the other integration dialogs
