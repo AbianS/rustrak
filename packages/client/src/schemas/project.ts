@@ -30,4 +30,5 @@ export const createProjectSchema = z.object({
  */
 export const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
+  platform: z.string().optional(),
 });
