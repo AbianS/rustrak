@@ -20,15 +20,21 @@
     "update:monorepo": "pnpx npm-check-updates -i --deep --doctorInstall pnpm"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.2",
+    "@biomejs/biome": "2.5.4",
     "@changesets/changelog-github": "0.7.0",
     "@changesets/cli": "2.31.0",
-    "bmad-method": "6.9.0",
-    "turbo": "2.10.2",
+    "bmad-method": "6.10.0",
+    "turbo": "2.10.5",
     "typescript": "6.0.3"
   },
   "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=22"
+  },
+  "pnpm": {
+    "overrides": {
+      "nextra>zod": "4.3.5",
+      "nextra-theme-docs>zod": "4.3.5"
+    }
   }
 }

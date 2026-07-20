@@ -68,8 +68,9 @@ impl IssueCursor {
 ///
 /// `ingested_at` alone is not unique — two transactions can share the same
 /// timestamp at a page boundary. The `id` tiebreaker makes the keyset
-/// deterministic so no row is silently skipped (mirrors how Issue/Event cursors
-/// rely on the unique `digest_order`).
+/// deterministic so no row is silently skipped (mirrors how `IssueCursor`
+/// relies on the unique `digest_order` for issues, and how `EventCursor`
+/// below uses this same `(X, id)` shape for events).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionCursor {
     /// Last ingested_at seen, used as the primary keyset boundary
@@ -103,20 +104,34 @@ impl TransactionCursor {
     }
 }
 
-/// Cursor for paginating Events
+/// Cursor for paginating Events (compound keyset on (timestamp, id)).
+///
+/// `timestamp` (the SDK-reported event time, matching Sentry's own per-event
+/// ordering — not `ingested_at`) is not unique within an issue — a burst of
+/// events can share the same timestamp. The `id` tiebreaker makes the keyset
+/// deterministic so no row is silently skipped or repeated across pages.
+/// Replaces the old `digest_order`-based cursor (see
+/// `20260719000000_drop_event_digest_order`): that counter could collide
+/// after retention cleanup decremented it past a value a surviving event
+/// still used. No backward-compat decoding of the old `{order,
+/// last_digest_order}` shape is provided — a decode failure returns a clean
+/// 400 and the client refetches page 1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventCursor {
     /// Direction: "asc" or "desc"
     pub order: String,
-    /// Last digest_order value seen
-    pub last_digest_order: i32,
+    /// Last timestamp seen, used as the primary keyset boundary
+    pub last_timestamp: DateTime<Utc>,
+    /// Last id seen, used as the tiebreaker for equal timestamp values
+    pub last_id: Uuid,
 }
 
 impl EventCursor {
-    pub fn new(order: &str, last_digest_order: i32) -> Self {
+    pub fn new(order: &str, last_timestamp: DateTime<Utc>, last_id: Uuid) -> Self {
         Self {
             order: order.to_string(),
-            last_digest_order,
+            last_timestamp,
+            last_id,
         }
     }
 
@@ -157,13 +172,30 @@ mod tests {
 
     #[test]
     fn test_event_cursor_encode_decode() {
-        let cursor = EventCursor::new("asc", 100);
+        let last_timestamp = "2026-07-19T12:00:00Z".parse::<DateTime<Utc>>().unwrap();
+        let last_id = Uuid::new_v4();
+        let cursor = EventCursor::new("asc", last_timestamp, last_id);
 
         let encoded = cursor.encode().unwrap();
         let decoded = EventCursor::decode(&encoded).unwrap();
 
         assert_eq!(decoded.order, "asc");
-        assert_eq!(decoded.last_digest_order, 100);
+        assert_eq!(decoded.last_timestamp, last_timestamp);
+        assert_eq!(decoded.last_id, last_id);
+    }
+
+    #[test]
+    fn test_event_cursor_rejects_old_digest_order_shape() {
+        // Pre-fix cursor shape: `{"order": "...", "last_digest_order": N}`.
+        // No backward-compat handling is provided (see Boundaries in the
+        // digest_order-collision spec) -- a decode failure here is
+        // intentional and forces the client to refetch page 1 with a fresh
+        // cursor rather than silently misinterpreting stale fields.
+        let old_shape_json = r#"{"order":"desc","last_digest_order":100}"#;
+        let encoded = URL_SAFE_NO_PAD.encode(old_shape_json.as_bytes());
+
+        let result = EventCursor::decode(&encoded);
+        assert!(result.is_err());
     }
 
     #[test]

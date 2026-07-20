@@ -1,0 +1,19 @@
+---
+version: v0.11.0
+title: Sentry Releases API
+description: sentry-cli and JS bundler plugins can now create and finalize releases against a self-hosted Rustrak server without 404s
+date: 2026-07-18
+tags: [server, client, mcp, releases]
+---
+
+## Sentry Releases API
+
+Server implements `POST`/`PUT .../releases/...`, the endpoints `sentry-cli` and the Sentry JS bundler plugins (Next.js, SvelteKit, Nuxt, Remix) call on every build to create and finalize a release. Previously these 404'd, showing up in every build log for most self-hosted JS users.
+
+- New `releases` table (`project_id` + `version`, unique) backs the endpoints
+- Idempotent by design: repeating `releases new` for the same version returns `208` instead of erroring, matching `sentry-cli`'s retry expectations
+- Regression clearing for issues resolved "in the next release" now compares real release creation dates instead of a string-inequality check, and runs automatically whenever a release is created — matching Sentry's own behavior of clearing pending resolutions on release creation
+
+## Removed: `POST /api/projects/{id}/deploys`
+
+This project-invented endpoint (and `@rustrak/client`'s `createDeploy` / `@rustrak/mcp`'s `record_deploy`) is removed. It existed only as a manual workaround to trigger the regression-clearing logic before release creation could do it automatically — creating a release now has the same effect, matching real Sentry (which has no such endpoint either).

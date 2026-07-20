@@ -1,5 +1,90 @@
 # @rustrak/server
 
+## 0.11.1
+
+### Patch Changes
+
+- [`c6d7eee`](https://github.com/rustrak/rustrak/commit/c6d7eee6b61da252fd4195f1c6f5fbc90248f0ae) Thanks [@AbianS](https://github.com/AbianS)! - Fix events.digest_order collision after retention purge that could silently drop events. Retention cleanup decremented the digested_event_count counter used to derive new digest_order values, letting it collide with a surviving event's row. Removed events.digest_order entirely — events now paginate within an issue on a (timestamp, id) keyset, matching Sentry's own per-group event ordering.
+
+## 0.11.0
+
+### Minor Changes
+
+- [#194](https://github.com/rustrak/rustrak/pull/194) [`9a8b1bb`](https://github.com/rustrak/rustrak/commit/9a8b1bb34c815a6d2ffe23129f42a9cae2f5dc9b) Thanks [@AbianS](https://github.com/AbianS)! - ## Sentry Releases API
+
+  Server implements `POST`/`PUT .../releases/...`, the endpoints `sentry-cli` and the Sentry JS bundler plugins (Next.js, SvelteKit, Nuxt, Remix) call on every build to create and finalize a release. Previously these 404'd, showing up in every build log for most self-hosted JS users. Adds a `releases` table (`project_id` + `version`, unique) backing the new endpoints.
+
+  Regression clearing for issues resolved "in the next release" now compares real release creation dates instead of a string-inequality check, and runs automatically whenever a release is created — matching Sentry's own behavior of clearing pending resolutions on release creation.
+
+  ## Removed: `POST /api/projects/{id}/deploys`
+
+  This project-invented endpoint (and `@rustrak/client`'s `createDeploy` / `@rustrak/mcp`'s `record_deploy`) is removed. It existed only as a manual workaround to trigger the regression-clearing logic before release creation could do it automatically — creating a release now has the same effect, matching real Sentry (which has no such endpoint either; Sentry's own Deploy object is unrelated deploy-tracking metadata, not a regression-clearing trigger).
+
+## 0.10.2
+
+### Patch Changes
+
+- [`9c49900`](https://github.com/rustrak/rustrak/commit/9c49900024c762044a5be63ae2467646c17d3cc6) Thanks [@AbianS](https://github.com/AbianS)! - Fixed a production migration failure on startup. `20260718000000_agent_perf_indexes` combined two `CREATE INDEX CONCURRENTLY` statements in a single migration file; sending multiple statements together makes Postgres wrap them in an implicit transaction, and `CONCURRENTLY` cannot run inside any transaction block, so the server failed to boot with "CREATE INDEX CONCURRENTLY cannot run inside a transaction block". The migration is now split into two single-statement migrations, one per index, so both can run outside a transaction as intended.
+
+## 0.10.1
+
+### Patch Changes
+
+- [`2beae94`](https://github.com/rustrak/rustrak/commit/2beae943a6ace197c8e029947d973a5c803d5c47) Thanks [@AbianS](https://github.com/AbianS)! - ## Dashboard Query Performance
+
+  Fixed two independent causes of multi-second dashboard queries that saturated the database connection pool on installations with large `spans` and `transactions` tables.
+
+  Agent trace queries scanned the entire spans table. The `gen_ai_*` columns were added to tables already holding millions of rows, and since `ADD COLUMN` does not rewrite the heap, the new column had no planner statistics: Postgres assumed `IS NOT NULL` matched every row and fell back to a sequential scan, taking around 14 seconds even when no AI spans existed at all. Partial indexes now carry the predicate themselves, so the plan no longer depends on column statistics and the fix applies to existing installations without any manual `ANALYZE`.
+
+  Transaction stats streamed every matching row to the application to compute percentiles in memory, over a million values per request on busy projects. Postgres now computes them as ordered-set aggregates in a single round trip, cutting the endpoint from roughly 14 seconds to 300 milliseconds. SQLite keeps the in-memory path, since it has no `percentile_cont`.
+
+## 0.10.0
+
+### Minor Changes
+
+- [`d05105a`](https://github.com/rustrak/rustrak/commit/d05105aec39e7c44bcb459a43b3780377e221a2e) Thanks [@AbianS](https://github.com/AbianS)! - ## AI Agent Monitoring
+
+  New Agents page tracks LLM-instrumented spans from any Sentry SDK: agent runs, duration, models by calls/tokens, tool calls, and a per-trace waterfall. Deliberately ships without a cost/spend estimate, since per-model pricing tables go stale too fast to promise, so Rustrak shows exact token counts instead.
+
+  ## Sentry Spans Protocol v2
+
+  Server now recognizes Spans Protocol v2, the batched wire format real Sentry SDKs (verified against @sentry/node + Vercel AI SDK) actually use for AI-instrumented spans. Previously only the legacy standalone-span format was parsed, so AI Agent Monitoring received no data from real SDKs. Also fixes cache/reasoning token attribute mapping and timestamp validation to match Relay's behavior.
+
+  ## Standalone Span Ingestion
+
+  Server accepts Sentry's standalone "span" envelope item (OTel-style spans without a parent transaction), the prerequisite for AI Agent Monitoring and general span-level querying via `GET /api/projects/{id}/spans`.
+
+  ## Fixes & Docs
+
+  - Source maps guide corrected for project/org resolution behavior and SvelteKit setup added
+  - Docs build pinned to zod 4.3.5 to fix a CI-only shallow-clone failure with nextra
+
+## 0.9.2
+
+### Patch Changes
+
+- [`50314dc`](https://github.com/rustrak/rustrak/commit/50314dc42960f5d5ddbd29cbc2d9111b7abfeae9) Thanks [@AbianS](https://github.com/AbianS)! - Added RUSTRAK_LOG_TIMEZONE environment variable for configuring server log timestamp display timezone. Updated dependencies across all packages. Fixed clippy compliance issue in notification service.
+
+## 0.9.1
+
+### Patch Changes
+
+- [`b3a05e9`](https://github.com/rustrak/rustrak/commit/b3a05e979e47669a3ec665bfe0dae4e6bc2eeef3) Thanks [@AbianS](https://github.com/AbianS)! - ## Project Platform Auto-Detection
+
+  Server automatically detects project platform from ingested events and exposes a `platform` field. The web UI renders platform-specific icons using platformicons. Client package now exposes `project.platform` in responses.
+
+  ## Project Overview & Releases
+
+  New project overview page with session trend charts and health score cards. New releases section with release environment cards and release list. Server adds releases and enhanced sessions API endpoints. Client adds releases and sessions resources.
+
+  ## Sentry-Compatible UI Improvements
+
+  Stack trace rendering now matches Sentry's behavior with in-app/system frame grouping, platform-adaptive formatting, and threads section. Breadcrumbs display with expand toggle, category icons, and color coding.
+
+  ## Server Fixes
+
+  Oversized events are now intelligently trimmed instead of being rejected outright. Source map rewriting also applies to thread frames, not just exception stacktraces.
+
 ## 0.9.0
 
 ### Minor Changes

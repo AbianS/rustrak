@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod auth_token;
 pub mod event;
+pub mod gen_ai;
 pub mod grouping;
 pub mod installation;
 pub mod invitation;
@@ -8,8 +9,10 @@ pub mod issue;
 pub mod log;
 pub mod project;
 pub mod project_member;
+pub mod release;
 pub mod session;
 pub mod source_file;
+pub mod span_v2;
 pub mod storage;
 pub mod transaction;
 pub mod user;
@@ -48,6 +51,7 @@ pub use alert::{
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};
+pub use gen_ai::{AgentDurationPoint, AgentTimeseriesPoint, AgentTraceSummary, GenAiBreakdownRow};
 pub use grouping::Grouping;
 pub use installation::Installation;
 pub use invitation::{
@@ -60,6 +64,8 @@ pub use issue::{
 pub use log::LogResponse;
 pub use project::{CreateProject, Project, ProjectResponse, UpdateProject, VALID_PLATFORMS};
 pub use project_member::{ProjectMember, ProjectMemberResponse, ProjectRole, UpsertProjectMember};
+pub use release::{is_valid_version, CreateRelease, Release, ReleaseResponse, UpdateRelease};
+pub use span_v2::{parse_span_v2_container, SpanV2Entry};
 pub use storage::{
     CleanupCounts, CleanupFilter, CleanupRequest, ProjectStorage, SourceMapGcResult,
     SourceMapStorage, StorageSummary,

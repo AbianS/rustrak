@@ -1,0 +1,30 @@
+---
+version: v0.10.1
+title: Dashboard Query Performance
+description: Partial indexes and SQL-side percentiles cut agent and transaction dashboard queries from seconds to milliseconds
+date: 2026-07-18
+tags: [server, docs]
+---
+
+## Dashboard Query Performance
+
+Two independent causes made dashboard queries take multiple seconds on installations with large `spans` and `transactions` tables, saturating the database connection pool and slowing down every other request in the process.
+
+### Agent traces scanned the whole spans table
+
+The `gen_ai_*` columns introduced in v0.10.0 were added to tables that already held millions of rows. `ADD COLUMN` does not rewrite the heap, so the new column starts with no planner statistics, and until autovacuum analyzes it Postgres assumes `IS NOT NULL` matches every row. The agent trace aggregates fell back to a sequential scan over the entire table, taking around 14 seconds even on projects with no AI spans at all.
+
+- Partial indexes now carry the `gen_ai_operation_type IS NOT NULL` predicate themselves, so the qualifying set is the index and its size cannot be misestimated
+- The fix is structural: it applies regardless of column statistics, so existing installations need no manual `ANALYZE`
+- Indexes are created with `CONCURRENTLY`, so event ingestion keeps running during the upgrade
+
+### Transaction stats transferred every row
+
+The transaction stats endpoint fetched every matching duration to the application to compute percentiles in memory, one query per group. On a busy project that meant over a million values on the wire per request.
+
+- Postgres now computes p50/p95/p99 as ordered-set aggregates in a single round trip, cutting the endpoint from roughly 14 seconds to 300 milliseconds
+- SQLite keeps the in-memory path, since it has no `percentile_cont`
+
+## Improvements
+
+- Added GitHub Sponsors funding configuration

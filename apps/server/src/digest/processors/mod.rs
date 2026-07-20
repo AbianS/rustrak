@@ -1,11 +1,15 @@
 pub mod event;
 pub mod logs;
 pub mod session;
+pub mod span;
+pub mod span_v2;
 pub mod transaction;
 
 pub use event::ErrorProcessor;
 pub use logs::LogsProcessor;
 pub use session::{SessionItem, SessionProcessor};
+pub use span::SpanProcessor;
+pub use span_v2::SpanV2Processor;
 pub use transaction::TransactionProcessor;
 
 use crate::config::RateLimitConfig;
@@ -32,6 +36,8 @@ pub struct Processors {
     pub transactions: TransactionProcessor,
     pub sessions: SessionProcessor,
     pub logs: LogsProcessor,
+    pub spans: SpanProcessor,
+    pub spans_v2: SpanV2Processor,
 }
 
 impl Processors {
@@ -46,6 +52,8 @@ impl Processors {
             transactions: TransactionProcessor,
             sessions: SessionProcessor::new(session_aggregator),
             logs: LogsProcessor,
+            spans: SpanProcessor,
+            spans_v2: SpanV2Processor,
         }
     }
 }
@@ -86,6 +94,11 @@ pub enum Route {
     Session,
     /// Standalone logs — direct store, no grouping.
     Log,
+    /// Standalone spans — direct store, no grouping.
+    Span,
+    /// Standalone spans, Spans Protocol v2 (batched container) — direct
+    /// store, no grouping.
+    SpanV2,
     /// Forward-compatible catch-all: logged and dropped, never processed.
     Ignored,
 }
@@ -100,6 +113,8 @@ pub fn route(item: &EnvelopeItemKind) -> Route {
         EnvelopeItemKind::Transaction(_) => Route::Transaction,
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => Route::Session,
         EnvelopeItemKind::Log(_) => Route::Log,
+        EnvelopeItemKind::Span(_) => Route::Span,
+        EnvelopeItemKind::SpanV2Batch(_) => Route::SpanV2,
         EnvelopeItemKind::Other(_, _) => Route::Ignored,
     }
 }

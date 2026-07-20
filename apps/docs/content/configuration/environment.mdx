@@ -73,6 +73,7 @@ openssl rand -hex 32
 | `HOST` | `0.0.0.0` | TCP bind address |
 | `PORT` | `8080` | Server port |
 | `RUST_LOG` | `info` | Log level (trace, debug, info, warn, error) |
+| `RUSTRAK_LOG_TIMEZONE` | `UTC` | IANA timezone name for log timestamp display (e.g. `Asia/Shanghai`) |
 | `PUBLIC_URL` | *(none)* | Public-facing URL used in DSN strings shown to users |
 
 ### HOST
@@ -102,6 +103,18 @@ PUBLIC_URL=http://192.168.1.10:9090
 **Why this matters:** `HOST=0.0.0.0` is the TCP *bind* address — it means "listen on all interfaces." It is not a routable address. Without `PUBLIC_URL`, the DSN shown in the dashboard will contain `http://0.0.0.0:8080/...`, which your SDK cannot reach.
 
 When unset, Rustrak falls back to `http://{HOST}:{PORT}` — fine for local development where `HOST` is `localhost` or `127.0.0.1`.
+
+### RUSTRAK_LOG_TIMEZONE
+
+Converts the timestamps in the server's process logs (stdout — HTTP requests, background workers, event digestion, everything under `RUST_LOG`) to a specific IANA timezone for easier correlation with logs from other systems.
+
+```bash
+RUSTRAK_LOG_TIMEZONE=Asia/Shanghai
+```
+
+Use an IANA zone name (e.g. `Asia/Shanghai`, `America/New_York`, `Europe/Madrid`), not a fixed UTC offset — this ensures daylight saving time is handled correctly for zones that observe it. If unset, or set to a name that isn't a recognized IANA zone, logs fall back to UTC and the server still starts normally (a warning is logged when the value is invalid).
+
+**Scope:** this only affects how log lines are displayed. It does not change event or issue timestamps — those are always stored and returned as UTC by the database and the API, regardless of this setting.
 
 ## Database Pool
 

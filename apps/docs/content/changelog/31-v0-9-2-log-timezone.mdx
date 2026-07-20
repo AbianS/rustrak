@@ -1,0 +1,20 @@
+---
+version: v0.9.2
+title: Log Timezone Configuration
+description: Configurable server log timestamp timezone via RUSTRAK_LOG_TIMEZONE, dependency updates across all packages, and clippy compliance fixes
+date: 2026-07-15
+tags: [server, webview-ui, client, mcp, docs]
+---
+
+## Log Timezone Configuration
+
+Added a new `RUSTRAK_LOG_TIMEZONE` environment variable that allows configuring the timezone used for server log timestamps. Uses the chrono-tz crate supporting IANA timezone identifiers (e.g. `Europe/Madrid`, `America/New_York`).
+
+- Configurable via `RUSTRAK_LOG_TIMEZONE` env var
+- Supports any IANA timezone identifier
+- Updated environment configuration docs
+
+## Improvements
+
+- Updated dependencies across all packages
+- Fixed clippy compliance issue in notification service

@@ -1,0 +1,20 @@
+-- SQLite mirror of the Postgres migration of the same name -- see that file
+-- for the full rationale (fixes the events(issue_id, digest_order)
+-- unique-violation storm; events now order by (timestamp, id) instead).
+--
+-- Modern SQLite (3.35+, bundled by this project's sqlx driver -- see the
+-- precedent DROP COLUMN migrations already in this directory, e.g.
+-- 20260703000000_add_project_platform.down.sql) supports DROP COLUMN
+-- directly, no table-recreate needed.
+--
+-- Note: as of this migration, SQLite's events table has never actually
+-- enforced UNIQUE(issue_id, digest_order) -- that constraint was dropped
+-- (not intentionally re-added) by 20260618000000_transaction_processing's
+-- table-recreate, which only kept UNIQUE(project_id, event_id). Postgres
+-- keeps enforcing it right up to this migration, since ALTER COLUMN ... DROP
+-- NOT NULL doesn't require a table rewrite there. This pre-existing dialect
+-- drift is not otherwise in scope for this migration -- the column is being
+-- removed either way -- but the down-migration below deliberately restores
+-- the constraint so the SQLite dialect's "fail on populated table" rollback
+-- behavior matches Postgres's.
+ALTER TABLE events DROP COLUMN digest_order;

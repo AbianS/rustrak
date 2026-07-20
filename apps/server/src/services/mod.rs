@@ -3,6 +3,7 @@ pub mod alert;
 pub mod auth_token;
 pub mod event;
 pub mod event_trim;
+pub mod gen_ai;
 pub mod generic_trim;
 pub mod grouping;
 pub mod invitation;
@@ -13,9 +14,11 @@ pub mod notification;
 pub mod project;
 pub mod project_member;
 pub mod rate_limit;
+pub mod release;
 pub mod session;
 pub mod sourcemap;
 pub mod sourcemap_store;
+pub mod span;
 pub mod storage;
 pub mod transaction;
 pub mod users;
@@ -24,6 +27,10 @@ pub use alert::AlertService;
 pub use auth_token::AuthTokenService;
 pub use event::EventService;
 pub use event_trim::trim_oversized_event;
+pub use gen_ai::{
+    extract_gen_ai_columns, infer_operation_type, is_ai_span, normalize_gen_ai_attributes,
+    GenAiColumns,
+};
 pub use grouping::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, DenormalizedFields,
 };
@@ -35,8 +42,10 @@ pub use notification::{create_dispatcher, NotificationDispatcher, NotificationRe
 pub use project::ProjectService;
 pub use project_member::ProjectMemberService;
 pub use rate_limit::RateLimitService;
+pub use release::ReleaseService;
 pub use sourcemap::{rewrite_frames, DbSourceMapProvider, SourceMapEntry, SourceMapProvider};
 pub use sourcemap_store::{LocalSourceMapStore, SourceMapStore, StoreError};
+pub use span::{SpanFilters, SpanService};
 pub use storage::StorageService;
 pub use transaction::{TransactionFilters, TransactionService};
 pub use users::UsersService;

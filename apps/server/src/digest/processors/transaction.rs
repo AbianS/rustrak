@@ -1,5 +1,6 @@
 use super::{Processor, ProcessorCtx};
 use crate::error::{AppError, AppResult};
+use crate::services::gen_ai::{extract_gen_ai_columns, GenAiColumns};
 use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
@@ -28,6 +29,9 @@ impl Processor for TransactionProcessor {
         let parent_span_id = trace_str(trace, "parent_span_id");
         let op = trace_str(trace, "op");
         let status = trace_str(trace, "status");
+        // Owned clone, mutated independently of `data` below — needed for the
+        // AI-root-span promotion pass after the transaction/child-span inserts.
+        let mut trace_context = trace.cloned();
 
         // transaction_info.source carries Relay's TransactionSource. Stored
         // verbatim (Relay keeps unrecognized values via its `Other(String)`
@@ -102,12 +106,12 @@ impl Processor for TransactionProcessor {
         .bind(id)
         .bind(ctx.event_id)
         .bind(ctx.project_id)
-        .bind(transaction_name)
+        .bind(&transaction_name)
         .bind(trace_id.as_deref())
-        .bind(span_id)
-        .bind(parent_span_id)
-        .bind(op)
-        .bind(status)
+        .bind(span_id.as_deref())
+        .bind(parent_span_id.as_deref())
+        .bind(op.as_deref())
+        .bind(status.as_deref())
         .bind(source)
         .bind(start_timestamp)
         .bind(timestamp)
@@ -130,8 +134,54 @@ impl Processor for TransactionProcessor {
         // linked to the parent transaction. A span inherits the transaction's
         // trace_id when it doesn't carry its own.
         if let Some(spans) = data.get("spans").and_then(|s| s.as_array()) {
-            for span in spans {
+            // Cloned (not borrowed) so gen_ai normalization can mutate each
+            // span's own `data` attributes bag independently of the parent
+            // transaction's already-serialized `data` column above.
+            for span in spans.clone() {
                 insert_span(span, id, ctx.project_id, trace_id.as_deref(), &mut *tx).await?;
+            }
+        }
+
+        // Promote contexts.trace into its own `spans` row when it's an
+        // AI-instrumented trace root. Some SDKs (verified: @sentry/node +
+        // Vercel AI SDK's vercelAIIntegration()) send the trace's root span
+        // ("invoke_agent") inline on the transaction event's contexts.trace
+        // — never as its own span item in `spans[]` — carrying
+        // client-accumulated token totals in contexts.trace.data. Without
+        // this, gen_ai_operation_type='agent' aggregations (the "Agent Runs"
+        // widget) never see it, even though other AI spans in the same trace
+        // do. Gated on is_ai_span (via extract_gen_ai_columns's own check) so
+        // an ordinary, non-AI transaction's span count is unaffected —
+        // verified live against a real captured trace, 2026-07-17.
+        if let (Some(root_span_id), Some(root_trace_id)) = (&span_id, &trace_id) {
+            let gen_ai = match trace_context
+                .as_mut()
+                .and_then(serde_json::Value::as_object_mut)
+            {
+                Some(trace) => {
+                    let trace_data = trace.entry("data").or_insert_with(|| serde_json::json!({}));
+                    extract_gen_ai_columns(trace_data, op.as_deref())
+                }
+                None => GenAiColumns::default(),
+            };
+            if gen_ai.operation_type.is_some() {
+                insert_root_span(
+                    root_span_id,
+                    root_trace_id,
+                    parent_span_id.as_deref(),
+                    op.as_deref(),
+                    status.as_deref(),
+                    &transaction_name,
+                    start_timestamp,
+                    timestamp,
+                    duration_ms,
+                    id,
+                    ctx.project_id,
+                    trace_context.unwrap_or(serde_json::json!({})),
+                    gen_ai,
+                    &mut *tx,
+                )
+                .await?;
             }
         }
 
@@ -149,8 +199,10 @@ type Db = sqlx::Sqlite;
 
 /// Inserts a single extracted span row linked to its parent transaction.
 /// Generic over the executor so it can run inside the parent's DB transaction.
+/// Takes an owned `span` (not borrowed) so gen_ai normalization can mutate
+/// its `data` attributes bag freely.
 async fn insert_span<'e, E>(
-    span: &serde_json::Value,
+    mut span: serde_json::Value,
     transaction_id: Uuid,
     project_id: i32,
     txn_trace_id: Option<&str>,
@@ -159,12 +211,27 @@ async fn insert_span<'e, E>(
 where
     E: sqlx::Executor<'e, Database = Db>,
 {
-    let span_id = span.get("span_id").and_then(|v| v.as_str());
-    let parent_span_id = span.get("parent_span_id").and_then(|v| v.as_str());
-    let op = span.get("op").and_then(|v| v.as_str());
-    let description = span.get("description").and_then(|v| v.as_str());
-    let status = span.get("status").and_then(|v| v.as_str());
-    let segment_id = span.get("segment_id").and_then(|v| v.as_str());
+    let span_id = span
+        .get("span_id")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let parent_span_id = span
+        .get("parent_span_id")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let op = span.get("op").and_then(|v| v.as_str()).map(str::to_string);
+    let description = span
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let status = span
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let segment_id = span
+        .get("segment_id")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
     let is_segment = span
         .get("is_segment")
         .and_then(|v| v.as_bool())
@@ -174,10 +241,11 @@ where
     let trace_id = span
         .get("trace_id")
         .and_then(|v| v.as_str())
-        .or(txn_trace_id);
+        .map(str::to_string)
+        .or_else(|| txn_trace_id.map(str::to_string));
 
-    let start_timestamp = extract_timestamp(span, "start_timestamp");
-    let timestamp = extract_timestamp(span, "timestamp");
+    let start_timestamp = extract_timestamp(&span, "start_timestamp");
+    let timestamp = extract_timestamp(&span, "timestamp");
     let duration_ms = match (start_timestamp, timestamp) {
         (Some(st), Some(ts)) => (ts - st)
             .num_microseconds()
@@ -189,6 +257,14 @@ where
 
     let tags = span.get("tags").cloned();
 
+    // gen_ai.* normalization, on the span's own `data` attributes bag —
+    // same shared function `SpanProcessor` calls for standalone spans, so
+    // a transaction-embedded LLM-call child span is normalized identically.
+    let gen_ai = match span.get_mut("data") {
+        Some(span_data) => extract_gen_ai_columns(span_data, op.as_deref()),
+        None => GenAiColumns::default(),
+    };
+
     sqlx::query(
         r#"
         INSERT INTO spans (
@@ -196,13 +272,21 @@ where
             span_id, trace_id, parent_span_id,
             op, description, status,
             start_timestamp, timestamp, duration_ms, exclusive_time_ms,
-            is_segment, segment_id, tags, data
+            is_segment, segment_id, tags, data,
+            gen_ai_operation_type, gen_ai_agent_name,
+            gen_ai_request_model, gen_ai_response_model,
+            gen_ai_tool_name, gen_ai_conversation_id,
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
             $7, $8, $9,
             $10, $11, $12, $13,
-            $14, $15, $16, $17
+            $14, $15, $16, $17,
+            $18, $19,
+            $20, $21,
+            $22, $23,
+            $24, $25, $26
         )
         "#,
     )
@@ -223,6 +307,96 @@ where
     .bind(segment_id)
     .bind(tags)
     .bind(serde_json::json!(span))
+    .bind(gen_ai.operation_type)
+    .bind(gen_ai.agent_name)
+    .bind(gen_ai.request_model)
+    .bind(gen_ai.response_model)
+    .bind(gen_ai.tool_name)
+    .bind(gen_ai.conversation_id)
+    .bind(gen_ai.usage_input_tokens)
+    .bind(gen_ai.usage_output_tokens)
+    .bind(gen_ai.usage_total_tokens)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+/// Inserts a synthesized root/segment span row from an AI-recognized
+/// `contexts.trace`, linked to its parent transaction. `trace_context` is the
+/// whole `contexts.trace` object — stored verbatim as the `data` column, so
+/// gen_ai fields sit at `$.data.gen_ai.*` — and `gen_ai` holds the columns
+/// already extracted from its nested `data` bag. Both must be computed by the
+/// caller; this function only performs the INSERT. Generic over the executor
+/// so it can run inside the parent's DB transaction.
+#[allow(clippy::too_many_arguments)]
+async fn insert_root_span<'e, E>(
+    span_id: &str,
+    trace_id: &str,
+    parent_span_id: Option<&str>,
+    op: Option<&str>,
+    status: Option<&str>,
+    description: &str,
+    start_timestamp: Option<DateTime<Utc>>,
+    timestamp: DateTime<Utc>,
+    duration_ms: Option<f64>,
+    transaction_id: Uuid,
+    project_id: i32,
+    trace_context: serde_json::Value,
+    gen_ai: GenAiColumns,
+    executor: E,
+) -> AppResult<()>
+where
+    E: sqlx::Executor<'e, Database = Db>,
+{
+    sqlx::query(
+        r#"
+        INSERT INTO spans (
+            id, transaction_id, project_id,
+            span_id, trace_id, parent_span_id,
+            op, description, status,
+            start_timestamp, timestamp, duration_ms, exclusive_time_ms,
+            is_segment, segment_id, tags, data,
+            gen_ai_operation_type, gen_ai_agent_name,
+            gen_ai_request_model, gen_ai_response_model,
+            gen_ai_tool_name, gen_ai_conversation_id,
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
+        ) VALUES (
+            $1, $2, $3,
+            $4, $5, $6,
+            $7, $8, $9,
+            $10, $11, $12, NULL,
+            TRUE, $13, NULL, $14,
+            $15, $16,
+            $17, $18,
+            $19, $20,
+            $21, $22, $23
+        )
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(transaction_id)
+    .bind(project_id)
+    .bind(span_id)
+    .bind(trace_id)
+    .bind(parent_span_id)
+    .bind(op)
+    .bind(description)
+    .bind(status)
+    .bind(start_timestamp)
+    .bind(timestamp)
+    .bind(duration_ms)
+    .bind(span_id) // segment_id: the root is its own segment
+    .bind(serde_json::json!(trace_context))
+    .bind(gen_ai.operation_type)
+    .bind(gen_ai.agent_name)
+    .bind(gen_ai.request_model)
+    .bind(gen_ai.response_model)
+    .bind(gen_ai.tool_name)
+    .bind(gen_ai.conversation_id)
+    .bind(gen_ai.usage_input_tokens)
+    .bind(gen_ai.usage_output_tokens)
+    .bind(gen_ai.usage_total_tokens)
     .execute(executor)
     .await?;
 

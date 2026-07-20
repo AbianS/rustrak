@@ -26,8 +26,32 @@ async fn main() -> std::io::Result<()> {
     // Load .env file if present
     dotenvy::dotenv().ok();
 
-    // Initialize logging
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+    // Initialize logging. RUSTRAK_LOG_TIMEZONE (IANA name)
+    // optionally converts log timestamps for display; falls back to UTC if unset
+    // or unrecognized. Display-only — event/issue timestamps are unaffected.
+    let log_timezone = rustrak::logging::resolve_log_timezone();
+    env_logger::Builder::from_env(env_logger::Env::new().default_filter_or("info"))
+        .format(move |buf, record| {
+            use std::io::Write;
+            let level_style = buf.default_level_style(record.level());
+            writeln!(
+                buf,
+                "[{} {level_style}{}{level_style:#} {}] {}",
+                rustrak::logging::format_log_timestamp(chrono::Utc::now(), log_timezone),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
+        .init();
+
+    if let Ok(tz_name) = std::env::var("RUSTRAK_LOG_TIMEZONE") {
+        if log_timezone.is_none() {
+            log::warn!(
+                "RUSTRAK_LOG_TIMEZONE=\"{tz_name}\" is not a recognized IANA timezone name; falling back to UTC"
+            );
+        }
+    }
 
     // Load configuration
     let config = config::Config::from_env().map_err(|e| {
@@ -198,6 +222,10 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::transactions::configure)
             // Logs API (more specific than generic projects scope)
             .configure(routes::logs::configure)
+            // Spans API (more specific than generic projects scope)
+            .configure(routes::spans::configure)
+            // AI Agent Monitoring dashboard API (more specific than generic projects scope)
+            .configure(routes::agents::configure)
             // Then generic projects/tokens routes
             .configure(routes::projects::configure)
             .configure(routes::tokens::configure)

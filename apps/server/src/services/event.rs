@@ -12,7 +12,14 @@ pub struct EventService;
 impl EventService {
     /// Lists events with cursor-based pagination
     ///
-    /// Uses KEYSET pagination for efficient large dataset handling.
+    /// Uses KEYSET pagination on `(timestamp, id)` for efficient large dataset
+    /// handling — `timestamp` is not unique within an issue (a burst of events
+    /// can share it), so `id` is the tiebreaker that makes the keyset
+    /// deterministic. The row-value comparison `(timestamp, id) < ($2, $3)`
+    /// plans as an index range scan against `idx_events_issue_timestamp` on
+    /// Postgres (confirmed via `EXPLAIN ANALYZE`, see spec Design Notes).
+    /// SQLite 3.15+ supports row-value comparisons syntactically, but its
+    /// query planner's choice of index for this shape has not been verified.
     /// Returns (events, has_more) where has_more indicates if there are more results.
     pub async fn list_paginated(
         pool: &DbPool,
@@ -31,7 +38,7 @@ impl EventService {
                     r#"
                     SELECT * FROM events
                     WHERE issue_id = $1
-                    ORDER BY digest_order DESC
+                    ORDER BY timestamp DESC, id DESC
                     LIMIT $2
                     "#,
                 )
@@ -46,14 +53,15 @@ impl EventService {
                 sqlx::query_as::<_, Event>(
                     r#"
                     SELECT * FROM events
-                    WHERE issue_id = $1 AND digest_order < $3
-                    ORDER BY digest_order DESC
+                    WHERE issue_id = $1 AND (timestamp, id) < ($3, $4)
+                    ORDER BY timestamp DESC, id DESC
                     LIMIT $2
                     "#,
                 )
                 .bind(issue_id)
                 .bind(fetch_limit)
-                .bind(c.last_digest_order)
+                .bind(c.last_timestamp)
+                .bind(c.last_id)
                 .fetch_all(pool)
                 .await?
             }
@@ -64,7 +72,7 @@ impl EventService {
                     r#"
                     SELECT * FROM events
                     WHERE issue_id = $1
-                    ORDER BY digest_order ASC
+                    ORDER BY timestamp ASC, id ASC
                     LIMIT $2
                     "#,
                 )
@@ -79,14 +87,15 @@ impl EventService {
                 sqlx::query_as::<_, Event>(
                     r#"
                     SELECT * FROM events
-                    WHERE issue_id = $1 AND digest_order > $3
-                    ORDER BY digest_order ASC
+                    WHERE issue_id = $1 AND (timestamp, id) > ($3, $4)
+                    ORDER BY timestamp ASC, id ASC
                     LIMIT $2
                     "#,
                 )
                 .bind(issue_id)
                 .bind(fetch_limit)
-                .bind(c.last_digest_order)
+                .bind(c.last_timestamp)
+                .bind(c.last_id)
                 .fetch_all(pool)
                 .await?
             }
@@ -120,7 +129,6 @@ impl EventService {
         event_data: &serde_json::Value,
         ingested_at: DateTime<Utc>,
         denormalized: &DenormalizedFields,
-        digest_order: i32,
         remote_addr: Option<&str>,
     ) -> AppResult<Event> {
         // Extract fields from event_data
@@ -190,9 +198,9 @@ impl EventService {
                 calculated_type, calculated_value, "transaction",
                 last_frame_filename, last_frame_module, last_frame_function,
                 level, platform, release, environment, server_name,
-                sdk_name, sdk_version, digest_order, remote_addr
+                sdk_name, sdk_version, remote_addr
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             RETURNING *
             "#,
         )
@@ -217,7 +225,6 @@ impl EventService {
         .bind(server_name)
         .bind(sdk_name)
         .bind(sdk_version)
-        .bind(digest_order)
         .bind(remote_addr_str)
         .fetch_one(pool)
         .await?;

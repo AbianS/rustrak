@@ -815,11 +815,28 @@ impl IssueService {
         })
     }
 
-    /// Records a deploy of `version` for a project: clears the
-    /// "resolved in next release" marker on issues whose last_release differs
-    /// from the new version (the awaited release has now shipped). Returns the
-    /// number of issues finalized.
-    pub async fn finalize_release(pool: &DbPool, project_id: i32, version: &str) -> AppResult<u64> {
+    /// Clears the "resolved in next release" marker on issues whose
+    /// `last_release` maps to a release that shipped *before*
+    /// `new_release_date_created`, in the same project. The comparison
+    /// (`date_created <`, project-scoped) is the chronological equivalent of
+    /// Sentry's `post_save` signal on `Release` (`clear_expired_resolutions`,
+    /// compared on `Release.date_added`) — it replaces a previous
+    /// implementation that compared `last_release` to the new version by
+    /// string inequality, which cannot tell "older" from "different".
+    /// Returns the number of issues finalized.
+    ///
+    /// Called on every `POST .../releases/` call, including the idempotent
+    /// 208 branch (see `routes::releases::create_release`) — unlike Sentry,
+    /// whose signal only fires on first creation. This is deliberate: the
+    /// query above is naturally idempotent (a repeat run affects 0 rows once
+    /// nothing is left to clear), so calling it unconditionally self-heals a
+    /// prior call that created the release row but crashed before clearing
+    /// ran, which Sentry's fire-and-forget task cannot do.
+    pub async fn finalize_release(
+        pool: &DbPool,
+        project_id: i32,
+        new_release_date_created: DateTime<Utc>,
+    ) -> AppResult<u64> {
         let res = sqlx::query(
             r#"
             UPDATE issues
@@ -827,11 +844,14 @@ impl IssueService {
             WHERE project_id = $1
               AND status = 'resolved'
               AND status_details LIKE '%"in_next_release":true%'
-              AND last_release <> $2
+              AND last_release IN (
+                  SELECT version FROM releases
+                  WHERE project_id = $1 AND date_created < $2
+              )
             "#,
         )
         .bind(project_id)
-        .bind(version)
+        .bind(new_release_date_created)
         .execute(pool)
         .await?;
         Ok(res.rows_affected())

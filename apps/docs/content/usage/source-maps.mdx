@@ -40,7 +40,7 @@ Error: Invoice not found
     src/app/invoices/[id]/page.tsx:12
 ```
 
-Same error. One es debuggeable, el otro no.
+Same error. One is debuggable, the other isn't.
 
 ## How to enable source maps
 
@@ -59,8 +59,8 @@ export default defineConfig({
   },
   plugins: [
     sentryVitePlugin({
-      org: 'your-org',           // any value — Rustrak ignores it
-      project: 'your-project',   // any value — Rustrak ignores it
+      org: 'anything',           // any value works, Rustrak ignores it
+      project: 'my-project',     // must match your Rustrak project slug
       authToken: 'your-api-token',
       url: 'http://localhost:8080', // your Rustrak server URL
     }),
@@ -78,8 +78,8 @@ module.exports = {
   devtool: 'source-map', // required
   plugins: [
     sentryWebpackPlugin({
-      org: 'your-org',
-      project: 'your-project',
+      org: 'anything',
+      project: 'my-project',
       authToken: 'your-api-token',
       url: 'http://localhost:8080',
     }),
@@ -87,7 +87,88 @@ module.exports = {
 };
 ```
 
-The `authToken` is a Rustrak API token created under **Settings → API Tokens**. The `org` and `project` values are not used by Rustrak but are required fields by the SDK plugin.
+### SvelteKit
+
+`@sentry/sveltekit` wraps the Vite plugin, but **names the server URL option
+`sentryUrl`, not `url`**, and the options go at the root level:
+
+```javascript
+// vite.config.js
+import { sentrySvelteKit } from '@sentry/sveltekit';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig, loadEnv } from 'vite';
+
+export default defineConfig(({ mode }) => {
+  // Vite does NOT populate process.env in config files, see note below
+  const env = loadEnv(mode, process.cwd(), '');
+
+  return {
+    plugins: [
+      sentrySvelteKit({
+        org: 'anything',                  // ignored by Rustrak
+        project: 'my-project',            // must match your Rustrak project slug
+        authToken: env.SENTRY_AUTH_TOKEN,
+        sentryUrl: 'http://localhost:8080', // NOT `url` in this SDK
+      }),
+      sveltekit(),
+    ],
+  };
+});
+```
+
+> Older examples nest these under `sourceMapsUploadOptions: { ... }`. That whole
+> object is deprecated as of `@sentry/sveltekit` v10. Move the options to the root
+> level, and rename `url` to `sentryUrl` while you're there.
+
+**Vite does not load `.env` files into `process.env` when evaluating
+`vite.config.js`.** If you set `SENTRY_AUTH_TOKEN` in a `.env` and read it via
+`process.env`, you'll get `undefined` and the upload is silently skipped. Either use
+Vite's `loadEnv` helper as shown above, or put the values in a
+**`.env.sentry-build-plugin`** file, which the Sentry plugin reads automatically from
+the current working directory.
+
+Source maps are only uploaded during production builds (`vite build`), never in
+`vite dev`.
+
+## What `org` and `project` mean in Rustrak
+
+| Option | Env var | Does Rustrak care? |
+| --- | --- | --- |
+| `org` | `SENTRY_ORG` | **No.** Any non-empty string works. |
+| `project` | `SENTRY_PROJECT` | **Yes.** Must match an existing Rustrak project's slug (or its numeric ID). |
+| `url` (`sentryUrl` in framework SDKs) | `SENTRY_URL` | **Yes.** Must point at your Rustrak server. |
+| `authToken` | `SENTRY_AUTH_TOKEN` | **Yes.** A Rustrak API token from **Settings → API Tokens**. |
+
+### Why `org` is ignored
+
+Rustrak has no organizations, and this is by design rather than a missing feature.
+
+In Sentry, an organization separates different customers sharing one server. It
+groups projects, users, and billing, and it decides which uploaded files each
+customer is allowed to see. Rustrak is self-hosted: everything on the server is
+already yours, so there is nothing to separate.
+
+The error reporting protocol never sends an organization either. Your DSN is
+`key@host/project_id`, with no organization in it. So the project, not the
+organization, is what identifies your data.
+
+The reason the option exists at all is that `sentry-cli` checks that the
+organization exists before it starts uploading. Rustrak answers that check with
+whatever slug you sent, and the upload proceeds. Set it to anything you like, or
+leave it as your company name so the config reads sensibly.
+
+### Why `project` is not ignored
+
+The upload happens in two parts, and only the second one looks at your project.
+The files themselves are uploaded first, and that step succeeds no matter what
+`project` says. The final step attaches those files to a project, and that is
+where a wrong value fails with `404 project not found`.
+
+The build does not fail when this happens, so the only symptom is that your stack
+traces stay minified. See the troubleshooting section below.
+
+Every option can be set through its environment variable instead of the config
+file; the explicit option wins when both are present.
 
 > **The `url` must point to Rustrak.** Source map upload is a separate channel from
 > error reporting: your DSN controls where **events** go, but the build plugin
@@ -167,12 +248,18 @@ The plugin logs upload progress. Look for output like:
 - **It uploaded, but errors are still minified** → check `url`. If it isn't set,
   source maps go to `sentry.io` by default, not to Rustrak. The DSN does not control
   this.
+- **`404 project not found` during assembly** → your `project` / `SENTRY_PROJECT`
+  doesn't match any Rustrak project. Chunks upload fine (that step ignores the
+  project), then the final assembly step rejects them. Use the exact project slug
+  shown in the dashboard URL. Note that `org` is *not* the problem here, since
+  Rustrak ignores it entirely.
 
 Confirm what actually landed on the server:
 
 ```bash
+# the `anything` segment is the org, which Rustrak ignores
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  http://localhost:8080/api/0/projects/x/your-project/files/source-maps/
+  http://localhost:8080/api/0/projects/anything/my-project/files/source-maps/
 ```
 
 An empty `data` array means no source maps were ever uploaded for that project.

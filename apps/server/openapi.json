@@ -10,7 +10,7 @@
       "name": "GPL-3.0-only",
       "identifier": "GPL-3.0-only"
     },
-    "version": "0.9.0"
+    "version": "0.11.1"
   },
   "paths": {
     "/api/0/organizations/{org_slug}/": {
@@ -267,6 +267,189 @@
           },
           "404": {
             "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/projects/{org_slug}/{project_slug}/releases/": {
+      "post": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "POST /api/0/projects/{org_slug}/{project_slug}/releases/",
+        "description": "Sentry-compatible release creation. Idempotent: repeating the same\n`(project, version)` returns 208 rather than erroring — sentry-cli and JS\nbundler plugins call this on every build. Triggers date-based regression\nclearing (see [`crate::services::issue::IssueService::finalize_release`])\non every call, not just the new-row branch: `finalize_release`'s own\n`UPDATE ... WHERE` is idempotent (a repeat run affects 0 rows once nothing\nis left to clear), so this also self-heals a prior call that created the\nrow but failed before clearing ran — a plain `if created` gate would\notherwise skip clearing forever once a retry lands on the 208 branch.",
+        "operationId": "create_release",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug (synthetic — accepted and ignored)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRelease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Release created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "208": {
+            "description": "Release already exists — no duplicate created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/0/projects/{org_slug}/{project_slug}/releases/{version}/": {
+      "put": {
+        "tags": [
+          "Releases"
+        ],
+        "summary": "PUT /api/0/projects/{org_slug}/{project_slug}/releases/{version}/",
+        "description": "Generic partial update (`ref`, `url`, `dateReleased`). Setting\n`dateReleased` IS \"finalize\" — there is no separate status flag.",
+        "operationId": "finalize_release",
+        "parameters": [
+          {
+            "name": "org_slug",
+            "in": "path",
+            "description": "Organization slug (synthetic — accepted and ignored)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "project_slug",
+            "in": "path",
+            "description": "Project slug",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "description": "Release version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRelease"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Release updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or release not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -1176,6 +1359,587 @@
         ]
       }
     },
+    "/api/projects/{project_id}/agents/duration": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/duration\nTime-bucketed avg/p95 duration for `agent`/`ai_client` spans.",
+        "operationId": "agent_duration",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "interval_hours",
+            "in": "query",
+            "description": "Bucket width in hours (default: 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Avg/p95 duration over time for agent runs and LLM calls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentDurationPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/models/calls": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/models/calls\nTop models by LLM call count (`gen_ai.operation.type:ai_client`).",
+        "operationId": "agent_models_calls",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top LLM call counts by response model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/models/tokens": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/models/tokens\nTop models by total tokens used (`gen_ai.operation.type:ai_client`).",
+        "operationId": "agent_models_tokens",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top total tokens used by response model",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/runs": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/runs\nTime-bucketed count of agent-run spans (`gen_ai.operation.type:agent`).",
+        "operationId": "agent_runs",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "interval_hours",
+            "in": "query",
+            "description": "Bucket width in hours (default: 1).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent runs over time",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentTimeseriesPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/tools": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/tools\nTop tools by call count (`gen_ai.operation.type:tool`).",
+        "operationId": "agent_tools",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Top tool call counts by tool name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenAiBreakdownRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/traces": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/traces\nPaginated per-trace_id aggregate (duration, tokens, tool usage) across\nall AI spans sharing that trace, regardless of origin.",
+        "operationId": "agent_traces",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated agent traces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
+                        "required": [
+                          "trace_id",
+                          "agent_names",
+                          "total_tokens",
+                          "tool_call_count",
+                          "started_at"
+                        ],
+                        "properties": {
+                          "agent_names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
+                          },
+                          "duration_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+                          },
+                          "started_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "tool_call_count": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "total_tokens": {
+                            "type": "number",
+                            "format": "double"
+                          },
+                          "trace_id": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/alert-history": {
       "get": {
         "tags": [
@@ -1561,64 +2325,6 @@
           },
           "404": {
             "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearer_auth": []
-          }
-        ]
-      }
-    },
-    "/api/projects/{project_id}/deploys": {
-      "post": {
-        "tags": [
-          "Issues"
-        ],
-        "summary": "POST /api/projects/{project_id}/deploys — record a release deploy, which\nfinalizes issues that were \"resolved in the next release\".",
-        "operationId": "create_deploy",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "description": "Project ID",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeployRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Issues finalized by the deploy",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DeployResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
@@ -3892,6 +4598,338 @@
         ]
       }
     },
+    "/api/projects/{project_id}/spans": {
+      "get": {
+        "tags": [
+          "Spans"
+        ],
+        "summary": "GET /api/projects/{project_id}/spans\nLists spans for a project with offset-based pagination (newest by\nstart_timestamp first), optionally filtered by op/status/trace_id.\nReturns spans regardless of origin — standalone or extracted from a\ntransaction — since both are stored in the same table.",
+        "operationId": "list_spans",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "op",
+            "in": "query",
+            "description": "Filter by span operation, e.g. `http.client`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Filter by span status.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "trace_id",
+            "in": "query",
+            "description": "Filter by trace id — matches spans regardless of origin (standalone\nor extracted from a transaction), since both share this table.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "operation_type",
+            "in": "query",
+            "description": "Filter by gen_ai.operation.type\n(`agent`/`tool`/`handoff`/`ai_client`/`other`).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated span list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
+                        "required": [
+                          "id",
+                          "is_segment"
+                        ],
+                        "properties": {
+                          "description": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "duration_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Duration in milliseconds (timestamp - start_timestamp)."
+                          },
+                          "environment": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "exclusive_time_ms": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double",
+                            "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                          },
+                          "gen_ai_agent_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_conversation_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_operation_type": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+                          },
+                          "gen_ai_request_model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_response_model": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_tool_name": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "gen_ai_usage_input_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "gen_ai_usage_output_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "gen_ai_usage_total_tokens": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "is_segment": {
+                            "type": "boolean"
+                          },
+                          "op": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "parent_span_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "platform": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                          },
+                          "release": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "segment_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "span_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "start_timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "status": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "timestamp": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "trace_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "transaction_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid",
+                            "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/transactions": {
       "get": {
         "tags": [
@@ -4461,7 +5499,7 @@
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "description": "A single indexed span extracted from a transaction.",
+                    "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
                     "required": [
                       "id",
                       "is_segment"
@@ -4481,6 +5519,12 @@
                         "format": "double",
                         "description": "Duration in milliseconds (timestamp - start_timestamp)."
                       },
+                      "environment": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
                       "exclusive_time_ms": {
                         "type": [
                           "number",
@@ -4488,6 +5532,64 @@
                         ],
                         "format": "double",
                         "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+                      },
+                      "gen_ai_agent_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_conversation_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_operation_type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+                      },
+                      "gen_ai_request_model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_response_model": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_tool_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "gen_ai_usage_input_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
+                      },
+                      "gen_ai_usage_output_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
+                      },
+                      "gen_ai_usage_total_tokens": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "format": "double"
                       },
                       "id": {
                         "type": "string",
@@ -4503,6 +5605,19 @@
                         ]
                       },
                       "parent_span_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "platform": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                      },
+                      "release": {
                         "type": [
                           "string",
                           "null"
@@ -4545,6 +5660,14 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "transaction_id": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "uuid",
+                        "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
                       }
                     }
                   }
@@ -5648,6 +6771,90 @@
           }
         }
       },
+      "AgentDurationPoint": {
+        "type": "object",
+        "description": "avg/p95 duration for one time bucket.",
+        "required": [
+          "bucket",
+          "avg_ms",
+          "p95_ms"
+        ],
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "bucket": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "p95_ms": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentTimeseriesPoint": {
+        "type": "object",
+        "description": "One time-bucketed value (count or sum) — mirrors `SessionTimeseriesPoint`.",
+        "required": [
+          "bucket",
+          "value"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentTraceSummary": {
+        "type": "object",
+        "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
+        "required": [
+          "trace_id",
+          "agent_names",
+          "total_tokens",
+          "tool_call_count",
+          "started_at"
+        ],
+        "properties": {
+          "agent_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Every distinct agent that ran in this trace, earliest first. A trace\nwith handoffs involves more than one, so this is a list rather than a\nsingle root name — Sentry's own Traces table shows them all."
+          },
+          "duration_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tool_call_count": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "trace_id": {
+            "type": "string"
+          }
+        }
+      },
       "AlertHistory": {
         "type": "object",
         "description": "Alert delivery history record (audit log and retry queue)",
@@ -6298,6 +7505,30 @@
           }
         }
       },
+      "CreateRelease": {
+        "type": "object",
+        "description": "DTO for `POST .../releases/`.",
+        "required": [
+          "version"
+        ],
+        "properties": {
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "CreateUserRequest": {
         "type": "object",
         "required": [
@@ -6309,34 +7540,6 @@
             "type": "string"
           },
           "password": {
-            "type": "string"
-          }
-        }
-      },
-      "DeployRequest": {
-        "type": "object",
-        "description": "Body for recording a deploy.",
-        "required": [
-          "version"
-        ],
-        "properties": {
-          "version": {
-            "type": "string"
-          }
-        }
-      },
-      "DeployResponse": {
-        "type": "object",
-        "required": [
-          "version",
-          "finalized"
-        ],
-        "properties": {
-          "finalized": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "version": {
             "type": "string"
           }
         }
@@ -6494,6 +7697,23 @@
           },
           "title": {
             "type": "string"
+          }
+        }
+      },
+      "GenAiBreakdownRow": {
+        "type": "object",
+        "description": "One row of a \"top N by X\" breakdown (model or tool name).",
+        "required": [
+          "label",
+          "value"
+        ],
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -7134,6 +8354,42 @@
           }
         }
       },
+      "ReleaseResponse": {
+        "type": "object",
+        "description": "API response for a release.",
+        "required": [
+          "version",
+          "dateCreated"
+        ],
+        "properties": {
+          "dateCreated": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dateReleased": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      },
       "SeenResponse": {
         "type": "object",
         "required": [
@@ -7274,7 +8530,7 @@
       },
       "SpanResponse": {
         "type": "object",
-        "description": "A single indexed span extracted from a transaction.",
+        "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
         "required": [
           "id",
           "is_segment"
@@ -7294,6 +8550,12 @@
             "format": "double",
             "description": "Duration in milliseconds (timestamp - start_timestamp)."
           },
+          "environment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "exclusive_time_ms": {
             "type": [
               "number",
@@ -7301,6 +8563,64 @@
             ],
             "format": "double",
             "description": "Relay's exclusive (self) time in milliseconds, if provided by the SDK."
+          },
+          "gen_ai_agent_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_operation_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "gen_ai.* denormalized fields (story-ai-agent-monitoring.md, GH #180).\nAll `None` unless the span was recognized as an AI span."
+          },
+          "gen_ai_request_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_response_model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_tool_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gen_ai_usage_input_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "gen_ai_usage_output_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "gen_ai_usage_total_tokens": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           },
           "id": {
             "type": "string",
@@ -7316,6 +8636,19 @@
             ]
           },
           "parent_span_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+          },
+          "release": {
             "type": [
               "string",
               "null"
@@ -7358,6 +8691,14 @@
               "string",
               "null"
             ]
+          },
+          "transaction_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The parent transaction, if this span was extracted from one.\n`None` for a standalone span."
           }
         }
       },
@@ -7810,6 +9151,31 @@
               "null"
             ],
             "description": "Manual override of the project's platform. Unlike\n[`super::super::services::ProjectService::infer_platform_from_event`]'s\nauto-detection (which only ever writes when the column is still NULL),\na manual update through this DTO is allowed to overwrite an existing\nvalue — matching Sentry's own General Settings platform picker, which\nlets you correct an auto-detected platform."
+          }
+        }
+      },
+      "UpdateRelease": {
+        "type": "object",
+        "description": "DTO for `PUT .../releases/{version}/` — generic partial update.\nSetting `date_released` IS \"finalize\": there is no separate status flag.\nAbsent fields (including an explicit `null`) leave the stored value\nunchanged, matching Sentry's own partial-update semantics for this endpoint.",
+        "properties": {
+          "dateReleased": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

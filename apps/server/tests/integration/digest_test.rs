@@ -7,8 +7,10 @@ use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
 use rustrak::ingest::{store_event, EventMetadata};
-use rustrak::models::CreateProject;
-use rustrak::services::{EventService, IssueService, ProjectService};
+use rustrak::models::{CleanupFilter, CreateProject, CreateRelease};
+use rustrak::services::{
+    EventService, IssueService, ProjectService, ReleaseService, StorageService,
+};
 use serde_json::json;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -510,6 +512,246 @@ async fn test_digest_ignores_duplicate_event_id() {
 
     assert_eq!(issues.len(), 1);
     assert_eq!(issues[0].digested_event_count, 1);
+}
+
+// =============================================================================
+// Retention Purge / Event Ordering Regression (events.digest_order removal)
+// =============================================================================
+
+/// Digests one error event grouped onto `create_event_json`'s fixed
+/// exception/transaction, with an explicit `timestamp` (the event's SDK time,
+/// used for `(timestamp, id)` ordering) and `ingested_at` (the retention key
+/// in `services/storage.rs`) instead of both defaulting to "now".
+async fn ingest_error_event_at(
+    pool: &rustrak::db::DbPool,
+    project_id: i32,
+    ingest_dir: &std::path::Path,
+    rate_limit_config: &RateLimitConfig,
+    event_id: &str,
+    event_timestamp: chrono::DateTime<Utc>,
+    ingested_at: chrono::DateTime<Utc>,
+) {
+    let mut event_json = create_event_json(event_id);
+    event_json["timestamp"] = json!(event_timestamp.timestamp() as f64);
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(ingest_dir, event_id, &event_bytes)
+        .await
+        .expect("store event");
+    let metadata = EventMetadata {
+        event_id: event_id.to_string(),
+        project_id,
+        ingested_at,
+        remote_addr: None,
+    };
+    process_error_event(
+        pool,
+        &metadata,
+        ingest_dir,
+        rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("process event");
+}
+
+/// Regression test for the `events(issue_id, digest_order)` unique-violation
+/// storm: the pre-fix codebase derived a new event's `digest_order` from
+/// `issues.digested_event_count`, but retention cleanup
+/// (`StorageService::execute_cleanup`) decrements that same counter when
+/// purging old events. Since old (low-`digest_order`) events get purged
+/// while recent (high-`digest_order`) ones survive, the decremented counter
+/// could fall back into `digest_order` territory a surviving row still
+/// occupied -- the next event for that issue then collided on insert and was
+/// silently lost. `events.digest_order` no longer exists (events order on
+/// `(timestamp, id)` instead), so this exercises the exact repro end to end
+/// through the real digest and retention paths and confirms the fix holds:
+/// purge the oldest events for an issue via `StorageService::execute_cleanup`
+/// (the real path, not a hand-rolled DELETE), then digest one more event for
+/// that same issue and confirm it inserts cleanly and sorts after the
+/// newest surviving event.
+#[actix_web::test]
+async fn test_new_event_after_retention_purge_does_not_collide() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Retention Purge Project").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    // 3 old events (well past the 30-day retention window used below) plus 2
+    // recent ones, all grouping onto the same issue (create_event_json's
+    // fixed exception type/message/transaction), at strictly increasing
+    // timestamps.
+    let old_base = Utc::now() - chrono::Duration::days(60);
+    for i in 0..3 {
+        let event_id = Uuid::new_v4().to_string().replace("-", "");
+        let at = old_base + chrono::Duration::minutes(i);
+        ingest_error_event_at(
+            &db.pool,
+            project.id,
+            ingest_dir,
+            &rate_limit_config,
+            &event_id,
+            at,
+            at,
+        )
+        .await;
+    }
+    for i in 0..2 {
+        let event_id = Uuid::new_v4().to_string().replace("-", "");
+        let at = Utc::now() - chrono::Duration::minutes(2 - i);
+        ingest_error_event_at(
+            &db.pool,
+            project.id,
+            ingest_dir,
+            &rate_limit_config,
+            &event_id,
+            at,
+            at,
+        )
+        .await;
+    }
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), 1, "all 5 events grouped onto one issue");
+    let issue_id = issues[0].id;
+    assert_eq!(issues[0].digested_event_count, 5);
+
+    // Purge everything older than 30 days -- removes the oldest 3, the issue
+    // survives with its 2 recent events. This is the exact operation that
+    // decremented issues.digested_event_count in the pre-fix codebase and
+    // produced a digest_order collision for the next event digested onto
+    // this issue.
+    let counts = StorageService::execute_cleanup(&db.pool, 30, None, CleanupFilter::all())
+        .await
+        .expect("retention cleanup should succeed");
+    assert_eq!(counts.events, 3, "the 3 old events are purged");
+    assert_eq!(
+        counts.issues_removed, 0,
+        "the issue still has 2 surviving events, so it is not removed"
+    );
+
+    let issue_after_purge = IssueService::get_by_id(&db.pool, issue_id)
+        .await
+        .expect("issue should survive the purge");
+    assert_eq!(issue_after_purge.digested_event_count, 2);
+
+    // Digest one more event for the same issue (same grouping key). Before
+    // this fix, its digest_order would have been derived from the
+    // decremented digested_event_count and could collide with a surviving
+    // event's digest_order -- inserting must now succeed unconditionally,
+    // since there is no counter-derived value left to collide on at all.
+    let new_event_id = Uuid::new_v4().to_string().replace("-", "");
+    let new_timestamp = Utc::now();
+    ingest_error_event_at(
+        &db.pool,
+        project.id,
+        ingest_dir,
+        &rate_limit_config,
+        &new_event_id,
+        new_timestamp,
+        new_timestamp,
+    )
+    .await;
+
+    // Still the same issue -- no spurious extra issue, no silently dropped
+    // event.
+    let (issues_after, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues_after.len(), 1, "no spurious extra issue was created");
+    assert_eq!(issues_after[0].id, issue_id);
+    assert_eq!(
+        issues_after[0].digested_event_count, 3,
+        "2 surviving + 1 new"
+    );
+
+    let new_event_uuid = Uuid::parse_str(&new_event_id).expect("Invalid event_id");
+    assert!(
+        EventService::exists(&db.pool, project.id, new_event_uuid)
+            .await
+            .unwrap(),
+        "the new event was not silently lost to a unique-constraint collision"
+    );
+
+    // Sorts after the newest surviving event: a DESC listing puts the new
+    // event first, exercising the (timestamp, id) keyset end to end.
+    let (events, has_more) = EventService::list_paginated(
+        &db.pool,
+        issue_id,
+        rustrak::pagination::SortOrder::Desc,
+        None,
+        10,
+    )
+    .await
+    .expect("Failed to list events");
+    assert_eq!(events.len(), 3, "2 surviving + 1 new event");
+    assert!(!has_more);
+    assert_eq!(
+        events[0].event_id, new_event_uuid,
+        "the new event sorts first (newest) in DESC order"
+    );
+    assert!(events[1].timestamp <= events[0].timestamp);
+    assert!(events[2].timestamp <= events[1].timestamp);
+
+    // Also exercises the ASC keyset branch (both no-cursor and with-cursor)
+    // against the same purge-then-digest scenario, so an operator-flip bug
+    // in the ASC comparison (`>` vs `<`) wouldn't only be caught by the DESC
+    // assertions above.
+    let (events_asc_page1, has_more_asc_page1) = EventService::list_paginated(
+        &db.pool,
+        issue_id,
+        rustrak::pagination::SortOrder::Asc,
+        None,
+        1,
+    )
+    .await
+    .expect("Failed to list events (ASC, page 1)");
+    assert_eq!(events_asc_page1.len(), 1);
+    assert!(has_more_asc_page1);
+
+    let asc_cursor = rustrak::pagination::EventCursor::new(
+        "asc",
+        events_asc_page1[0].timestamp,
+        events_asc_page1[0].id,
+    );
+    let (events_asc_page2, has_more_asc_page2) = EventService::list_paginated(
+        &db.pool,
+        issue_id,
+        rustrak::pagination::SortOrder::Asc,
+        Some(&asc_cursor),
+        10,
+    )
+    .await
+    .expect("Failed to list events (ASC, page 2)");
+    assert_eq!(
+        events_asc_page2.len(),
+        2,
+        "1 surviving + 1 new event remain"
+    );
+    assert!(!has_more_asc_page2);
+    assert_eq!(
+        events_asc_page2[1].event_id, new_event_uuid,
+        "the new event sorts last (oldest-first) in ASC order"
+    );
+    assert!(events_asc_page2[0].timestamp <= events_asc_page2[1].timestamp);
 }
 
 // =============================================================================
@@ -2203,10 +2445,28 @@ async fn test_finalize_release_clears_marker() {
         .await
         .unwrap();
 
-    // Deploy a different version → marker cleared.
-    let finalized = IssueService::finalize_release(&db.pool, project.id, "v2.0.0")
-        .await
-        .unwrap();
+    // Register the release the issue's last_release denormalizes to, so
+    // finalize_release has a `releases` row to chronologically compare against.
+    let (v1, _) = ReleaseService::create(
+        &db.pool,
+        project.id,
+        CreateRelease {
+            version: "v1.0.0".to_string(),
+            reference: None,
+            url: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    // Deploy a newer release (created strictly after v1.0.0) → marker cleared.
+    let finalized = IssueService::finalize_release(
+        &db.pool,
+        project.id,
+        v1.date_created + chrono::Duration::seconds(1),
+    )
+    .await
+    .unwrap();
     assert_eq!(finalized, 1);
     let i = IssueService::get_by_id(&db.pool, issue_id).await.unwrap();
     assert!(!i.status_details.contains("in_next_release"));

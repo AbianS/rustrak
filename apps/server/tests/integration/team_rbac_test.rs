@@ -795,18 +795,6 @@ async fn viewer_cannot_mutate_new_issue_endpoints_but_editor_can() {
         "viewer cannot submit a user report"
     );
 
-    // Deploy (POST /projects/{id}/deploys).
-    let req = test::TestRequest::post()
-        .uri(&format!("/api/projects/{}/deploys", project.id))
-        .insert_header(bearer(&viewer_token))
-        .set_json(json!({ "version": "v1.0.0" }))
-        .to_request();
-    assert_eq!(
-        test::call_service(&app, req).await.status(),
-        403,
-        "viewer cannot record a deploy"
-    );
-
     // --- ViewProject-gated endpoints: viewer succeeds (read + per-user toggles) ---
 
     for (method, path) in [

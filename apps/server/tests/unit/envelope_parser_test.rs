@@ -13,6 +13,8 @@ fn item_type(kind: &EnvelopeItemKind) -> &str {
         EnvelopeItemKind::Session(_) => "session",
         EnvelopeItemKind::Sessions(_) => "sessions",
         EnvelopeItemKind::Log(_) => "log",
+        EnvelopeItemKind::Span(_) => "span",
+        EnvelopeItemKind::SpanV2Batch(_) => "span_v2",
         EnvelopeItemKind::Other(t, _) => t,
     }
 }
@@ -22,7 +24,9 @@ fn raw_payload(kind: &EnvelopeItemKind) -> Option<&[u8]> {
     match kind {
         EnvelopeItemKind::Event(p)
         | EnvelopeItemKind::Transaction(p)
-        | EnvelopeItemKind::Log(p) => Some(p),
+        | EnvelopeItemKind::Log(p)
+        | EnvelopeItemKind::Span(p)
+        | EnvelopeItemKind::SpanV2Batch(p) => Some(p),
         EnvelopeItemKind::Other(_, p) => Some(p),
         EnvelopeItemKind::Session(_) | EnvelopeItemKind::Sessions(_) => None,
     }
@@ -61,6 +65,48 @@ fn test_parse_log_item_maps_to_log_variant() {
         item_type(&result.items[0])
     );
     assert_eq!(raw_payload(&result.items[0]).unwrap(), body);
+}
+
+// =============================================================================
+// Span v2 item tests (Sentry "span" item type + SpanV2Container content-type)
+// =============================================================================
+
+#[test]
+fn test_parse_span_v2_item_maps_to_span_v2_batch_variant() {
+    // Same "type":"span" header as the legacy format — only the
+    // content_type distinguishes them (story-span-v2-protocol.md).
+    let body = br#"{"version":2,"items":[{"trace_id":"800087bbed8c481faaabed73e41e5d4b","span_id":"8a743a442038cceb","start_timestamp":1.0,"end_timestamp":2.0,"attributes":{}}]}"#;
+    let data = envelope_with_item("span", "application/vnd.sentry.items.span.v2+json", body);
+
+    let mut parser = EnvelopeParser::new(&data);
+    let result = parser.parse().unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert!(
+        matches!(result.items[0], EnvelopeItemKind::SpanV2Batch(_)),
+        "expected SpanV2Batch variant, got {:?}",
+        item_type(&result.items[0])
+    );
+    assert_eq!(raw_payload(&result.items[0]).unwrap(), body);
+}
+
+#[test]
+fn test_parse_span_item_without_v2_content_type_stays_legacy() {
+    // Regression guard: a bare "type":"span" item (no content_type, or a
+    // plain application/json one) must still map to the legacy Span
+    // variant, not SpanV2Batch — both share the same item type string.
+    let body = br#"{"span_id":"9fd17741416e8e4e","trace_id":"d3d20f000885466b8c8f947c9b92b8d3","start_timestamp":1.0,"timestamp":2.0}"#;
+    let data = envelope_with_item("span", "application/json", body);
+
+    let mut parser = EnvelopeParser::new(&data);
+    let result = parser.parse().unwrap();
+
+    assert_eq!(result.items.len(), 1);
+    assert!(
+        matches!(result.items[0], EnvelopeItemKind::Span(_)),
+        "expected legacy Span variant, got {:?}",
+        item_type(&result.items[0])
+    );
 }
 
 // =============================================================================

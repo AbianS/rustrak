@@ -119,3 +119,71 @@ On every call to `ingest_session` / `ingest_aggregates`, `apply_cardinality_cap`
 
 ### D-22: Postgres `session_users` JOIN window granularity mismatch (low)
 The Postgres stats query filters `session_counts` by `bucket >= NOW() - interval` (precise) but `session_users` by `day >= (NOW() - interval)::date` (day-truncated). User counts can span a slightly wider window than session counts, producing a small asymmetry in crash-free-users rate near day boundaries. Pre-existing by design (day-bucketed users); document explicitly in the query comment. Source: `apps/server/src/services/session.rs` Postgres branch.
+
+---
+
+## 2026-07-14 — from story-span-ingestion.md (Task 8 decision)
+
+**Source:** owner decision during standalone-span-ingestion implementation, not a review.
+
+### D-23: Standalone spans have no rate-limit protection — should eventually match Sentry's per-DataCategory model (medium)
+`SpanProcessor` never calls `RateLimitService` — standalone spans are fully exempt from quota, same as `TransactionProcessor`/`LogsProcessor` today. Deliberate for this story: Rustrak's quota system is a single shared counter (`MAX_EVENTS_PER_MINUTE`/`_HOUR`, driven by `events` table COUNT), not per-category like Relay's (`DataCategory::Span` hard-reject vs `DataCategory::SpanIndexed` soft-downgrade, fully isolated from `DataCategory::Error`). Making spans share the existing counter risks starving legitimate error-event quota once span volume dominates (every HTTP call/DB query/agent tool-call becomes a span) — a noisy-neighbor regression, not a safe default.
+
+**What "do it like Sentry" means concretely:** a separate quota track for spans (own config vars, e.g. `MAX_SPANS_PER_MINUTE`/`_HOUR`; own `quota_exceeded_until`/`next_quota_check` state, either new columns on `projects`/`installation` or a small per-category quota table; own COUNT query against `spans` instead of `events`) so span volume can never rate-limit errors and vice versa. Until that lands, an unbounded/misbehaving span-emitting SDK has no ingestion-side protection against flooding the `spans` table/disk — only the existing per-item 1MB size cap applies.
+
+Source: `apps/server/src/digest/processors/span.rs`, `apps/server/src/services/rate_limit.rs`
+
+---
+
+## 2026-07-17 — from PR #186 review verification (span v2 protocol)
+
+**Source:** Greptile bot flagged the shape divergence on PR #186; verdict and direction re-derived from Relay source (SHA `40bc3d240`) during `/analyze-pr-feedback`. The bot's proposed fix pointed the wrong way and was rejected — this entry records the real, deferred version.
+
+### D-24: `spans.data` JSONB shape diverges between v2 and legacy producers (low)
+`SpanV2Processor` stores the unwrapped attribute bag directly (`data` = `{gen_ai.*, sentry.*, ...}`, gen_ai at `$.gen_ai.*`). Every other producer — `SpanProcessor`, `TransactionProcessor::insert_span`, `insert_root_span` — stores the whole parent object (span JSON or `contexts.trace`), putting gen_ai at `$.data.gen_ai.*`. Any raw JSONB query assuming one shape silently returns NULL for the other.
+
+**Not urgent:** nothing reads a JSONB path out of `spans.data` today. The list/detail queries (`services/span.rs:65`, `:354`) don't select the column at all; the only other use is `length(CAST(s.data AS TEXT))` for storage stats (`services/storage.rs:363`). The dedicated `gen_ai_*` columns are unaffected, so dashboards and aggregations are correct either way. The exposure is future ad-hoc SQL or a JSONB projection.
+
+**Fix direction — flatten the legacy producers toward v2, NOT the reverse.** v2-flat is the canonical shape, and this is the one thing to get right if anyone revisits it. Relay's v1→v2 conversion hoists `data.{k}` to attribute `{k}` and deletes the `data` wrapper ([`relay-spans/src/v1_to_v2.rs#L206`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-spans/src/v1_to_v2.rs#L206), fixture at [`#L319`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-spans/src/v1_to_v2.rs#L319)); its own Kafka message is flat too (`SpanKafkaMessage` serde-flattens `SpanV2`, [`store.rs#L1618`](https://github.com/getsentry/relay/blob/40bc3d24099117d47179b4ca21dda403c7e628d9/relay-server/src/services/store.rs#L1618)). Relay converts **every** span to v2 before storing, so flat is what everything lands in. Nesting the v2 bag under `data` to match the legacy producers would invent a wrapper the protocol explicitly removes.
+
+**What the work would be:** legacy producers store `data["data"]` (the attribute bag) as the `data` column instead of the whole span object, promoting any needed top-level fields to their existing columns first. Needs a backfill decision for existing rows — an unmigrated table would then hold both shapes, which is strictly worse than today's consistent-per-producer split. That migration cost is the main reason this is deferred, not the code change.
+
+Source: `apps/server/src/digest/processors/span_v2.rs`, `span.rs`, `transaction.rs`
+
+---
+
+## 2026-07-19 — from spec-event-digest-order-collision.md review (bad_spec loopback)
+
+**Source:** 2-reviewer adversarial review (Blind Hunter + Edge Case Hunter, parallel review of the first implementation pass), triaged during the `/bmad-quick-dev` step-04 review loop.
+
+### D-25: `issues.digest_order` generation still uses a `MAX(digest_order)+1` scan — hardening it needs rolling-deploy safety designed in from the start (medium)
+The original spec bundled a Tier 2 hardening alongside the `events.digest_order` bug fix: replace `issues`'s `SELECT MAX(digest_order) FROM issues WHERE project_id = $1` scan (in `digest/processors/event.rs` and the test-only `IssueService::create` in `services/issue.rs`) with a dedicated `project_issue_counters` table, upsert-based, mirroring Sentry's `Group.short_id`/`Counter` pattern. It was implemented, then pulled from scope after review found a real defect: the counter table is seeded once at migration time from a live `MAX()` scan, and any old-binary server instance still processing events during a rolling/mixed-version deploy window keeps using the old scan-based mechanism — which has no way to know the new counter table exists, so it never updates it. A new-code instance reading the (now-stale) counter can then assign a `digest_order` an old-code instance already committed moments earlier, colliding on `UNIQUE(project_id, digest_order)` — structurally the same bug class the parent spec exists to fix, just relocated one table over.
+
+**Not urgent — no active bug today.** The current scan-based approach for `issues.digest_order` has no known collision bug (unlike the fixed `events.digest_order` mechanism); the advisory lock (`pg_advisory_xact_lock(project_id)`) correctly serializes it under normal operation. This is a hardening/cleanliness improvement, not a fix.
+
+**What "do it right" requires, for whoever picks this up:** rolling-deploy safety as a first-class design constraint from the start, not an afterthought — options surfaced during review: (a) make the counter upsert self-reconciling against live `MAX(digest_order)` on every call (`GREATEST(counter_value, live_max) + 1`), which closes the gap fully but reintroduces part of the scan cost Tier 2 was meant to eliminate; or (b) accept and clearly document an operational constraint that this migration cannot be applied ahead of / concurrently with old binaries still processing events (no rolling multi-replica overlap, no migrate-then-deploy-later pipelines) — reasonable given Rustrak's typical single/few-instance self-hosted deployment model, but a real constraint to remember and document prominently (CLAUDE.md deployment section + migration file comment) if chosen.
+
+Source: `apps/server/src/digest/processors/event.rs` (~lines 365-372), `apps/server/src/services/issue.rs` (~lines 641-648)
+
+### D-26: `digest_order`/short-id reuse after an issue's highest-numbered sibling is deleted (low)
+Both the current `MAX(digest_order)+1` scan and any future counter-based replacement (D-25) derive the "next" value from currently-existing rows only. If a project's numerically-highest issue is hard-deleted, the next new issue can be assigned a `digest_order` (and therefore short-id, e.g. `PROJECT-42`) that a previously-deleted issue already used and a user may have bookmarked/linked to. Pre-existing behavior, not a regression from any recent work — Sentry's own `Group.short_id` avoids this because its `Counter` model is genuinely append-only and never reads live table state to determine the next value. Fixing this in Rustrak would require the same non-scan-based, non-derived counter design as D-25, so the two are natural to solve together if either is picked up.
+
+Source: `apps/server/src/digest/processors/event.rs`, `apps/server/src/services/issue.rs`
+
+---
+
+## 2026-07-20 — from code review of spec-event-digest-order-collision
+
+**Source:** 3-reviewer adversarial review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). Acceptance Auditor found zero spec violations; all 4 items below are pre-existing, not introduced by this diff.
+
+### D-27: `EventCursor.order` not validated against the `order` query param (low)
+If a client reuses a cursor issued for one `order` value with a different `order` query param, the `(timestamp, id)` keyset boundary silently applies to the new direction — events can be skipped or duplicated. The pre-diff `digest_order`-based `EventCursor` had the same unchecked `order` field, so this predates the fix. Source: `apps/server/src/services/event.rs:32`, `apps/server/src/routes/events.rs:58-69`.
+
+### D-28: Late-digesting event can be permanently missed within an in-progress pagination session (low)
+If an event finishes async digest after a client has already paged past its `(timestamp, id)` position, it's omitted from that session until the client restarts from page 1. Inherent to keyset pagination generally; conceptually existed under the old digest_order counter too. Source: `apps/server/src/services/event.rs:50-99`.
+
+### D-29: `CREATE INDEX CONCURRENTLY IF NOT EXISTS` can silently leave an INVALID index on a retried/interrupted migration (medium)
+If the concurrent build is interrupted, Postgres leaves the index `INVALID`; a retry sees the index name already exists (`IF NOT EXISTS`) and skips creation, leaving it permanently unused with no error surfaced anywhere. Established codebase pattern (same as `20260718000000_agent_perf_indexes.up.sql` / `20260718000001_agent_perf_indexes_transactions.up.sql`), not introduced by this diff. Fix direction: a migration health-check (e.g. query `pg_index.indisvalid` post-deploy) across all `CONCURRENTLY`-built indexes. Source: `apps/server/migrations/postgres/20260719000001_add_events_issue_timestamp_index.up.sql`.
+
+### D-30: `test_list_events_order_desc`/`test_list_events_order_asc` never run in CI — stated `#[ignore]` reason doesn't apply (medium)
+The file-wide `#[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]` predates this diff, but these endpoints use Bearer-token auth (`ApiActor`), not session cookies — the stated reason is factually wrong for this file. `cargo test` runs with no `--include-ignored` anywhere in CI (`.github/workflows/ci.yml` → `pnpm run ci` → `cargo test`), so this diff's own API-level ordering-behavior verification never executes automatically. Same root cause as D-10 (`tests/integration/issues_api_test.rs`), now confirmed in a second file — worth investigating as a shared fix (verify Bearer-only tests actually pass under the actix test harness, then drop `#[ignore]` from the Bearer-authed subset across both files). Source: `apps/server/tests/integration/events_api_test.rs:386,466`.

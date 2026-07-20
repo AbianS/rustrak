@@ -1,3 +1,4 @@
+export { AgentsResource } from './agents.js';
 export { AlertIntegrationsResource } from './alert-integrations.js';
 export { AlertRulesResource } from './alert-rules.js';
 export { AuthResource } from './auth.js';
@@ -12,6 +13,7 @@ export { ProjectsResource } from './projects.js';
 export { ReleasesResource } from './releases.js';
 export { SessionsResource } from './sessions.js';
 export { SourceMapsResource } from './sourcemaps.js';
+export { SpansResource } from './spans.js';
 export { StorageResource } from './storage.js';
 export { TeamResource } from './team.js';
 export { TokensResource } from './tokens.js';
