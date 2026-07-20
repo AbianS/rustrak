@@ -1,5 +1,7 @@
 # @rustrak/client
 
+## 0.12.0
+
 ## 0.3.15
 
 ### Patch Changes

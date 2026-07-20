@@ -1,5 +1,7 @@
 # docs
 
+## 0.12.0
+
 ## 0.1.43
 
 ### Patch Changes
