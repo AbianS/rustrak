@@ -9150,7 +9150,7 @@
               "string",
               "null"
             ],
-            "description": "Manual override of the project's platform. Unlike\n[`super::super::services::ProjectService::infer_platform_from_event`]'s\nauto-detection (which only ever writes when the column is still NULL),\na manual update through this DTO is allowed to overwrite an existing\nvalue — matching Sentry's own General Settings platform picker, which\nlets you correct an auto-detected platform."
+            "description": "Manual override of the project's platform, validated against\n[`SELECTABLE_PLATFORMS`]. That list is wider than the one\nauto-detection uses: it includes framework-specific ids such as\n`javascript-nextjs`, which are legal for a project but never for an\nevent.\n\nUnlike auto-detection (which only writes when the column is still\nNULL), a manual update is allowed to overwrite an existing value, so a\nuser can correct what was detected. Sending `null` leaves the current\nvalue untouched rather than clearing it."
           }
         }
       },

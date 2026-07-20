@@ -264,6 +264,38 @@ async fn test_update_project_platform_sets_valid_platform() {
     assert_eq!(updated.platform, Some("python".to_string()));
 }
 
+/// A manual override may name a framework-specific platform such as
+/// `javascript-nextjs`. Those ids never appear in an event's `platform`
+/// field (Relay normalizes anything outside `VALID_PLATFORMS` away), so
+/// they are only ever chosen by a human in project settings — exactly
+/// what real Sentry's `is_valid_platform` allows.
+#[actix_web::test]
+async fn test_update_project_platform_accepts_framework_specific_id() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Framework Platform Project".to_string(),
+            slug: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let updated = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: Some("javascript-nextjs".to_string()),
+        },
+    )
+    .await
+    .expect("framework-specific platform must be accepted");
+
+    assert_eq!(updated.platform, Some("javascript-nextjs".to_string()));
+}
+
 #[actix_web::test]
 async fn test_update_project_platform_rejects_invalid_value() {
     let db = TestDb::new().await;

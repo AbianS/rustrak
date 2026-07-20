@@ -2,7 +2,7 @@ use slug::slugify;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{CreateProject, Project, UpdateProject, VALID_PLATFORMS};
+use crate::models::{CreateProject, Project, UpdateProject, SELECTABLE_PLATFORMS, VALID_PLATFORMS};
 use crate::pagination::SortOrder;
 
 pub struct ProjectService;
@@ -214,7 +214,7 @@ impl ProjectService {
 
         let platform = match input.platform {
             Some(ref platform) => {
-                if !VALID_PLATFORMS.contains(&platform.as_str()) {
+                if !SELECTABLE_PLATFORMS.contains(&platform.as_str()) {
                     return Err(AppError::Validation(format!(
                         "'{}' is not a valid platform",
                         platform
