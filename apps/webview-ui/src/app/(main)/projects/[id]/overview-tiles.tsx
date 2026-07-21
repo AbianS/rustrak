@@ -152,6 +152,10 @@ export async function PerformanceTile({ projectId }: TileProps) {
 }
 
 export async function TopIssuesTile({ projectId }: TileProps) {
+  // The issues endpoint takes no time window, and `event_count` is the issue's
+  // lifetime total, so this ranking is all-time whatever the page filter says.
+  // Labelled rather than left to look like it follows the filter, the same way
+  // the latency tile is.
   const response = await listIssues(projectId, {
     filter: 'open',
     page: 1,
@@ -165,6 +169,7 @@ export async function TopIssuesTile({ projectId }: TileProps) {
       projectId={projectId}
       issues={response.items}
       title="Top issues"
+      subtitle="Open issues by total events, all time"
       emptyMessage="No issues yet"
     />
   );

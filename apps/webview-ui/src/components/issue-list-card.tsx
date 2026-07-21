@@ -3,13 +3,21 @@ import { AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 import { LevelBadge } from '@/components/issue-indicators';
 import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { compactCount, exactCount } from '@/lib/chart-format';
 
 interface IssueListCardProps {
   projectId: number;
   issues: Issue[];
   title: string;
+  /** Qualifies what the list covers, e.g. the window it is scoped to. */
+  subtitle?: string;
   emptyMessage: string;
 }
 
@@ -17,6 +25,7 @@ export function IssueListCard({
   projectId,
   issues,
   title,
+  subtitle,
   emptyMessage,
 }: IssueListCardProps) {
   return (
@@ -25,6 +34,9 @@ export function IssueListCard({
         <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           {title}
         </CardTitle>
+        {subtitle ? (
+          <CardDescription className="text-xs">{subtitle}</CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent>
         {issues.length === 0 ? (

@@ -39,6 +39,38 @@ interface ChartPoint {
   crashed: number;
 }
 
+/**
+ * Draws a dot only where a measured bucket has no measured neighbour.
+ *
+ * The line is deliberately broken at nulls, which leaves an isolated
+ * measurement with no segment to belong to: with `dot={false}` it would render
+ * as nothing at all and the reader would lose a real data point. Dotting only
+ * the isolated ones keeps the line clean everywhere else.
+ */
+function makeIsolatedDot(points: ChartPoint[]) {
+  return function IsolatedDot(props: {
+    cx?: number;
+    cy?: number;
+    index?: number;
+    stroke?: string;
+  }) {
+    const { cx, cy, index, stroke } = props;
+    if (cx === undefined || cy === undefined || index === undefined) {
+      return null;
+    }
+    if (points[index]?.rate === null) {
+      return null;
+    }
+    const isolated =
+      (points[index - 1]?.rate ?? null) === null &&
+      (points[index + 1]?.rate ?? null) === null;
+    if (!isolated) {
+      return null;
+    }
+    return <circle cx={cx} cy={cy} r={3} fill={stroke} />;
+  };
+}
+
 function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
@@ -108,6 +140,11 @@ export function CrashFreeTrend({
       floor: rates.length ? Math.min(DEFAULT_FLOOR, ...rates) : DEFAULT_FLOOR,
     };
   }, [data]);
+
+  // Built once per dataset, not per render: `dot` is a component type, so a
+  // fresh function each render remounts every marker. Declared before the
+  // early return below, so the hook order never changes between renders.
+  const IsolatedDot = useMemo(() => makeIsolatedDot(chartData), [chartData]);
 
   if (sessionsRate === null && usersRate === null) {
     return (
@@ -197,15 +234,22 @@ export function CrashFreeTrend({
                   fill: 'var(--muted-foreground)',
                 }}
               />
+              {/*
+                No connectNulls. A bucket whose sessions all arrived as
+                terminal updates with no `init` lands with total 0, and the
+                rate comes back null (see the CASE in
+                SessionService::session_timeseries). Bridging it would draw a
+                confident line across a period where nothing was measured;
+                breaking the line says so instead.
+              */}
               <Line
                 dataKey="rate"
                 stroke={color}
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                dot={false}
+                dot={IsolatedDot}
                 activeDot={{ r: 4 }}
-                connectNulls
                 isAnimationActive={false}
               />
             </LineChart>
