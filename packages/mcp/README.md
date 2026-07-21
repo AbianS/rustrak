@@ -118,7 +118,10 @@ In the Rustrak web UI: **Settings → Tokens → Create token**. Save the token 
 
 The server exits immediately with a clear error message if either variable is missing.
 
-## Available Tools (18)
+## Available Tools
+
+The most commonly used tools are listed below. The full set is discoverable at
+runtime via `tools/list`.
 
 ### Projects
 
@@ -161,6 +164,14 @@ The server exits immediately with a clear error message if either variable is mi
 | `list_alert_channels` | List notification channels (Slack, email, webhook) |
 | `test_alert_channel` | Send a test notification to a channel |
 | `list_alert_rules` | List alert rules for a project |
+
+### Project stats
+
+| Tool | Description |
+|---|---|
+| `get_error_volume` | Error events over time for a project, bucketed by severity |
+| `get_project_stats` | Events, new issues and open issues, each vs the preceding window |
+| `get_release_health` | Crash-free session and user rates per release |
 
 > ⚠️ Destructive tools (`delete_issue`, `revoke_token`) are annotated with `destructiveHint` — supported clients will prompt for confirmation before executing.
 
