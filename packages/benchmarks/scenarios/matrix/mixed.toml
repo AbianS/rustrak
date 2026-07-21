@@ -1,0 +1,45 @@
+# Mixed error and transaction traffic
+#
+# Every other scenario sends nothing but error events. Real SDK traffic is not
+# shaped that way, and the difference is not cosmetic: an error event is grouped
+# and upserted into `issues`, while a transaction writes one `transactions` row
+# plus one `spans` row per child span and does no grouping at all. At ten spans
+# per transaction, a 20% transaction mix moves most of the inserted rows into
+# tables the error-only scenarios never touch.
+#
+# This runs as a drain scenario so the digest of both pipelines is measured. Note
+# that the reported digest figures count error events only, since that is what
+# the drain wait can observe in `events`; the transactions are still ingested and
+# still load the database, and show up in the PostgreSQL row and WAL counters.
+
+name = "mixed"
+description = "Mixed error and transaction traffic through the digest pipeline"
+scenario_type = "drain"
+
+duration_secs = 0
+target_rps = 0
+concurrency = 50
+warmup_secs = 5
+
+[drain]
+event_count = 12000
+send_concurrency = 50
+poll_interval_ms = 250
+timeout_secs = 600
+
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+distinct_groups = 300
+# 20% transactions, each carrying 10 child spans.
+transaction_ratio = 0.2
+spans_per_transaction = 10
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

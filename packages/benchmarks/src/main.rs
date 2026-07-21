@@ -2,9 +2,11 @@
 //!
 //! A comprehensive benchmarking suite for the Rustrak error tracking server.
 
+mod aggregate;
 mod config;
 mod envelope;
 mod metrics;
+mod pgstats;
 mod report;
 mod runner;
 
@@ -45,9 +47,30 @@ struct Cli {
     #[arg(long, env = "SENTRY_KEY")]
     sentry_key: Option<String>,
 
-    /// Docker container name for metrics collection
+    /// Docker container name for server metrics collection
     #[arg(long)]
     container: Option<String>,
+
+    /// Docker container name for PostgreSQL metrics collection
+    #[arg(long)]
+    postgres_container: Option<String>,
+
+    /// PostgreSQL connection string for engine statistics.
+    /// Required by the drain and read scenarios.
+    #[arg(long, env = "BENCH_POSTGRES_URL")]
+    postgres_url: Option<String>,
+
+    /// API token for read-path requests
+    #[arg(long, env = "BENCH_API_TOKEN")]
+    api_token: Option<String>,
+
+    /// Label identifying this variant in comparison reports, e.g. "pg18"
+    #[arg(long)]
+    label: Option<String>,
+
+    /// Repeat index, recorded so repeated runs can be aggregated
+    #[arg(long, default_value = "0")]
+    repeat: u32,
 
     /// Output directory for results
     #[arg(short, long, default_value = "results")]
@@ -90,6 +113,22 @@ enum Commands {
         /// Path to results file (defaults to latest.json)
         path: Option<PathBuf>,
     },
+
+    /// Aggregate a matrix of runs and compare two variants
+    Matrix {
+        /// Directory holding the matrix result files
+        #[arg(default_value = "results/matrix")]
+        dir: PathBuf,
+        /// Baseline variant label
+        #[arg(long, default_value = "pg16")]
+        baseline: String,
+        /// Candidate variant label
+        #[arg(long, default_value = "pg18")]
+        candidate: String,
+        /// Also write a Markdown report to this path
+        #[arg(long)]
+        markdown: Option<PathBuf>,
+    },
 }
 
 fn print_banner() {
@@ -113,6 +152,14 @@ fn list_scenarios() {
         ("burst", "Test handling of traffic spikes (10k events, pause, repeat)"),
         ("sustained", "Sustained load for memory stability testing (1k req/s)"),
         ("stress", "Find server limits by ramping up load until errors"),
+        (
+            "drain",
+            "Measure asynchronous digest throughput (needs --postgres-url)",
+        ),
+        (
+            "read",
+            "Measure dashboard query latency on a populated database (needs --postgres-url)",
+        ),
     ];
 
     for (name, description) in scenarios {
@@ -160,6 +207,22 @@ async fn run_benchmark(cli: &Cli) -> anyhow::Result<()> {
 
     if let Some(ref container) = cli.container {
         runner = runner.with_container(container);
+    }
+
+    if let Some(ref container) = cli.postgres_container {
+        runner = runner.with_postgres_container(container);
+    }
+
+    if let Some(ref url) = cli.postgres_url {
+        runner = runner.with_postgres_url(url);
+    }
+
+    if let Some(ref token) = cli.api_token {
+        runner = runner.with_api_token(token);
+    }
+
+    if let Some(ref label) = cli.label {
+        runner = runner.with_label(label, cli.repeat);
     }
 
     // Wait for server
@@ -226,6 +289,33 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Show { path }) => {
             show_results(path, &cli.output).await?;
+        }
+        Some(Commands::Matrix {
+            dir,
+            baseline,
+            candidate,
+            markdown,
+        }) => {
+            let results = aggregate::load_results(&dir)?;
+            if results.is_empty() {
+                anyhow::bail!("No result files found in {}", dir.display());
+            }
+            println!(
+                "{}",
+                format!("Loaded {} runs from {}", results.len(), dir.display()).dimmed()
+            );
+
+            aggregate::print_matrix(&results, &baseline, &candidate);
+
+            if let Some(path) = markdown {
+                let report = aggregate::markdown_matrix(&results, &baseline, &candidate);
+                std::fs::write(&path, report)?;
+                println!(
+                    "\n{} {}",
+                    "Markdown report written to:".green(),
+                    path.display().to_string().cyan()
+                );
+            }
         }
         Some(Commands::Run { scenario }) => {
             // Override scenario from subcommand if provided

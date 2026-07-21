@@ -1,0 +1,30 @@
+# Sustained ingest load
+#
+# Note that the target is 400 rps rather than the canonical scenario's 1000.
+# With PostgreSQL capped at one core it saturates well below 1000, and a target
+# the system cannot reach measures the client's pacing loop rather than the
+# server. 400 keeps the run inside the range where the target is actually met,
+# so the latency figures mean something.
+
+name = "sustained"
+description = "Sustained ingest load with the database as the bottleneck"
+scenario_type = "sustained"
+
+duration_secs = 90
+target_rps = 400
+concurrency = 50
+warmup_secs = 10
+
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+distinct_groups = 300
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

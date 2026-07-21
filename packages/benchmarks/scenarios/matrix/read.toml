@@ -1,0 +1,35 @@
+# Read path - dashboard query latency against a populated database
+#
+# Seeds the database, runs ANALYZE and CHECKPOINT so both engines start the
+# measured phase on equal footing, then hammers the queries the dashboard
+# issues. This is where planner and executor differences between major versions
+# surface most directly.
+
+name = "read"
+description = "Dashboard query latency against a populated database"
+scenario_type = "read"
+
+duration_secs = 60
+target_rps = 0
+concurrency = 20
+warmup_secs = 5
+
+[read]
+seed_events = 20000
+duration_secs = 60
+concurrency = 20
+distinct_groups = 300
+
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+distinct_groups = 300
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

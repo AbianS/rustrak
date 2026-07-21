@@ -1,10 +1,20 @@
 # Docker Compose for Rustrak Benchmarks
 # Provides an isolated, reproducible environment for performance testing
+#
+# The PostgreSQL major version is parameterized so the same environment can be
+# rebuilt against different engines (16 vs 18) with everything else held fixed.
+#
+#   PG_VERSION=16 docker compose -f docker-compose.benchmark.yml up -d
+#   PG_VERSION=18 docker compose -f docker-compose.benchmark.yml up -d
+#
+# Each version gets its own named volume: a PG18 server cannot start on a data
+# directory initialized by PG16, and reusing one volume would silently compare
+# a warm cache against a cold one.
 
 services:
   # PostgreSQL database with fixed resource limits
   postgres-bench:
-    image: postgres:16-alpine
+    image: postgres:${PG_VERSION:-16}-alpine
     container_name: rustrak-postgres-bench
     environment:
       POSTGRES_USER: bench
@@ -13,46 +23,62 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1"
-          memory: 512M
+          cpus: "${PG_CPUS:-1}"
+          memory: ${PG_MEMORY:-512M}
         reservations:
           cpus: "0.5"
           memory: 256M
-    # Performance tuning for benchmarks
-    command:
-      - "postgres"
-      - "-c"
-      - "shared_buffers=128MB"
-      - "-c"
-      - "max_connections=200"
-      - "-c"
-      - "synchronous_commit=off"  # Faster for benchmarks
-      - "-c"
-      - "checkpoint_completion_target=0.9"
-      - "-c"
-      - "wal_buffers=16MB"
+    # Performance tuning for benchmarks.
+    # These are held IDENTICAL across PG versions so the comparison isolates the
+    # engine. PG18-only knobs (io_method, io_workers) are appended via
+    # PG_EXTRA_ARGS by the matrix runner when a variant asks for them.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c max_connections=200
+      -c synchronous_commit=off
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c track_io_timing=on
+      -c track_functions=pl
+      ${PG_EXTRA_ARGS:-}
+    # PostgreSQL 18's official image changed where the data directory lives.
+    # Through 17 the volume goes on /var/lib/postgresql/data; from 18 the image
+    # expects /var/lib/postgresql and creates a version-named subdirectory
+    # inside it (so pg_upgrade --link can work across a single mount point).
+    # Mounting the old path on 18 makes the container refuse to start.
+    # Callers set PG_DATA_MOUNT accordingly; run-matrix.sh does this per version.
     volumes:
-      - bench_postgres_data:/var/lib/postgresql/data
+      - bench_postgres_data_${PG_VERSION:-16}:${PG_DATA_MOUNT:-/var/lib/postgresql/data}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bench -d rustrak_bench"]
       interval: 2s
       timeout: 5s
       retries: 10
+    ports:
+      # Exposed so the benchmark tool can read pg_stat_* views directly
+      - "${PG_PORT:-55432}:5432"
     networks:
       - bench-network
 
   # Rustrak server with fixed resource limits
   server-bench:
-    image: rustrak/rustrak-server:latest
+    # Tagged by backend: the Dockerfile defaults to FEATURES=sqlite, so an
+    # untagged "latest" here silently produced a SQLite server that ignored
+    # DATABASE_URL entirely — the compose file claimed to benchmark PostgreSQL
+    # while measuring SQLite.
+    image: rustrak/rustrak-server:bench-postgres
     container_name: rustrak-server-bench
     build:
       context: ../../apps/server
       dockerfile: Dockerfile
+      args:
+        FEATURES: postgres
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 256M
+          cpus: "${SERVER_CPUS:-2}"
+          memory: ${SERVER_MEMORY:-256M}
         reservations:
           cpus: "1"
           memory: 128M
@@ -75,11 +101,10 @@ services:
     depends_on:
       postgres-bench:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    # No healthcheck: the server runs on a distroless base with neither a shell
+    # nor curl, so every in-container probe reports unhealthy no matter what the
+    # server is doing. Readiness is established from the host instead — the
+    # setup script polls /health before any benchmark starts.
     networks:
       - bench-network
 
@@ -91,5 +116,7 @@ networks:
         - subnet: 172.28.0.0/16
 
 volumes:
-  bench_postgres_data:
+  bench_postgres_data_16:
+    driver: local
+  bench_postgres_data_18:
     driver: local

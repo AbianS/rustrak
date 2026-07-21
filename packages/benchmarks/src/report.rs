@@ -76,6 +76,63 @@ pub struct ErrorMetrics {
     pub connection_failed: u64,
 }
 
+/// Digest pipeline metrics.
+///
+/// Rustrak acknowledges an event as soon as it is written to the filesystem and
+/// does the database work afterwards in a spawned task. HTTP latency therefore
+/// measures the acknowledgement, not the storage — these figures measure the
+/// storage.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DrainMetrics {
+    /// Events accepted over HTTP
+    pub events_sent: u64,
+    /// Events actually persisted by the digest pipeline
+    pub events_digested: u64,
+    /// Wall time spent sending
+    pub ingest_secs: f64,
+    /// Wall time from the last send to a fully drained backlog
+    pub drain_secs: f64,
+    /// End-to-end wall time
+    pub total_secs: f64,
+    /// Sustained digest rate over the whole window
+    pub digest_events_per_second: f64,
+    /// Largest observed gap between accepted and persisted
+    pub peak_backlog: u64,
+    /// Whether the backlog reached zero before the timeout
+    pub fully_drained: bool,
+}
+
+/// Latency for one read endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EndpointMetrics {
+    /// Human-readable endpoint label
+    pub endpoint: String,
+    /// Requests issued
+    pub requests: u64,
+    /// Requests that returned 2xx
+    pub successful: u64,
+    /// Latency percentiles in milliseconds
+    pub latency_ms: LatencyMetrics,
+    /// Achieved requests per second
+    pub requests_per_second: f64,
+}
+
+/// Identifies what was under test, so a result file stands on its own.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentInfo {
+    /// Free-form label for the variant, e.g. "pg16" or "pg18-io_uring"
+    pub label: String,
+    /// PostgreSQL major version
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres_major: Option<i32>,
+    /// Full PostgreSQL version string
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres_version: Option<String>,
+    /// Repeat index when a scenario is run more than once
+    #[serde(default)]
+    pub repeat: u32,
+}
+
 /// Scenario configuration summary
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSummary {
@@ -101,6 +158,9 @@ pub struct BenchmarkResults {
     /// Server version (if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_version: Option<String>,
+    /// What was under test
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment: Option<EnvironmentInfo>,
     /// Configuration summary
     pub config: ConfigSummary,
     /// Results section
@@ -124,6 +184,21 @@ pub struct ResultsSection {
     pub errors: ErrorMetrics,
     /// Actual test duration
     pub actual_duration_secs: f64,
+    /// Database container resource usage, when collected
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres_memory_mb: Option<MemoryMetricsReport>,
+    /// Database container CPU, when collected
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres_cpu_percent: Option<CpuMetricsReport>,
+    /// PostgreSQL engine statistics over the run
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub postgres: Option<crate::pgstats::PgReport>,
+    /// Digest pipeline metrics (drain and read scenarios)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub digest: Option<DrainMetrics>,
+    /// Per-endpoint read latency (read scenario)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoints: Option<Vec<EndpointMetrics>>,
 }
 
 impl BenchmarkResults {
@@ -192,6 +267,7 @@ impl BenchmarkResults {
             timestamp: Utc::now(),
             scenario: config.name.clone(),
             server_version: None,
+            environment: None,
             config: ConfigSummary {
                 duration_secs: config.duration_secs,
                 target_rps: config.target_rps,
@@ -217,8 +293,77 @@ impl BenchmarkResults {
                         .saturating_sub(stats.server_errors),
                 },
                 actual_duration_secs: duration_secs,
+                postgres_memory_mb: None,
+                postgres_cpu_percent: None,
+                postgres: None,
+                digest: None,
+                endpoints: None,
             },
         }
+    }
+
+    /// Attach PostgreSQL container resource usage.
+    pub fn with_postgres_container_metrics(mut self, metrics: ContainerMetrics) -> Self {
+        self.results.postgres_memory_mb = Some(MemoryMetricsReport {
+            idle_mb: metrics.memory.idle_mb,
+            peak_mb: metrics.memory.peak_mb,
+            average_mb: metrics.memory.average_mb,
+            limit_mb: metrics.memory.limit_mb,
+        });
+        self.results.postgres_cpu_percent = Some(CpuMetricsReport {
+            peak_percent: metrics.cpu.peak_percent,
+            average_percent: metrics.cpu.average_percent,
+        });
+        self
+    }
+
+    /// Attach PostgreSQL engine statistics.
+    pub fn with_postgres_stats(mut self, report: crate::pgstats::PgReport) -> Self {
+        self.environment = Some(match self.environment.take() {
+            Some(env) => EnvironmentInfo {
+                postgres_major: Some(report.server.major_version),
+                postgres_version: Some(report.server.version.clone()),
+                ..env
+            },
+            None => EnvironmentInfo {
+                label: format!("pg{}", report.server.major_version),
+                postgres_major: Some(report.server.major_version),
+                postgres_version: Some(report.server.version.clone()),
+                repeat: 0,
+            },
+        });
+        self.results.postgres = Some(report);
+        self
+    }
+
+    /// Attach digest pipeline metrics.
+    pub fn with_digest_metrics(mut self, metrics: DrainMetrics) -> Self {
+        self.results.digest = Some(metrics);
+        self
+    }
+
+    /// Attach per-endpoint read latencies.
+    pub fn with_endpoint_metrics(mut self, metrics: Vec<EndpointMetrics>) -> Self {
+        self.results.endpoints = Some(metrics);
+        self
+    }
+
+    /// Label this run (variant name and repeat index).
+    pub fn with_label(mut self, label: &str, repeat: u32) -> Self {
+        self.environment = Some(match self.environment.take() {
+            Some(env) => EnvironmentInfo {
+                label: label.to_string(),
+                repeat,
+                ..env
+            },
+            None => EnvironmentInfo {
+                label: label.to_string(),
+                postgres_major: None,
+                postgres_version: None,
+                repeat,
+            },
+        });
+        self
     }
 
     /// Add container metrics to results
@@ -348,6 +493,125 @@ impl BenchmarkResults {
             );
             println!(
                 "  Average:           {}",
+                format!("{:.1}%", cpu.average_percent).white()
+            );
+        }
+
+        if let Some(ref digest) = self.results.digest {
+            println!("\n{}", "Digest Pipeline".yellow().bold());
+            println!(
+                "  Events sent:       {}",
+                digest.events_sent.to_string().white()
+            );
+            println!(
+                "  Events digested:   {}",
+                if digest.fully_drained {
+                    digest.events_digested.to_string().green()
+                } else {
+                    digest.events_digested.to_string().red()
+                }
+            );
+            println!(
+                "  Ingest time:       {}",
+                format!("{:.2}s", digest.ingest_secs).white()
+            );
+            println!(
+                "  Drain time:        {}",
+                format!("{:.2}s", digest.drain_secs).white()
+            );
+            println!(
+                "  Digest events/s:   {}",
+                format!("{:.2}", digest.digest_events_per_second)
+                    .cyan()
+                    .bold()
+            );
+            println!(
+                "  Peak backlog:      {}",
+                digest.peak_backlog.to_string().yellow()
+            );
+            if !digest.fully_drained {
+                println!(
+                    "  {}",
+                    "Backlog did not reach zero before the timeout".red()
+                );
+            }
+        }
+
+        if let Some(ref endpoints) = self.results.endpoints {
+            println!("\n{}", "Read Endpoints".yellow().bold());
+            println!(
+                "  {:<28} {:>9} {:>9} {:>9} {:>9}",
+                "endpoint".dimmed(),
+                "rps".dimmed(),
+                "p50".dimmed(),
+                "p95".dimmed(),
+                "p99".dimmed()
+            );
+            for ep in endpoints {
+                println!(
+                    "  {:<28} {:>9.1} {:>8.2}m {:>8.2}m {:>8.2}m",
+                    ep.endpoint,
+                    ep.requests_per_second,
+                    ep.latency_ms.p50,
+                    ep.latency_ms.p95,
+                    ep.latency_ms.p99
+                );
+            }
+        }
+
+        if let Some(ref pg) = self.results.postgres {
+            println!("\n{}", "PostgreSQL".yellow().bold());
+            println!(
+                "  Version:           {}",
+                format!("{}", pg.server.major_version).cyan().bold()
+            );
+            if let Some(io_method) = pg.server.settings.get("io_method") {
+                println!("  io_method:         {}", io_method.cyan());
+            }
+            for (key, label) in [
+                ("cache_hit_ratio", "Cache hit ratio"),
+                ("wal_mb", "WAL generated"),
+                ("transactions", "Transactions"),
+                ("blk_io_time_ms", "Block I/O time"),
+                ("idx_scan_ratio", "Index scan ratio"),
+                ("temp_mb", "Temp spill"),
+            ] {
+                if let Some(value) = pg.delta.derived.get(key) {
+                    let formatted = match key {
+                        "cache_hit_ratio" | "idx_scan_ratio" => format!("{:.2}%", value),
+                        "wal_mb" | "temp_mb" => format!("{:.1} MB", value),
+                        "blk_io_time_ms" => format!("{:.0} ms", value),
+                        _ => format!("{:.0}", value),
+                    };
+                    println!("  {:<18} {}", format!("{}:", label), formatted.white());
+                }
+            }
+            println!(
+                "  {:<18} {}",
+                "Database size:",
+                format!("{:.1} MB", pg.database_bytes as f64 / (1024.0 * 1024.0)).white()
+            );
+        }
+
+        if let (Some(ref memory), Some(ref cpu)) = (
+            &self.results.postgres_memory_mb,
+            &self.results.postgres_cpu_percent,
+        ) {
+            println!("\n{}", "PostgreSQL Container".yellow().bold());
+            println!(
+                "  Peak memory:       {}",
+                format!("{:.1} MB", memory.peak_mb).cyan().bold()
+            );
+            println!(
+                "  Avg memory:        {}",
+                format!("{:.1} MB", memory.average_mb).white()
+            );
+            println!(
+                "  Peak CPU:          {}",
+                format!("{:.1}%", cpu.peak_percent).cyan().bold()
+            );
+            println!(
+                "  Avg CPU:           {}",
                 format!("{:.1}%", cpu.average_percent).white()
             );
         }

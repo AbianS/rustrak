@@ -1,0 +1,37 @@
+# Digest drain - the primary PostgreSQL comparison scenario
+#
+# Sends a fixed batch of events, then waits for the asynchronous digest pipeline
+# to persist all of them. This is the scenario that actually exercises the
+# database: grouping lookup, issue upsert, and event insert all happen here,
+# after the HTTP request has already been answered.
+
+name = "drain"
+description = "Digest pipeline throughput under a fixed batch of events"
+scenario_type = "drain"
+
+duration_secs = 0   # Bounded by event_count, not by time
+target_rps = 0
+concurrency = 50
+warmup_secs = 5
+
+[drain]
+event_count = 15000
+send_concurrency = 50
+poll_interval_ms = 250
+timeout_secs = 600
+
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+# 15000 events over 300 issues: ~50 events per issue, so the run is dominated by
+# updates to existing issues rather than by creating new ones.
+distinct_groups = 300
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

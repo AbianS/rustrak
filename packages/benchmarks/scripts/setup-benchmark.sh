@@ -73,6 +73,30 @@ else
     echo "✅ Created project with ID: $PROJECT_ID"
 fi
 
+# Create an API token for the read-path scenario.
+# Ingestion authenticates with the project's sentry_key, but the dashboard
+# endpoints the read scenario measures go through ApiActor, which needs either a
+# session cookie or a bearer token. A token is the reusable option.
+echo "🎫 Creating API token..."
+TOKEN_RESPONSE=$(curl -s -b /tmp/bench-cookies.txt \
+    -X POST "$SERVER_URL/api/tokens" \
+    -H "Content-Type: application/json" \
+    -d '{"description": "benchmark-read-scenario"}')
+
+API_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+if [ -z "$API_TOKEN" ]; then
+    echo "⚠️  Could not create API token: $TOKEN_RESPONSE"
+    echo "   The read scenario will not work without one."
+else
+    echo "✅ API token created"
+fi
+
+# PostgreSQL connection for engine statistics (pg_stat_* collection).
+# Host-side port, since the benchmark tool runs outside the compose network.
+PG_PORT="${PG_PORT:-55432}"
+POSTGRES_URL="postgres://bench:bench@localhost:${PG_PORT}/rustrak_bench"
+
 # Save credentials to file
 echo "💾 Saving credentials..."
 cat > "$CREDENTIALS_FILE" << EOF
@@ -81,6 +105,8 @@ cat > "$CREDENTIALS_FILE" << EOF
 PROJECT_ID=$PROJECT_ID
 SENTRY_KEY=$SENTRY_KEY
 SERVER_URL=$SERVER_URL
+BENCH_API_TOKEN=$API_TOKEN
+BENCH_POSTGRES_URL=$POSTGRES_URL
 EOF
 
 echo ""

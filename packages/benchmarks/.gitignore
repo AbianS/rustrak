@@ -2,7 +2,15 @@
 /target/
 
 # Results (keep only .gitkeep)
-/results/*.json
+# Ignores everything under results/, including the matrix/, archive/ and logs/
+# subdirectories the matrix runner creates. The previous pattern (/results/*.json)
+# only matched JSON sitting directly in results/, so those subdirectories leaked
+# into git.
+/results/*
+!/results/.gitkeep
+
+# Matrix run logs
+/results-*.log
 
 # Benchmark credentials (auto-generated)
 .bench-credentials

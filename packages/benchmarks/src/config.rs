@@ -25,6 +25,10 @@ pub enum ScenarioType {
     Sustained,
     /// Stress test to find limits
     Stress,
+    /// Measure the asynchronous digest pipeline, not just HTTP ingest
+    Drain,
+    /// Measure the read path (dashboard queries) against a populated database
+    Read,
 }
 
 impl Default for ScenarioType {
@@ -40,6 +44,8 @@ impl std::fmt::Display for ScenarioType {
             Self::Burst => write!(f, "burst"),
             Self::Sustained => write!(f, "sustained"),
             Self::Stress => write!(f, "stress"),
+            Self::Drain => write!(f, "drain"),
+            Self::Read => write!(f, "read"),
         }
     }
 }
@@ -62,6 +68,23 @@ pub struct EventConfig {
     /// Include extra data
     #[serde(default)]
     pub include_extra: bool,
+    /// How many distinct issues events should group into (see
+    /// [`crate::envelope::EventConfig::distinct_groups`]). Omit for one issue
+    /// per event.
+    #[serde(default)]
+    pub distinct_groups: Option<u32>,
+    /// Fraction of payloads sent as transactions instead of error events
+    /// (0.0-1.0). Defaults to 0.0: errors only, matching the original
+    /// behaviour.
+    #[serde(default)]
+    pub transaction_ratio: f64,
+    /// Child spans per transaction.
+    #[serde(default = "default_spans_per_transaction")]
+    pub spans_per_transaction: usize,
+}
+
+fn default_spans_per_transaction() -> usize {
+    10
 }
 
 fn default_breadcrumb_count() -> usize {
@@ -84,6 +107,9 @@ impl Default for EventConfig {
             include_user: true,
             include_tags: true,
             include_extra: false,
+            distinct_groups: None,
+            transaction_ratio: 0.0,
+            spans_per_transaction: default_spans_per_transaction(),
         }
     }
 }
@@ -220,6 +246,108 @@ impl Default for StressConfig {
     }
 }
 
+/// Digest-drain configuration.
+///
+/// The HTTP ingest endpoint returns as soon as the event is written to the
+/// filesystem; the database work (grouping, issue upsert, event insert) happens
+/// in a spawned task afterwards. Measuring only the HTTP response therefore says
+/// almost nothing about the database — which is precisely what a PostgreSQL
+/// version comparison needs to see. This scenario sends a fixed number of events
+/// and then waits for the backlog to reach zero, timing the digest itself.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DrainConfig {
+    /// Total events to send before waiting for the digest to complete
+    #[serde(default = "default_drain_event_count")]
+    pub event_count: u64,
+    /// In-flight requests while sending
+    #[serde(default = "default_drain_send_concurrency")]
+    pub send_concurrency: u32,
+    /// How often to poll the digested-row count
+    #[serde(default = "default_drain_poll_interval_ms")]
+    pub poll_interval_ms: u64,
+    /// Give up waiting after this long
+    #[serde(default = "default_drain_timeout_secs")]
+    pub timeout_secs: u64,
+}
+
+fn default_drain_event_count() -> u64 {
+    20_000
+}
+
+fn default_drain_send_concurrency() -> u32 {
+    50
+}
+
+fn default_drain_poll_interval_ms() -> u64 {
+    250
+}
+
+fn default_drain_timeout_secs() -> u64 {
+    600
+}
+
+impl Default for DrainConfig {
+    fn default() -> Self {
+        Self {
+            event_count: default_drain_event_count(),
+            send_concurrency: default_drain_send_concurrency(),
+            poll_interval_ms: default_drain_poll_interval_ms(),
+            timeout_secs: default_drain_timeout_secs(),
+        }
+    }
+}
+
+/// Read-path configuration.
+///
+/// The dashboard queries are the most database-bound thing Rustrak does:
+/// sorting and paginating issues, aggregating event counts, fetching an issue's
+/// latest event. This scenario seeds the database, then measures those queries.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReadConfig {
+    /// Events to ingest and fully digest before measuring
+    #[serde(default = "default_read_seed_events")]
+    pub seed_events: u64,
+    /// How long to run the read load
+    #[serde(default = "default_read_duration")]
+    pub duration_secs: u64,
+    /// Concurrent readers
+    #[serde(default = "default_read_concurrency")]
+    pub concurrency: u32,
+    /// Distinct issue groups to spread the seed across.
+    ///
+    /// One group would make every query hit a single hot row and measure
+    /// nothing; this controls how much the planner actually has to work.
+    #[serde(default = "default_read_distinct_groups")]
+    pub distinct_groups: u32,
+}
+
+fn default_read_seed_events() -> u64 {
+    30_000
+}
+
+fn default_read_duration() -> u64 {
+    60
+}
+
+fn default_read_concurrency() -> u32 {
+    20
+}
+
+fn default_read_distinct_groups() -> u32 {
+    500
+}
+
+impl Default for ReadConfig {
+    fn default() -> Self {
+        Self {
+            seed_events: default_read_seed_events(),
+            duration_secs: default_read_duration(),
+            concurrency: default_read_concurrency(),
+            distinct_groups: default_read_distinct_groups(),
+        }
+    }
+}
+
 /// Benchmark scenario configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioConfig {
@@ -255,6 +383,12 @@ pub struct ScenarioConfig {
     /// Stress test configuration
     #[serde(default)]
     pub stress: StressConfig,
+    /// Digest-drain configuration
+    #[serde(default)]
+    pub drain: DrainConfig,
+    /// Read-path configuration
+    #[serde(default)]
+    pub read: ReadConfig,
 }
 
 fn default_duration() -> u64 {
@@ -287,6 +421,8 @@ impl Default for ScenarioConfig {
             docker: DockerLimits::default(),
             burst: BurstConfig::default(),
             stress: StressConfig::default(),
+            drain: DrainConfig::default(),
+            read: ReadConfig::default(),
         }
     }
 }
@@ -367,6 +503,37 @@ impl ScenarioConfig {
         }
     }
 
+    /// Get digest-drain scenario configuration
+    pub fn drain() -> Self {
+        Self {
+            name: "drain".to_string(),
+            description: "Measure asynchronous digest throughput (the database-bound phase)"
+                .to_string(),
+            scenario_type: ScenarioType::Drain,
+            duration_secs: 0, // Bounded by event_count, not by time
+            target_rps: 0,
+            concurrency: 50,
+            warmup_secs: 5,
+            drain: DrainConfig::default(),
+            ..Default::default()
+        }
+    }
+
+    /// Get read-path scenario configuration
+    pub fn read() -> Self {
+        Self {
+            name: "read".to_string(),
+            description: "Measure dashboard query latency against a populated database".to_string(),
+            scenario_type: ScenarioType::Read,
+            duration_secs: 60,
+            target_rps: 0, // Readers run flat out
+            concurrency: 20,
+            warmup_secs: 5,
+            read: ReadConfig::default(),
+            ..Default::default()
+        }
+    }
+
     /// Get a predefined scenario by name
     pub fn from_name(name: &str) -> Option<Self> {
         match name.to_lowercase().as_str() {
@@ -374,6 +541,8 @@ impl ScenarioConfig {
             "burst" => Some(Self::burst()),
             "sustained" => Some(Self::sustained()),
             "stress" => Some(Self::stress()),
+            "drain" => Some(Self::drain()),
+            "read" => Some(Self::read()),
             _ => None,
         }
     }

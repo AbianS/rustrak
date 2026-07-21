@@ -1,0 +1,33 @@
+# Burst traffic
+#
+# Spikes followed by quiet periods. The pauses matter for a version comparison:
+# they are when checkpointing and autovacuum catch up, and the two engines
+# schedule that background work differently.
+
+name = "burst"
+description = "Traffic spikes with recovery pauses"
+scenario_type = "burst"
+
+duration_secs = 120
+target_rps = 0
+concurrency = 50
+warmup_secs = 5
+
+[burst]
+burst_size = 3000
+pause_secs = 8
+cycles = 3
+
+[event]
+breadcrumb_count = 5
+stack_depth = 10
+include_user = true
+include_tags = true
+include_extra = false
+distinct_groups = 300
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"

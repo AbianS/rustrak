@@ -1,0 +1,50 @@
+# Read path with a working set larger than shared_buffers
+#
+# The other scenarios run at a ~100% buffer hit ratio: the whole dataset fits in
+# shared_buffers, so PostgreSQL never touches the disk during the measured
+# phase. That is a fine model of a small self-hosted instance, but it makes one
+# comparison impossible — PostgreSQL 18's headline change is asynchronous I/O
+# (io_method), and a workload with no reads to issue cannot show any effect from
+# it whatsoever.
+#
+# This scenario seeds far more data and is meant to be run with shared_buffers
+# forced down, so the working set genuinely exceeds the cache and the engine has
+# to read:
+#
+#   VARIANTS="pg16-cold:16:-c shared_buffers=16MB \
+#             pg18-cold:18:-c shared_buffers=16MB" \
+#   SCENARIOS="read-cold" ./scripts/run-matrix.sh
+#
+# Check the reported cache hit ratio afterwards: if it is still ~100%, the
+# working set did not exceed the cache and the run says nothing about I/O.
+
+name = "read-cold"
+description = "Dashboard queries with a working set exceeding shared_buffers"
+scenario_type = "read"
+
+duration_secs = 60
+target_rps = 0
+concurrency = 20
+warmup_secs = 5
+
+[read]
+seed_events = 60000
+duration_secs = 60
+concurrency = 20
+distinct_groups = 2000
+
+[event]
+breadcrumb_count = 10
+stack_depth = 20
+include_user = true
+include_tags = true
+# Extra payload per event, to grow the on-disk footprint faster than the row
+# count alone would.
+include_extra = true
+distinct_groups = 2000
+
+[docker]
+server_cpus = "2"
+server_memory = "256M"
+postgres_cpus = "1"
+postgres_memory = "512M"
