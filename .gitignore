@@ -47,3 +47,6 @@ release-cards/
 # Python
 __pycache__/
 *.pyc
+
+# Generated at docs build time by scripts/generate-versions.mjs
+apps/docs/public/versions.json

@@ -84,7 +84,11 @@ export default async function ChangelogPage() {
                 const MDXContent = mdxModules[idx]?.default;
 
                 return (
-                  <div key={release.slug} className="relative pl-12 group">
+                  <div
+                    key={release.slug}
+                    id={release.slug}
+                    className="relative pl-12 group scroll-mt-24"
+                  >
                     <div className="absolute left-0 top-1 flex items-center justify-center w-7.75 h-7.75 rounded-full bg-white dark:bg-neutral-950 border-2 border-neutral-300 dark:border-neutral-700 z-10 group-hover:border-primary transition-colors duration-200">
                       <DotIcon />
                     </div>

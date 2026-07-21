@@ -1,0 +1,21 @@
+---
+version: v0.12.2
+title: Update Notifications
+description: The dashboard now tells you when a newer Rustrak release is available, with a link straight to what changed
+date: 2026-07-21
+tags: [webview-ui, docs, releases]
+---
+
+## Update notifications
+
+A self-hosted install had no way of knowing it was behind. Finding out meant remembering to check the changelog by hand. The dashboard now surfaces it directly: when a newer release exists, a small pill appears at the top of authenticated pages showing the available version, and expands on hover into the version jump and a link to that release's entry in the changelog.
+
+- Dismissal is keyed to the version, so hiding the notice for one release does not silence the next one
+- The check runs server-side against a static feed published by the docs site, cached for an hour, and fails silently to nothing when the feed is unreachable
+- Set `RUSTRAK_VERSION_CHECK_ENABLED=false` to disable it, for installs that are required to make no outbound requests
+- The notice streams in separately from the page, so the version check is never on the render path of the dashboard
+- It respects `prefers-reduced-motion`, and announces itself to screen readers rather than being discoverable only by tabbing into it
+
+## Improvements
+
+- The version feed published by the docs site is ordered by version rather than by release date, so a patch backported after a later release cannot be advertised as the newest one

@@ -186,6 +186,27 @@ Only creates user if database is empty.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RUSTRAK_API_URL` | `http://localhost:8080` | Backend API URL |
+| `RUSTRAK_VERSION_CHECK_ENABLED` | `true` | Set to `false` to disable the update notice and stop all outbound version checks |
+
+### RUSTRAK_VERSION_CHECK_ENABLED
+
+When a newer Rustrak release exists, the dashboard shows a dismissible notice
+linking to that release's changelog entry.
+
+To find out, it fetches a small static file published alongside the docs. That
+check runs **server-side only** — the browser never contacts it — and the result
+is cached for one hour per instance, so it costs one outbound request per hour
+regardless of how many people use the dashboard. No instance identifier,
+telemetry or usage data is sent, and any failure is silent: an unreachable or
+blocked feed simply means no notice appears.
+
+Set this to `false` if your installation must make no outbound requests at all:
+
+```bash
+RUSTRAK_VERSION_CHECK_ENABLED=false
+```
+
+With the check disabled, no request is made under any circumstances.
 
 ## Complete Example
 
