@@ -1,0 +1,45 @@
+---
+version: v0.12.3
+title: Project Overview Dashboard
+description: The project overview becomes a real dashboard with trends and a time window, and Releases gets the paginated table every other list already had
+date: 2026-07-21
+tags: [server, client, mcp, webview-ui, dashboard, releases]
+---
+
+## Project overview as a bento dashboard
+
+The overview showed four context-free numbers, one crash-free line and a top-issues list. Nothing carried a trend, there was no time window, and fields the issues endpoint already returned were being thrown away. It is now a bento grid built around the chart an error tracker is actually for.
+
+- `GET /api/projects/{id}/events/stats` returns project-wide error volume bucketed by severity. Nothing existed at project level before, only per-issue stats. Buckets are zero-filled, so a quiet hour renders as zero rather than a gap
+- `GET /api/projects/{id}/stats/summary` returns events, new issues and open issues, each paired with the same counter over the preceding window, from one scan of the doubled window split by `CASE`
+- A hero error-volume chart with counter tiles, crash-free trend, session health and latency around it, then top issues full width. Each tile streams behind its own Suspense boundary instead of the page blocking on the slowest query
+- Period filter (24h/7d/14d/30d/All) held in the URL, so the page stays a Server Component and the window survives a reload
+- Top issues now uses the trend sparkline and user count the API was already sending
+- New index on `issues(project_id, first_seen DESC)`: the existing indexes all order by `last_seen`, so a `first_seen` range scanned every issue in the project
+- `@rustrak/client` gains `StatsResource`, and `@rustrak/mcp` exposes both endpoints as `get_error_volume` and `get_project_stats`
+
+## Releases as a paginated table
+
+Releases rendered every release as a card with no pagination, unlike Issues, Logs, Performance and Agents. It now uses the same offset-paginated table, and the endpoint paginates server-side instead of returning every row.
+
+- `ORDER BY` gains release and environment tiebreakers. Without them, two releases with equal session totals could order differently between requests, letting offset pagination skip or repeat a row
+- Page and period both live in the URL, so the view is shareable and survives a refresh
+- `getReleaseHealth` no longer swallows errors into an empty array. A fetch or auth failure reaches the error boundary instead of being disguised as the empty state, matching Logs and Performance
+
+## Breaking changes
+
+- `GET /api/projects/{id}/sessions/stats` returns `OffsetPaginatedResponse<ReleaseHealthRow>` and accepts `page`/`per_page`. It previously returned a bare array
+- `@rustrak/client`: `sessions.stats()` takes an options object (`period`, `release`, `page`, `per_page`) instead of positional arguments, matching `logs.list()`
+- `@rustrak/client`: `releaseHealthSchema` and the `ReleaseHealth` array type are removed, since no response has that shape anymore
+
+## Improvements
+
+- Chart palette replaces the unvalidated shadcn `--chart-*` defaults with colors checked for lightness band, chroma floor, colorblind separation and contrast against both card surfaces, expressed in oklch like the rest of the file. Reserved `--sev-*` severity tokens added
+- Stacked-bar shapes moved to module scope. They were built inside render, so React remounted every bar on every resize tick: collapsing the sidebar over an all-time window remounted roughly 1900 nodes per frame. Charts also cap the bars they draw by merging buckets, `ResponsiveContainer` debounces, and "All" requests daily buckets instead of hourly
+- `min-w-0` on the chart cells. A grid item defaults to `min-width: auto`, so a measured `ResponsiveContainer` width pinned its column open and the page scrolled sideways on a phone
+- Out-of-range pages redirect to one that exists, instead of reading "19961-27 of 27" and "Page 999 of 2"
+- `?period=` is validated against the supported windows. An unknown value used to reach the API, which answered with all-time data while no filter button read as selected
+- Release detail walks every page of a release's rows instead of assuming 100 environments fit in one
+- `query_release_health` uses saturating offset arithmetic. A large `?page=` overflowed the multiplication, surfacing as a 500 either way: a panic under overflow-checks, a negative offset Postgres rejects without them
+- The crash-free trend no longer bridges empty buckets. A bucket whose sessions all arrived as terminal updates lands with a null rate, and connecting across it drew a confident line where nothing was measured. Measured buckets with no measured neighbour now get a dot
+- Top issues is labelled as all-time, since the issues endpoint takes no time window and `event_count` is a lifetime total
