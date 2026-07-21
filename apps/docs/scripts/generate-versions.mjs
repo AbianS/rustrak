@@ -18,6 +18,34 @@ function toDateString(value) {
   return String(value ?? '');
 }
 
+function parseVersion(value) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(value);
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+}
+
+// Ordered by version, not by date: a backported patch can carry a later date
+// than the minor that supersedes it, and the filename prefixes stop sorting
+// lexicographically once they reach three digits. Date and slug only break
+// ties between equal versions.
+function byNewestFirst(a, b) {
+  const left = parseVersion(a.version);
+  const right = parseVersion(b.version);
+
+  if (left && right) {
+    for (let i = 0; i < 3; i += 1) {
+      if (left[i] !== right[i]) return right[i] - left[i];
+    }
+  } else if (left || right) {
+    // An unparseable version can never be the latest release, so it sinks.
+    return left ? -1 : 1;
+  }
+
+  const byDate =
+    (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0);
+  if (byDate !== 0) return byDate;
+  return b.slug.localeCompare(a.slug);
+}
+
 function readReleases() {
   return fs
     .readdirSync(CHANGELOG_DIR)
@@ -36,12 +64,7 @@ function readReleases() {
       };
     })
     .filter((release) => release.version !== '')
-    .sort((a, b) => {
-      const byDate =
-        (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0);
-      if (byDate !== 0) return byDate;
-      return b.slug.localeCompare(a.slug);
-    })
+    .sort(byNewestFirst)
     .map(({ slug: _slug, ...release }) => release);
 }
 
