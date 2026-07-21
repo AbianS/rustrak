@@ -292,7 +292,7 @@ dependencies = [
  "foldhash",
  "futures-core",
  "futures-util",
- "impl-more 0.3.1",
+ "impl-more 0.3.2",
  "itoa",
  "language-tags",
  "log",
@@ -1738,9 +1738,9 @@ checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
 
 [[package]]
 name = "glob"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "h2"
@@ -2210,9 +2210,9 @@ checksum = "e8a5a9a0ff0086c7a148acb942baaabeadf9504d10400b5a05645853729b9cd2"
 
 [[package]]
 name = "impl-more"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35a84fd5aa25fae5c0f4a33d9cac2ca017fc622cbd089be2229993514990f870"
+checksum = "134d2c4324d61664107020b79019cf6a6aec153f0b79bc9619ee9e794a5fb021"
 
 [[package]]
 name = "indexmap"
@@ -3621,7 +3621,7 @@ dependencies = [
 
 [[package]]
 name = "rustrak"
-version = "0.12.2"
+version = "0.12.3"
 dependencies = [
  "actix-cors",
  "actix-multipart",
@@ -4645,13 +4645,14 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.18"
+version = "0.7.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ae9cec805b01e8fc3fd2fe289f89149a9b66dd16786abd8b19cfa7b48cb0098"
+checksum = "494815d09bf52b5548659851081238f0ca39ff638363907596da739561c62c52"
 dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "libc",
  "pin-project-lite",
  "tokio",
 ]
