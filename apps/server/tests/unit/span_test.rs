@@ -70,6 +70,7 @@ mod level2 {
             CreateProject {
                 name: "span-standalone".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -137,6 +138,7 @@ mod level2 {
             CreateProject {
                 name: "span-missing-id".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -174,6 +176,7 @@ mod level2 {
             CreateProject {
                 name: "span-missing-trace".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -201,6 +204,7 @@ mod level2 {
             CreateProject {
                 name: "span-missing-start".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -242,6 +246,7 @@ mod level2 {
             CreateProject {
                 name: "span-missing-end".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -269,6 +274,7 @@ mod level2 {
             CreateProject {
                 name: "span-bad-timing".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -299,6 +305,7 @@ mod level2 {
             CreateProject {
                 name: "span-bad-json".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -323,6 +330,7 @@ mod level2 {
             CreateProject {
                 name: "span-data-catchall".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -392,6 +400,7 @@ mod level2 {
             CreateProject {
                 name: "span-svc-filter-op".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -440,6 +449,7 @@ mod level2 {
             CreateProject {
                 name: "span-svc-cross-origin".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -499,6 +509,7 @@ mod level2 {
             CreateProject {
                 name: "span-svc-txn-id".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -537,6 +548,7 @@ mod level2 {
             CreateProject {
                 name: "span-gen-ai".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -589,6 +601,7 @@ mod level2 {
             CreateProject {
                 name: "span-not-ai".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await

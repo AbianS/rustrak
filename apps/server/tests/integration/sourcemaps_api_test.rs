@@ -616,6 +616,7 @@ async fn test_assemble_before_upload_returns_not_found_with_missing_chunks() {
         CreateProject {
             name: "my-proj-assemble-missing".to_string(),
             slug: Some("my-proj-assemble-missing".to_string()),
+            platform: None,
         },
     )
     .await
@@ -671,6 +672,7 @@ async fn test_assemble_after_upload_enqueues_job_returns_created() {
         CreateProject {
             name: "assemble-after-upload".to_string(),
             slug: Some("assemble-after-upload".to_string()),
+            platform: None,
         },
     )
     .await
@@ -743,6 +745,7 @@ async fn test_assemble_idempotent_same_bundle_twice() {
         CreateProject {
             name: "assemble-idempotent".to_string(),
             slug: Some("assemble-idempotent".to_string()),
+            platform: None,
         },
     )
     .await
@@ -914,6 +917,7 @@ async fn test_assemble_checksum_mismatch_enqueues_job() {
         CreateProject {
             name: "assemble-checksum-mismatch".to_string(),
             slug: Some("assemble-checksum-mismatch".to_string()),
+            platform: None,
         },
     )
     .await
@@ -975,6 +979,7 @@ async fn test_assemble_failed_job_returns_400_on_retry() {
         CreateProject {
             name: "assemble-failed-retry".to_string(),
             slug: Some("assemble-failed-retry".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1046,6 +1051,7 @@ async fn test_list_source_maps_returns_paginated_list() {
         CreateProject {
             name: "list-sourcemaps-proj".to_string(),
             slug: Some("list-sourcemaps-proj".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1169,6 +1175,7 @@ async fn test_list_source_maps_scoped_to_project() {
         CreateProject {
             name: "sourcemaps-scope-a".to_string(),
             slug: Some("sourcemaps-scope-a".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1179,6 +1186,7 @@ async fn test_list_source_maps_scoped_to_project() {
         CreateProject {
             name: "sourcemaps-scope-b".to_string(),
             slug: Some("sourcemaps-scope-b".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1316,6 +1324,7 @@ async fn test_assemble_bundle_finds_manifest_json() {
         CreateProject {
             name: "manifest-extraction".to_string(),
             slug: Some("manifest-extraction".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1371,6 +1380,7 @@ async fn test_assemble_bundle_rejects_oversized_bundle() {
         CreateProject {
             name: "bundle-size-limit".to_string(),
             slug: Some("bundle-size-limit".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1449,6 +1459,7 @@ async fn test_assemble_state_column_decodable_in_postgres() {
         CreateProject {
             name: "pg-state-decode".to_string(),
             slug: Some("pg-state-decode".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1712,6 +1723,7 @@ async fn test_assemble_bundle_manifest_path_traversal_rejected() {
         CreateProject {
             name: "traversal-test".to_string(),
             slug: Some("traversal-test".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1792,6 +1804,7 @@ async fn test_assemble_bundle_tilde_prefix_with_debug_id_stores_source_file() {
         CreateProject {
             name: "tilde-prefix-test".to_string(),
             slug: Some("tilde-prefix-test".to_string()),
+            platform: None,
         },
     )
     .await
@@ -1987,6 +2000,7 @@ async fn test_assemble_re_enqueue_error_job_updates_chunks() {
         CreateProject {
             name: "re-enqueue-chunks-test".to_string(),
             slug: Some("re-enqueue-chunks-test".to_string()),
+            platform: None,
         },
     )
     .await
@@ -2083,6 +2097,7 @@ async fn test_assemble_with_numeric_project_id_returns_not_found_or_created() {
         CreateProject {
             name: "numeric-id-test-project".to_string(),
             slug: Some("numeric-id-test-project".to_string()),
+            platform: None,
         },
     )
     .await

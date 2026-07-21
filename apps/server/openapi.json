@@ -7726,6 +7726,13 @@
           "name": {
             "type": "string"
           },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Platform chosen by the user in the create form, validated against\n[`SELECTABLE_PLATFORMS`] exactly as [`UpdateProject::platform`] is.\nReal Sentry accepts this on the create request too\n(`ProjectPostSerializer`, `src/sentry/core/endpoints/team_projects.py`).\n\nAbsent is legal and is not the same as \"no platform forever\": the\ncolumn stays NULL and the project remains eligible for\n[`super::super::services::ProjectService::infer_platform_from_event`],\nwhich fills it from the first ingested event using the narrower\n[`VALID_PLATFORMS`] list."
+          },
           "slug": {
             "type": [
               "string",
@@ -9470,6 +9477,13 @@
               "null"
             ],
             "description": "Manual override of the project's platform, validated against\n[`SELECTABLE_PLATFORMS`]. That list is wider than the one\nauto-detection uses: it includes framework-specific ids such as\n`javascript-nextjs`, which are legal for a project but never for an\nevent.\n\nUnlike auto-detection (which only writes when the column is still\nNULL), a manual update is allowed to overwrite an existing value, so a\nuser can correct what was detected. Sending `null` leaves the current\nvalue untouched rather than clearing it."
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New slug, slugified before storing.\n\nUnlike [`CreateProject::slug`], a collision here is **not** silently\nde-duplicated. On create the slug is usually derived from the name and\nthe user is not really choosing it, so appending `-1` is helpful. Here\nthe user typed it, and storing something other than what they typed\nwould be wrong, so a taken slug is a `Conflict`.\n\nSending `null` leaves the current value untouched."
           }
         }
       },

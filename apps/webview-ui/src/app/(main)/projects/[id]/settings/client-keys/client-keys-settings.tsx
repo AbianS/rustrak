@@ -7,6 +7,12 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { copyToClipboard } from '@/lib/clipboard';
+import {
+  PLATFORM_DOCS,
+  PLATFORM_SNIPPETS,
+  renderSnippet,
+} from '@/lib/platform-snippets';
+import { platformLabel } from '@/lib/platforms';
 import { SettingSection } from '../setting-row';
 
 interface ClientKeysSettingsProps {
@@ -20,6 +26,7 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
   const { resolvedTheme } = useTheme();
   const [copiedDsn, setCopiedDsn] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedInstall, setCopiedInstall] = useState(false);
   const [Highlighter, setHighlighter] = useState<HighlighterComponent | null>(
     null,
   );
@@ -53,11 +60,27 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     };
   }, [isDark]);
 
-  const codeExample = `import * as Sentry from "@sentry/browser";
+  // Setup instructions follow the project's own platform. Only when it has
+  // none (never set, no event ingested yet) do we fall back to the browser
+  // SDK, which is the safest generic example for a Sentry-compatible server.
+  const snippet = project.platform
+    ? PLATFORM_SNIPPETS[project.platform]
+    : undefined;
+  const docsUrl = project.platform
+    ? PLATFORM_DOCS[project.platform]
+    : undefined;
+
+  const codeExample = snippet
+    ? renderSnippet(snippet.configure, project.dsn)
+    : `import * as Sentry from "@sentry/browser";
 
 Sentry.init({
   dsn: "${project.dsn}",
 });`;
+  const codeLanguage = snippet?.language ?? 'javascript';
+  const exampleTitle = snippet
+    ? `Example (${platformLabel(project.platform ?? '')})`
+    : 'Example (JavaScript)';
 
   const copy = async (
     value: string,
@@ -100,9 +123,37 @@ Sentry.init({
         </div>
       </SettingSection>
 
+      {snippet?.install && (
+        <SettingSection
+          title="Install"
+          description="Add the SDK to your project."
+        >
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted p-3">
+            <code className="flex-1 overflow-x-auto font-mono text-xs">
+              {snippet.install}
+            </code>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                copy(snippet.install ?? '', setCopiedInstall, 'command')
+              }
+              className="shrink-0"
+              aria-label="Copy install command"
+            >
+              {copiedInstall ? (
+                <Check className="size-4 text-primary" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+            </Button>
+          </div>
+        </SettingSection>
+      )}
+
       <SettingSection
-        title="Example (JavaScript)"
-        description="Minimal setup for a browser app. Every SDK takes this same DSN, see the Sentry docs for yours."
+        title={exampleTitle}
+        description="Your DSN is already filled in below."
       >
         <div className="mt-3">
           <div className="mb-2 flex justify-end">
@@ -128,7 +179,7 @@ Sentry.init({
           <div className="overflow-hidden overflow-x-auto rounded-lg border">
             {Highlighter && highlighterStyle ? (
               <Highlighter
-                language="javascript"
+                language={codeLanguage}
                 style={highlighterStyle}
                 customStyle={{
                   margin: 0,
@@ -152,14 +203,16 @@ Sentry.init({
           <p className="mt-3 text-xs text-muted-foreground">
             This server is compatible with all official Sentry SDKs. Check the{' '}
             <a
-              href="https://docs.sentry.io/platforms/"
+              href={docsUrl ?? 'https://docs.sentry.io/platforms/'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              Sentry documentation
+              {docsUrl
+                ? `${platformLabel(project.platform ?? '')} documentation`
+                : 'Sentry documentation'}
             </a>{' '}
-            for platform-specific setup instructions.
+            for the full setup, including options this example leaves out.
           </p>
         </div>
       </SettingSection>

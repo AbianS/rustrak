@@ -55,6 +55,7 @@ async fn create_test_project(pool: &rustrak::db::DbPool, name: &str) -> (i32, St
         rustrak::models::CreateProject {
             name: name.to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

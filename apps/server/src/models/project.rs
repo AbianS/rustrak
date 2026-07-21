@@ -208,6 +208,18 @@ pub struct CreateProject {
     pub name: String,
     #[serde(default)]
     pub slug: Option<String>,
+    /// Platform chosen by the user in the create form, validated against
+    /// [`SELECTABLE_PLATFORMS`] exactly as [`UpdateProject::platform`] is.
+    /// Real Sentry accepts this on the create request too
+    /// (`ProjectPostSerializer`, `src/sentry/core/endpoints/team_projects.py`).
+    ///
+    /// Absent is legal and is not the same as "no platform forever": the
+    /// column stays NULL and the project remains eligible for
+    /// [`super::super::services::ProjectService::infer_platform_from_event`],
+    /// which fills it from the first ingested event using the narrower
+    /// [`VALID_PLATFORMS`] list.
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 /// DTO for updating a project
@@ -215,6 +227,16 @@ pub struct CreateProject {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateProject {
     pub name: Option<String>,
+    /// New slug, slugified before storing.
+    ///
+    /// Unlike [`CreateProject::slug`], a collision here is **not** silently
+    /// de-duplicated. On create the slug is usually derived from the name and
+    /// the user is not really choosing it, so appending `-1` is helpful. Here
+    /// the user typed it, and storing something other than what they typed
+    /// would be wrong, so a taken slug is a `Conflict`.
+    ///
+    /// Sending `null` leaves the current value untouched.
+    pub slug: Option<String>,
     /// Manual override of the project's platform, validated against
     /// [`SELECTABLE_PLATFORMS`]. That list is wider than the one
     /// auto-detection uses: it includes framework-specific ids such as

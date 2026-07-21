@@ -102,6 +102,7 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
         CreateProject {
             name: format!("Agents API Test {}", Uuid::new_v4()),
             slug: None,
+            platform: None,
         },
     )
     .await

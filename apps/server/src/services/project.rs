@@ -180,15 +180,39 @@ impl ProjectService {
             ));
         }
 
+        let platform = Self::validate_platform(input.platform.as_deref())?;
+
         // Generate or validate slug
         let slug = Self::generate_unique_slug(pool, name, input.slug.as_deref()).await?;
 
         // Generate sentry_key in application (for cross-DB compatibility)
         let sentry_key = uuid::Uuid::new_v4();
 
-        let project = Self::try_insert_with_retry(pool, name, &slug, sentry_key).await?;
+        let project = Self::try_insert_with_retry(pool, name, &slug, sentry_key, platform).await?;
 
         Ok(project)
+    }
+
+    /// Validates a user-supplied platform id against [`SELECTABLE_PLATFORMS`].
+    ///
+    /// Shared by [`Self::create`] and [`Self::update`] so the two can never
+    /// drift. Deliberately *not* used by
+    /// [`Self::infer_platform_from_event`], which filters on the narrower
+    /// [`VALID_PLATFORMS`]: an event's platform and a project's platform are
+    /// different domains with different valid-value lists.
+    fn validate_platform(platform: Option<&str>) -> AppResult<Option<&str>> {
+        match platform {
+            Some(p) => {
+                if !SELECTABLE_PLATFORMS.contains(&p) {
+                    return Err(AppError::Validation(format!(
+                        "'{}' is not a valid platform",
+                        p
+                    )));
+                }
+                Ok(Some(p))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Updates an existing project
@@ -212,20 +236,38 @@ impl ProjectService {
             None => None,
         };
 
-        let platform = match input.platform {
-            Some(ref platform) => {
-                if !SELECTABLE_PLATFORMS.contains(&platform.as_str()) {
-                    return Err(AppError::Validation(format!(
-                        "'{}' is not a valid platform",
-                        platform
+        let platform = Self::validate_platform(input.platform.as_deref())?;
+
+        let slug = match input.slug {
+            Some(ref slug) => {
+                let slugified = slugify(slug.trim());
+                if slugified.is_empty() {
+                    return Err(AppError::Validation(
+                        "Cannot generate valid slug from input".to_string(),
+                    ));
+                }
+                // Explicit availability check so the normal path returns a
+                // clear Conflict rather than a raw unique violation. This is
+                // TOCTOU-racy on its own, so the unique-violation mapping
+                // below still has to cover the slug case.
+                let taken: Option<i32> =
+                    sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1 AND id != $2")
+                        .bind(&slugified)
+                        .bind(id)
+                        .fetch_optional(pool)
+                        .await?;
+                if taken.is_some() {
+                    return Err(AppError::Conflict(format!(
+                        "Project with slug '{}' already exists",
+                        slugified
                     )));
                 }
-                Some(platform.as_str())
+                Some(slugified)
             }
             None => None,
         };
 
-        if name.is_none() && platform.is_none() {
+        if name.is_none() && platform.is_none() && slug.is_none() {
             // If no fields to update, return project unchanged
             return Self::get_by_id(pool, id).await;
         }
@@ -237,8 +279,9 @@ impl ProjectService {
             UPDATE projects
             SET name = COALESCE($1, name),
                 platform = COALESCE($2, platform),
+                slug = COALESCE($3, slug),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $3
+            WHERE id = $4
             RETURNING id, name, slug, sentry_key, stored_event_count,
                       digested_event_count, created_at, updated_at, platform,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
@@ -246,12 +289,28 @@ impl ProjectService {
         )
         .bind(name)
         .bind(platform)
+        .bind(slug.as_deref())
         .bind(id)
         .fetch_one(pool)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
                 if db_err.is_unique_violation() {
+                    // The availability check above is TOCTOU-racy: a concurrent
+                    // update can take the slug between the SELECT and this
+                    // UPDATE. Without this arm a slug-only update loses the
+                    // race as a 500 instead of a 409. Both dialects name the
+                    // column in the message (Postgres `projects_slug_key`,
+                    // SQLite `projects.slug`), which is what distinguishes it
+                    // from the name constraint.
+                    if db_err.message().contains("slug") {
+                        if let Some(ref slug) = slug {
+                            return AppError::Conflict(format!(
+                                "Project with slug '{}' already exists",
+                                slug
+                            ));
+                        }
+                    }
                     if let Some(name) = name {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
@@ -357,9 +416,10 @@ impl ProjectService {
         pool: &DbPool,
         name: &str,
         stale_slug: &str,
+        platform: Option<&str>,
     ) -> AppResult<Project> {
         let sentry_key = uuid::Uuid::new_v4();
-        Self::try_insert_with_retry(pool, name, stale_slug, sentry_key).await
+        Self::try_insert_with_retry(pool, name, stale_slug, sentry_key, platform).await
     }
 
     async fn try_insert_with_retry(
@@ -367,10 +427,11 @@ impl ProjectService {
         name: &str,
         slug: &str,
         sentry_key: uuid::Uuid,
+        platform: Option<&str>,
     ) -> AppResult<Project> {
         const INSERT_SQL: &str = r#"
-            INSERT INTO projects (name, slug, sentry_key)
-            VALUES ($1, $2, $3)
+            INSERT INTO projects (name, slug, sentry_key, platform)
+            VALUES ($1, $2, $3, $4)
             RETURNING id, name, slug, sentry_key, stored_event_count,
                       digested_event_count, created_at, updated_at, platform,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
@@ -380,6 +441,7 @@ impl ProjectService {
             .bind(name)
             .bind(slug)
             .bind(sentry_key)
+            .bind(platform)
             .fetch_one(pool)
             .await;
 
@@ -400,6 +462,7 @@ impl ProjectService {
                     .bind(name)
                     .bind(&new_slug)
                     .bind(sentry_key)
+                    .bind(platform)
                     .fetch_one(pool)
                     .await
                     .map_err(|e| {

@@ -41,6 +41,7 @@ async fn test_list_spans_filters_by_operation_type() {
         CreateProject {
             name: "gen-ai-op-filter".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -91,6 +92,7 @@ async fn test_llm_calls_by_model_counts_and_orders_by_frequency() {
         CreateProject {
             name: "gen-ai-llm-calls".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -135,6 +137,7 @@ async fn test_llm_calls_by_model_excludes_non_ai_client_spans() {
         CreateProject {
             name: "gen-ai-llm-calls-exclude".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -165,6 +168,7 @@ async fn test_tokens_by_model_sums_total_tokens() {
         CreateProject {
             name: "gen-ai-tokens-model".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -205,6 +209,7 @@ async fn test_tool_calls_by_tool_counts() {
         CreateProject {
             name: "gen-ai-tool-calls".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -248,6 +253,7 @@ async fn test_agent_runs_timeseries_counts_agent_spans() {
         CreateProject {
             name: "gen-ai-runs-ts".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -293,6 +299,7 @@ async fn test_agent_duration_timeseries_computes_avg_and_p95() {
         CreateProject {
             name: "gen-ai-duration-ts".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -340,6 +347,7 @@ async fn test_agent_traces_aggregates_per_trace_id() {
         CreateProject {
             name: "gen-ai-traces".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -411,6 +419,7 @@ async fn test_agent_traces_lists_every_agent_in_a_handoff_trace() {
         CreateProject {
             name: "gen-ai-traces-handoff".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -473,6 +482,7 @@ async fn test_agent_traces_excludes_agent_span_usage_from_token_sum() {
         CreateProject {
             name: "gen-ai-traces-no-double-count".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -555,6 +565,7 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
         CreateProject {
             name: "gen-ai-traces-root-rollup".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -624,6 +635,7 @@ async fn test_agent_traces_reports_zero_tokens_for_root_only_trace() {
         CreateProject {
             name: "gen-ai-traces-root-only".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -670,6 +682,7 @@ async fn test_list_spans_response_includes_gen_ai_fields() {
         CreateProject {
             name: "gen-ai-span-response".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -710,6 +723,7 @@ async fn test_list_spans_response_non_ai_span_has_null_gen_ai_fields() {
         CreateProject {
             name: "gen-ai-span-response-null".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

@@ -23,6 +23,11 @@ export const projectSchema = z.object({
 export const createProjectSchema = z.object({
   name: z.string().min(1),
   slug: z.string().optional(),
+  /**
+   * Validated server-side against SELECTABLE_PLATFORMS. Omitting it leaves the
+   * project eligible for platform auto-detection from its first event.
+   */
+  platform: z.string().min(1).optional(),
 });
 
 /**
@@ -31,4 +36,9 @@ export const createProjectSchema = z.object({
 export const updateProjectSchema = z.object({
   name: z.string().min(1).optional(),
   platform: z.string().min(1).optional(),
+  /**
+   * Slugified server-side. Unlike on create, a taken slug is a 409 rather than
+   * being silently de-duplicated.
+   */
+  slug: z.string().min(1).optional(),
 });

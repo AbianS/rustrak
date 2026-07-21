@@ -213,6 +213,7 @@ async fn test_slug_toctou_retries_with_next_candidate() {
         CreateProject {
             name: "My Project".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -220,9 +221,10 @@ async fn test_slug_toctou_retries_with_next_candidate() {
 
     // Simulate what happens when generate_unique_slug returned "my-project"
     // from a stale read (TOCTOU race): the INSERT should retry, not 409.
-    let project = ProjectService::create_with_stale_slug(&db.pool, "My-Project", "my-project")
-        .await
-        .expect("stale-slug create must succeed via retry, not 409");
+    let project =
+        ProjectService::create_with_stale_slug(&db.pool, "My-Project", "my-project", None)
+            .await
+            .expect("stale-slug create must succeed via retry, not 409");
 
     assert_eq!(project.slug, "my-project-1");
     assert_eq!(project.name, "My-Project");
@@ -244,6 +246,7 @@ async fn test_update_project_platform_sets_valid_platform() {
         CreateProject {
             name: "Platform Update Project".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -255,6 +258,7 @@ async fn test_update_project_platform_sets_valid_platform() {
         project.id,
         UpdateProject {
             name: None,
+            slug: None,
             platform: Some("python".to_string()),
         },
     )
@@ -277,6 +281,7 @@ async fn test_update_project_platform_accepts_framework_specific_id() {
         CreateProject {
             name: "Framework Platform Project".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -287,6 +292,7 @@ async fn test_update_project_platform_accepts_framework_specific_id() {
         project.id,
         UpdateProject {
             name: None,
+            slug: None,
             platform: Some("javascript-nextjs".to_string()),
         },
     )
@@ -304,6 +310,7 @@ async fn test_update_project_platform_rejects_invalid_value() {
         CreateProject {
             name: "Invalid Platform Project".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -314,6 +321,7 @@ async fn test_update_project_platform_rejects_invalid_value() {
         project.id,
         UpdateProject {
             name: None,
+            slug: None,
             platform: Some("not-a-real-platform".to_string()),
         },
     )
@@ -339,6 +347,7 @@ async fn test_update_project_sets_name_and_platform_together() {
         CreateProject {
             name: "Old Name".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -349,6 +358,7 @@ async fn test_update_project_sets_name_and_platform_together() {
         project.id,
         UpdateProject {
             name: Some("New Name".to_string()),
+            slug: None,
             platform: Some("go".to_string()),
         },
     )
@@ -359,6 +369,254 @@ async fn test_update_project_sets_name_and_platform_together() {
     assert_eq!(updated.platform, Some("go".to_string()));
 }
 
+// =============================================================================
+// Editable Slug Tests
+//
+// Real Sentry exposes the slug as the first field of General Settings. Its
+// warning that renaming "can break your build scripts" does not apply here:
+// Sentry puts the slug in every API URL, whereas Rustrak's DSN and routes key
+// off the numeric project id, so nothing downstream depends on it.
+//
+// Note the deliberate asymmetry with create: `ProjectService::create` silently
+// de-duplicates a taken slug ("api" -> "api-1") because there the slug is
+// usually derived from the name. On update the user typed it, so storing
+// something other than what they typed would be wrong. Update conflicts.
+// =============================================================================
+
+#[actix_web::test]
+async fn test_update_project_slug() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Slug Update Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+    assert_eq!(project.slug, "slug-update-project");
+
+    let updated = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: None,
+            slug: Some("renamed-slug".to_string()),
+        },
+    )
+    .await
+    .expect("slug update must succeed");
+
+    assert_eq!(updated.slug, "renamed-slug");
+
+    let fetched = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("get must succeed");
+    assert_eq!(fetched.slug, "renamed-slug");
+}
+
+/// A slug the user typed that is already taken must surface as a Conflict
+/// (409), not a raw database error (500), and must leave the target project
+/// untouched. Note the existing unique-violation mapping only produced a
+/// Conflict when a `name` was being set, so a slug-only update fell through
+/// to `AppError::Database`.
+#[actix_web::test]
+async fn test_update_project_slug_conflict_is_reported_as_conflict() {
+    let db = TestDb::new().await;
+
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Taken Slug Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let target = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Target Slug Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let result = ProjectService::update(
+        &db.pool,
+        target.id,
+        UpdateProject {
+            name: None,
+            platform: None,
+            slug: Some("taken-slug-project".to_string()),
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Conflict(_))),
+        "expected a Conflict error, got: {result:?}"
+    );
+
+    let unchanged = ProjectService::get_by_id(&db.pool, target.id)
+        .await
+        .expect("get must succeed");
+    assert_eq!(unchanged.slug, "target-slug-project");
+}
+
+/// Input that slugifies to nothing must be a 400, not a silent no-op and not
+/// an empty slug in the database. `create` already rejects this case; update
+/// must match.
+#[actix_web::test]
+async fn test_update_project_slug_rejects_unslugifiable_input() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Unslugifiable Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create must succeed");
+
+    let result = ProjectService::update(
+        &db.pool,
+        project.id,
+        UpdateProject {
+            name: None,
+            platform: None,
+            slug: Some("!!!".to_string()),
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Validation(_))),
+        "expected a Validation error, got: {result:?}"
+    );
+
+    let unchanged = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("get must succeed");
+    assert_eq!(unchanged.slug, "unslugifiable-project");
+}
+
+// =============================================================================
+// Platform-at-creation Tests
+//
+// Real Sentry accepts `platform` on the create-project request itself
+// (ProjectPostSerializer, src/sentry/core/endpoints/team_projects.py), so a
+// user who picks a platform in the create form does not need a follow-up
+// PATCH. Validation is the same SELECTABLE_PLATFORMS list the manual
+// override above uses, deliberately wider than the VALID_PLATFORMS list
+// auto-detection filters on.
+// =============================================================================
+
+#[actix_web::test]
+async fn test_create_project_sets_platform() {
+    let db = TestDb::new().await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Created With Platform".to_string(),
+            slug: None,
+            platform: Some("javascript-nextjs".to_string()),
+        },
+    )
+    .await
+    .expect("create with platform must succeed");
+
+    assert_eq!(project.platform, Some("javascript-nextjs".to_string()));
+
+    // Re-read: the returned struct must reflect what was persisted, not just
+    // the input echoed back.
+    let fetched = ProjectService::get_by_id(&db.pool, project.id)
+        .await
+        .expect("get must succeed");
+    assert_eq!(fetched.platform, Some("javascript-nextjs".to_string()));
+}
+
+/// The TOCTOU retry re-issues the INSERT with a freshly generated slug. That
+/// second statement is a separate set of binds, so a platform threaded only
+/// through the first one is silently dropped for exactly the concurrent-create
+/// case. Nothing else covers the retry path's column list.
+#[actix_web::test]
+async fn test_create_preserves_platform_across_slug_retry() {
+    let db = TestDb::new().await;
+
+    // Establish "retry-platform" as taken so the next INSERT collides.
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Retry Platform".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("first create must succeed");
+
+    let project = ProjectService::create_with_stale_slug(
+        &db.pool,
+        "Retry-Platform",
+        "retry-platform",
+        Some("python-django"),
+    )
+    .await
+    .expect("stale-slug create must succeed via retry");
+
+    assert_eq!(project.slug, "retry-platform-1");
+    assert_eq!(
+        project.platform,
+        Some("python-django".to_string()),
+        "platform must survive the retry INSERT, not just the first one"
+    );
+}
+
+/// A bad platform must be rejected *before* the INSERT, not stored and not
+/// silently dropped. The row must not exist afterwards: a project created
+/// with a silently-discarded platform looks successful to the user while
+/// losing their choice.
+#[actix_web::test]
+async fn test_create_project_rejects_invalid_platform() {
+    let db = TestDb::new().await;
+
+    let result = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Invalid Platform At Creation".to_string(),
+            slug: None,
+            platform: Some("not-a-real-platform".to_string()),
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Validation(_))),
+        "expected a Validation error, got: {result:?}"
+    );
+
+    let projects = ProjectService::list(&db.pool)
+        .await
+        .expect("list must succeed");
+    assert!(
+        !projects
+            .iter()
+            .any(|p| p.name == "Invalid Platform At Creation"),
+        "rejected create must not have persisted a row"
+    );
+}
+
 #[actix_web::test]
 async fn test_update_project_platform_overwrites_existing_value() {
     let db = TestDb::new().await;
@@ -367,6 +625,7 @@ async fn test_update_project_platform_overwrites_existing_value() {
         CreateProject {
             name: "Overwrite Platform Project".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -379,6 +638,7 @@ async fn test_update_project_platform_overwrites_existing_value() {
         project.id,
         UpdateProject {
             name: None,
+            slug: None,
             platform: Some("javascript".to_string()),
         },
     )
@@ -392,6 +652,7 @@ async fn test_update_project_platform_overwrites_existing_value() {
         project.id,
         UpdateProject {
             name: None,
+            slug: None,
             platform: Some("ruby".to_string()),
         },
     )
