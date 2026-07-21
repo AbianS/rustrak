@@ -9,6 +9,7 @@ export * from './member.js';
 export * from './project.js';
 export * from './session.js';
 export * from './sourcemap.js';
+export * from './stats.js';
 export * from './storage.js';
 export * from './team.js';
 export * from './token.js';

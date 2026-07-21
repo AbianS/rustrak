@@ -2341,6 +2341,72 @@
         ]
       }
     },
+    "/api/projects/{project_id}/events/stats": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "summary": "GET /api/projects/{project_id}/events/stats",
+        "operationId": "get_event_timeseries",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time window, e.g. '24h', '7d'. Omit for all time.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "description": "Bucket width in hours (default: 1, max: 24)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Time-bucketed error-event volume by severity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventTimeseriesPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/issues": {
       "get": {
         "tags": [
@@ -5031,6 +5097,59 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/stats/summary": {
+      "get": {
+        "tags": [
+          "Stats"
+        ],
+        "summary": "GET /api/projects/{project_id}/stats/summary",
+        "operationId": "get_stats_summary",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "description": "Time window, e.g. '24h', '7d'. Omit for all time.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project counters with previous-period comparison",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStatsSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
           }
         },
         "security": [
@@ -7810,6 +7929,44 @@
           }
         }
       },
+      "EventTimeseriesPoint": {
+        "type": "object",
+        "description": "One time-bucketed point in a project's error-event volume, split by severity.\n\n`total` always equals `fatal + error + warning + info`: `info` absorbs\n`debug` and any level the SDK sent that we do not model, so the stacked\nsegments of a chart always sum to the bar height and no events silently\nvanish from the series.",
+        "required": [
+          "bucket",
+          "total",
+          "fatal",
+          "error",
+          "warning",
+          "info"
+        ],
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "error": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "fatal": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "info": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "warning": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "GenAiBreakdownRow": {
         "type": "object",
         "description": "One row of a \"top N by X\" breakdown (model or tool name).",
@@ -8245,6 +8402,26 @@
           }
         }
       },
+      "MetricDelta": {
+        "type": "object",
+        "description": "A counter measured over the requested window alongside the same counter\nover the window immediately before it.\n\n`previous` is `None` when the request asked for all time: there is no\nearlier window to compare against, and reporting `0` there would render as\na misleading \"+100%\" in the UI.",
+        "required": [
+          "current"
+        ],
+        "properties": {
+          "current": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "previous": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "ProjectMemberResponse": {
         "type": "object",
         "description": "Member row joined with the user's email, for listing a project's team.",
@@ -8324,6 +8501,38 @@
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "ProjectStatsSummary": {
+        "type": "object",
+        "description": "Project-wide counters for the overview page, each with its previous-period\ncomparison.",
+        "required": [
+          "events",
+          "new_issues",
+          "open_issues"
+        ],
+        "properties": {
+          "events": {
+            "$ref": "#/components/schemas/MetricDelta",
+            "description": "Error events ingested in the window."
+          },
+          "new_issues": {
+            "$ref": "#/components/schemas/MetricDelta",
+            "description": "Issues whose `first_seen` falls in the window."
+          },
+          "open_issues": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Issues currently unresolved, regardless of window."
+          },
+          "period_hours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The resolved window in hours, or `None` for all time."
           }
         }
       },

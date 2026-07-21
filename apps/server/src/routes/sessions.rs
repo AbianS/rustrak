@@ -4,6 +4,7 @@ use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::AppResult;
 use crate::pagination::OffsetPaginatedResponse;
+use crate::routes::period::parse_period_hours;
 use crate::services::access::{self, Action};
 use crate::services::session::SessionService;
 
@@ -11,25 +12,6 @@ use crate::services::session::SessionService;
 use crate::models::session::{ReleaseHealthRow, SessionSummary, SessionTimeseriesPoint};
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
-
-/// Parse a period string ("24h", "7d", or a bare integer of hours) into hours,
-/// clamped to 1 hour – 90 days. Shared by every query struct in this module
-/// that accepts a `period` field.
-fn parse_period_hours(period: Option<&str>) -> Option<i64> {
-    period
-        .and_then(|p| {
-            // Accept "24h", "48h", "7d", or bare integers (treated as hours).
-            if let Some(stripped) = p.strip_suffix('h') {
-                stripped.parse::<i64>().ok()
-            } else if let Some(stripped) = p.strip_suffix('d') {
-                stripped.parse::<i64>().ok().and_then(|d| d.checked_mul(24))
-            } else {
-                p.parse::<i64>().ok()
-            }
-        })
-        // Clamp to 1 hour – 90 days to prevent negative intervals and table scans
-        .map(|h| h.clamp(1, 90 * 24))
-}
 
 /// Query params for the stats endpoint.
 #[derive(serde::Deserialize)]

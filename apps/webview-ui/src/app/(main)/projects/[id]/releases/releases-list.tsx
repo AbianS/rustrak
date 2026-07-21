@@ -54,7 +54,7 @@ export function ReleasesList({
   return (
     <div className="flex flex-col h-full">
       {/* Filter bar — changing the period resets to the first page. */}
-      <div className="shrink-0 flex items-center justify-between gap-3 pb-3 flex-wrap">
+      <div className="shrink-0 flex items-center gap-3 pb-3 flex-wrap">
         <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
           <Button
             variant={!activePeriod ? 'secondary' : 'ghost'}
@@ -78,11 +78,6 @@ export function ReleasesList({
             </Button>
           ))}
         </div>
-        {total_count > 0 && (
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {startIndex}–{endIndex} of {total_count.toLocaleString()}
-          </span>
-        )}
       </div>
 
       {rows.length === 0 ? (
@@ -159,28 +154,36 @@ export function ReleasesList({
       )}
 
       {total_pages > 0 && (
-        <div className="shrink-0 flex items-center justify-end gap-2 pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Go to previous page"
-            onClick={() => navigate(currentPage - 1, activePeriod)}
-            disabled={currentPage <= 1 || isPending}
-          >
-            <ChevronLeft className="size-4" aria-hidden="true" />
-          </Button>
-          <span className="text-sm px-1 tabular-nums">
-            Page {currentPage} of {total_pages}
+        <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
+          <span className="text-sm text-muted-foreground">
+            {`Showing ${startIndex}-${endIndex} of ${total_count}`}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            aria-label="Go to next page"
-            onClick={() => navigate(currentPage + 1, activePeriod)}
-            disabled={currentPage >= total_pages || isPending}
-          >
-            <ChevronRight className="size-4" aria-hidden="true" />
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Go to previous page"
+              onClick={() => navigate(currentPage - 1, activePeriod)}
+              disabled={currentPage <= 1 || isPending}
+            >
+              <ChevronLeft className="size-4" aria-hidden="true" />
+            </Button>
+
+            <span className="text-sm px-2">
+              Page {currentPage} of {total_pages}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Go to next page"
+              onClick={() => navigate(currentPage + 1, activePeriod)}
+              disabled={currentPage >= total_pages || isPending}
+            >
+              <ChevronRight className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

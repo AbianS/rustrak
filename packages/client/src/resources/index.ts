@@ -14,6 +14,7 @@ export { ReleasesResource } from './releases.js';
 export { SessionsResource } from './sessions.js';
 export { SourceMapsResource } from './sourcemaps.js';
 export { SpansResource } from './spans.js';
+export { StatsResource } from './stats.js';
 export { StorageResource } from './storage.js';
 export { TeamResource } from './team.js';
 export { TokensResource } from './tokens.js';
