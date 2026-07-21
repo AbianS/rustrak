@@ -35,6 +35,10 @@ const KEYFRAMES = `
 }
 @media (prefers-reduced-motion: reduce) {
   [data-rustrak-idle], [data-rustrak-enter] { animation: none !important; }
+  /* The expansion is driven by transitions, not keyframes, so killing the
+     animations alone still leaves the spring on hover and focus. Every value
+     here is computed from state, so with no transition they simply snap. */
+  [data-rustrak-enter], [data-rustrak-enter] * { transition: none !important; }
 }
 `;
 
