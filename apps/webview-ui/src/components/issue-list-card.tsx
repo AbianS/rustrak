@@ -1,13 +1,23 @@
 import type { Issue } from '@rustrak/client';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 import { LevelBadge } from '@/components/issue-indicators';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { compactCount, exactCount } from '@/lib/chart-format';
 
 interface IssueListCardProps {
   projectId: number;
   issues: Issue[];
   title: string;
+  /** Qualifies what the list covers, e.g. the window it is scoped to. */
+  subtitle?: string;
   emptyMessage: string;
 }
 
@@ -15,6 +25,7 @@ export function IssueListCard({
   projectId,
   issues,
   title,
+  subtitle,
   emptyMessage,
 }: IssueListCardProps) {
   return (
@@ -23,6 +34,9 @@ export function IssueListCard({
         <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
           {title}
         </CardTitle>
+        {subtitle ? (
+          <CardDescription className="text-xs">{subtitle}</CardDescription>
+        ) : null}
       </CardHeader>
       <CardContent>
         {issues.length === 0 ? (
@@ -49,8 +63,29 @@ export function IssueListCard({
                     </span>
                   </div>
                 </div>
-                <span className="font-mono text-sm text-muted-foreground shrink-0">
-                  {issue.event_count.toLocaleString()}
+
+                {/* The list endpoint already computes these; showing them turns
+                    a bare event count into "how many people, and is it
+                    accelerating". */}
+                {issue.trend && issue.trend.length > 0 ? (
+                  <IssueTrendSparkline trend={issue.trend} />
+                ) : null}
+
+                {issue.user_count !== undefined ? (
+                  <span
+                    className="hidden shrink-0 items-center gap-1 font-mono text-xs text-muted-foreground sm:flex"
+                    title={`${exactCount(issue.user_count)} users affected`}
+                  >
+                    <Users className="size-3.5" aria-hidden />
+                    {compactCount(issue.user_count)}
+                  </span>
+                ) : null}
+
+                <span
+                  className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground"
+                  title={`${exactCount(issue.event_count)} events`}
+                >
+                  {compactCount(issue.event_count)}
                 </span>
               </Link>
             ))}

@@ -216,6 +216,8 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::members::configure)
             // Session stats routes (more specific than generic projects scope)
             .configure(routes::sessions::configure)
+            // Project-wide stats for the overview (more specific than generic projects scope)
+            .configure(routes::stats::configure)
             // Releases API (more specific than generic projects scope)
             .configure(routes::releases::configure)
             // Transactions API (more specific than generic projects scope)

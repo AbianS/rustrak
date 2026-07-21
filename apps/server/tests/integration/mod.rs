@@ -21,6 +21,7 @@ mod sessions_api_test;
 mod sourcemaps_api_test;
 mod span_v2_ingest_test;
 mod spans_api_test;
+mod stats_api_test;
 mod storage_api_test;
 mod team_rbac_test;
 mod tokens_api_test;

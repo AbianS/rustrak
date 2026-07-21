@@ -77,6 +77,9 @@ const EXPECTED_TOOLS = [
   'get_agent_models_by_tokens',
   'get_agent_tools',
   'list_agent_traces',
+  // Project stats (2)
+  'get_error_volume',
+  'get_project_stats',
 ] as const;
 
 describe('MCP server integration', () => {
@@ -85,6 +88,7 @@ describe('MCP server integration', () => {
 
   beforeEach(async () => {
     mockClient = {
+      stats: { timeseries: vi.fn(), summary: vi.fn() },
       projects: { list: vi.fn(), get: vi.fn(), create: vi.fn() },
       issues: {
         list: vi.fn(),

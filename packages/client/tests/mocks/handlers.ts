@@ -1492,6 +1492,68 @@ export const handlers = [
     },
   ),
 
+  // Stats — project-wide error volume by severity
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/events/stats`,
+    ({ params, request }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      const url = new URL(request.url);
+      // Echo the interval back through the bucket spacing so a test can prove
+      // the param reached the server.
+      const interval = Number(url.searchParams.get('interval') ?? 1);
+      return HttpResponse.json([
+        {
+          bucket: '2026-01-20T10:00:00.000Z',
+          total: 10,
+          fatal: 1,
+          error: 6,
+          warning: 2,
+          info: 1,
+        },
+        {
+          bucket:
+            interval === 1
+              ? '2026-01-20T11:00:00.000Z'
+              : '2026-01-20T16:00:00.000Z',
+          total: 0,
+          fatal: 0,
+          error: 0,
+          warning: 0,
+          info: 0,
+        },
+      ]);
+    },
+  ),
+
+  // Stats — project counters with previous-period comparison
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/stats/summary`,
+    ({ params, request }) => {
+      if (params.projectId === '999') {
+        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      }
+      const url = new URL(request.url);
+      const period = url.searchParams.get('period');
+      // All-time has no earlier window to compare against.
+      if (!period) {
+        return HttpResponse.json({
+          period_hours: null,
+          events: { current: 5000, previous: null },
+          new_issues: { current: 120, previous: null },
+          open_issues: 40,
+        });
+      }
+      return HttpResponse.json({
+        period_hours: 24,
+        events: { current: 1200, previous: 1000 },
+        new_issues: { current: 14, previous: 9 },
+        open_issues: 40,
+      });
+    },
+  ),
+
   // Logs — list logs for project
   http.get(`${BASE_URL}/api/projects/:projectId/logs`, ({ params }) => {
     if (params.projectId === '999') {

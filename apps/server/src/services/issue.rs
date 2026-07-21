@@ -148,7 +148,7 @@ fn extract_user_identity(data: &serde_json::Value) -> Option<String> {
 /// sub-object (as opposed to a full event `data` blob) — split out so
 /// `list_stats`'s SQL can project just `data->'user'` instead of hydrating
 /// the entire event payload for every event on the issue-list hot path.
-fn user_identity_from_user_field(user: &serde_json::Value) -> Option<String> {
+pub(crate) fn user_identity_from_user_field(user: &serde_json::Value) -> Option<String> {
     for field in ["id", "email", "username", "ip_address"] {
         if let Some(s) = user.get(field).and_then(|v| v.as_str()) {
             if !s.is_empty() {
