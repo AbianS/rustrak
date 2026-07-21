@@ -356,6 +356,26 @@ async fn test_release_health_pagination_breaks_ties_deterministically() {
 }
 
 #[actix_web::test]
+async fn test_release_health_extreme_page_yields_empty_page() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Overflow Page Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+
+    // `page` comes straight off a query string. i64::MAX overflows the
+    // offset multiplication: a panic under overflow-checks, a negative
+    // offset Postgres rejects without them. Either way the caller saw a 500
+    // instead of an empty page.
+    let (rows, total) =
+        SessionService::release_health(&db.pool, project_id, Some(24), i64::MAX, 100)
+            .await
+            .expect("an out-of-range page must not error");
+
+    assert!(rows.is_empty());
+    assert_eq!(total, 1, "the total still describes the whole result set");
+}
+
+#[actix_web::test]
 async fn test_release_health_for_release_reports_scoped_total() {
     let db = TestDb::new().await;
     let project_id = create_project(&db.pool, "Scoped Total Project").await;

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getNewIssuesForRelease } from '@/actions/releases';
-import { getReleaseHealth } from '@/actions/sessions';
+import { getAllReleaseHealthRows } from '@/actions/sessions';
 import { IssueListCard } from '@/components/issue-list-card';
 import { ReleaseEnvironmentCards } from './release-environment-cards';
 
@@ -43,20 +43,18 @@ export default async function ReleaseDetailPage({
     notFound();
   }
 
-  const [health, newIssues] = await Promise.all([
-    // A release has one row per environment, so a single generous page covers
-    // every environment this release ever reported.
-    getReleaseHealth(projectId, { release: releaseVersion, per_page: 100 }),
+  const [rows, newIssues] = await Promise.all([
+    getAllReleaseHealthRows(projectId, releaseVersion),
     getNewIssuesForRelease(projectId, releaseVersion, 10),
   ]);
 
-  if (health.items.length === 0) {
+  if (rows.length === 0) {
     notFound();
   }
 
   const visibleRows = environment
-    ? health.items.filter((row) => row.environment === environment)
-    : health.items;
+    ? rows.filter((row) => row.environment === environment)
+    : rows;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-auto">

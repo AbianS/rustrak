@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { crashFreeClass, pct } from '@/lib/session-health';
+import { crashFreeClass, pct, RELEASE_PERIODS } from '@/lib/session-health';
 import { cn } from '@/lib/utils';
 
 interface ReleasesListProps {
@@ -20,8 +20,6 @@ interface ReleasesListProps {
   /** Active period filter, if any (omitted = all time). */
   activePeriod?: string;
 }
-
-const PERIODS = ['24h', '7d', '14d', '30d'] as const;
 
 /**
  * The releases overview: one row per (release, environment) with session
@@ -67,7 +65,7 @@ export function ReleasesList({
           >
             All
           </Button>
-          {PERIODS.map((period) => (
+          {RELEASE_PERIODS.map((period) => (
             <Button
               key={period}
               variant={activePeriod === period ? 'secondary' : 'ghost'}

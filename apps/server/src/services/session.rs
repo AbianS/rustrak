@@ -126,7 +126,12 @@ async fn query_release_health(
     per_page: i64,
 ) -> Result<(Vec<ReleaseHealthRow>, i64), sqlx::Error> {
     let per_page = per_page.max(1);
-    let offset = (page.max(1) - 1) * per_page;
+    // Saturating, not plain arithmetic: `page` arrives straight from a query
+    // string, so a huge value would overflow the multiplication — a panic
+    // under overflow-checks, a negative offset (which Postgres rejects)
+    // without them. Saturating keeps it an in-range offset past the last row,
+    // which is just an empty page.
+    let offset = page.max(1).saturating_sub(1).saturating_mul(per_page);
 
     #[cfg(feature = "postgres")]
     {

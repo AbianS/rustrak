@@ -1,8 +1,9 @@
 import { Rocket } from 'lucide-react';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getReleaseHealth } from '@/actions/sessions';
+import { parseReleasePeriod } from '@/lib/session-health';
 import { ReleasesList } from './releases-list';
 
 interface ReleasesPageProps {
@@ -26,14 +27,29 @@ export async function generateMetadata({
   };
 }
 
+/** Canonical URL for a page of the releases list, keeping the active window. */
+function releasesHref(
+  projectId: number,
+  page: number,
+  period?: string,
+): string {
+  const params = new URLSearchParams({ page: String(page) });
+  if (period) params.set('period', period);
+  return `/projects/${projectId}/releases?${params.toString()}`;
+}
+
 export default async function ReleasesPage({
   params,
   searchParams,
 }: ReleasesPageProps) {
   const { id } = await params;
-  const { page = '1', period } = await searchParams;
+  const { page, period: rawPeriod } = await searchParams;
   const projectId = parseInt(id, 10);
-  const currentPage = Math.max(1, parseInt(page, 10) || 1);
+  const currentPage = Math.max(1, parseInt(page ?? '1', 10) || 1);
+  // An unrecognized window would otherwise reach the API, which ignores what
+  // it cannot parse and answers with all-time data while no filter button
+  // reads as selected. Drop it instead, so the URL and the UI always agree.
+  const period = parseReleasePeriod(rawPeriod);
 
   const project = await getProject(projectId);
 
@@ -46,8 +62,19 @@ export default async function ReleasesPage({
   const health = await getReleaseHealth(projectId, {
     page: currentPage,
     per_page: 20,
-    period: period || undefined,
+    period,
   });
+
+  // A page past the end still carries a positive total, which would render a
+  // nonsensical range ("19961-27 of 27", "Page 999 of 2"). Send the browser to
+  // a page that exists; the target is always within range, so this settles in
+  // one hop.
+  if (health.total_pages > 0 && currentPage > health.total_pages) {
+    redirect(releasesHref(projectId, health.total_pages, period));
+  }
+  if (health.total_pages === 0 && currentPage > 1) {
+    redirect(releasesHref(projectId, 1, period));
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
