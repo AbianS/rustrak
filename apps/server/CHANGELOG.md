@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.12.2
+
+### Patch Changes
+
+- [#207](https://github.com/rustrak/rustrak/pull/207) [`17e17ac`](https://github.com/rustrak/rustrak/commit/17e17ac404cd1dab51edb3ef385defdf4c223813) Thanks [@AbianS](https://github.com/AbianS)! - The dashboard now tells you when a newer Rustrak release is available. A dismissible pill appears at the top of authenticated pages, expanding on hover into the version jump and a link to that release's changelog entry. The check reads a static feed published by the docs site, runs server-side with an hourly cache, and can be turned off entirely with `RUSTRAK_VERSION_CHECK_ENABLED=false`.
+
 ## 0.12.1
 
 ### Patch Changes
