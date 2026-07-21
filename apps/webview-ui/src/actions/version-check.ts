@@ -38,10 +38,17 @@ export async function getUpdateInfo(): Promise<UpdateInfo | null> {
     const feed = feedSchema.safeParse(await response.json());
     if (!feed.success) return null;
 
-    const newer = feed.data.versions.filter(
-      (entry) => compareVersions(entry.version, current) > 0,
-    );
-    const latest = newer[0];
+    // Picks the max explicitly instead of trusting feed order: versions.json is
+    // sorted by date then slug, so a backported patch released after a later
+    // minor would otherwise land first.
+    const latest = feed.data.versions.reduce<
+      (typeof feed.data.versions)[number] | undefined
+    >((newest, entry) => {
+      if (compareVersions(entry.version, current) <= 0) return newest;
+      if (!newest || compareVersions(entry.version, newest.version) > 0)
+        return entry;
+      return newest;
+    }, undefined);
     if (!latest) return null;
 
     return {

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
 import { getUpdateInfo } from '@/actions/version-check';
 import { UpdateBanner } from '@/components/update-banner';
@@ -15,13 +16,20 @@ export default async function MainLayout({
     redirect('/auth/login');
   }
 
-  const updateInfo = await getUpdateInfo();
-
   return (
     <div className="min-h-screen flex flex-col">
       <Header user={user} />
       <main className="flex-1">{children}</main>
-      {updateInfo && <UpdateBanner info={updateInfo} />}
+      <Suspense fallback={null}>
+        <UpdateBannerSlot />
+      </Suspense>
     </div>
   );
+}
+
+// Streamed separately so the feed fetch never holds up the page: the banner is
+// decorative and fixed-positioned, so arriving late shifts nothing.
+async function UpdateBannerSlot() {
+  const updateInfo = await getUpdateInfo();
+  return updateInfo ? <UpdateBanner info={updateInfo} /> : null;
 }

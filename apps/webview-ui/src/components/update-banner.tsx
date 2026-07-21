@@ -34,7 +34,7 @@ const KEYFRAMES = `
   55%, 100% { transform: translateX(420%)  skewX(-20deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-rustrak-idle] { animation: none !important; }
+  [data-rustrak-idle], [data-rustrak-enter] { animation: none !important; }
 }
 `;
 
@@ -112,6 +112,12 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
 
   return (
     <div className="pointer-events-none fixed top-3 left-1/2 z-50 -translate-x-1/2">
+      {/* The pill only reads as an update to sighted users; without this a
+          screen reader user learns nothing until they tab into it. */}
+      <span role="status" className="sr-only">
+        Rustrak {info.latest} is available.
+      </span>
+
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static keyframes, no user input */}
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
@@ -136,6 +142,7 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
       </svg>
 
       <div
+        data-rustrak-enter
         style={{
           width: WIDTH,
           height: expanded,
