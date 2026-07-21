@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getNewIssuesForRelease } from '@/actions/releases';
-import { getReleaseHealth } from '@/actions/sessions';
+import { getAllReleaseHealthRows } from '@/actions/sessions';
 import { IssueListCard } from '@/components/issue-list-card';
 import { ReleaseEnvironmentCards } from './release-environment-cards';
 
@@ -44,7 +44,7 @@ export default async function ReleaseDetailPage({
   }
 
   const [rows, newIssues] = await Promise.all([
-    getReleaseHealth(projectId, undefined, releaseVersion),
+    getAllReleaseHealthRows(projectId, releaseVersion),
     getNewIssuesForRelease(projectId, releaseVersion, 10),
   ]);
 

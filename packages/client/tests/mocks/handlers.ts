@@ -1422,9 +1422,19 @@ export const handlers = [
       ];
       const url = new URL(request.url);
       const release = url.searchParams.get('release');
-      return HttpResponse.json(
-        release ? rows.filter((r) => r.release === release) : rows,
-      );
+      const page = Number(url.searchParams.get('page') ?? 1);
+      const perPage = Number(url.searchParams.get('per_page') ?? 20);
+      const matched = release
+        ? rows.filter((r) => r.release === release)
+        : rows;
+      const items = matched.slice((page - 1) * perPage, page * perPage);
+      return HttpResponse.json({
+        items,
+        total_count: matched.length,
+        page,
+        per_page: perPage,
+        total_pages: Math.ceil(matched.length / perPage),
+      });
     },
   ),
 

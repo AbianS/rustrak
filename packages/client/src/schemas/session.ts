@@ -13,8 +13,6 @@ export const releaseHealthRowSchema = z.object({
   crash_free_users_rate: z.number().nullable(),
 });
 
-export const releaseHealthSchema = z.array(releaseHealthRowSchema);
-
 export const sessionSummarySchema = z.object({
   total: z.number().int(),
   errored: z.number().int(),

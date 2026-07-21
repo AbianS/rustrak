@@ -1,10 +1,10 @@
-import type { ReleaseHealth } from '@rustrak/client';
+import type { ReleaseHealthRow } from '@rustrak/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { crashFreeClass, pct } from '@/lib/session-health';
 import { cn } from '@/lib/utils';
 
 interface ReleaseEnvironmentCardsProps {
-  rows: ReleaseHealth;
+  rows: ReleaseHealthRow[];
 }
 
 export function ReleaseEnvironmentCards({

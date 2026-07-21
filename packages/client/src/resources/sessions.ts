@@ -1,10 +1,15 @@
+import { offsetPaginatedResponseSchema } from '../schemas/common.js';
 import {
-  releaseHealthSchema,
+  releaseHealthRowSchema,
   sessionSummarySchema,
   sessionTimeseriesSchema,
 } from '../schemas/session.js';
 import type {
-  ReleaseHealth,
+  OffsetPaginatedResponse,
+  ReleaseHealthStatsOptions,
+} from '../types/common.js';
+import type {
+  ReleaseHealthRow,
   SessionSummary,
   SessionTimeseries,
 } from '../types/session.js';
@@ -15,30 +20,37 @@ import { BaseResource } from './base.js';
  */
 export class SessionsResource extends BaseResource {
   /**
-   * Get per-release health stats for a project.
+   * Get per-release health stats for a project, one offset-based page of
+   * (release, environment) rows at a time, ordered by session volume.
    * @param projectId - Project ID
-   * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
-   * @param release - Scope to a single release (all environments), computed
-   *   server-side. Omit to get every release in the project.
+   * @param options - Time window, release scoping and pagination.
    */
   async stats(
     projectId: number,
-    period?: string,
-    release?: string,
-  ): Promise<ReleaseHealth> {
+    options?: ReleaseHealthStatsOptions,
+  ): Promise<OffsetPaginatedResponse<ReleaseHealthRow>> {
     const searchParams: Record<string, string> = {};
-    if (period) {
-      searchParams.period = period;
+    if (options?.period) {
+      searchParams.period = options.period;
     }
-    if (release) {
-      searchParams.release = release;
+    if (options?.release) {
+      searchParams.release = options.release;
+    }
+    if (options?.page) {
+      searchParams.page = String(options.page);
+    }
+    if (options?.per_page) {
+      searchParams.per_page = String(options.per_page);
     }
 
     const data = await this.http
       .get(`api/projects/${projectId}/sessions/stats`, { searchParams })
       .json();
 
-    return this.validate(data, releaseHealthSchema);
+    return this.validate(
+      data,
+      offsetPaginatedResponseSchema(releaseHealthRowSchema),
+    );
   }
 
   /**

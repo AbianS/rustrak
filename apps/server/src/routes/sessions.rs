@@ -3,6 +3,7 @@ use actix_web::{web, HttpResponse};
 use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::AppResult;
+use crate::pagination::OffsetPaginatedResponse;
 use crate::services::access::{self, Action};
 use crate::services::session::SessionService;
 
@@ -32,12 +33,29 @@ fn parse_period_hours(period: Option<&str>) -> Option<i64> {
 
 /// Query params for the stats endpoint.
 #[derive(serde::Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct StatsQuery {
     /// Time window in hours (default: 24).
     pub period: Option<String>,
     /// Scope to a single release (all environments). When omitted, every
     /// release in the project is returned.
     pub release: Option<String>,
+    /// Page number (1-indexed, default: 1)
+    #[serde(default = "default_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1))]
+    pub page: i64,
+    /// Items per page (default: 20, max: 100)
+    #[serde(default = "default_per_page")]
+    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
+    pub per_page: i64,
+}
+
+fn default_page() -> i64 {
+    1
+}
+
+fn default_per_page() -> i64 {
+    crate::pagination::PAGE_SIZE
 }
 
 impl StatsQuery {
@@ -52,11 +70,10 @@ impl StatsQuery {
     tag = "Sessions",
     params(
         ("project_id" = i32, Path, description = "Project ID"),
-        ("period" = Option<String>, Query, description = "Time window, e.g. '24h', '7d' (default: 24h)"),
-        ("release" = Option<String>, Query, description = "Scope to a single release (all environments)"),
+        StatsQuery,
     ),
     responses(
-        (status = 200, description = "Per-release health stats", body = Vec<ReleaseHealthRow>),
+        (status = 200, description = "Paginated per-release health stats", body = inline(crate::pagination::OffsetPaginatedResponse<ReleaseHealthRow>)),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
     ),
@@ -81,20 +98,28 @@ pub async fn get_stats(
     .await?;
 
     let period_hours = query.period_hours();
-    let rows = match query.release.as_deref() {
+    let page = query.page.max(1);
+    let per_page = query.per_page.clamp(1, 100);
+
+    let (rows, total) = match query.release.as_deref() {
         Some(release) => {
             SessionService::release_health_for_release(
                 pool.get_ref(),
                 project_id,
                 release,
                 period_hours,
+                page,
+                per_page,
             )
             .await?
         }
-        None => SessionService::release_health(pool.get_ref(), project_id, period_hours).await?,
+        None => {
+            SessionService::release_health(pool.get_ref(), project_id, period_hours, page, per_page)
+                .await?
+        }
     };
 
-    Ok(HttpResponse::Ok().json(rows))
+    Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(rows, total, page, per_page)))
 }
 
 /// Query params for the summary endpoint. Only `period` — unlike `StatsQuery`,
