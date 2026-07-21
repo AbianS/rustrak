@@ -105,3 +105,19 @@ export interface ListLogsOptions {
   /** Filter by trace id. */
   trace_id?: string;
 }
+
+/**
+ * Options for the release health stats endpoint (offset-based pagination +
+ * filters)
+ */
+export interface ReleaseHealthStatsOptions {
+  page?: number;
+  per_page?: number;
+  /** Time window (e.g. '24h', '7d'). Defaults to '24h'. */
+  period?: string;
+  /**
+   * Scope to a single release (all environments), computed server-side. Omit
+   * to get every release in the project.
+   */
+  release?: string;
+}

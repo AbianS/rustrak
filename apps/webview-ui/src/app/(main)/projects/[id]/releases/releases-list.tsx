@@ -1,154 +1,188 @@
 'use client';
 
-import type { ReleaseHealth } from '@rustrak/client';
-import { Rocket } from 'lucide-react';
+import type {
+  OffsetPaginatedResponse,
+  ReleaseHealthRow,
+} from '@rustrak/client';
+import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useRef, useState, useTransition } from 'react';
-import { getReleaseHealth } from '@/actions/sessions';
-import { Card, CardContent } from '@/components/ui/card';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { crashFreeClass, pct } from '@/lib/session-health';
 import { cn } from '@/lib/utils';
 
 interface ReleasesListProps {
   projectId: number;
-  initialHealth: ReleaseHealth;
+  initialHealth: OffsetPaginatedResponse<ReleaseHealthRow>;
+  currentPage: number;
+  /** Active period filter, if any (omitted = all time). */
+  activePeriod?: string;
 }
 
-const PERIODS = [
-  { label: 'All', value: undefined as string | undefined },
-  { label: '24h', value: '24h' as const },
-  { label: '7d', value: '7d' as const },
-  { label: '14d', value: '14d' as const },
-  { label: '30d', value: '30d' as const },
-] as const;
+const PERIODS = ['24h', '7d', '14d', '30d'] as const;
 
-export function ReleasesList({ projectId, initialHealth }: ReleasesListProps) {
-  const [health, setHealth] = useState(initialHealth);
-  const [period, setPeriod] = useState<string | undefined>(undefined);
+/**
+ * The releases overview: one row per (release, environment) with session
+ * volume and crash-free rates. Offset-paginated like every other table, with
+ * both the page and the period filter held in the URL so the view is
+ * shareable and survives a refresh. Rows link into the release detail.
+ */
+export function ReleasesList({
+  projectId,
+  initialHealth,
+  currentPage,
+  activePeriod,
+}: ReleasesListProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const latestPeriod = useRef<string | undefined>(undefined);
 
-  const handlePeriodChange = useCallback(
-    (newPeriod: string | undefined) => {
-      latestPeriod.current = newPeriod;
-      setPeriod(newPeriod);
-      startTransition(async () => {
-        const data = await getReleaseHealth(projectId, newPeriod);
-        if (latestPeriod.current === newPeriod) {
-          setHealth(data);
-        }
-      });
-    },
-    [projectId],
-  );
+  const path = `/projects/${projectId}/releases`;
+  const { items: rows, total_count, total_pages, per_page } = initialHealth;
+
+  const navigate = (page: number, period?: string) => {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    if (period) params.set('period', period);
+    startTransition(() => {
+      router.push(`${path}?${params.toString()}`);
+    });
+  };
+
+  const startIndex = (currentPage - 1) * per_page + 1;
+  const endIndex = Math.min(currentPage * per_page, total_count);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex gap-1">
-        {PERIODS.map((p) => (
-          <button
-            key={p.label}
-            onClick={() => handlePeriodChange(p.value)}
+    <div className="flex flex-col h-full">
+      {/* Filter bar — changing the period resets to the first page. */}
+      <div className="shrink-0 flex items-center justify-between gap-3 pb-3 flex-wrap">
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1">
+          <Button
+            variant={!activePeriod ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 px-3"
+            onClick={() => navigate(1)}
             disabled={isPending}
-            className={cn(
-              'px-2.5 py-1 text-xs rounded-md font-medium transition-colors',
-              period === p.value
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80',
-            )}
           >
-            {p.label}
-          </button>
-        ))}
+            All
+          </Button>
+          {PERIODS.map((period) => (
+            <Button
+              key={period}
+              variant={activePeriod === period ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-7 px-3"
+              onClick={() => navigate(1, period)}
+              disabled={isPending}
+            >
+              {period}
+            </Button>
+          ))}
+        </div>
+        {total_count > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {startIndex}–{endIndex} of {total_count.toLocaleString()}
+          </span>
+        )}
       </div>
 
-      {health.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
+      {rows.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center rounded-lg border border-dashed">
           <Rocket className="size-12 text-muted-foreground/30 mb-4" />
-          <h2 className="text-lg font-semibold mb-1">No releases yet</h2>
+          <h2 className="text-lg font-semibold mb-1">
+            No releases in this window
+          </h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Send a <code>release</code> attribute with your events or sessions
-            to start tracking release health.
+            Try a longer period or clear the filter.
           </p>
         </div>
       ) : (
-        <div
-          className={cn(
-            'flex flex-col gap-2 transition-opacity',
-            isPending && 'opacity-50 pointer-events-none',
-          )}
-        >
-          {health.map((row) => (
-            <Link
-              key={`${row.release}-${row.environment}`}
-              href={`/projects/${projectId}/releases/${encodeURIComponent(row.release)}?environment=${encodeURIComponent(row.environment)}`}
-            >
-              <Card
-                size="sm"
-                className="hover:ring-primary/40 transition-shadow cursor-pointer"
+        <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
+          {/* whitespace-nowrap: the crash-free labels are long enough to wrap
+              onto a second line and desync the header from the rows. */}
+          <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
+            <span className="flex-1">Release</span>
+            <span className="w-20 text-right">Sessions</span>
+            <span className="hidden sm:block w-40 text-right">Crash-free</span>
+            <span className="hidden md:block w-40 text-right">
+              Crash-free users
+            </span>
+            <span className="w-20 text-right">Crashed</span>
+          </div>
+          <div className="flex-1 overflow-auto divide-y">
+            {rows.map((row) => (
+              <Link
+                key={`${row.release}-${row.environment}`}
+                href={`${path}/${encodeURIComponent(row.release)}?environment=${encodeURIComponent(row.environment)}`}
+                className="flex items-center gap-4 px-4 py-3 text-sm hover:bg-muted/30 transition-colors group"
               >
-                <CardContent>
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="font-mono text-sm truncate text-foreground">
-                      {row.release}
-                    </p>
-                    <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5 shrink-0">
-                      {row.environment}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-3">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Sessions
-                      </p>
-                      <p className="text-sm font-semibold">{row.total}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Crash-free sessions
-                      </p>
-                      <p
-                        className={cn(
-                          'text-sm font-semibold',
-                          crashFreeClass(row.crash_free_sessions_rate),
-                        )}
-                      >
-                        {pct(row.crash_free_sessions_rate)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Crash-free users
-                      </p>
-                      <p
-                        className={cn(
-                          'text-sm font-semibold',
-                          crashFreeClass(row.crash_free_users_rate),
-                        )}
-                      >
-                        {pct(row.crash_free_users_rate)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Crashed
-                      </p>
-                      <p
-                        className={cn(
-                          'text-sm font-semibold',
-                          row.crashed > 0
-                            ? 'text-red-600 dark:text-red-400'
-                            : 'text-muted-foreground',
-                        )}
-                      >
-                        {row.crashed > 0 ? row.crashed : '—'}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <span className="block font-mono truncate group-hover:text-primary transition-colors">
+                    {row.release}
+                  </span>
+                  <Badge variant="secondary" className="text-[10px] mt-1">
+                    {row.environment}
+                  </Badge>
+                </div>
+                <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
+                  {row.total.toLocaleString()}
+                </span>
+                <span
+                  className={cn(
+                    'hidden sm:block w-40 text-right font-mono tabular-nums',
+                    crashFreeClass(row.crash_free_sessions_rate),
+                  )}
+                >
+                  {pct(row.crash_free_sessions_rate)}
+                </span>
+                <span
+                  className={cn(
+                    'hidden md:block w-40 text-right font-mono tabular-nums',
+                    crashFreeClass(row.crash_free_users_rate),
+                  )}
+                >
+                  {pct(row.crash_free_users_rate)}
+                </span>
+                <span
+                  className={cn(
+                    'w-20 text-right font-mono tabular-nums',
+                    row.crashed > 0
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {total_pages > 0 && (
+        <div className="shrink-0 flex items-center justify-end gap-2 pt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Go to previous page"
+            onClick={() => navigate(currentPage - 1, activePeriod)}
+            disabled={currentPage <= 1 || isPending}
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+          </Button>
+          <span className="text-sm px-1 tabular-nums">
+            Page {currentPage} of {total_pages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label="Go to next page"
+            onClick={() => navigate(currentPage + 1, activePeriod)}
+            disabled={currentPage >= total_pages || isPending}
+          >
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Button>
         </div>
       )}
     </div>

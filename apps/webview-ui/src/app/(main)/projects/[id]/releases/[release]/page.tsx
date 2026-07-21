@@ -43,18 +43,20 @@ export default async function ReleaseDetailPage({
     notFound();
   }
 
-  const [rows, newIssues] = await Promise.all([
-    getReleaseHealth(projectId, undefined, releaseVersion),
+  const [health, newIssues] = await Promise.all([
+    // A release has one row per environment, so a single generous page covers
+    // every environment this release ever reported.
+    getReleaseHealth(projectId, { release: releaseVersion, per_page: 100 }),
     getNewIssuesForRelease(projectId, releaseVersion, 10),
   ]);
 
-  if (rows.length === 0) {
+  if (health.items.length === 0) {
     notFound();
   }
 
   const visibleRows = environment
-    ? rows.filter((row) => row.environment === environment)
-    : rows;
+    ? health.items.filter((row) => row.environment === environment)
+    : health.items;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] overflow-auto">

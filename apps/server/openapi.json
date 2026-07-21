@@ -4435,31 +4435,141 @@
           {
             "name": "period",
             "in": "query",
-            "description": "Time window, e.g. '24h', '7d' (default: 24h)",
+            "description": "Time window in hours (default: 24).",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
             "name": "release",
             "in": "query",
-            "description": "Scope to a single release (all environments)",
+            "description": "Scope to a single release (all environments). When omitted, every\nrelease in the project is returned.",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number (1-indexed, default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Items per page (default: 20, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Per-release health stats",
+            "description": "Paginated per-release health stats",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ReleaseHealthRow"
+                  "type": "object",
+                  "description": "Offset-based paginated response wrapper",
+                  "required": [
+                    "items",
+                    "total_count",
+                    "page",
+                    "per_page",
+                    "total_pages"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "description": "Per-release health row returned by the stats endpoint.",
+                        "required": [
+                          "release",
+                          "environment",
+                          "total",
+                          "errored",
+                          "crashed",
+                          "abnormal",
+                          "healthy"
+                        ],
+                        "properties": {
+                          "abnormal": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "crash_free_sessions_rate": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "crash_free_users_rate": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "format": "double"
+                          },
+                          "crashed": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "errored": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "healthy": {
+                            "type": "integer",
+                            "format": "int64"
+                          },
+                          "release": {
+                            "type": "string"
+                          },
+                          "total": {
+                            "type": "integer",
+                            "format": "int64"
+                          }
+                        }
+                      }
+                    },
+                    "page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "per_page": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_count": {
+                      "type": "integer",
+                      "format": "int64"
+                    },
+                    "total_pages": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
                   }
                 }
               }

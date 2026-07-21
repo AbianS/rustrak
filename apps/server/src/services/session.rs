@@ -49,15 +49,19 @@ fn sqlite_day_time_filter(period_hours: Option<i64>) -> String {
 pub struct SessionService;
 
 impl SessionService {
-    /// Query per-release health stats for a project.
+    /// Query one page of per-release health stats for a project, plus the total
+    /// number of (release, environment) groups the filters match.
     /// If `period_hours` is `None`, all data is returned (no time filter).
     pub async fn release_health(
         pool: &DbPool,
         project_id: i32,
         period_hours: Option<i64>,
-    ) -> AppResult<Vec<ReleaseHealthRow>> {
-        let rows = query_release_health(pool, project_id, period_hours, None).await?;
-        Ok(rows)
+        page: i64,
+        per_page: i64,
+    ) -> AppResult<(Vec<ReleaseHealthRow>, i64)> {
+        let (rows, total) =
+            query_release_health(pool, project_id, period_hours, None, page, per_page).await?;
+        Ok((rows, total))
     }
 
     /// Same as [`Self::release_health`], scoped server-side to a single release
@@ -68,9 +72,19 @@ impl SessionService {
         project_id: i32,
         release: &str,
         period_hours: Option<i64>,
-    ) -> AppResult<Vec<ReleaseHealthRow>> {
-        let rows = query_release_health(pool, project_id, period_hours, Some(release)).await?;
-        Ok(rows)
+        page: i64,
+        per_page: i64,
+    ) -> AppResult<(Vec<ReleaseHealthRow>, i64)> {
+        let (rows, total) = query_release_health(
+            pool,
+            project_id,
+            period_hours,
+            Some(release),
+            page,
+            per_page,
+        )
+        .await?;
+        Ok((rows, total))
     }
 
     /// Query project-wide session health, aggregated across all releases and environments.
@@ -100,12 +114,20 @@ impl SessionService {
     }
 }
 
+/// One page of release health rows plus the total group count. `page` is
+/// 1-indexed; both it and `per_page` are clamped by the caller-facing service
+/// methods' route layer, and defensively again here.
 async fn query_release_health(
     pool: &DbPool,
     project_id: i32,
     period_hours: Option<i64>,
     release: Option<&str>,
-) -> Result<Vec<ReleaseHealthRow>, sqlx::Error> {
+    page: i64,
+    per_page: i64,
+) -> Result<(Vec<ReleaseHealthRow>, i64), sqlx::Error> {
+    let per_page = per_page.max(1);
+    let offset = (page.max(1) - 1) * per_page;
+
     #[cfg(feature = "postgres")]
     {
         let time_filter_sc = pg_bucket_time_filter(period_hours);
@@ -115,6 +137,31 @@ async fn query_release_health(
         } else {
             ""
         };
+        // $2 is taken by the release filter when present, so LIMIT/OFFSET shift up.
+        let (limit_param, offset_param) = if release.is_some() {
+            ("$3", "$4")
+        } else {
+            ("$2", "$3")
+        };
+
+        let count_sql = format!(
+            r#"
+                SELECT COUNT(*) FROM (
+                    SELECT 1
+                    FROM session_counts
+                    WHERE project_id = $1
+                      {time_filter_sc}
+                      {release_filter}
+                    GROUP BY release, environment
+                ) groups
+                "#,
+        );
+
+        let mut count_query = sqlx::query_as(sqlx::AssertSqlSafe(&*count_sql)).bind(project_id);
+        if let Some(r) = release {
+            count_query = count_query.bind(r);
+        }
+        let (total,): (i64,) = count_query.fetch_one(pool).await?;
 
         // session_counts and session_users are aggregated in separate subqueries
         // (each producing at most one row per release+environment) and then
@@ -166,7 +213,8 @@ async fn query_release_health(
                     GROUP BY release, environment
                 ) users
                 ON users.release = counts.release AND users.environment = counts.environment
-                ORDER BY counts.total DESC
+                ORDER BY counts.total DESC, counts.release ASC, counts.environment ASC
+                LIMIT {limit_param} OFFSET {offset_param}
                 "#,
         );
 
@@ -174,9 +222,9 @@ async fn query_release_health(
         if let Some(r) = release {
             query = query.bind(r);
         }
-        let rows: Vec<PgHealthRow> = query.fetch_all(pool).await?;
+        let rows: Vec<PgHealthRow> = query.bind(per_page).bind(offset).fetch_all(pool).await?;
 
-        Ok(rows
+        let items = rows
             .into_iter()
             .map(
                 |(release, environment, total, errored, crashed, abnormal, cfsr, cfur)| {
@@ -194,7 +242,9 @@ async fn query_release_health(
                     }
                 },
             )
-            .collect())
+            .collect();
+
+        Ok((items, total))
     }
 
     #[cfg(not(feature = "postgres"))]
@@ -206,6 +256,31 @@ async fn query_release_health(
         } else {
             ""
         };
+        // ?2 is taken by the release filter when present, so LIMIT/OFFSET shift up.
+        let (limit_param, offset_param) = if release.is_some() {
+            ("?3", "?4")
+        } else {
+            ("?2", "?3")
+        };
+
+        let total_sql = format!(
+            r#"
+            SELECT COUNT(*) FROM (
+                SELECT 1
+                FROM session_counts
+                WHERE project_id = ?1
+                  {time_filter_sc}
+                  {release_filter}
+                GROUP BY release, environment
+            ) groups
+            "#,
+        );
+
+        let mut total_query = sqlx::query_as(sqlx::AssertSqlSafe(&*total_sql)).bind(project_id);
+        if let Some(r) = release {
+            total_query = total_query.bind(r);
+        }
+        let (total,): (i64,) = total_query.fetch_one(pool).await?;
 
         let sql = format!(
             r#"
@@ -221,7 +296,8 @@ async fn query_release_health(
               {time_filter_sc}
               {release_filter}
             GROUP BY release, environment
-            ORDER BY SUM(total) DESC
+            ORDER BY SUM(total) DESC, release ASC, environment ASC
+            LIMIT {limit_param} OFFSET {offset_param}
             "#,
         );
 
@@ -229,7 +305,11 @@ async fn query_release_health(
         if let Some(r) = release {
             count_query = count_query.bind(r);
         }
-        let rows: Vec<(String, String, i64, i64, i64, i64)> = count_query.fetch_all(pool).await?;
+        let rows: Vec<(String, String, i64, i64, i64, i64)> = count_query
+            .bind(per_page)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
 
         let mut result = Vec::with_capacity(rows.len());
         for (release, environment, total, errored, crashed, abnormal) in rows {
@@ -279,7 +359,7 @@ async fn query_release_health(
                 crash_free_users_rate,
             });
         }
-        Ok(result)
+        Ok((result, total))
     }
 }
 

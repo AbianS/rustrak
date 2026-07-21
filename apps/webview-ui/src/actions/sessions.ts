@@ -1,38 +1,29 @@
 'use server';
 
 import type {
-  ReleaseHealth,
+  OffsetPaginatedResponse,
+  ReleaseHealthRow,
+  ReleaseHealthStatsOptions,
   SessionSummary,
   SessionTimeseries,
 } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
 
 /**
- * Get per-release health stats for a project.
+ * Get one page of per-release health stats for a project.
+ *
+ * No catch: a fetch/auth failure must surface to the error boundary rather
+ * than be disguised as an empty page.
  *
  * @param projectId - The project ID
- * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
- * @param release - Scope to a single release (all environments), computed
- *   server-side. Omit to get every release in the project.
- * @returns Array of per-release health rows, or empty array on error.
+ * @param options - Time window, release scoping and pagination.
  */
 export async function getReleaseHealth(
   projectId: number,
-  period?: string,
-  release?: string,
-): Promise<ReleaseHealth> {
-  try {
-    const client = await createClient();
-    return await client.sessions.stats(projectId, period, release);
-  } catch (error) {
-    console.error('getReleaseHealth failed', {
-      projectId,
-      period,
-      release,
-      error,
-    });
-    return [];
-  }
+  options?: ReleaseHealthStatsOptions,
+): Promise<OffsetPaginatedResponse<ReleaseHealthRow>> {
+  const client = await createClient();
+  return client.sessions.stats(projectId, options);
 }
 
 const EMPTY_SESSION_SUMMARY: SessionSummary = {

@@ -138,7 +138,7 @@ async fn test_release_health_empty_returns_empty() {
     let db = TestDb::new().await;
     let project_id = create_project(&db.pool, "Empty Project").await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -166,7 +166,7 @@ async fn test_release_health_sums_across_buckets() {
     )
     .await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -188,7 +188,7 @@ async fn test_release_health_healthy_is_total_minus_unhealthy() {
     // total=100, errored=5, crashed=3, abnormal=2 → healthy=90
     seed_count(&db.pool, project_id, "2.0.0", "staging", 1, 100, 5, 3, 2).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -217,7 +217,7 @@ async fn test_release_health_excludes_buckets_outside_window() {
     )
     .await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -249,7 +249,7 @@ async fn test_release_health_no_period_returns_all_buckets() {
     .await;
 
     // No period filter → all buckets should be included
-    let rows = SessionService::release_health(&db.pool, project_id, None)
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, None, 1, 100)
         .await
         .expect("query failed");
 
@@ -269,7 +269,7 @@ async fn test_release_health_excludes_other_projects() {
     seed_count(&db.pool, project_a, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
     seed_count(&db.pool, project_b, "1.0.0", "prod", 1, 999, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_a, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_a, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -289,7 +289,7 @@ async fn test_release_health_orders_by_total_desc() {
     seed_count(&db.pool, project_id, "large", "prod", 1, 500, 0, 0, 0).await;
     seed_count(&db.pool, project_id, "medium", "prod", 1, 100, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -300,6 +300,81 @@ async fn test_release_health_orders_by_total_desc() {
 }
 
 #[actix_web::test]
+async fn test_release_health_paginates_and_reports_total() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Paginated Project").await;
+
+    seed_count(&db.pool, project_id, "small", "prod", 1, 10, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "large", "prod", 1, 500, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "medium", "prod", 1, 100, 0, 0, 0).await;
+
+    let (page1, total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 2)
+        .await
+        .expect("query failed");
+
+    assert_eq!(total, 3, "total counts every group, not just this page");
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1[0].release, "large");
+    assert_eq!(page1[1].release, "medium");
+
+    let (page2, total2) = SessionService::release_health(&db.pool, project_id, Some(24), 2, 2)
+        .await
+        .expect("query failed");
+
+    assert_eq!(total2, 3);
+    assert_eq!(page2.len(), 1, "last page holds the remainder");
+    assert_eq!(page2[0].release, "small");
+
+    let (page3, _) = SessionService::release_health(&db.pool, project_id, Some(24), 3, 2)
+        .await
+        .expect("query failed");
+
+    assert!(page3.is_empty(), "past the last page yields no rows");
+}
+
+#[actix_web::test]
+async fn test_release_health_pagination_breaks_ties_deterministically() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Tie Project").await;
+
+    // Identical totals: without a tiebreaker the DB is free to order these
+    // differently per query, which would let offset pagination skip or repeat.
+    seed_count(&db.pool, project_id, "b", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "a", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "c", "prod", 1, 100, 0, 0, 0).await;
+
+    let mut seen = Vec::new();
+    for page in 1..=3 {
+        let (rows, _) = SessionService::release_health(&db.pool, project_id, Some(24), page, 1)
+            .await
+            .expect("query failed");
+        assert_eq!(rows.len(), 1);
+        seen.push(rows[0].release.clone());
+    }
+
+    assert_eq!(seen, vec!["a", "b", "c"], "ties order by release ASC");
+}
+
+#[actix_web::test]
+async fn test_release_health_for_release_reports_scoped_total() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "Scoped Total Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "1.0.0", "staging", 1, 40, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 999, 0, 0, 0).await;
+
+    let (rows, total) =
+        SessionService::release_health_for_release(&db.pool, project_id, "1.0.0", Some(24), 1, 1)
+            .await
+            .expect("query failed");
+
+    assert_eq!(total, 2, "total is scoped to the requested release");
+    assert_eq!(rows.len(), 1, "per_page still bounds the page");
+    assert_eq!(rows[0].environment, "prod");
+}
+
+#[actix_web::test]
 async fn test_release_health_crash_free_sessions_rate() {
     let db = TestDb::new().await;
     let project_id = create_project(&db.pool, "CFR Sessions Project").await;
@@ -307,7 +382,7 @@ async fn test_release_health_crash_free_sessions_rate() {
     // 100 total, 10 crashed → crash_free_sessions_rate = 0.90
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 0, 10, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -326,7 +401,7 @@ async fn test_release_health_crash_free_sessions_rate_is_none_when_no_sessions()
     // 0 total → rate must be None (CASE WHEN total > 0)
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 0, 0, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -355,7 +430,7 @@ async fn test_release_health_crash_free_users_rate() {
     seed_user(&db.pool, project_id, "1.0.0", "prod", "user-3", true).await;
     seed_user(&db.pool, project_id, "1.0.0", "prod", "user-4", true).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -388,7 +463,7 @@ async fn test_release_health_total_not_inflated_by_multiple_users() {
         .await;
     }
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -408,9 +483,10 @@ async fn test_release_health_for_release_filters_server_side() {
     seed_count(&db.pool, project_id, "1.0.0", "staging", 1, 40, 0, 0, 0).await;
     seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 999, 0, 0, 0).await;
 
-    let rows = SessionService::release_health_for_release(&db.pool, project_id, "1.0.0", Some(24))
-        .await
-        .expect("query failed");
+    let (rows, _total) =
+        SessionService::release_health_for_release(&db.pool, project_id, "1.0.0", Some(24), 1, 100)
+            .await
+            .expect("query failed");
 
     assert_eq!(
         rows.len(),
@@ -759,7 +835,7 @@ async fn test_release_health_multiple_releases_independent() {
     seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 100, 5, 10, 2).await;
     seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 50, 1, 0, 0).await;
 
-    let rows = SessionService::release_health(&db.pool, project_id, Some(24))
+    let (rows, _total) = SessionService::release_health(&db.pool, project_id, Some(24), 1, 100)
         .await
         .expect("query failed");
 
@@ -772,4 +848,91 @@ async fn test_release_health_multiple_releases_independent() {
     assert_eq!(r1.healthy, 83); // 100-5-10-2
     assert_eq!(r2.total, 50);
     assert_eq!(r2.healthy, 49); // 50-1-0-0
+}
+
+// ── route-level tests ────────────────────────────────────────────────────────
+
+/// Minimal app wiring for the sessions routes. Bearer auth needs a real token,
+/// so the caller creates one from the same pool.
+async fn create_test_token(pool: &DbPool) -> String {
+    rustrak::services::AuthTokenService::create(
+        pool,
+        rustrak::models::CreateAuthToken {
+            description: Some("Test token".to_string()),
+        },
+    )
+    .await
+    .expect("Failed to create test token")
+    .token
+}
+
+#[actix_web::test]
+async fn test_get_stats_returns_paginated_envelope() {
+    use actix_web::{test, web, App};
+
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project_id = create_project(&db.pool, "Stats Route Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 300, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "2.0.0", "prod", 1, 200, 0, 0, 0).await;
+    seed_count(&db.pool, project_id, "3.0.0", "prod", 1, 100, 0, 0, 0).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .configure(rustrak::routes::sessions::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{project_id}/sessions/stats?page=2&per_page=2"
+        ))
+        .insert_header(("Authorization", format!("Bearer {token}")))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(body["total_count"], 3);
+    assert_eq!(body["page"], 2);
+    assert_eq!(body["per_page"], 2);
+    assert_eq!(body["total_pages"], 2);
+
+    let items = body["items"].as_array().expect("items must be an array");
+    assert_eq!(items.len(), 1, "second page holds the remainder");
+    assert_eq!(items[0]["release"], "3.0.0");
+}
+
+#[actix_web::test]
+async fn test_get_stats_defaults_to_first_page() {
+    use actix_web::{test, web, App};
+
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project_id = create_project(&db.pool, "Stats Default Page Project").await;
+
+    seed_count(&db.pool, project_id, "1.0.0", "prod", 1, 10, 0, 0, 0).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .configure(rustrak::routes::sessions::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/projects/{project_id}/sessions/stats"))
+        .insert_header(("Authorization", format!("Bearer {token}")))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(body["page"], 1, "page defaults to 1 when omitted");
+    assert_eq!(body["per_page"], 20, "per_page defaults to the page size");
+    assert_eq!(body["items"].as_array().unwrap().len(), 1);
 }
