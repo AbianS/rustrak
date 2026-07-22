@@ -34,6 +34,9 @@ export class ProjectsResource extends BaseResource {
     if (options?.order) {
       searchParams.set('order', options.order);
     }
+    if (options?.stats_period) {
+      searchParams.set('stats_period', options.stats_period);
+    }
 
     const query = searchParams.toString();
     const url = query ? `api/projects?${query}` : 'api/projects';

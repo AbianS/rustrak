@@ -1005,6 +1005,18 @@
             "schema": {
               "$ref": "#/components/schemas/SortOrder"
             }
+          },
+          {
+            "name": "stats_period",
+            "in": "query",
+            "description": "Window for the per-project stats on each row (e.g. `24h`, `7d`).\n\nOmitted means the caller does not want stats at all, and the extra\naggregate queries are skipped entirely — this is what keeps the plain\n`GET /api/projects` that SDK tooling and the project picker use as\ncheap as it was before the list table grew a sparkline. Sentry's own\nprojects endpoint gates its `stats` field on `?statsPeriod=` the same\nway.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1070,6 +1082,17 @@
                           },
                           "slug": {
                             "type": "string"
+                          },
+                          "stats": {
+                            "oneOf": [
+                              {
+                                "type": "null"
+                              },
+                              {
+                                "$ref": "#/components/schemas/ProjectListStats",
+                                "description": "Present only when the request asked for `?stats_period=`.\n\nAbsent rather than zeroed when unrequested: a caller that did not ask\nmust be able to tell \"no stats were computed\" from \"this project is\nquiet\", and only one of those should render an empty sparkline."
+                              }
+                            ]
                           },
                           "stored_event_count": {
                             "type": "integer",
@@ -8429,6 +8452,45 @@
           }
         }
       },
+      "ProjectListStats": {
+        "type": "object",
+        "description": "The at-a-glance aggregates one row of the project-list table needs.\n\nDeliberately narrower than [`ProjectStatsSummary`]: that one answers \"how\nis this project doing\" for a page dedicated to a single project, this one\nanswers \"which of my projects should I look at first\" and must stay cheap\nenough to compute for every project on the page at once.",
+        "required": [
+          "trend",
+          "events",
+          "new_issues",
+          "open_issues",
+          "fatal_issues"
+        ],
+        "properties": {
+          "events": {
+            "$ref": "#/components/schemas/MetricDelta",
+            "description": "Error events in the window, against the window before it."
+          },
+          "fatal_issues": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The subset of `open_issues` at `fatal` level."
+          },
+          "new_issues": {
+            "$ref": "#/components/schemas/MetricDelta",
+            "description": "Issues whose `first_seen` falls in the window, against the window\nbefore it. Drives the \"issues are climbing\" signal, which event volume\ncannot give: one noisy issue can multiply events without anything new\nhaving broken."
+          },
+          "open_issues": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Issues currently unresolved, regardless of window."
+          },
+          "trend": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Distinct issues that received at least one event in each bucket, oldest\nfirst. Always `LIST_TREND_BUCKETS` long so the sparkline column renders\nat a constant width whatever window was asked for.\n\nCounts issues *active* in the bucket rather than issues *created* in\nit. Creations are far too sparse to draw: a quiet self-hosted project\nopens a handful of issues a day, which over 24 hourly buckets is three\nlone bars in a field of zeros. Deliberately not summable — an issue\nfiring all day is counted in every bucket it appears in, so the series\nis a shape, not a total."
+          }
+        }
+      },
       "ProjectMemberResponse": {
         "type": "object",
         "description": "Member row joined with the user's email, for listing a project's team.",
@@ -8500,6 +8562,17 @@
           },
           "slug": {
             "type": "string"
+          },
+          "stats": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ProjectListStats",
+                "description": "Present only when the request asked for `?stats_period=`.\n\nAbsent rather than zeroed when unrequested: a caller that did not ask\nmust be able to tell \"no stats were computed\" from \"this project is\nquiet\", and only one of those should render an empty sparkline."
+              }
+            ]
           },
           "stored_event_count": {
             "type": "integer",

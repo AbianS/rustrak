@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type {
   createProjectSchema,
+  projectListStatsSchema,
   projectSchema,
   updateProjectSchema,
 } from '../schemas/project.js';
@@ -9,6 +10,11 @@ import type {
  * Project resource from the API
  */
 export type Project = z.infer<typeof projectSchema>;
+
+/**
+ * Per-row aggregates attached when listing with `stats_period`
+ */
+export type ProjectListStats = z.infer<typeof projectListStatsSchema>;
 
 /**
  * Request payload for creating a project

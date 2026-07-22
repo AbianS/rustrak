@@ -8,6 +8,14 @@ export const metadata: Metadata = {
   description: 'Manage your Rustrak projects',
 };
 
+/**
+ * Window for the per-row stats.
+ *
+ * Fixed rather than user-selectable: this page answers "which project should
+ * I look at", and `/projects/[id]` already owns choosing a time range.
+ */
+const STATS_PERIOD = '24h';
+
 interface ProjectsPageProps {
   searchParams: Promise<{ page?: string }>;
 }
@@ -18,9 +26,13 @@ export default async function ProjectsPage({
   const { page = '1' } = await searchParams;
   const currentPage = parseInt(page, 10) || 1;
 
+  // One request, stats included: the server aggregates the whole page in two
+  // queries. Asking per row would be 20 round trips for a table that renders
+  // above the fold.
   const projectsResponse = await getProjects({
     page: currentPage,
     per_page: 20,
+    stats_period: STATS_PERIOD,
   });
 
   return (

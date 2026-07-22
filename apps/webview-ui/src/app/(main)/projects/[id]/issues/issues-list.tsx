@@ -27,7 +27,7 @@ import {
   PriorityIndicator,
   StatusIndicator,
 } from '@/components/issue-indicators';
-import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
+import { TrendSparkline } from '@/components/trend-sparkline';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -296,7 +296,7 @@ export function IssuesList({
                 </div>
 
                 <div className="hidden lg:flex w-16 justify-start">
-                  <IssueTrendSparkline trend={issue.trend ?? []} />
+                  <TrendSparkline trend={issue.trend ?? []} />
                 </div>
 
                 <div className="hidden lg:block w-24 text-right">

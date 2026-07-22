@@ -2,7 +2,7 @@ import type { Issue } from '@rustrak/client';
 import { AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 import { LevelBadge } from '@/components/issue-indicators';
-import { IssueTrendSparkline } from '@/components/issue-trend-sparkline';
+import { TrendSparkline } from '@/components/trend-sparkline';
 import {
   Card,
   CardContent,
@@ -68,7 +68,7 @@ export function IssueListCard({
                     a bare event count into "how many people, and is it
                     accelerating". */}
                 {issue.trend && issue.trend.length > 0 ? (
-                  <IssueTrendSparkline trend={issue.trend} />
+                  <TrendSparkline trend={issue.trend} />
                 ) : null}
 
                 {issue.user_count !== undefined ? (

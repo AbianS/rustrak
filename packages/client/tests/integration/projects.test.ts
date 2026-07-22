@@ -69,6 +69,128 @@ describe('ProjectsResource Integration', () => {
       const response = await client.projects.list();
       expect(response.items).toHaveLength(0);
     });
+
+    it('should omit stats_period from the query when not requested', async () => {
+      let requestUrl: string | undefined;
+      server.use(
+        http.get('http://localhost:8080/api/projects', ({ request }) => {
+          requestUrl = request.url;
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
+        }),
+      );
+
+      await client.projects.list();
+
+      expect(requestUrl).not.toContain('stats_period');
+    });
+
+    it('should forward stats_period as a query param', async () => {
+      let requestUrl: string | undefined;
+      server.use(
+        http.get('http://localhost:8080/api/projects', ({ request }) => {
+          requestUrl = request.url;
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
+        }),
+      );
+
+      await client.projects.list({ stats_period: '24h' });
+
+      expect(requestUrl).toContain('stats_period=24h');
+    });
+
+    it('should parse per-row stats when the server attaches them', async () => {
+      server.use(
+        http.get('http://localhost:8080/api/projects', () => {
+          return HttpResponse.json({
+            items: [
+              {
+                id: 1,
+                name: 'With Stats',
+                slug: 'with-stats',
+                sentry_key: '550e8400-e29b-41d4-a716-446655440000',
+                dsn: 'http://key@localhost:8080/1',
+                stored_event_count: 0,
+                digested_event_count: 0,
+                created_at: '2026-01-20T10:00:00.000Z',
+                updated_at: '2026-01-20T10:00:00.000Z',
+                platform: 'node',
+                stats: {
+                  trend: [0, 1, 4, 2],
+                  events: { current: 7, previous: 3 },
+                  new_issues: { current: 2, previous: 1 },
+                  open_issues: 2,
+                  fatal_issues: 1,
+                },
+              },
+            ],
+            total_count: 1,
+            page: 1,
+            per_page: 20,
+            total_pages: 1,
+          });
+        }),
+      );
+
+      const response = await client.projects.list({ stats_period: '24h' });
+
+      expect(response.items[0]?.stats?.events.current).toBe(7);
+      expect(response.items[0]?.stats?.trend).toEqual([0, 1, 4, 2]);
+      expect(response.items[0]?.stats?.fatal_issues).toBe(1);
+    });
+
+    /**
+     * All-time requests have no earlier window to compare against, so the
+     * server sends null rather than a zero that would render as "+100%".
+     */
+    it('should accept a null previous count', async () => {
+      server.use(
+        http.get('http://localhost:8080/api/projects', () => {
+          return HttpResponse.json({
+            items: [
+              {
+                id: 1,
+                name: 'All Time',
+                slug: 'all-time',
+                sentry_key: '550e8400-e29b-41d4-a716-446655440000',
+                dsn: 'http://key@localhost:8080/1',
+                stored_event_count: 0,
+                digested_event_count: 0,
+                created_at: '2026-01-20T10:00:00.000Z',
+                updated_at: '2026-01-20T10:00:00.000Z',
+                platform: null,
+                stats: {
+                  trend: [],
+                  events: { current: 9, previous: null },
+                  new_issues: { current: 0, previous: null },
+                  open_issues: 0,
+                  fatal_issues: 0,
+                },
+              },
+            ],
+            total_count: 1,
+            page: 1,
+            per_page: 20,
+            total_pages: 1,
+          });
+        }),
+      );
+
+      const response = await client.projects.list();
+
+      expect(response.items[0]?.stats?.events.previous).toBeNull();
+    });
   });
 
   describe('get()', () => {

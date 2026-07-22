@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+use crate::models::stats::ProjectListStats;
+
 /// A list of all valid Sentry `platform` identifiers, mirrored verbatim from
 /// Relay: <https://github.com/getsentry/relay/blob/f42b1c8a15bba8cb96d1dfd3bd2b3158c7817c5f/relay-event-schema/src/protocol/constants.rs#L2-L22>
 ///
@@ -258,6 +260,13 @@ pub struct ProjectResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub platform: Option<String>,
+    /// Present only when the request asked for `?stats_period=`.
+    ///
+    /// Absent rather than zeroed when unrequested: a caller that did not ask
+    /// must be able to tell "no stats were computed" from "this project is
+    /// quiet", and only one of those should render an empty sparkline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stats: Option<ProjectListStats>,
 }
 
 impl Project {
@@ -288,6 +297,7 @@ impl Project {
             created_at: self.created_at,
             updated_at: self.updated_at,
             platform: self.platform.clone(),
+            stats: None,
         }
     }
 }

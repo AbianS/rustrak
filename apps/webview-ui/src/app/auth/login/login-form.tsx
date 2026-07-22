@@ -45,7 +45,7 @@ export function LoginForm() {
       const result = await login(data);
 
       if (result.success) {
-        router.push('/projects');
+        router.push('/');
       } else if (result.error === 'invalid_credentials') {
         form.setError('password', {
           type: 'server',

@@ -1,6 +1,35 @@
 import { z } from 'zod';
 import { dateTimeSchema, uuidSchema } from './common.js';
 
+const metricDeltaSchema = z.object({
+  current: z.number().int(),
+  /**
+   * The same window immediately before this one. Null only for all-time
+   * requests, where a `0` would render as a misleading "+100%".
+   */
+  previous: z.number().int().nullable(),
+});
+
+/**
+ * Per-row aggregates for the project list table.
+ *
+ * Only present when the request passed `stats_period`.
+ */
+export const projectListStatsSchema = z.object({
+  /**
+   * Distinct issues active in each bucket, oldest first. A shape, not a
+   * total: an issue firing all day appears in every bucket it touched.
+   */
+  trend: z.array(z.number().int()),
+  events: metricDeltaSchema,
+  /** Issues first seen in the window. Drives the "getting worse" signal. */
+  new_issues: metricDeltaSchema,
+  /** Unresolved issues right now, independent of the window. */
+  open_issues: z.number().int(),
+  /** The subset of `open_issues` at `fatal` level. */
+  fatal_issues: z.number().int(),
+});
+
 /**
  * Project response schema from API
  */
@@ -15,6 +44,7 @@ export const projectSchema = z.object({
   created_at: dateTimeSchema,
   updated_at: dateTimeSchema,
   platform: z.string().nullable(),
+  stats: projectListStatsSchema.optional(),
 });
 
 /**

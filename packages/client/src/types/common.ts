@@ -74,6 +74,13 @@ export interface ListProjectsOptions {
   page?: number;
   per_page?: number;
   order?: SortOrder;
+  /**
+   * Attach per-project stats to each row, over this window (e.g. '24h', '7d').
+   *
+   * Omit it and no `stats` field comes back at all, which is what keeps the
+   * plain list cheap for callers that only need names and DSNs.
+   */
+  stats_period?: string;
 }
 
 /**

@@ -1,0 +1,59 @@
+import type { MetricDelta } from '@rustrak/client';
+import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react';
+import { formatPercentChange, percentChange } from '@/lib/chart-format';
+import { cn } from '@/lib/utils';
+
+/**
+ * Whether a rise in this metric is good or bad news.
+ *
+ * Callers must say: more events is bad, more resolved issues is good. Colour
+ * the arrow by direction alone and it tells the reader the opposite of the
+ * truth half the time.
+ */
+export type Polarity = 'up-is-bad' | 'up-is-good';
+
+export function deltaTone(change: number, polarity: Polarity): string {
+  if (change === 0) {
+    return 'text-muted-foreground';
+  }
+  const isGood = polarity === 'up-is-good' ? change > 0 : change < 0;
+  return isGood
+    ? 'text-green-600 dark:text-green-400'
+    : 'text-red-600 dark:text-red-400';
+}
+
+interface MetricDeltaTextProps {
+  metric: MetricDelta;
+  polarity: Polarity;
+}
+
+/**
+ * One-line period-over-period change, sized for a table cell.
+ *
+ * The tile-sized version of this lives in `StatTile`; this one drops the
+ * "vs prev" caption, which a column header already implies.
+ */
+export function MetricDeltaText({ metric, polarity }: MetricDeltaTextProps) {
+  const change = percentChange(metric.current, metric.previous);
+
+  if (change === null) {
+    // An em dash would be wrong here: this is "nothing to compare against",
+    // not "zero change", and the two must not look alike.
+    return <span className="text-xs text-muted-foreground">&ndash;</span>;
+  }
+
+  const Arrow =
+    change === 0 ? ArrowRight : change > 0 ? ArrowUpRight : ArrowDownRight;
+
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 text-xs font-medium tabular-nums',
+        deltaTone(change, polarity),
+      )}
+    >
+      <Arrow className="size-3" aria-hidden />
+      {formatPercentChange(change)}
+    </span>
+  );
+}
