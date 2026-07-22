@@ -661,3 +661,108 @@ async fn test_update_project_platform_overwrites_existing_value() {
 
     assert_eq!(updated.platform, Some("ruby".to_string()));
 }
+
+// =============================================================================
+// User-Chosen Slug on Create
+//
+// A slug the caller supplied and a slug derived from the name get opposite
+// treatment on collision. These pin both halves: silently de-duplicating a
+// slug the user typed would store something they never asked for, and
+// conflicting on a derived one would break the ordinary create path.
+// =============================================================================
+
+#[actix_web::test]
+async fn test_create_project_with_taken_user_slug_conflicts() {
+    let db = TestDb::new().await;
+
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "First Project".to_string(),
+            slug: Some("shared-slug".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("first create must succeed");
+
+    let result = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Second Project".to_string(),
+            slug: Some("shared-slug".to_string()),
+            platform: None,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Conflict(_))),
+        "a slug the user typed must conflict, not be de-duplicated, got: {result:?}"
+    );
+
+    // And nothing was written under a renamed slug.
+    let projects = ProjectService::list(&db.pool)
+        .await
+        .expect("list must succeed");
+    assert_eq!(
+        projects
+            .iter()
+            .filter(|p| p.slug.starts_with("shared-slug"))
+            .count(),
+        1,
+        "the rejected create must not have inserted a de-duplicated row"
+    );
+}
+
+#[actix_web::test]
+async fn test_create_project_derived_slug_still_dedupes() {
+    let db = TestDb::new().await;
+
+    let first = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Derived Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("first create must succeed");
+    assert_eq!(first.slug, "derived-project");
+
+    // A different name (so the UNIQUE on name passes) that slugifies to the
+    // same base. Nobody chose this slug, so appending a counter is correct.
+    let second = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Derived  Project".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("a derived slug must de-duplicate, not conflict");
+
+    assert_eq!(second.slug, "derived-project-1");
+}
+
+#[actix_web::test]
+async fn test_create_project_rejects_unslugifiable_user_slug() {
+    let db = TestDb::new().await;
+
+    let result = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Punctuation Project".to_string(),
+            slug: Some("!!!".to_string()),
+            platform: None,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(result, Err(rustrak::error::AppError::Validation(_))),
+        "a slug that slugifies to nothing must be a Validation error, got: {result:?}"
+    );
+}

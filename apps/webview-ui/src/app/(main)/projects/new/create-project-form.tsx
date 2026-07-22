@@ -1,10 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Pencil, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PlatformIcon } from 'platformicons';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { platformLabel } from '@/lib/platforms';
+import { cn } from '@/lib/utils';
 import { PlatformGrid } from './platform-grid';
 
 const PROJECT_NAME_MIN_LENGTH = 2;
@@ -38,7 +39,30 @@ const createProjectFormSchema = z.object({
       PROJECT_NAME_MAX_LENGTH,
       `Name must be at most ${PROJECT_NAME_MAX_LENGTH} characters`,
     ),
+  slug: z
+    .string()
+    .trim()
+    .min(1, 'Slug cannot be empty')
+    .regex(
+      /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/,
+      'Use lowercase letters, digits and dashes',
+    ),
 });
+
+/**
+ * Live preview slugifier, ported from Sentry's `utils/slugify`.
+ *
+ * Deliberately does NOT trim leading or trailing hyphens: doing so would make
+ * it impossible to type "my-app", since the hyphen would vanish the moment it
+ * is typed. The server slugifies again and is the real authority.
+ */
+function slugifyPreview(value: string): string {
+  return value
+    .normalize('NFKD')
+    .toLowerCase()
+    .replace(/[^a-z0-9_\s-]/g, '')
+    .replace(/[-\s]+/g, '-');
+}
 
 type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
 
@@ -82,11 +106,25 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
 
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectFormSchema),
-    defaultValues: { platform: '', name: '' },
+    defaultValues: { platform: '', name: '', slug: '' },
   });
 
   const platform = form.watch('platform');
   const taken = new Set(existingNames);
+
+  // The slug is generated from the name until the user explicitly takes it
+  // over with the Edit button. An explicit mode rather than a dirty-field
+  // heuristic, because the field is what the button controls: read-only while
+  // it mirrors the name, editable once it stops.
+  const [slugMode, setSlugMode] = useState<'auto' | 'manual'>('auto');
+
+  // In a handler rather than an effect: this is a reaction to the user typing,
+  // not to a render.
+  const syncSlugFromName = (name: string) => {
+    if (slugMode === 'auto') {
+      form.setValue('slug', slugifyPreview(name), { shouldValidate: true });
+    }
+  };
 
   const handlePlatformChange = (platformId: string) => {
     form.setValue('platform', platformId, { shouldValidate: true });
@@ -95,10 +133,12 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
     // Sentry's `hasUserModifiedProjectName` guard. `shouldDirty: false` is
     // what makes `dirtyFields.name` mean "the user typed", not "we filled it".
     if (!form.formState.dirtyFields.name) {
-      form.setValue('name', suggestName(platformId, taken), {
+      const suggested = suggestName(platformId, taken);
+      form.setValue('name', suggested, {
         shouldDirty: false,
         shouldValidate: true,
       });
+      syncSlugFromName(suggested);
     }
   };
 
@@ -108,6 +148,10 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         const project = await createProject({
           name: data.name,
           platform: data.platform,
+          // Only sent when the user took the field over. An auto slug is
+          // derived, and the server is allowed to de-duplicate a derived slug
+          // silently. Sending the preview would turn that into a 409.
+          ...(slugMode === 'manual' ? { slug: data.slug } : {}),
         });
         // Straight into Client Keys: the DSN and the platform's setup snippet
         // are the only thing left to do, and that page owns them.
@@ -115,16 +159,47 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Failed to create project';
+
+        // A taken name or slug belongs on its own field, not in a toast the
+        // user has to translate back into an edit. Matched on the message
+        // because a Server Action carries only a string across the boundary,
+        // and in production not even that: #204 replaces this with a real
+        // error code, and this check goes with it.
+        if (message.includes('already exists')) {
+          if (message.includes("slug '")) {
+            setSlugMode('manual'); // so the field they must fix is editable
+            form.setError('slug', { type: 'server', message });
+            return;
+          }
+          if (message.includes("name '")) {
+            form.setError('name', { type: 'server', message });
+            return;
+          }
+        }
+
         toast.error('Failed to create project', { description: message });
       }
     });
   };
 
+  // Rendered in two places (the aside on desktop, the fixed bar on mobile), so
+  // it lives here rather than being written twice.
+  const submitLabel = isPending ? (
+    <>
+      <Loader2 className="mr-2 size-4 animate-spin" />
+      Creating...
+    </>
+  ) : (
+    'Create Project'
+  );
+
   return (
     <Form {...form}>
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start"
+        // Bottom padding clears the fixed mobile bar, which would otherwise
+        // cover the last field.
+        className="grid gap-6 pb-24 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:pb-0"
       >
         <FormField
           control={form.control}
@@ -186,6 +261,10 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
                       disabled={isPending}
                       maxLength={PROJECT_NAME_MAX_LENGTH}
                       {...field}
+                      onChange={(e) => {
+                        field.onChange(e);
+                        syncSlugFromName(e.target.value);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -194,21 +273,134 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
             />
           </div>
 
-          <Button type="submit" disabled={isPending} className="mt-5 w-full">
-            {isPending ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Creating...
-              </>
-            ) : (
-              'Create Project'
-            )}
+          <div className="pt-4">
+            <FormField
+              control={form.control}
+              name="slug"
+              render={({ field, fieldState }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Slug
+                  </FormLabel>
+                  <div className="flex items-center gap-2">
+                    <FormControl>
+                      <Input
+                        placeholder="my-application"
+                        autoComplete="off"
+                        readOnly={slugMode === 'auto'}
+                        aria-readonly={slugMode === 'auto'}
+                        disabled={isPending}
+                        className={cn(
+                          'font-mono',
+                          slugMode === 'auto' &&
+                            'bg-muted text-muted-foreground',
+                        )}
+                        {...field}
+                        onChange={(e) =>
+                          field.onChange(slugifyPreview(e.target.value))
+                        }
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={isPending}
+                      aria-label={
+                        slugMode === 'auto'
+                          ? 'Edit slug'
+                          : 'Reset slug to follow the name'
+                      }
+                      title={
+                        slugMode === 'auto'
+                          ? 'Edit slug'
+                          : 'Reset slug to follow the name'
+                      }
+                      onClick={() => {
+                        if (slugMode === 'auto') {
+                          setSlugMode('manual');
+                          return;
+                        }
+                        // Back to auto: re-derive immediately, otherwise the
+                        // field would keep a stale hand-typed value until the
+                        // next keystroke in the name.
+                        setSlugMode('auto');
+                        form.setValue(
+                          'slug',
+                          slugifyPreview(form.getValues('name')),
+                          { shouldValidate: true },
+                        );
+                      }}
+                      className="shrink-0"
+                    >
+                      {slugMode === 'auto' ? (
+                        <Pencil className="size-4" />
+                      ) : (
+                        <RotateCcw className="size-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {/* One line, not two: FormMessage falls back to its
+                      children when the field is valid, so the hint and the
+                      error occupy the same slot and the panel never reflows. */}
+                  <FormMessage
+                    className={cn(
+                      'mt-1.5 text-xs',
+                      !fieldState.error && 'text-muted-foreground',
+                    )}
+                  >
+                    {slugMode === 'auto'
+                      ? 'Generated from the name. Edit it to choose your own.'
+                      : 'Yours to choose. A slug already in use is rejected.'}
+                  </FormMessage>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* Hidden on mobile: the fixed bar below owns the action there, and
+              two live submit buttons would be one too many. */}
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="mt-5 hidden w-full lg:flex"
+          >
+            {submitLabel}
           </Button>
 
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 hidden text-xs text-muted-foreground lg:block">
             You will get your DSN and setup snippet next.
           </p>
         </aside>
+
+        {/* Mobile action bar. The platform grid is tall, so a button sitting
+            below it is off-screen for most of the time the user spends on this
+            page. Pinning it also keeps the current selection visible while
+            scrolling the list. */}
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-6xl items-center gap-3">
+            {platform ? (
+              <>
+                <PlatformIcon platform={platform} size={24} />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {platformLabel(platform)}
+                </span>
+              </>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                Pick a platform
+              </span>
+            )}
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="shrink-0"
+              size="sm"
+            >
+              {submitLabel}
+            </Button>
+          </div>
+        </div>
       </form>
     </Form>
   );

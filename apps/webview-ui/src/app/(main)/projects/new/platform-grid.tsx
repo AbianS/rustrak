@@ -12,6 +12,9 @@ import {
 } from '@/lib/platforms';
 import { cn } from '@/lib/utils';
 
+/** Sentry's generic escape hatch, a real platform id the server accepts. */
+const OTHER_PLATFORM_ID = 'other';
+
 interface PlatformGridProps {
   value: string | null;
   onValueChange: (platformId: string) => void;
@@ -35,12 +38,21 @@ export function PlatformGrid({
   // A non-empty query deliberately searches every platform, ignoring the
   // active tab. Sentry does the same: someone who types "django" while Browser
   // is open should find it rather than be told there are no results.
+  //
+  // `other` is pulled out of the list and pinned as the first card in every
+  // tab: it is the escape hatch, and burying it alphabetically under "O" in a
+  // 127-entry grid hides the one option that always applies.
   const platforms: Platform[] = useMemo(
-    () => (query.trim() ? searchPlatforms(query) : categoryPlatforms(category)),
+    () =>
+      (query.trim()
+        ? searchPlatforms(query)
+        : categoryPlatforms(category)
+      ).filter((p) => p.id !== OTHER_PLATFORM_ID),
     [query, category],
   );
 
   const isSearching = query.trim().length > 0;
+  const otherSelected = value === OTHER_PLATFORM_ID;
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
@@ -87,14 +99,68 @@ export function PlatformGrid({
           ))}
         </div>
       </div>
-
       {platforms.length === 0 ? (
-        <p className="px-4 py-16 text-center text-sm text-muted-foreground">
-          Nothing matches &quot;{query.trim()}&quot;.
-        </p>
+        // Sentry's own empty state points at "Other" rather than leaving the
+        // user stuck, since `other` is a real, storable platform id and the
+        // picker otherwise requires a choice.
+        <div className="px-4 py-16 text-center">
+          <p className="text-sm font-medium">
+            No SDK for &quot;{query.trim()}&quot; yet
+          </p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Try a more generic SDK such as JavaScript, Python or Node, or create
+            a generic project with{' '}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                setQuery('');
+                onValueChange(OTHER_PLATFORM_ID);
+              }}
+              className="font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+            >
+              Other
+            </button>
+            .
+          </p>
+        </div>
       ) : (
-        <div className="max-h-[28rem] overflow-y-auto p-3">
+        // The inner scroll area only earns its keep next to the sticky aside on
+        // large screens. On a phone it nests a scroll inside the page scroll,
+        // which fights the thumb; there the grid just flows, which is what
+        // Sentry's own picker does at every width.
+        <div className="overflow-visible p-3 lg:max-h-[28rem] lg:overflow-y-auto">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+            {/* Full row rather than a tile: the copy has to be readable to do
+                its job, and a grid cell truncates it. Spanning also stops it
+                reading as "just another platform", which it is not. */}
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={otherSelected}
+              onClick={() => onValueChange(OTHER_PLATFORM_ID)}
+              className={cn(
+                'col-span-full flex items-center gap-3 rounded-lg border border-dashed p-3 text-left transition-all disabled:opacity-50',
+                otherSelected
+                  ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                  : 'border-muted-foreground/30 hover:bg-accent',
+              )}
+            >
+              <PlatformIcon platform={OTHER_PLATFORM_ID} size={28} />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">
+                  Other platform
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  Your platform is not on the list, or you would rather choose
+                  later. Works with any Sentry SDK.
+                </span>
+              </span>
+              {otherSelected && (
+                <Check className="size-4 shrink-0 text-primary" />
+              )}
+            </button>
+
             {platforms.map((p) => {
               const selected = value === p.id;
               return (
@@ -124,12 +190,12 @@ export function PlatformGrid({
           </div>
         </div>
       )}
-
       <div className="border-t px-4 py-2 text-xs text-muted-foreground">
         {isSearching
           ? `${platforms.length} matching ${platforms.length === 1 ? 'platform' : 'platforms'}`
           : `${platforms.length} platforms · search to look across every category`}
       </div>
+      ;
     </div>
   );
 }

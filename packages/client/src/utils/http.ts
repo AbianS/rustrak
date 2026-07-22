@@ -16,9 +16,17 @@ function transformHttpError(error: HTTPError): RustrakError {
   const status = response.status;
 
   let errorMessage = `HTTP ${status} error`;
-  const body = error.data as { error?: string; message?: string } | null;
+  // Two shapes are live: most handlers send `{error: {type, message}}` while
+  // the 429 path sends a flat `{error: "..."}`. Reading only the flat one
+  // turned every structured error into "[object Object]". See #204.
+  const body = error.data as {
+    error?: string | { type?: string; message?: string };
+    message?: string;
+  } | null;
   if (body) {
-    errorMessage = body.error || body.message || errorMessage;
+    const nested =
+      typeof body.error === 'object' ? body.error?.message : body.error;
+    errorMessage = nested || body.message || errorMessage;
   }
 
   switch (status) {
