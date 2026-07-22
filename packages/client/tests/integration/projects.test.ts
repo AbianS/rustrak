@@ -134,6 +134,12 @@ describe('ProjectsResource Integration', () => {
       expect(project.platform).toBe('javascript-nextjs');
     });
 
+    it('should reject an empty platform', async () => {
+      await expect(
+        client.projects.create({ name: 'Empty Platform', platform: '' }),
+      ).rejects.toThrow(ValidationError);
+    });
+
     it('should leave platform null when omitted', async () => {
       const project = await client.projects.create({
         name: 'No Platform Project',

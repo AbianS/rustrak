@@ -9,10 +9,13 @@
  * The literal `__DSN__` is substituted with the project's real DSN at render
  * time, see `renderSnippet`.
  *
- * Coverage is deliberately partial. A platform with no entry falls back to a
- * plain DSN panel plus a link to the official docs, which is exactly what
- * Sentry itself shows for its `other` platform, so a missing entry is never a
- * broken state.
+ * Coverage is deliberately partial. A platform with no entry renders the DSN
+ * panel plus a link to the official docs and no snippet at all. It must never
+ * borrow another platform's snippet: Sentry is stricter still and renders an
+ * explicit "documentation for this platform is currently unavailable" error
+ * (`sdkDocumentation.tsx`), reserving the DSN-plus-docs panel for platforms it
+ * has deprecated (`deprecatedPlatformInfo.tsx`). A missing entry is a thinner
+ * page, never a wrong one.
  */
 export interface PlatformSnippet {
   /**
@@ -312,12 +315,27 @@ Sentry.init({
   root_source_code_paths: [File.cwd!()]`,
     language: 'elixir',
   },
+  // Flutter is a wizard platform, so its `onboarding.tsx` carries no configure
+  // snippet to extract. Both fields below come from `flutter/sessionReplay.tsx`
+  // instead (install at its `getManualInstallSnippet`, the `appRunner` shape at
+  // its replay snippet), with the replay-specific options dropped.
   'flutter': {
-    configure: `await SentryFlutter.init(
-  (options) {
-    options.dsn = '__DSN__';
-  },
-);`,
+    install: `sentry_flutter: ^9.6.0`,
+    configure: `import 'package:flutter/widgets.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+Future<void> main() async {
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = '__DSN__';
+    },
+    appRunner: () => runApp(
+      SentryWidget(
+        child: MyApp(),
+      ),
+    ),
+  );
+}`,
     language: 'dart',
   },
   'go': {

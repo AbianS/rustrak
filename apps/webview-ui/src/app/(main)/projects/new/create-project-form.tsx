@@ -70,6 +70,12 @@ function suggestName(platformId: string, taken: Set<string>): string {
   return platformId;
 }
 
+/**
+ * Platform grid plus name field, submitting to `createProject`.
+ *
+ * `existingNames` only feeds the suggested default name; the server still has
+ * the final say on collisions.
+ */
 export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();

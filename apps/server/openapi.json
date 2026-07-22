@@ -7731,7 +7731,7 @@
               "string",
               "null"
             ],
-            "description": "Platform chosen by the user in the create form, validated against\n[`SELECTABLE_PLATFORMS`] exactly as [`UpdateProject::platform`] is.\nReal Sentry accepts this on the create request too\n(`ProjectPostSerializer`, `src/sentry/core/endpoints/team_projects.py`).\n\nAbsent is legal and is not the same as \"no platform forever\": the\ncolumn stays NULL and the project remains eligible for\n[`super::super::services::ProjectService::infer_platform_from_event`],\nwhich fills it from the first ingested event using the narrower\n[`VALID_PLATFORMS`] list."
+            "description": "Platform identifier for the project, such as `python-django` or\n`javascript-nextjs`. Rejected with a 400 if it is not one of the\nsupported values.\n\nOptional. Omitting it is not the same as having no platform forever:\nthe project is then auto-assigned a platform from the first event it\ningests, drawn from the narrower set of platforms an event may declare."
           },
           "slug": {
             "type": [
@@ -9476,14 +9476,14 @@
               "string",
               "null"
             ],
-            "description": "Manual override of the project's platform, validated against\n[`SELECTABLE_PLATFORMS`]. That list is wider than the one\nauto-detection uses: it includes framework-specific ids such as\n`javascript-nextjs`, which are legal for a project but never for an\nevent.\n\nUnlike auto-detection (which only writes when the column is still\nNULL), a manual update is allowed to overwrite an existing value, so a\nuser can correct what was detected. Sending `null` leaves the current\nvalue untouched rather than clearing it."
+            "description": "Manual override of the project's platform, such as `python-django` or\n`javascript-nextjs`. Rejected with a 400 if it is not one of the\nsupported values.\n\nThe supported set is wider than the platforms an event may declare, so\nframework-specific identifiers are accepted here. An update overwrites\nany auto-assigned value, which is how a wrong detection is corrected.\nSending `null` leaves the current value untouched rather than clearing\nit."
           },
           "slug": {
             "type": [
               "string",
               "null"
             ],
-            "description": "New slug, slugified before storing.\n\nUnlike [`CreateProject::slug`], a collision here is **not** silently\nde-duplicated. On create the slug is usually derived from the name and\nthe user is not really choosing it, so appending `-1` is helpful. Here\nthe user typed it, and storing something other than what they typed\nwould be wrong, so a taken slug is a `Conflict`.\n\nSending `null` leaves the current value untouched."
+            "description": "New slug, slugified before storing.\n\nA slug already taken by another project returns a 409. It is not\nsilently de-duplicated the way a slug derived at creation time is,\nsince storing something other than what was requested would be wrong.\n\nSending `null` leaves the current value untouched."
           }
         }
       },

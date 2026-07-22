@@ -60,9 +60,16 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     };
   }, [isDark]);
 
-  // Setup instructions follow the project's own platform. Only when it has
-  // none (never set, no event ingested yet) do we fall back to the browser
-  // SDK, which is the safest generic example for a Sentry-compatible server.
+  // Setup instructions follow the project's own platform. Only a project with
+  // no platform at all (never set, no event ingested yet) gets the generic
+  // browser example.
+  //
+  // A project that HAS a platform but no snippet must never get it: snippet
+  // coverage is partial by design, and the platforms it misses are mostly
+  // console and native ones (unreal, playstation, xbox, native...) where a
+  // `@sentry/browser` example is actively misleading. Sentry does the same,
+  // and more strictly: `sdkDocumentation.tsx` renders an explicit "currently
+  // unavailable" error rather than substituting another platform's snippet.
   const snippet = project.platform
     ? PLATFORM_SNIPPETS[project.platform]
     : undefined;
@@ -70,9 +77,14 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     ? PLATFORM_DOCS[project.platform]
     : undefined;
 
+  // Absent for a selected platform we have no snippet for. The DSN section and
+  // the docs link carry the page on their own, which is what Sentry falls back
+  // to for its deprecated platforms (`deprecatedPlatformInfo.tsx`).
   const codeExample = snippet
     ? renderSnippet(snippet.configure, project.dsn)
-    : `import * as Sentry from "@sentry/browser";
+    : project.platform
+      ? undefined
+      : `import * as Sentry from "@sentry/browser";
 
 Sentry.init({
   dsn: "${project.dsn}",
@@ -152,55 +164,65 @@ Sentry.init({
       )}
 
       <SettingSection
-        title={exampleTitle}
-        description="Your DSN is already filled in below."
+        title={codeExample ? exampleTitle : 'Setup'}
+        description={
+          codeExample
+            ? 'Your DSN is already filled in below.'
+            : 'Point the SDK for this platform at the DSN above.'
+        }
       >
         <div className="mt-3">
-          <div className="mb-2 flex justify-end">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copy(codeExample, setCopiedCode, 'example')}
-              className="h-6 text-xs"
-            >
-              {copiedCode ? (
-                <>
-                  <Check className="mr-1 size-3 text-primary" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="mr-1 size-3" />
-                  Copy
-                </>
-              )}
-            </Button>
-          </div>
-          <div className="overflow-hidden overflow-x-auto rounded-lg border">
-            {Highlighter && highlighterStyle ? (
-              <Highlighter
-                language={codeLanguage}
-                style={highlighterStyle}
-                customStyle={{
-                  margin: 0,
-                  padding: '1rem',
-                  fontSize: '0.75rem',
-                  background: isDark ? '#1e1e1e' : '#ffffff',
-                }}
-              >
-                {codeExample}
-              </Highlighter>
-            ) : highlighterFailed ? (
-              <pre className="overflow-x-auto p-4 font-mono text-xs">
-                {codeExample}
-              </pre>
-            ) : (
-              <div className="flex h-24 animate-pulse items-center justify-center bg-muted p-4">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          {codeExample && (
+            <>
+              <div className="mb-2 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copy(codeExample, setCopiedCode, 'example')}
+                  className="h-6 text-xs"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="mr-1 size-3 text-primary" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-1 size-3" />
+                      Copy
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
+              <div className="overflow-hidden overflow-x-auto rounded-lg border">
+                {Highlighter && highlighterStyle ? (
+                  <Highlighter
+                    language={codeLanguage}
+                    style={highlighterStyle}
+                    customStyle={{
+                      margin: 0,
+                      padding: '1rem',
+                      fontSize: '0.75rem',
+                      background: isDark ? '#1e1e1e' : '#ffffff',
+                    }}
+                  >
+                    {codeExample}
+                  </Highlighter>
+                ) : highlighterFailed ? (
+                  <pre className="overflow-x-auto p-4 font-mono text-xs">
+                    {codeExample}
+                  </pre>
+                ) : (
+                  <div className="flex h-24 animate-pulse items-center justify-center bg-muted p-4">
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          <p
+            className={`text-xs text-muted-foreground${codeExample ? ' mt-3' : ''}`}
+          >
             This server is compatible with all official Sentry SDKs. Check the{' '}
             <a
               href={docsUrl ?? 'https://docs.sentry.io/platforms/'}
@@ -212,7 +234,9 @@ Sentry.init({
                 ? `${platformLabel(project.platform ?? '')} documentation`
                 : 'Sentry documentation'}
             </a>{' '}
-            for the full setup, including options this example leaves out.
+            {codeExample
+              ? 'for the full setup, including options this example leaves out.'
+              : 'for the setup steps for this platform.'}
           </p>
         </div>
       </SettingSection>

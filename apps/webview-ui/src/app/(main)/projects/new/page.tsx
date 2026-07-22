@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   description: 'Create a new Rustrak project',
 };
 
+/**
+ * Create-project page: platform picker plus name, in one form.
+ *
+ * A full page rather than a dialog, matching Sentry's own `/projects/new/`.
+ */
 export default async function NewProjectPage() {
   // Only used to suggest a free default name. `projects.name` is UNIQUE, so
   // the raw platform id Sentry pre-fills would collide on a second Next.js
