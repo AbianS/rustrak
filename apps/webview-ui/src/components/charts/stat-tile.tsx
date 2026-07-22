@@ -1,5 +1,6 @@
 import type { MetricDelta } from '@rustrak/client';
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react';
+import { deltaTone, type Polarity } from '@/components/metric-delta';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   compactCount,
@@ -9,31 +10,12 @@ import {
 } from '@/lib/chart-format';
 import { cn } from '@/lib/utils';
 
-/**
- * Whether a rise in this metric is good or bad news.
- *
- * The tile cannot infer it: more events is bad, more resolved issues is good.
- * Without it the arrow would be colored by direction alone and would tell the
- * reader the opposite of the truth half the time.
- */
-type Polarity = 'up-is-bad' | 'up-is-good';
-
 interface StatTileProps {
   label: string;
   metric: MetricDelta;
   polarity: Polarity;
   /** Sub-label under the value, e.g. the backlog the rate feeds. */
   footnote?: string;
-}
-
-function deltaTone(change: number, polarity: Polarity): string {
-  if (change === 0) {
-    return 'text-muted-foreground';
-  }
-  const isGood = polarity === 'up-is-good' ? change > 0 : change < 0;
-  return isGood
-    ? 'text-green-600 dark:text-green-400'
-    : 'text-red-600 dark:text-red-400';
 }
 
 /**

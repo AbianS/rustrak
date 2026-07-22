@@ -354,4 +354,15 @@ pub struct ListProjectsQuery {
     /// Sort order direction (default: desc = newest first)
     #[serde(default)]
     pub order: SortOrder,
+
+    /// Window for the per-project stats on each row (e.g. `24h`, `7d`).
+    ///
+    /// Omitted means the caller does not want stats at all, and the extra
+    /// aggregate queries are skipped entirely — this is what keeps the plain
+    /// `GET /api/projects` that SDK tooling and the project picker use as
+    /// cheap as it was before the list table grew a sparkline. Sentry's own
+    /// projects endpoint gates its `stats` field on `?statsPeriod=` the same
+    /// way.
+    #[serde(default)]
+    pub stats_period: Option<String>,
 }

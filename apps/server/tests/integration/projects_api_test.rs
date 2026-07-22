@@ -766,3 +766,110 @@ async fn test_create_project_rejects_unslugifiable_user_slug() {
         "a slug that slugifies to nothing must be a Validation error, got: {result:?}"
     );
 }
+
+// =============================================================================
+// Per-row Stats Tests (?stats_period=)
+// =============================================================================
+
+/// Lists projects as an admin-equivalent Bearer caller and returns the parsed
+/// `items` array.
+async fn list_projects_json(db: &TestDb, uri: &str) -> serde_json::Value {
+    let token = AuthTokenService::create(&db.pool, CreateAuthToken { description: None })
+        .await
+        .expect("token creation must succeed");
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(create_test_config()))
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(uri)
+        .insert_header(("Authorization", format!("Bearer {}", token.token)))
+        .to_request();
+
+    test::call_and_read_body_json(&app, req).await
+}
+
+/// The plain list is on the hot path for SDK tooling and the project picker,
+/// which must not start paying for aggregate queries they never asked for.
+#[actix_web::test]
+async fn test_list_projects_omits_stats_without_the_param() {
+    let db = TestDb::new().await;
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "No Stats".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create failed");
+
+    let body = list_projects_json(&db, "/api/projects").await;
+
+    let project = &body["items"][0];
+    assert_eq!(project["name"], "No Stats");
+    assert!(
+        project.get("stats").is_none(),
+        "stats must be absent, not null: {project}"
+    );
+}
+
+#[actix_web::test]
+async fn test_list_projects_attaches_stats_with_the_param() {
+    let db = TestDb::new().await;
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "With Stats".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create failed");
+
+    let body = list_projects_json(&db, "/api/projects?stats_period=24h").await;
+
+    let stats = &body["items"][0]["stats"];
+    assert_eq!(
+        stats["trend"]
+            .as_array()
+            .expect("trend must be an array")
+            .len(),
+        24
+    );
+    assert_eq!(stats["events"]["current"], 0);
+    assert_eq!(stats["events"]["previous"], 0);
+    assert_eq!(stats["new_issues"]["current"], 0);
+    assert_eq!(stats["new_issues"]["previous"], 0);
+    assert_eq!(stats["open_issues"], 0);
+    assert_eq!(stats["fatal_issues"], 0);
+}
+
+/// `parse_period_hours` returns `None` for junk, which here must mean "no
+/// stats" rather than a 500 or a silently wrong window.
+#[actix_web::test]
+async fn test_list_projects_ignores_an_unparseable_stats_period() {
+    let db = TestDb::new().await;
+    ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "Junk Period".to_string(),
+            slug: None,
+            platform: None,
+        },
+    )
+    .await
+    .expect("create failed");
+
+    let body = list_projects_json(&db, "/api/projects?stats_period=last%20tuesday").await;
+
+    assert_eq!(body["items"][0]["name"], "Junk Period");
+    assert!(body["items"][0].get("stats").is_none());
+}

@@ -96,6 +96,7 @@ export type {
   OffsetPaginatedResponse,
   PaginatedResponse,
   Project,
+  ProjectListStats,
   ProjectMember,
   ProjectRole,
   ProjectStatsSummary,

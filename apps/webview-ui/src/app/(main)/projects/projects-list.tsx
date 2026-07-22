@@ -27,7 +27,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -36,6 +35,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { PROJECT_COLUMNS, ProjectStatsCells } from './project-stats-cells';
+
+/** Shared styling for every column header in the table. */
+const HEADER =
+  'text-xs font-bold uppercase tracking-widest text-muted-foreground';
 
 interface ProjectsListProps {
   initialProjects: OffsetPaginatedResponse<Project>;
@@ -196,12 +201,23 @@ export function ProjectsList({
               }
               onCheckedChange={toggleSelectAll}
             />
-            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
-              Project
+            {/* Stands in for the platform icon on each row. Without it the
+                header's flex tracks are computed over a row 28px wider than
+                the real ones and every column below drifts left. */}
+            <span className="w-7 shrink-0" aria-hidden />
+            <span className={cn(HEADER, PROJECT_COLUMNS.name)}>Project</span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.issues)}>Issues</span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.events)}>
+              Events 24h
             </span>
-            <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-32 text-right">
-              Created
+            <span className={cn(HEADER, PROJECT_COLUMNS.total)}>Total</span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.trend)}>
+              Issue activity
             </span>
+            {/* Demoted from `sm` to `xl`: on a narrow viewport the age of a
+                project loses to every column above, all of which say
+                something about right now. */}
+            <span className={cn(HEADER, PROJECT_COLUMNS.created)}>Created</span>
             <span className="w-8" />
           </div>
 
@@ -225,30 +241,30 @@ export function ProjectsList({
                   className="shrink-0"
                 />
 
-                <div className="flex-1 min-w-0">
+                <div className={PROJECT_COLUMNS.name}>
                   <Link
                     href={`/projects/${project.id}`}
                     className="block group-hover:text-primary transition-colors"
                   >
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="font-semibold text-base">
-                        {project.name}
-                      </span>
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {project.digested_event_count.toLocaleString()} events
-                      </Badge>
+                    {/* The DSN used to sit here. It is a secret-ish connection
+                        string nobody reads at a glance, it forced the name
+                        field to hog the row, and it already has a home in
+                        settings/client-keys. */}
+                    <div className="font-semibold text-base truncate">
+                      {project.name}
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="font-mono">{project.slug}</span>
-                      <span className="text-muted-foreground/30">•</span>
-                      <span className="hidden sm:block font-mono text-muted-foreground/70 truncate max-w-50 md:max-w-100">
-                        {project.dsn}
-                      </span>
+                    <div className="font-mono text-xs text-muted-foreground truncate">
+                      {project.slug}
                     </div>
                   </Link>
                 </div>
 
-                <div className="hidden sm:block w-32 text-right">
+                <ProjectStatsCells
+                  stats={project.stats}
+                  totalEvents={project.digested_event_count}
+                />
+
+                <div className={PROJECT_COLUMNS.created}>
                   <span className="text-sm text-muted-foreground">
                     {formatDistanceToNow(new Date(project.created_at), {
                       addSuffix: true,

@@ -8,7 +8,9 @@ use crate::error::AppResult;
 use crate::models::ProjectResponse;
 use crate::models::{CreateProject, ProjectRole, UpdateProject};
 use crate::pagination::{ListProjectsQuery, OffsetPaginatedResponse};
+use crate::routes::period::parse_period_hours;
 use crate::services::access::{self, Action};
+use crate::services::stats::StatsService;
 use crate::services::{ProjectMemberService, ProjectService};
 
 #[cfg(feature = "openapi")]
@@ -52,7 +54,18 @@ pub async fn list_projects(
     };
 
     let base_url = build_base_url(&config);
-    let responses: Vec<_> = projects.iter().map(|p| p.to_response(&base_url)).collect();
+    let mut responses: Vec<_> = projects.iter().map(|p| p.to_response(&base_url)).collect();
+
+    // Stats are attached to the page that was already fetched, so the extra
+    // work scales with `per_page` (capped at 100) and not with the number of
+    // projects on the instance.
+    if let Some(period_hours) = parse_period_hours(query.stats_period.as_deref()) {
+        let ids: Vec<i32> = responses.iter().map(|p| p.id).collect();
+        let mut stats = StatsService::list_stats(pool.get_ref(), &ids, period_hours).await?;
+        for response in &mut responses {
+            response.stats = stats.remove(&response.id);
+        }
+    }
 
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         responses,
