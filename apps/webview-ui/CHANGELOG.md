@@ -1,5 +1,12 @@
 # webview-ui
 
+## 0.13.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @rustrak/client@0.13.0
+
 ## 0.12.3
 
 ### Patch Changes

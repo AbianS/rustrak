@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.13.0
+
+### Minor Changes
+
+- [`853a5c1`](https://github.com/rustrak/rustrak/commit/853a5c14f3464989f6098738587d865a7c05a234) Thanks [@AbianS](https://github.com/AbianS)! - Project creation becomes a full page with a searchable platform grid and per-platform SDK setup snippets, and projects can now be created with an explicit platform and slug. The projects list gains per-row stats: events, new issues, open and fatal counts, and a sparkline of active issues, all attached in two queries per page and only when `?stats_period=` is passed.
+
 ## 0.12.3
 
 ### Patch Changes
