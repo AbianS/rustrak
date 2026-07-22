@@ -211,6 +211,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-real-fixture".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -249,6 +250,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-op-mapping".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -319,6 +321,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-gen-ai".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -375,6 +378,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-tool".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -415,6 +419,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-partial-batch".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -468,6 +473,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-segment".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -522,6 +528,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-mixed-origin".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -585,6 +592,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-bad-json".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -611,6 +619,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-no-timestamps".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -674,6 +683,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-zero-duration".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -726,6 +736,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-sentry-attrs".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -791,6 +802,7 @@ mod level2 {
             CreateProject {
                 name: "span-v2-child-segment".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await

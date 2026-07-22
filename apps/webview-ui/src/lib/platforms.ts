@@ -218,3 +218,300 @@ export function languageLabel(language: string): string {
 export function platformLabel(id: string): string {
   return PLATFORMS.find((p) => p.id === id)?.name ?? id;
 }
+
+// ---------------------------------------------------------------------------
+// Picker categories
+//
+// Membership is copied verbatim from Sentry's own
+// `static/app/data/platformPickerCategories.tsx` (@a32a33a5), which is a
+// different file from `platformCategories.tsx` (that one gates per-product
+// features and does NOT drive the picker).
+//
+// Two deliberate divergences from Sentry, both recorded in
+// docs/sentry-compat/project-creation-and-settings.md:
+//
+//  1. Sentry's "All" tab is `createablePlatforms`, the union of every category
+//     EXCEPT gaming. Ours is genuinely every platform in PLATFORMS. Sentry can
+//     afford a narrower All because its picker is not the only way to set a
+//     platform; ours is, and SELECTABLE_PLATFORMS deliberately includes ids
+//     auto-detection can write (`perl`, `cfml`, `as3`, ...). Hiding those would
+//     recreate the exact upstream bug where a detected platform cannot be
+//     re-selected.
+//  2. Sentry appends gaming platforms separately and strips consoles when
+//     self-hosted. Rustrak is always self-hosted and has no console
+//     entitlements to check, so gaming is a plain category.
+// ---------------------------------------------------------------------------
+
+export interface PlatformCategory {
+  id: string;
+  name: string;
+  /**
+   * Platform ids in this category. Ids not present in PLATFORMS are ignored by
+   * `categoryPlatforms`, so this list can never offer something the server
+   * would reject.
+   *
+   * Omitted means "every platform", which is what the `all` tab uses.
+   */
+  platforms?: readonly string[];
+}
+
+/**
+ * Ordered as rendered. `popular` is first and is the default tab.
+ *
+ * Its order is hand-curated by Sentry and is preserved as authored rather than
+ * sorted, unlike every other category.
+ */
+export const PLATFORM_CATEGORIES: readonly PlatformCategory[] = [
+  {
+    id: 'popular',
+    name: 'Popular',
+    platforms: [
+      'javascript-nextjs',
+      'javascript-react',
+      'react-native',
+      'node',
+      'php-laravel',
+      'python-fastapi',
+      'flutter',
+      'python-django',
+      'python',
+      'node-express',
+      'javascript',
+      'php',
+      'ruby-rails',
+      'apple-ios',
+      'node-nestjs',
+      'python-flask',
+      'javascript-vue',
+      'dotnet-aspnetcore',
+      'javascript-nuxt',
+      'dotnet-maui',
+      'javascript-angular',
+      'android',
+      'java-spring-boot',
+      'php-symfony',
+      'node-cloudflare-workers',
+      'electron',
+      'unity',
+      'javascript-remix',
+    ],
+  },
+  {
+    id: 'browser',
+    name: 'Browser',
+    platforms: [
+      'dart',
+      'flutter',
+      'javascript',
+      'javascript-angular',
+      'javascript-astro',
+      'javascript-ember',
+      'javascript-gatsby',
+      'javascript-nextjs',
+      'javascript-nuxt',
+      'javascript-react',
+      'javascript-react-router',
+      'javascript-remix',
+      'javascript-solid',
+      'javascript-solidstart',
+      'javascript-svelte',
+      'javascript-sveltekit',
+      'javascript-tanstackstart-react',
+      'javascript-vue',
+      'react-native',
+      'unity',
+    ],
+  },
+  {
+    id: 'server',
+    name: 'Server',
+    platforms: [
+      'bun',
+      'dart',
+      'deno',
+      'dotnet',
+      'dotnet-aspnet',
+      'dotnet-aspnetcore',
+      'elixir',
+      'go',
+      'go-echo',
+      'go-fasthttp',
+      'go-fiber',
+      'go-gin',
+      'go-http',
+      'go-iris',
+      'go-negroni',
+      'java',
+      'java-log4j2',
+      'java-logback',
+      'java-spring',
+      'java-spring-boot',
+      'kotlin',
+      'native',
+      'node',
+      'node-cloudflare-pages',
+      'node-cloudflare-workers',
+      'node-connect',
+      'node-express',
+      'node-fastify',
+      'node-hapi',
+      'node-hono',
+      'node-koa',
+      'node-nestjs',
+      'php',
+      'php-laravel',
+      'php-symfony',
+      'powershell',
+      'python',
+      'python-aiohttp',
+      'python-asgi',
+      'python-bottle',
+      'python-celery',
+      'python-chalice',
+      'python-django',
+      'python-falcon',
+      'python-fastapi',
+      'python-flask',
+      'python-litestar',
+      'python-pyramid',
+      'python-quart',
+      'python-rq',
+      'python-sanic',
+      'python-starlette',
+      'python-tornado',
+      'python-tryton',
+      'python-wsgi',
+      'ruby',
+      'ruby-rack',
+      'ruby-rails',
+      'rust',
+    ],
+  },
+  {
+    id: 'mobile',
+    name: 'Mobile',
+    platforms: [
+      'android',
+      'apple-ios',
+      'capacitor',
+      'cordova',
+      'dart',
+      'dotnet-maui',
+      'dotnet-xamarin',
+      'flutter',
+      'ionic',
+      'react-native',
+      'unity',
+      'unreal',
+    ],
+  },
+  {
+    id: 'desktop',
+    name: 'Desktop',
+    platforms: [
+      'apple-macos',
+      'dart',
+      'dotnet',
+      'dotnet-maui',
+      'dotnet-winforms',
+      'dotnet-wpf',
+      'electron',
+      'flutter',
+      'godot',
+      'java',
+      'kotlin',
+      'minidump',
+      'native',
+      'native-qt',
+      'unity',
+      'unreal',
+    ],
+  },
+  {
+    id: 'serverless',
+    name: 'Serverless',
+    platforms: [
+      'dotnet-awslambda',
+      'dotnet-gcpfunctions',
+      'node-awslambda',
+      'node-azurefunctions',
+      'node-cloudflare-pages',
+      'node-cloudflare-workers',
+      'node-gcpfunctions',
+      'python-awslambda',
+      'python-gcpfunctions',
+      'python-serverless',
+    ],
+  },
+  {
+    id: 'gaming',
+    name: 'Gaming',
+    platforms: [
+      'godot',
+      'native',
+      'nintendo-switch',
+      'playstation',
+      'unity',
+      'unreal',
+      'xbox',
+    ],
+  },
+  {
+    id: 'all',
+    name: 'All',
+    // No list: resolved from PLATFORMS so it can never fall behind.
+  },
+];
+
+/**
+ * Extra search terms per platform, so a user typing what they call the thing
+ * finds it. Sentry defines exactly one.
+ */
+const PLATFORM_SEARCH_ALIASES: Record<string, string[]> = {
+  native: ['cpp', 'c++'],
+};
+
+const PLATFORMS_BY_ID = new Map(PLATFORMS.map((p) => [p.id, p]));
+
+/**
+ * Platforms in a category, resolved against PLATFORMS.
+ *
+ * `popular` keeps its curated order; every other category is sorted by name,
+ * matching Sentry. `all` is every known platform.
+ */
+export function categoryPlatforms(categoryId: string): Platform[] {
+  const category = PLATFORM_CATEGORIES.find((c) => c.id === categoryId);
+  if (!category) return [];
+
+  if (!category.platforms) {
+    return [...PLATFORMS].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  const resolved = category.platforms
+    .map((id) => PLATFORMS_BY_ID.get(id))
+    .filter((p): p is Platform => p !== undefined);
+
+  return categoryId === 'popular'
+    ? resolved
+    : resolved.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Free-text platform search.
+ *
+ * Deliberately ignores the active category, matching Sentry: a user who types
+ * "django" while the Browser tab is open should still find it, rather than
+ * being told there are no results.
+ */
+export function searchPlatforms(query: string): Platform[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  return PLATFORMS.filter(
+    (p) =>
+      p.id.includes(q) ||
+      p.name.toLowerCase().includes(q) ||
+      (PLATFORM_SEARCH_ALIASES[p.id]?.some((alias) => alias.includes(q)) ??
+        false),
+  ).sort((a, b) => a.name.localeCompare(b.name));
+}

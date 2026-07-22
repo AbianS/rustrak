@@ -227,6 +227,7 @@ async fn test_preview_cleanup_counts_old_rows_without_mutating() {
         CreateProject {
             name: "preview-proj".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -295,6 +296,7 @@ async fn test_cleanup_counts_and_deletes_old_logs() {
         CreateProject {
             name: "logs-cleanup".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -332,6 +334,7 @@ async fn test_storage_summary_and_by_project_include_logs() {
         CreateProject {
             name: "logs-storage-count".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -363,6 +366,7 @@ async fn test_cleanup_rejects_nonpositive_retention_window() {
         CreateProject {
             name: "retention-guard".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -405,6 +409,7 @@ async fn test_gc_source_maps_keeps_file_that_is_referenced_at_delete_time() {
         CreateProject {
             name: "gc-recheck".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -443,6 +448,7 @@ async fn test_execute_cleanup_deletes_old_cascades_spans_and_removes_empty_issue
         CreateProject {
             name: "execute-proj".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -488,6 +494,7 @@ async fn test_execute_cleanup_decrements_project_event_counters() {
         CreateProject {
             name: "counter-proj".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -537,6 +544,7 @@ async fn test_execute_cleanup_purges_legacy_transaction_events_without_underflow
         CreateProject {
             name: "tx-underflow".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -599,6 +607,7 @@ async fn test_execute_cleanup_deletes_every_old_row_regardless_of_type() {
         CreateProject {
             name: "delete-all".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -656,6 +665,7 @@ async fn test_execute_cleanup_with_only_events_selected_spares_transactions_and_
         CreateProject {
             name: "filter-events-only".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -702,6 +712,7 @@ async fn test_preview_cleanup_respects_filter_without_mutating() {
         CreateProject {
             name: "preview-filter".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -753,6 +764,7 @@ async fn test_execute_cleanup_with_only_logs_selected_spares_events_and_transact
         CreateProject {
             name: "filter-logs-only".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -805,6 +817,7 @@ async fn test_execute_cleanup_scoped_to_project_spares_other_projects() {
         CreateProject {
             name: "scope-a".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -814,6 +827,7 @@ async fn test_execute_cleanup_scoped_to_project_spares_other_projects() {
         CreateProject {
             name: "scope-b".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -852,6 +866,7 @@ async fn test_storage_event_count_reflects_every_stored_event_row() {
         CreateProject {
             name: "mixed-types".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -886,6 +901,7 @@ async fn test_global_summary_counts_rows_across_data_categories() {
         CreateProject {
             name: "summary-proj".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -916,6 +932,7 @@ async fn test_by_project_breaks_down_counts_per_project_with_isolation() {
         CreateProject {
             name: "proj-a".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -925,6 +942,7 @@ async fn test_by_project_breaks_down_counts_per_project_with_isolation() {
         CreateProject {
             name: "proj-b".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -969,6 +987,7 @@ async fn test_preview_source_map_gc_counts_orphans_without_deleting() {
         CreateProject {
             name: "gc-preview".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -1003,6 +1022,7 @@ async fn test_gc_source_maps_removes_orphans_from_db_and_disk() {
         CreateProject {
             name: "gc-proj".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

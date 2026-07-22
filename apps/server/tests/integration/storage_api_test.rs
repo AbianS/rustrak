@@ -216,6 +216,7 @@ async fn execute_cleanup_honors_data_type_filter_from_request_body() {
         CreateProject {
             name: "filter-http".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

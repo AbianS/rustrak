@@ -29,9 +29,11 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [name, setName] = useState(project.name);
+  const [slug, setSlug] = useState(project.slug);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const hasNameChanges = name !== project.name;
+  const hasSlugChanges = slug !== project.slug;
 
   const handleSaveName = () => {
     if (!hasNameChanges || !name.trim()) return;
@@ -49,6 +51,26 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         const message =
           err instanceof Error ? err.message : 'Failed to update project';
         toast.error('Failed to update project', { description: message });
+      }
+    });
+  };
+
+  const handleSaveSlug = () => {
+    if (!hasSlugChanges || !slug.trim()) return;
+
+    startTransition(async () => {
+      try {
+        const updated = await updateProject(project.id, { slug: slug.trim() });
+        // The server slugifies the input, so echo back what it actually
+        // stored rather than the raw text: typing "My API" must leave the
+        // field showing "my-api", not a value that was never persisted.
+        setSlug(updated.slug);
+        toast.success('Slug updated');
+        router.refresh();
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Failed to update slug';
+        toast.error('Failed to update slug', { description: message });
       }
     });
   };
@@ -103,6 +125,29 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
             <Button
               onClick={handleSaveName}
               disabled={isPending || !hasNameChanges || !name.trim()}
+              size="sm"
+            >
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : 'Save'}
+            </Button>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          title="Slug"
+          description="Short identifier for this project. Your DSN and dashboard links use the numeric project ID, so renaming this will not break anything already sending events."
+          htmlFor="project-slug"
+        >
+          <div className="flex items-center gap-2">
+            <Input
+              id="project-slug"
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              placeholder="project-slug"
+              disabled={isPending}
+            />
+            <Button
+              onClick={handleSaveSlug}
+              disabled={isPending || !hasSlugChanges || !slug.trim()}
               size="sm"
             >
               {isPending ? <Loader2 className="size-4 animate-spin" /> : 'Save'}

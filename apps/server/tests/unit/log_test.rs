@@ -64,6 +64,7 @@ mod level2 {
             CreateProject {
                 name: "logs-store".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -134,6 +135,7 @@ mod level2 {
             CreateProject {
                 name: "logs-bad-attrs".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -177,6 +179,7 @@ mod level2 {
             CreateProject {
                 name: "logs-list".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -205,6 +208,7 @@ mod level2 {
             CreateProject {
                 name: "logs-filter".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await

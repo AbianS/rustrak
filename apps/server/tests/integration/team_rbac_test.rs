@@ -118,6 +118,7 @@ async fn seed_project(pool: &DbPool, name: &str) -> rustrak::models::Project {
         CreateProject {
             name: name.to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

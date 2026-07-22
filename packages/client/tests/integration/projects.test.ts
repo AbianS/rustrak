@@ -125,6 +125,29 @@ describe('ProjectsResource Integration', () => {
       expect(project.slug).toBeTruthy();
     });
 
+    it('should create project with a platform', async () => {
+      const project = await client.projects.create({
+        name: 'Platform Project',
+        platform: 'javascript-nextjs',
+      });
+
+      expect(project.platform).toBe('javascript-nextjs');
+    });
+
+    it('should reject an empty platform', async () => {
+      await expect(
+        client.projects.create({ name: 'Empty Platform', platform: '' }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should leave platform null when omitted', async () => {
+      const project = await client.projects.create({
+        name: 'No Platform Project',
+      });
+
+      expect(project.platform).toBeNull();
+    });
+
     it('should reject empty name', async () => {
       await expect(client.projects.create({ name: '' })).rejects.toThrow(
         ValidationError,
@@ -176,6 +199,14 @@ describe('ProjectsResource Integration', () => {
       });
 
       expect(updated.platform).toBe('python');
+    });
+
+    it('should update project slug', async () => {
+      const updated = await client.projects.update(1, {
+        slug: 'renamed-slug',
+      });
+
+      expect(updated.slug).toBe('renamed-slug');
     });
   });
 

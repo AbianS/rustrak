@@ -1,0 +1,54 @@
+import { ArrowLeft } from 'lucide-react';
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { getProjects } from '@/actions/projects';
+import { CreateProjectForm } from './create-project-form';
+
+export const metadata: Metadata = {
+  title: 'New Project | Rustrak',
+  description: 'Create a new Rustrak project',
+};
+
+/**
+ * Create-project page: platform picker plus name, in one form.
+ *
+ * A full page rather than a dialog, matching Sentry's own `/projects/new/`.
+ */
+export default async function NewProjectPage() {
+  // Only used to suggest a free default name. `projects.name` is UNIQUE, so
+  // the raw platform id Sentry pre-fills would collide on a second Next.js
+  // project. One page is enough for a suggestion; the server still has the
+  // final say and returns a 409 on a genuine collision.
+  let existingNames: string[] = [];
+  try {
+    const { items } = await getProjects({ page: 1, per_page: 100 });
+    existingNames = items.map((p) => p.name);
+  } catch {
+    // A failed lookup only costs a less clever default name, so it must not
+    // block project creation.
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
+      <Link
+        href="/projects"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        Back to projects
+      </Link>
+
+      <div className="mt-4 mb-6">
+        <h1 className="text-xl font-extrabold tracking-tight md:text-2xl">
+          Create a new project
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          Pick the platform you want to monitor. You will get the DSN and a
+          setup snippet right after.
+        </p>
+      </div>
+
+      <CreateProjectForm existingNames={existingNames} />
+    </div>
+  );
+}

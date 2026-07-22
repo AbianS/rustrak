@@ -230,11 +230,12 @@ const { theme, setTheme } = useTheme();
 | `/` | Redirect to `/projects` |
 | `/auth/login` | Login form |
 | `/projects` | Projects list with pagination |
+| `/projects/new` | Create project: platform grid + name (full page, not a dialog) |
 | `/projects/[id]` | Project detail + issues list |
 | `/projects/[id]/issues/[issueId]` | Issue detail (redirects to latest event) |
 | `/projects/[id]/issues/[issueId]/events/[eventId]` | Event detail with tabs |
 | `/projects/[id]/settings` | Redirect to `/projects/[id]/settings/general` |
-| `/projects/[id]/settings/general` | Name, platform, danger zone |
+| `/projects/[id]/settings/general` | Name, slug, platform, danger zone |
 | `/projects/[id]/settings/client-keys` | DSN + SDK setup example |
 | `/projects/[id]/settings/alerts` | Alert rules for the project |
 | `/projects/[id]/settings/members` | Project membership + roles |

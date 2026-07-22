@@ -84,6 +84,7 @@ async fn test_list_logs_returns_stored_logs() {
         CreateProject {
             name: "Logs List Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -127,6 +128,7 @@ async fn test_list_logs_filters_by_level() {
         CreateProject {
             name: "Logs Filter Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -167,6 +169,7 @@ async fn test_list_logs_returns_401_without_token() {
         CreateProject {
             name: "Logs Auth Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

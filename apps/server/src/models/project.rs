@@ -208,6 +208,15 @@ pub struct CreateProject {
     pub name: String,
     #[serde(default)]
     pub slug: Option<String>,
+    /// Platform identifier for the project, such as `python-django` or
+    /// `javascript-nextjs`. Rejected with a 400 if it is not one of the
+    /// supported values.
+    ///
+    /// Optional. Omitting it is not the same as having no platform forever:
+    /// the project is then auto-assigned a platform from the first event it
+    /// ingests, drawn from the narrower set of platforms an event may declare.
+    #[serde(default)]
+    pub platform: Option<String>,
 }
 
 /// DTO for updating a project
@@ -215,16 +224,23 @@ pub struct CreateProject {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct UpdateProject {
     pub name: Option<String>,
-    /// Manual override of the project's platform, validated against
-    /// [`SELECTABLE_PLATFORMS`]. That list is wider than the one
-    /// auto-detection uses: it includes framework-specific ids such as
-    /// `javascript-nextjs`, which are legal for a project but never for an
-    /// event.
+    /// New slug, slugified before storing.
     ///
-    /// Unlike auto-detection (which only writes when the column is still
-    /// NULL), a manual update is allowed to overwrite an existing value, so a
-    /// user can correct what was detected. Sending `null` leaves the current
-    /// value untouched rather than clearing it.
+    /// A slug already taken by another project returns a 409. It is not
+    /// silently de-duplicated the way a slug derived at creation time is,
+    /// since storing something other than what was requested would be wrong.
+    ///
+    /// Sending `null` leaves the current value untouched.
+    pub slug: Option<String>,
+    /// Manual override of the project's platform, such as `python-django` or
+    /// `javascript-nextjs`. Rejected with a 400 if it is not one of the
+    /// supported values.
+    ///
+    /// The supported set is wider than the platforms an event may declare, so
+    /// framework-specific identifiers are accepted here. An update overwrites
+    /// any auto-assigned value, which is how a wrong detection is corrected.
+    /// Sending `null` leaves the current value untouched rather than clearing
+    /// it.
     pub platform: Option<String>,
 }
 

@@ -180,15 +180,75 @@ impl ProjectService {
             ));
         }
 
-        // Generate or validate slug
-        let slug = Self::generate_unique_slug(pool, name, input.slug.as_deref()).await?;
+        let platform = Self::validate_platform(input.platform.as_deref())?;
+
+        // A slug the user typed and a slug derived from the name get opposite
+        // treatment on collision, for the same reason `update` returns a
+        // Conflict: when the user chose the value, storing a de-duplicated
+        // variant of it silently is wrong. When we derived it from the name
+        // the user never chose anything, so appending `-1` is helpful.
+        let (slug, slug_is_user_chosen) = match input.slug.as_deref().map(str::trim) {
+            Some(typed) if !typed.is_empty() => {
+                let slugified = slugify(typed);
+                if slugified.is_empty() {
+                    return Err(AppError::Validation(
+                        "Cannot generate valid slug from input".to_string(),
+                    ));
+                }
+                // Pre-check so the ordinary case is a clean Conflict. The
+                // insert below still has to handle the TOCTOU race.
+                let taken: Option<i32> =
+                    sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1")
+                        .bind(&slugified)
+                        .fetch_optional(pool)
+                        .await?;
+                if taken.is_some() {
+                    return Err(AppError::Conflict(format!(
+                        "Project with slug '{}' already exists",
+                        slugified
+                    )));
+                }
+                (slugified, true)
+            }
+            _ => (Self::generate_unique_slug(pool, name).await?, false),
+        };
 
         // Generate sentry_key in application (for cross-DB compatibility)
         let sentry_key = uuid::Uuid::new_v4();
 
-        let project = Self::try_insert_with_retry(pool, name, &slug, sentry_key).await?;
+        let project = Self::try_insert_with_retry(
+            pool,
+            name,
+            &slug,
+            sentry_key,
+            platform,
+            slug_is_user_chosen,
+        )
+        .await?;
 
         Ok(project)
+    }
+
+    /// Validates a user-supplied platform id against [`SELECTABLE_PLATFORMS`].
+    ///
+    /// Shared by [`Self::create`] and [`Self::update`] so the two can never
+    /// drift. Deliberately *not* used by
+    /// [`Self::infer_platform_from_event`], which filters on the narrower
+    /// [`VALID_PLATFORMS`]: an event's platform and a project's platform are
+    /// different domains with different valid-value lists.
+    fn validate_platform(platform: Option<&str>) -> AppResult<Option<&str>> {
+        match platform {
+            Some(p) => {
+                if !SELECTABLE_PLATFORMS.contains(&p) {
+                    return Err(AppError::Validation(format!(
+                        "'{}' is not a valid platform",
+                        p
+                    )));
+                }
+                Ok(Some(p))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Updates an existing project
@@ -212,20 +272,38 @@ impl ProjectService {
             None => None,
         };
 
-        let platform = match input.platform {
-            Some(ref platform) => {
-                if !SELECTABLE_PLATFORMS.contains(&platform.as_str()) {
-                    return Err(AppError::Validation(format!(
-                        "'{}' is not a valid platform",
-                        platform
+        let platform = Self::validate_platform(input.platform.as_deref())?;
+
+        let slug = match input.slug {
+            Some(ref slug) => {
+                let slugified = slugify(slug.trim());
+                if slugified.is_empty() {
+                    return Err(AppError::Validation(
+                        "Cannot generate valid slug from input".to_string(),
+                    ));
+                }
+                // Explicit availability check so the normal path returns a
+                // clear Conflict rather than a raw unique violation. This is
+                // TOCTOU-racy on its own, so the unique-violation mapping
+                // below still has to cover the slug case.
+                let taken: Option<i32> =
+                    sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1 AND id != $2")
+                        .bind(&slugified)
+                        .bind(id)
+                        .fetch_optional(pool)
+                        .await?;
+                if taken.is_some() {
+                    return Err(AppError::Conflict(format!(
+                        "Project with slug '{}' already exists",
+                        slugified
                     )));
                 }
-                Some(platform.as_str())
+                Some(slugified)
             }
             None => None,
         };
 
-        if name.is_none() && platform.is_none() {
+        if name.is_none() && platform.is_none() && slug.is_none() {
             // If no fields to update, return project unchanged
             return Self::get_by_id(pool, id).await;
         }
@@ -237,8 +315,9 @@ impl ProjectService {
             UPDATE projects
             SET name = COALESCE($1, name),
                 platform = COALESCE($2, platform),
+                slug = COALESCE($3, slug),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = $3
+            WHERE id = $4
             RETURNING id, name, slug, sentry_key, stored_event_count,
                       digested_event_count, created_at, updated_at, platform,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
@@ -246,12 +325,28 @@ impl ProjectService {
         )
         .bind(name)
         .bind(platform)
+        .bind(slug.as_deref())
         .bind(id)
         .fetch_one(pool)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
                 if db_err.is_unique_violation() {
+                    // The availability check above is TOCTOU-racy: a concurrent
+                    // update can take the slug between the SELECT and this
+                    // UPDATE. Without this arm a slug-only update loses the
+                    // race as a 500 instead of a 409. Both dialects name the
+                    // column in the message (Postgres `projects_slug_key`,
+                    // SQLite `projects.slug`), which is what distinguishes it
+                    // from the name constraint.
+                    if db_err.message().contains("slug") {
+                        if let Some(ref slug) = slug {
+                            return AppError::Conflict(format!(
+                                "Project with slug '{}' already exists",
+                                slug
+                            ));
+                        }
+                    }
                     if let Some(name) = name {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
@@ -306,16 +401,12 @@ impl ProjectService {
         Ok(())
     }
 
-    /// Generates a unique slug based on the name
-    async fn generate_unique_slug(
-        pool: &DbPool,
-        name: &str,
-        custom_slug: Option<&str>,
-    ) -> AppResult<String> {
-        let base_slug = match custom_slug {
-            Some(s) if !s.trim().is_empty() => slugify(s.trim()),
-            _ => slugify(name),
-        };
+    /// Generates a unique slug based on the name.
+    ///
+    /// De-duplication is only ever correct for a *derived* slug. A slug the
+    /// user typed is handled in [`Self::create`] and conflicts instead.
+    async fn generate_unique_slug(pool: &DbPool, name: &str) -> AppResult<String> {
+        let base_slug = slugify(name);
 
         if base_slug.is_empty() {
             return Err(AppError::Validation(
@@ -357,9 +448,11 @@ impl ProjectService {
         pool: &DbPool,
         name: &str,
         stale_slug: &str,
+        platform: Option<&str>,
     ) -> AppResult<Project> {
         let sentry_key = uuid::Uuid::new_v4();
-        Self::try_insert_with_retry(pool, name, stale_slug, sentry_key).await
+        // `false`: this helper exists to exercise the derived-slug retry path.
+        Self::try_insert_with_retry(pool, name, stale_slug, sentry_key, platform, false).await
     }
 
     async fn try_insert_with_retry(
@@ -367,10 +460,12 @@ impl ProjectService {
         name: &str,
         slug: &str,
         sentry_key: uuid::Uuid,
+        platform: Option<&str>,
+        slug_is_user_chosen: bool,
     ) -> AppResult<Project> {
         const INSERT_SQL: &str = r#"
-            INSERT INTO projects (name, slug, sentry_key)
-            VALUES ($1, $2, $3)
+            INSERT INTO projects (name, slug, sentry_key, platform)
+            VALUES ($1, $2, $3, $4)
             RETURNING id, name, slug, sentry_key, stored_event_count,
                       digested_event_count, created_at, updated_at, platform,
                       quota_exceeded_until, quota_exceeded_reason, next_quota_check
@@ -380,15 +475,32 @@ impl ProjectService {
             .bind(name)
             .bind(slug)
             .bind(sentry_key)
+            .bind(platform)
             .fetch_one(pool)
             .await;
 
         match result {
             Ok(p) => Ok(p),
             Err(sqlx::Error::Database(ref db_err)) if db_err.is_unique_violation() => {
+                if slug_is_user_chosen {
+                    // Lost the TOCTOU race on a slug the user typed. Retrying
+                    // under a renamed slug would store something they never
+                    // asked for, so report whichever column actually collided.
+                    let slug_taken: Option<i32> =
+                        sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1")
+                            .bind(slug)
+                            .fetch_optional(pool)
+                            .await?;
+                    return Err(AppError::Conflict(if slug_taken.is_some() {
+                        format!("Project with slug '{}' already exists", slug)
+                    } else {
+                        format!("Project with name '{}' already exists", name)
+                    }));
+                }
+
                 // The slug may have been taken by a concurrent request (TOCTOU).
                 // Re-query to get the next available slug and retry once.
-                let new_slug = Self::generate_unique_slug(pool, name, None).await?;
+                let new_slug = Self::generate_unique_slug(pool, name).await?;
                 if new_slug == slug {
                     // Slug is still available → the collision was on name, not slug.
                     return Err(AppError::Conflict(format!(
@@ -400,6 +512,7 @@ impl ProjectService {
                     .bind(name)
                     .bind(&new_slug)
                     .bind(sentry_key)
+                    .bind(platform)
                     .fetch_one(pool)
                     .await
                     .map_err(|e| {

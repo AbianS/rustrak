@@ -60,6 +60,7 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
         rustrak::models::CreateProject {
             name: format!("Test Project {}", chrono::Utc::now().timestamp_millis()),
             slug: None,
+            platform: None,
         },
     )
     .await

@@ -93,6 +93,7 @@ async fn test_list_spans_returns_stored_spans() {
         CreateProject {
             name: "Spans List Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -133,6 +134,7 @@ async fn test_list_spans_filters_by_trace_id() {
         CreateProject {
             name: "Spans Filter Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -184,6 +186,7 @@ async fn test_list_spans_filters_by_op() {
         CreateProject {
             name: "Spans Op Filter Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -227,6 +230,7 @@ async fn test_list_spans_filters_by_status() {
         CreateProject {
             name: "Spans Status Filter Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await
@@ -270,6 +274,7 @@ async fn test_list_spans_returns_401_without_token() {
         CreateProject {
             name: "Spans Auth Test".to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

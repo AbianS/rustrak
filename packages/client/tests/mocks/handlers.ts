@@ -337,7 +337,11 @@ export const handlers = [
   }),
 
   http.post(`${BASE_URL}/api/projects`, async ({ request }) => {
-    const body = (await request.json()) as { name: string; slug?: string };
+    const body = (await request.json()) as {
+      name: string;
+      slug?: string;
+      platform?: string;
+    };
 
     const newProject = {
       id: 3,
@@ -349,7 +353,9 @@ export const handlers = [
       digested_event_count: 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      platform: null,
+      // Mirrors the server: an omitted platform stays NULL, a supplied one is
+      // persisted and echoed back.
+      platform: body.platform ?? null,
     };
 
     return HttpResponse.json(newProject, { status: 201 });
@@ -357,7 +363,11 @@ export const handlers = [
 
   http.patch(`${BASE_URL}/api/projects/:id`, async ({ params, request }) => {
     const { id } = params;
-    const body = (await request.json()) as { name?: string; platform?: string };
+    const body = (await request.json()) as {
+      name?: string;
+      platform?: string;
+      slug?: string;
+    };
     const project = mockProjects.find((p) => p.id === Number(id));
 
     if (!project) {

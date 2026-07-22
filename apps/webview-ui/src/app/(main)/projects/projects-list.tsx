@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Loader2,
   MoreVertical,
+  Plus,
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -176,6 +177,14 @@ export function ProjectsList({
           <p className="text-sm text-muted-foreground/70">
             Create your first project to start tracking errors
           </p>
+          <Button
+            className="mt-4"
+            nativeButton={false}
+            render={<Link href="/projects/new" />}
+          >
+            <Plus className="mr-2 size-4" />
+            New Project
+          </Button>
         </div>
       ) : (
         <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">

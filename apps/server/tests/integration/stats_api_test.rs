@@ -127,6 +127,7 @@ async fn create_project(pool: &DbPool, name: &str) -> i32 {
         rustrak::models::CreateProject {
             name: name.to_string(),
             slug: None,
+            platform: None,
         },
     )
     .await

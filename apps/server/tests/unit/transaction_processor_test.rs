@@ -129,6 +129,7 @@ mod level2 {
             CreateProject {
                 name: "txn-dedicated".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -183,6 +184,7 @@ mod level2 {
             CreateProject {
                 name: "txn-trace-ctx".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -252,6 +254,7 @@ mod level2 {
             CreateProject {
                 name: "txn-source-url".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -296,6 +299,7 @@ mod level2 {
             CreateProject {
                 name: "txn-source-default".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -341,6 +345,7 @@ mod level2 {
             CreateProject {
                 name: "txn-span-extract".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -427,6 +432,7 @@ mod level2 {
             CreateProject {
                 name: "txn-bad-json".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -469,6 +475,7 @@ mod level2 {
             CreateProject {
                 name: "txn-paging".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -517,6 +524,7 @@ mod level2 {
             CreateProject {
                 name: "txn-test".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -577,6 +585,7 @@ mod level2 {
             CreateProject {
                 name: "txn-trait".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -627,6 +636,7 @@ mod level2 {
             CreateProject {
                 name: "sess-fwd".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -691,6 +701,7 @@ mod level2 {
             CreateProject {
                 name: "txn-filter-op".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -739,6 +750,7 @@ mod level2 {
             CreateProject {
                 name: "txn-filter-name".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -782,6 +794,7 @@ mod level2 {
             CreateProject {
                 name: "txn-list-spans".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -838,6 +851,7 @@ mod level2 {
             CreateProject {
                 name: "txn-stats".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -897,6 +911,7 @@ mod level2 {
             CreateProject {
                 name: "txn-stats-paging".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -942,6 +957,7 @@ mod level2 {
             CreateProject {
                 name: "txn-spans-404".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -966,6 +982,7 @@ mod level2 {
             CreateProject {
                 name: "txn-stats-group".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1015,6 +1032,7 @@ mod level2 {
             CreateProject {
                 name: "txn-stats-tie".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1057,6 +1075,7 @@ mod level2 {
             CreateProject {
                 name: "txn-no-group".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1106,6 +1125,7 @@ mod level2 {
             CreateProject {
                 name: "txn-gen-ai-child".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1181,6 +1201,7 @@ mod level2 {
             CreateProject {
                 name: "txn-ai-root-span".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1281,6 +1302,7 @@ mod level2 {
             CreateProject {
                 name: "txn-non-ai-root-no-promote".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1339,6 +1361,7 @@ mod level2 {
             CreateProject {
                 name: "txn-ai-root-span-no-data".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1405,6 +1428,7 @@ mod level2 {
             CreateProject {
                 name: "txn-agent-runs-widget".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await
@@ -1454,6 +1478,7 @@ mod level2 {
             CreateProject {
                 name: "txn-not-ai-child".to_string(),
                 slug: None,
+                platform: None,
             },
         )
         .await

@@ -7,6 +7,12 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { copyToClipboard } from '@/lib/clipboard';
+import {
+  PLATFORM_DOCS,
+  PLATFORM_SNIPPETS,
+  renderSnippet,
+} from '@/lib/platform-snippets';
+import { platformLabel } from '@/lib/platforms';
 import { SettingSection } from '../setting-row';
 
 interface ClientKeysSettingsProps {
@@ -20,6 +26,7 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
   const { resolvedTheme } = useTheme();
   const [copiedDsn, setCopiedDsn] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedInstall, setCopiedInstall] = useState(false);
   const [Highlighter, setHighlighter] = useState<HighlighterComponent | null>(
     null,
   );
@@ -53,11 +60,39 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     };
   }, [isDark]);
 
-  const codeExample = `import * as Sentry from "@sentry/browser";
+  // Setup instructions follow the project's own platform. Only a project with
+  // no platform at all (never set, no event ingested yet) gets the generic
+  // browser example.
+  //
+  // A project that HAS a platform but no snippet must never get it: snippet
+  // coverage is partial by design, and the platforms it misses are mostly
+  // console and native ones (unreal, playstation, xbox, native...) where a
+  // `@sentry/browser` example is actively misleading. Sentry does the same,
+  // and more strictly: `sdkDocumentation.tsx` renders an explicit "currently
+  // unavailable" error rather than substituting another platform's snippet.
+  const snippet = project.platform
+    ? PLATFORM_SNIPPETS[project.platform]
+    : undefined;
+  const docsUrl = project.platform
+    ? PLATFORM_DOCS[project.platform]
+    : undefined;
+
+  // Absent for a selected platform we have no snippet for. The DSN section and
+  // the docs link carry the page on their own, which is what Sentry falls back
+  // to for its deprecated platforms (`deprecatedPlatformInfo.tsx`).
+  const codeExample = snippet
+    ? renderSnippet(snippet.configure, project.dsn)
+    : project.platform
+      ? undefined
+      : `import * as Sentry from "@sentry/browser";
 
 Sentry.init({
   dsn: "${project.dsn}",
 });`;
+  const codeLanguage = snippet?.language ?? 'javascript';
+  const exampleTitle = snippet
+    ? `Example (${platformLabel(project.platform ?? '')})`
+    : 'Example (JavaScript)';
 
   const copy = async (
     value: string,
@@ -100,66 +135,108 @@ Sentry.init({
         </div>
       </SettingSection>
 
-      <SettingSection
-        title="Example (JavaScript)"
-        description="Minimal setup for a browser app. Every SDK takes this same DSN, see the Sentry docs for yours."
-      >
-        <div className="mt-3">
-          <div className="mb-2 flex justify-end">
+      {snippet?.install && (
+        <SettingSection
+          title="Install"
+          description="Add the SDK to your project."
+        >
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted p-3">
+            <code className="flex-1 overflow-x-auto font-mono text-xs">
+              {snippet.install}
+            </code>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => copy(codeExample, setCopiedCode, 'example')}
-              className="h-6 text-xs"
+              onClick={() =>
+                copy(snippet.install ?? '', setCopiedInstall, 'command')
+              }
+              className="shrink-0"
+              aria-label="Copy install command"
             >
-              {copiedCode ? (
-                <>
-                  <Check className="mr-1 size-3 text-primary" />
-                  Copied
-                </>
+              {copiedInstall ? (
+                <Check className="size-4 text-primary" />
               ) : (
-                <>
-                  <Copy className="mr-1 size-3" />
-                  Copy
-                </>
+                <Copy className="size-4" />
               )}
             </Button>
           </div>
-          <div className="overflow-hidden overflow-x-auto rounded-lg border">
-            {Highlighter && highlighterStyle ? (
-              <Highlighter
-                language="javascript"
-                style={highlighterStyle}
-                customStyle={{
-                  margin: 0,
-                  padding: '1rem',
-                  fontSize: '0.75rem',
-                  background: isDark ? '#1e1e1e' : '#ffffff',
-                }}
-              >
-                {codeExample}
-              </Highlighter>
-            ) : highlighterFailed ? (
-              <pre className="overflow-x-auto p-4 font-mono text-xs">
-                {codeExample}
-              </pre>
-            ) : (
-              <div className="flex h-24 animate-pulse items-center justify-center bg-muted p-4">
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </SettingSection>
+      )}
+
+      <SettingSection
+        title={codeExample ? exampleTitle : 'Setup'}
+        description={
+          codeExample
+            ? 'Your DSN is already filled in below.'
+            : 'Point the SDK for this platform at the DSN above.'
+        }
+      >
+        <div className="mt-3">
+          {codeExample && (
+            <>
+              <div className="mb-2 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copy(codeExample, setCopiedCode, 'example')}
+                  className="h-6 text-xs"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="mr-1 size-3 text-primary" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="mr-1 size-3" />
+                      Copy
+                    </>
+                  )}
+                </Button>
               </div>
-            )}
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
+              <div className="overflow-hidden overflow-x-auto rounded-lg border">
+                {Highlighter && highlighterStyle ? (
+                  <Highlighter
+                    language={codeLanguage}
+                    style={highlighterStyle}
+                    customStyle={{
+                      margin: 0,
+                      padding: '1rem',
+                      fontSize: '0.75rem',
+                      background: isDark ? '#1e1e1e' : '#ffffff',
+                    }}
+                  >
+                    {codeExample}
+                  </Highlighter>
+                ) : highlighterFailed ? (
+                  <pre className="overflow-x-auto p-4 font-mono text-xs">
+                    {codeExample}
+                  </pre>
+                ) : (
+                  <div className="flex h-24 animate-pulse items-center justify-center bg-muted p-4">
+                    <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          <p
+            className={`text-xs text-muted-foreground${codeExample ? ' mt-3' : ''}`}
+          >
             This server is compatible with all official Sentry SDKs. Check the{' '}
             <a
-              href="https://docs.sentry.io/platforms/"
+              href={docsUrl ?? 'https://docs.sentry.io/platforms/'}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              Sentry documentation
+              {docsUrl
+                ? `${platformLabel(project.platform ?? '')} documentation`
+                : 'Sentry documentation'}
             </a>{' '}
-            for platform-specific setup instructions.
+            {codeExample
+              ? 'for the full setup, including options this example leaves out.'
+              : 'for the setup steps for this platform.'}
           </p>
         </div>
       </SettingSection>
