@@ -586,7 +586,6 @@ function WebhookConfigDialog({
   open,
   onOpenChange,
   existingIntegration,
-  onTest,
   onDelete,
   isPending: parentPending,
 }: ConfigDialogProps) {

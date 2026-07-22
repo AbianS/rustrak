@@ -34,7 +34,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "check-types": "tsc --noEmit"
   },
   "keywords": [
     "rustrak",

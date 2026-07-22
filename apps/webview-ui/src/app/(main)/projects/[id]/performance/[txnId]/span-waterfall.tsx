@@ -289,8 +289,9 @@ export function SpanWaterfall({
 
             return (
               <div key={span.span_id ?? `span-${i}`}>
-                {/* Row is a div (not a button) so the collapse button can nest
-                    as a valid interactive child. */}
+                {/* biome-ignore lint/a11y/useSemanticElements: the row contains
+                    its own collapse <button>, and a <button> nested inside a
+                    <button> is invalid HTML. */}
                 <div
                   role="button"
                   tabIndex={0}

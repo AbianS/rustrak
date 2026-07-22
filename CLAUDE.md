@@ -209,8 +209,21 @@ docker-compose up --build
 
 ### Testing
 ```bash
+# Server (Rust)
 cd apps/server
 cargo test
+
+# Frontend (vitest + jsdom)
+pnpm --filter=webview-ui test
+
+# TypeScript client (vitest + MSW)
+pnpm --filter=@rustrak/client test
+
+# MCP server (vitest + InMemoryTransport)
+pnpm --filter=@rustrak/mcp test
+
+# Everything, the way CI runs it
+pnpm run ci
 ```
 
 ### Building for Production

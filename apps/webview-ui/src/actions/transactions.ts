@@ -49,5 +49,7 @@ export async function getTransactionStatForGroup(
 ): Promise<TransactionStats | null> {
   const client = await createClient();
   // A group with no transactions returns 404 — treat as "no metrics".
-  return client.transactions.getStatForGroup(projectId, name, op).catch(() => null);
+  return client.transactions
+    .getStatForGroup(projectId, name, op)
+    .catch(() => null);
 }

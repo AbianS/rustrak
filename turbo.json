@@ -1,6 +1,7 @@
 {
   "$schema": "https://v2-9-14.turborepo.dev/schema.json",
   "ui": "tui",
+  "globalDependencies": ["biome.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -32,7 +33,7 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "^build"]
     },
     "test": {
       "dependsOn": ["^build"],

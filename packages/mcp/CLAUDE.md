@@ -269,7 +269,7 @@ pnpm test
 pnpm dev
 
 # Type check
-pnpm typecheck
+pnpm check-types
 ```
 
 ### Test Coverage

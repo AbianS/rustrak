@@ -17,7 +17,7 @@ export default async function TeamPage() {
   const user = await getCurrentUser();
 
   // Guard: only instance admins may manage the team.
-  if (!user || user.role !== 'admin') {
+  if (user?.role !== 'admin') {
     return (
       <>
         <div className="mb-6 md:mb-8">
