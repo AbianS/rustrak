@@ -390,6 +390,52 @@ async fn summary_accepts_the_maximum_clamped_window() {
 
 // ── project-list stats (batched) ─────────────────────────────────────────────
 
+/// Insert one error event `minutes_ago` old.
+///
+/// Minute resolution because window-boundary tests need to place events at a
+/// known offset inside an hour, which `seed_event`'s whole hours cannot do.
+async fn seed_event_minutes_ago(pool: &DbPool, project_id: i32, minutes_ago: i64) {
+    #[cfg(feature = "postgres")]
+    sqlx::query(
+        r#"
+        INSERT INTO events
+            (event_id, project_id, data, timestamp, ingested_at, level, event_type)
+        VALUES (
+            $1, $2, '{}'::jsonb,
+            NOW() - ($3::text || ' minutes')::interval,
+            NOW() - ($3::text || ' minutes')::interval,
+            'error', 'error'
+        )
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(project_id)
+    .bind(minutes_ago.to_string())
+    .execute(pool)
+    .await
+    .expect("seed_event_minutes_ago failed");
+
+    #[cfg(not(feature = "postgres"))]
+    sqlx::query(
+        r#"
+        INSERT INTO events
+            (event_id, project_id, data, timestamp, ingested_at, level, event_type)
+        VALUES (
+            ?1, ?2, '{}',
+            datetime('now', '-' || ?3 || ' minutes'),
+            datetime('now', '-' || ?3 || ' minutes'),
+            'error', 'error'
+        )
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(project_id)
+    .bind(minutes_ago.to_string())
+    .execute(pool)
+    .await
+    .expect("seed_event_minutes_ago failed");
+}
+
 /// Insert one issue with an explicit `status` and `level`.
 ///
 /// The `seed_issue` helper above hardcodes `unresolved` and leaves `level`
@@ -547,6 +593,42 @@ async fn list_stats_trend_ignores_events_with_no_issue() {
     let entry = &stats[&project_id];
     assert_eq!(entry.events.current, 1);
     assert_eq!(entry.trend.iter().sum::<i64>(), 0);
+}
+
+/// Both comparison windows must cover the same elapsed time, whatever moment
+/// the request lands on.
+///
+/// Regression test for a grid anchored to the clock instead of to `now`: the
+/// current window was short by however far into the bucket the request
+/// arrived — up to a full hour, and always in the same direction — so every
+/// delta understated the current period against a full-length previous one.
+///
+/// Seeds one event per hour on both sides of the boundary. Symmetric input, so
+/// any asymmetry in the result is the window bounds and nothing else.
+#[actix_web::test]
+async fn list_stats_windows_cover_equal_spans() {
+    let db = TestDb::new().await;
+    let project_id = create_project(&db.pool, "List Equal Windows").await;
+
+    // Half-hour offsets keep every event clear of a bucket edge, so the test
+    // fails on a genuinely lopsided window rather than on rounding.
+    for i in 0..24 {
+        seed_event_minutes_ago(&db.pool, project_id, i * 60 + 30).await;
+        seed_event_minutes_ago(&db.pool, project_id, (i + 24) * 60 + 30).await;
+    }
+
+    let stats = StatsService::list_stats(&db.pool, &[project_id], 24)
+        .await
+        .expect("query failed");
+
+    let entry = &stats[&project_id];
+    assert_eq!(
+        entry.events.current,
+        entry.events.previous.expect("previous must be present"),
+        "24 events an hour apart on each side must count equally; \
+         a difference means the two windows are not the same length"
+    );
+    assert_eq!(entry.events.current, 24);
 }
 
 /// The "issues are climbing" signal the row colour depends on.

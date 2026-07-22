@@ -119,22 +119,32 @@ impl StatsService {
             return Ok(out);
         }
 
-        // One aligned grid of 2 x LIST_TREND_BUCKETS buckets ending at now:
-        // the later half is the sparkline and the current counts, the earlier
-        // half is the comparison window. Deriving both from a single grid is
-        // what guarantees the two windows are exactly the same length.
+        // One grid of 2 x LIST_TREND_BUCKETS buckets ending exactly at now: the
+        // later half is the sparkline and the current counts, the earlier half
+        // is the comparison window.
+        //
+        // Anchored to `now` rather than to a clock boundary. Flooring `now` to
+        // the bucket size instead makes the current window short by however far
+        // into the bucket the request lands — up to a full bucket, and always
+        // in the same direction — so every delta on the page understated the
+        // current period against a full-length previous one. Sentry splits this
+        // the same way: `get_session_stats` derives its comparison bounds from
+        // `now` directly, and only the timeseries is bucket-aligned.
+        //
+        // The cost is that bars no longer start on the hour, which a sparkline
+        // with no x-axis cannot show anyway; the gain is that every bucket
+        // covers a whole interval, including the newest.
         let bucket_secs = ((period_hours * 3600) / LIST_TREND_BUCKETS).max(1);
-        let last = Utc::now().timestamp().div_euclid(bucket_secs) * bucket_secs;
-        let first = last - (LIST_TREND_BUCKETS * 2 - 1) * bucket_secs;
-        let current_start = first + LIST_TREND_BUCKETS * bucket_secs;
+        let now = Utc::now().timestamp();
+        let first = now - LIST_TREND_BUCKETS * 2 * bucket_secs;
+        let current_start = now - LIST_TREND_BUCKETS * bucket_secs;
 
-        for (project_id, bucket, events, issues) in
+        for (project_id, idx, events, issues) in
             query_list_volume(pool, project_ids, first, bucket_secs).await?
         {
             let Some(entry) = out.get_mut(&project_id) else {
                 continue;
             };
-            let idx = (bucket - first).div_euclid(bucket_secs);
             if idx < 0 {
                 continue;
             }
@@ -142,9 +152,11 @@ impl StatsService {
                 entry.events.previous = Some(entry.events.previous.unwrap_or(0) + events);
             } else {
                 entry.events.current += events;
-                // Clamped rather than dropped: an event whose `ingested_at` is
-                // slightly in the future (clock skew on the writer) belongs in
-                // the newest bar, not nowhere.
+                // Clamped rather than dropped. With the grid anchored to `now`
+                // the top index is open: an event ingested in this very second
+                // lands one past the last bar, as does one whose `ingested_at`
+                // is slightly in the future from clock skew on the writer.
+                // Both belong in the newest bar, not nowhere.
                 let slot = ((idx - LIST_TREND_BUCKETS) as usize).min(entry.trend.len() - 1);
                 entry.trend[slot] += issues;
             }
@@ -179,7 +191,12 @@ fn id_list(project_ids: &[i32]) -> String {
         .join(", ")
 }
 
-/// `(project_id, bucket_start_unix, error_events, distinct_active_issues)`.
+/// `(project_id, bucket_index, error_events, distinct_active_issues)`.
+///
+/// The index is relative to `first`, so it runs `0..=2*LIST_TREND_BUCKETS`
+/// rather than being an absolute clock-aligned timestamp — the grid is
+/// anchored to the request instant, not to the hour. The caller clamps the
+/// open upper end, which an event ingested in the same instant can reach.
 ///
 /// Both figures come from one scan because they answer different questions
 /// about the same rows: the count drives the Events column, the distinct issue
@@ -199,8 +216,8 @@ async fn query_list_volume(
             r#"
             SELECT
                 project_id,
-                (floor(extract(epoch FROM ingested_at) / {bucket_secs}) * {bucket_secs})::bigint
-                    AS bucket,
+                floor((extract(epoch FROM ingested_at) - {first}) / {bucket_secs})::bigint
+                    AS bucket_idx,
                 COUNT(*)::bigint AS events,
                 COUNT(DISTINCT issue_id)::bigint AS issues
             FROM events
@@ -218,14 +235,14 @@ async fn query_list_volume(
 
     #[cfg(not(feature = "postgres"))]
     {
-        // `ingested_at` is always positive here, so SQLite's truncating
-        // integer division agrees with Postgres' `floor`.
+        // The WHERE clause keeps the numerator non-negative, so SQLite's
+        // truncating integer division agrees with Postgres' `floor`.
         let sql = format!(
             r#"
             SELECT
                 project_id,
-                (CAST(strftime('%s', ingested_at) AS INTEGER) / {bucket_secs}) * {bucket_secs}
-                    AS bucket,
+                (CAST(strftime('%s', ingested_at) AS INTEGER) - {first}) / {bucket_secs}
+                    AS bucket_idx,
                 COUNT(*) AS events,
                 COUNT(DISTINCT issue_id) AS issues
             FROM events
