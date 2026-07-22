@@ -1,0 +1,40 @@
+---
+version: v0.13.0
+title: Project Onboarding and List Insights
+description: Creating a project is now a full page with platform selection and SDK snippets, and the projects list carries the numbers that say which project needs attention
+date: 2026-07-22
+tags: [server, client, webview-ui, projects, onboarding]
+---
+
+## Project creation as a full page
+
+The create-project modal was a name field and nothing else: no platform, no slug control, and no indication of what to do once the project existed. It is now a dedicated `/projects/new` page that carries the whole onboarding step.
+
+- Searchable platform grid covering the full set of Sentry platform identifiers, grouped by category, with "Other" pinned first in every tab for anything not on the list
+- Per-platform setup snippets taken verbatim from Sentry's own onboarding docs, shown on creation and in project settings under Client Keys. Platforms with no usable snippet show none, instead of a misleading `@sentry/browser` example
+- `POST /api/projects` accepts `platform`, validated against the selectable set. Omitting it leaves the project eligible for auto-detection from its first event
+- `POST /api/projects` and `PATCH /api/projects/{id}` accept `slug`. A slug the user typed conflicts with a 409 on collision; a slug derived from the name keeps de-duplicating silently, since nobody chose that value
+- The form shows the derived slug and lets the user take it over with an edit button, so the URL is visible before the project exists
+- Mobile drops the grid's inner scroll area, which nested a scroll inside the page scroll, and moves submit to a fixed bottom bar carrying the current selection
+
+## Stats on the projects list
+
+The list showed a name, a slug, a DSN and a creation date, none of which answer "which project should I look at first". Each row now carries its own numbers.
+
+- `GET /api/projects?stats_period=24h` attaches per-row aggregates, computed for the whole page in two queries rather than one per row. Without the parameter no aggregate query runs at all, keeping the plain list cheap for SDK tooling and the project picker
+- `stats` is omitted rather than zeroed when unrequested, so "not computed" stays distinguishable from "quiet project"
+- The sparkline counts distinct issues active per bucket, not events and not issues created. Event volume lets one chatty issue draw the same picture as a project falling apart, and creations are too sparse on a self-hosted instance to draw at all
+- Its colour encodes health: red for open fatals, amber when new issues outnumber the previous period, muted otherwise
+- Events, new issues, open issues and fatal issues each render with a delta against the preceding window of equal length
+- DSN leaves the table, already available under settings, and the events pill is promoted to its own Total column with the counters at fixed widths so they read as one block
+
+## Improvements
+
+- `IssueTrendSparkline` becomes the generic `TrendSparkline` and gains a y-axis floor, so low volume stops rendering as an outage. `deltaTone` and `Polarity` move out of `StatTile` into a shared `metric-delta`
+- `@rustrak/client` exposes `ProjectListStats`, and `projects.list()` takes `stats_period`
+- API errors no longer render as `[object Object]`: the client read `{error: string}` while the server sends `{error: {type, message}}`. Partial fix, per #204
+- Post-login now redirects to `/` rather than `/projects`
+
+## Fixes
+
+- Project list stat deltas compared unequal windows. The bucket grid was anchored to a clock boundary, so the previous window was always a full period while the current one was short by however far into the bucket the request landed, up to a whole bucket and always in the same direction. Every delta understated the current period, worst at the top of the hour at 23h measured against 24h, a 4.2% systematic bias that also made the "issues are climbing" colour harder to trigger than it should be. Both windows are now anchored to `now`
