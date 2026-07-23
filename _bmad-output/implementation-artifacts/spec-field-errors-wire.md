@@ -2,7 +2,8 @@
 title: 'Field-level validation errors: the wire contract (server and client)'
 type: 'feature'
 created: '2026-07-22'
-status: 'draft'
+status: 'in-progress'
+baseline_commit: '2f0721cbbec3ebffcd5363e37f86ed6233e05b4a'
 review_loop_iteration: 0
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-rustrak-2026-07-22/ARCHITECTURE-SPINE.md'

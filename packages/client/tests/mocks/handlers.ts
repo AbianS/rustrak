@@ -1,4 +1,5 @@
 import { HttpResponse, http } from 'msw';
+import type { FieldError } from '../../src/errors.js';
 
 const BASE_URL = 'http://localhost:8080';
 
@@ -63,8 +64,18 @@ export const APP_ERROR_STATUS = {
  * prefix: a 404 reads `Resource not found: <detail>`, never a bare detail.
  * Passing a message without its prefix throws here rather than producing a body
  * the server could never send.
+ *
+ * `fields` is optional and mirrors the server exactly: `ErrorDetail.fields` is
+ * `#[serde(skip_serializing_if = "Vec::is_empty")]`, so an absent or empty list
+ * means the key is absent from the body, never `[]` and never `null`. Fixtures
+ * go through here rather than inlining a body precisely so that this stays true
+ * in one place.
  */
-export function appErrorResponse(type: AppErrorType, message: string) {
+export function appErrorResponse(
+  type: AppErrorType,
+  message: string,
+  fields?: FieldError[],
+) {
   const prefix = APP_ERROR_PREFIXES[type];
   if (!message.startsWith(prefix)) {
     throw new Error(
@@ -73,7 +84,9 @@ export function appErrorResponse(type: AppErrorType, message: string) {
     );
   }
   return HttpResponse.json(
-    { error: { type, message } },
+    fields === undefined || fields.length === 0
+      ? { error: { type, message } }
+      : { error: { type, message, fields } },
     { status: APP_ERROR_STATUS[type] },
   );
 }

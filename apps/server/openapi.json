@@ -7810,6 +7810,13 @@
           "message"
         ],
         "properties": {
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "description": "Machine-readable annotations naming the inputs that were rejected.\n\nOmitted from the JSON entirely when empty, so every consumer written\nbefore this existed keeps seeing exactly the body it saw before."
+          },
           "message": {
             "type": "string"
           },
@@ -7996,6 +8003,38 @@
             "format": "int64"
           }
         }
+      },
+      "FieldError": {
+        "type": "object",
+        "description": "One rejected input, named as data rather than buried in the prose of\n[`ErrorDetail::message`].\n\n`field` is a **dot path into the request body** (`slug`,\n`credentials.webhook_url`), not a JSON Pointer and not a UI label: a\nconsumer feeds it straight to a form library's `setError`.\n\nThe rejected *value* is deliberately never echoed back. One careless\napplication to a password input would put a credential in the log store.\n\nThe three fields are private on purpose. [`Self::new`] and [`Self::custom`]\nare the only ways to build one, which is what makes \"`message` is populated\nonly alongside [`FieldErrorCode::Custom`]\" an invariant the compiler holds\nrather than a convention a struct literal could quietly break.",
+        "required": [
+          "field",
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/FieldErrorCode"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string",
+            "description": "Only for what [`FieldErrorCode`] cannot express, and then only\nalongside [`FieldErrorCode::Custom`]. Consumers pick their copy from\n`(field, code)` so it can be translated, and never parse this.\n\n`nullable = false`: `skip_serializing_if` means the key is *absent*,\nnever `null`, so a generated client must not model a null it can never\nreceive."
+          }
+        }
+      },
+      "FieldErrorCode": {
+        "type": "string",
+        "description": "The closed vocabulary a [`FieldError`] may use.\n\nDeliberately small and resource-agnostic: a large or per-endpoint\nvocabulary becomes a public API that cannot be versioned. Adding a variant\nis a wire change and requires the matching addition to the TypeScript union\nin `packages/client/src/errors.ts`, which\n`packages/client/tests/unit/app-error-contract.test.ts` enforces by parsing\nthis enum out of this file.",
+        "enum": [
+          "required",
+          "invalid",
+          "already_exists",
+          "too_short",
+          "too_long",
+          "custom"
+        ]
       },
       "GenAiBreakdownRow": {
         "type": "object",

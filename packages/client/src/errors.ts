@@ -13,45 +13,73 @@
  * `status` is `number`, never a literal union. Pinning literals would make a
  * proxy-generated 502 or a future status a type error at the call site rather
  * than a value the consumer can log.
+ *
+ * `fields` appears on every member that can carry an `AppError` body, because
+ * `AppError::with_field` works on all eight Rust variants: a `Forbidden` or a
+ * `NotFound` may name an input just as a `Conflict` does. Only the members
+ * that never carry a server body at all (`server_error`, which discards it,
+ * plus `invalid_request`, `network` and `invalid_response`, which never had
+ * one) omit it. See {@link FieldError}.
  */
 export type RustrakError =
-  /** 400. `AppError::Validation`: the server rejected the request. */
+  /**
+   * 400. `AppError::Validation`: the server rejected the request.
+   *
+   * `fields` is present only when the server named the offending inputs; a
+   * consumer that ignores it behaves exactly as it did before.
+   */
   | {
       readonly kind: 'validation';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /** 401. `AppError::Unauthorized`: no session, or the session expired. */
   | {
       readonly kind: 'unauthenticated';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /** 403. `AppError::Forbidden`: authenticated, but not allowed. */
   | {
       readonly kind: 'forbidden';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /** 404. `AppError::NotFound`. */
   | {
       readonly kind: 'not_found';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
-  /** 409. `AppError::Conflict`. */
+  /**
+   * 409. `AppError::Conflict`.
+   *
+   * Where `fields` earns its keep: uniqueness is the thing only the server can
+   * know, and a taken name or slug is a 409, not a 400.
+   */
   | {
       readonly kind: 'conflict';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /** 410. Reserved for endpoints that retire a resource rather than delete it. */
-  | { readonly kind: 'gone'; readonly status: number; readonly message: string }
+  | {
+      readonly kind: 'gone';
+      readonly status: number;
+      readonly message: string;
+      readonly fields?: readonly FieldError[];
+    }
   /** 413. `AppError::PayloadTooLarge`: envelope ingestion only. */
   | {
       readonly kind: 'payload_too_large';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /** 429. The ingest rate limiter (`routes/ingest.rs`), the one flat body. */
   | {
@@ -60,6 +88,7 @@ export type RustrakError =
       readonly message: string;
       /** Seconds to wait, from the `Retry-After` header, when the server sent one. */
       readonly retryAfter?: number;
+      readonly fields?: readonly FieldError[];
     }
   /**
    * Any status below 500 that no other member claims. The catch-all that keeps
@@ -74,6 +103,7 @@ export type RustrakError =
       readonly kind: 'client_error';
       readonly status: number;
       readonly message: string;
+      readonly fields?: readonly FieldError[];
     }
   /**
    * The caller's own input failed a pre-flight check. Never reached the
@@ -127,6 +157,58 @@ export type RustrakError =
 
 /** The `kind` discriminant, useful for exhaustive `switch` in consumers. */
 export type RustrakErrorKind = RustrakError['kind'];
+
+/**
+ * Every `code` a {@link FieldError} may carry, mirroring the `FieldErrorCode`
+ * enum in `apps/server/src/error.rs`.
+ *
+ * Deliberately tiny and resource-agnostic. `tests/unit/app-error-contract.test.ts`
+ * parses that Rust enum and fails if this list stops matching it, so a variant
+ * added on the server cannot ship without a matching entry here.
+ *
+ * Exported as a value, not only a type, so a consumer can exhaustively switch
+ * or validate against it at runtime.
+ */
+export const FIELD_ERROR_CODES = [
+  'required',
+  'invalid',
+  'already_exists',
+  'too_short',
+  'too_long',
+  'custom',
+] as const;
+
+/** The `code` of a {@link FieldError}. */
+export type FieldErrorCode = (typeof FIELD_ERROR_CODES)[number];
+
+/**
+ * One input the server rejected, named as data.
+ *
+ * `field` is a **dot path into the request body** (`slug`,
+ * `credentials.webhook_url`), which is exactly what a form library's
+ * `setError` takes.
+ *
+ * Select the copy shown to the user from `(field, code)` and never from
+ * `message`: that is what makes it translatable. `message` is populated only
+ * for `code: 'custom'`, where the code set genuinely cannot express the
+ * reason, and is then rendered verbatim. The client strips a `message` that
+ * arrives on any other code, so the rule holds even against a server that
+ * breaks it.
+ *
+ * The same `(field, code)` pair can mean two things at two statuses:
+ * `(role, 'invalid')` is "not a role at all" on a 400 and "a real role, but
+ * not acceptable right now" on a 409. Branch on `kind` as well when the copy
+ * has to differ.
+ *
+ * A `field` naming an input the form does not have must fall back to a
+ * form-level error. Passing an unknown path to `setError` registers a
+ * phantom field that nothing can ever clear.
+ */
+export type FieldError = {
+  readonly field: string;
+  readonly code: FieldErrorCode;
+  readonly message?: string;
+};
 
 /**
  * The fixed message every `server_error` carries. Exported so a consumer (or a

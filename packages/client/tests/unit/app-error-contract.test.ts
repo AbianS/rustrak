@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { FIELD_ERROR_CODES } from '../../src/errors.js';
 import {
   APP_ERROR_PREFIXES,
   APP_ERROR_STATUS,
@@ -72,6 +73,39 @@ function parseTypeLiterals(rust: string): Map<string, string> {
     }
   }
   return out;
+}
+
+/**
+ * The `pub enum FieldErrorCode { ... }` block, plus the attributes above it.
+ *
+ * Sliced by index rather than matched wholesale: the attribute list contains
+ * `#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]`, whose nested
+ * brackets defeat any reasonable regex.
+ */
+function parseFieldErrorCodeEnum(
+  rust: string,
+): { attributes: string; body: string; variants: string[] } | null {
+  const header = 'pub enum FieldErrorCode {';
+  const start = rust.indexOf(header);
+  if (start === -1) return null;
+
+  const end = rust.indexOf('\n}', start);
+  if (end === -1) return null;
+
+  const body = rust.slice(start + header.length, end);
+  // `    Variant,` on its own line. Doc comments and attributes cannot match.
+  const variants = [...body.matchAll(/^ {4}(\w+),$/gm)].map((m) => m[1] ?? '');
+
+  return {
+    attributes: rust.slice(Math.max(0, start - 400), start),
+    body,
+    variants,
+  };
+}
+
+/** `AlreadyExists` -> `already_exists`, which is what serde's rename does. */
+function toSnakeCase(variant: string): string {
+  return variant.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
 }
 
 /** `AppError::Variant(_) => StatusCode::NAME,` inside `status_code`. */
@@ -147,6 +181,57 @@ describe.skipIf(source === null)(
     it('the AppErrorType union covers exactly the literals Rust can emit', () => {
       const declared = Object.keys(APP_ERROR_PREFIXES) as AppErrorType[];
       expect(declared.sort()).toEqual([...literals.values()].sort());
+    });
+
+    // -----------------------------------------------------------------------
+    // FieldErrorCode
+    //
+    // The same coupling one level down. `ErrorDetail.fields[].code` is a closed
+    // vocabulary a form maps to its own copy, so a variant added in Rust that
+    // never reaches `FIELD_ERROR_CODES` would arrive as a code this client
+    // drops on the floor. That has to be a failing test, not a silent gap.
+    // -----------------------------------------------------------------------
+
+    const fieldErrorCodes = parseFieldErrorCodeEnum(rust);
+
+    it('parses the FieldErrorCode enum out of the Rust source', () => {
+      // Assert the parse before comparing anything against it: a regex that
+      // matched nothing would make the equality below trivially satisfiable.
+      expect(fieldErrorCodes).not.toBeNull();
+      expect(fieldErrorCodes?.variants.length).toBeGreaterThan(0);
+    });
+
+    it('FieldErrorCode serialises snake_case, which the comparison assumes', () => {
+      // Drop `#[serde(rename_all = "snake_case")]` and every variant would go
+      // out PascalCase while this file kept passing against the same names.
+      expect(fieldErrorCodes?.attributes).toContain(
+        '#[serde(rename_all = "snake_case")]',
+      );
+    });
+
+    it('no FieldErrorCode variant overrides its name with #[serde(rename)]', () => {
+      // `toSnakeCase` below hand-rolls what `rename_all = "snake_case"` does,
+      // and it can only see the identifier. A single
+      // `#[serde(rename = "duplicate")]` above `AlreadyExists` would keep every
+      // assertion in this file green while the server put `"duplicate"` on the
+      // wire and `readFieldErrors` dropped it on the floor, degrading every
+      // affected form to a form-level error with a fully green suite.
+      //
+      // The rule is therefore "there is no per-variant rename", which is
+      // checkable, rather than "the parser understands renames", which is a
+      // second serde implementation nobody will keep correct.
+      expect(
+        fieldErrorCodes?.body,
+        'a per-variant #[serde(rename = "...")] makes the wire name ' +
+          'unknowable from the identifier; either drop it or teach ' +
+          'FIELD_ERROR_CODES and this parser about it',
+      ).not.toContain('#[serde(rename');
+    });
+
+    it('FIELD_ERROR_CODES matches the Rust FieldErrorCode variants', () => {
+      const expected = (fieldErrorCodes?.variants ?? []).map(toSnakeCase);
+
+      expect([...FIELD_ERROR_CODES].sort()).toEqual([...expected].sort());
     });
   },
 );

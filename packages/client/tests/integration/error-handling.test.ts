@@ -1,7 +1,8 @@
 import { HttpResponse, http } from 'msw';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
 import {
+  type FieldError,
   isRetryable,
   NETWORK_ERROR_MESSAGE,
   type RustrakError,
@@ -908,6 +909,298 @@ describe('Error Handling', () => {
 
       for (const error of cases) {
         expect(structuredClone(error)).toEqual(error);
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // `error.fields`
+  //
+  // Optional and additive: the server sends it only when it can name the input
+  // it rejected, and omits the key entirely otherwise. Every body here is built
+  // through `appErrorResponse`, which is the one place that mirrors the
+  // server's `skip_serializing_if = "Vec::is_empty"`.
+  // ---------------------------------------------------------------------------
+  describe('Field-level errors', () => {
+    const createProject = () =>
+      client.projects.create({ name: 'Taken', slug: 'taken-slug' });
+
+    it('a 409 carrying fields surfaces them on the conflict error', async () => {
+      // The commonest case by far: 12 of the 14 annotated server sites are
+      // uniqueness conflicts, which are 409s and not 400s.
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          appErrorResponse(
+            'Conflict',
+            "Conflict: Project with slug 'taken-slug' already exists",
+            [{ field: 'slug', code: 'already_exists' }],
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error.kind).toBe('conflict');
+      expect(error).toMatchObject({
+        status: 409,
+        fields: [{ field: 'slug', code: 'already_exists' }],
+      });
+      // Still serializable: a Server Action has to hand this to the browser.
+      expect(structuredClone(error)).toEqual(error);
+    });
+
+    it('a 400 carrying fields surfaces them on the validation error', async () => {
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          appErrorResponse(
+            'ValidationError',
+            'Validation error: Name cannot be empty',
+            [{ field: 'name', code: 'required' }],
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error.kind).toBe('validation');
+      expect(error).toMatchObject({
+        status: 400,
+        fields: [{ field: 'name', code: 'required' }],
+      });
+    });
+
+    it('a body with no fields key leaves the property absent', async () => {
+      // Not `[]`, and not `undefined`: absent. Everything shipped before this
+      // existed sends exactly this body, and `'fields' in error` is how a
+      // consumer decides between `setError(path)` and a form-level error.
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          appErrorResponse(
+            'Conflict',
+            'Conflict: Cannot demote the last admin',
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error.kind).toBe('conflict');
+      expect('fields' in error).toBe(false);
+    });
+
+    it('a custom code carries its message through verbatim', async () => {
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          appErrorResponse('ValidationError', 'Validation error: Rejected', [
+            {
+              field: 'credentials.webhook_url',
+              code: 'custom',
+              message: 'Slack rejected this webhook.',
+            },
+          ]),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error).toMatchObject({
+        fields: [
+          {
+            field: 'credentials.webhook_url',
+            code: 'custom',
+            message: 'Slack rejected this webhook.',
+          },
+        ],
+      });
+    });
+
+    it('drops entries whose code this build does not know', async () => {
+      // A newer server adding a variant must not hand a consumer a `code` its
+      // own exhaustive switch cannot see. The known entry survives; the
+      // unknown one is dropped rather than coerced.
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          HttpResponse.json(
+            {
+              error: {
+                type: 'Conflict',
+                message:
+                  "Conflict: Project with slug 'taken-slug' already exists",
+                fields: [
+                  { field: 'slug', code: 'already_exists' },
+                  { field: 'name', code: 'from_the_future' },
+                ],
+              },
+            },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error).toMatchObject({
+        fields: [{ field: 'slug', code: 'already_exists' }],
+      });
+    });
+
+    it('leaves the property absent when nothing in fields is usable', async () => {
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          HttpResponse.json(
+            {
+              error: {
+                type: 'Conflict',
+                message: 'Conflict: something',
+                fields: [{ field: 42 }, 'not an object', null],
+              },
+            },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect('fields' in error).toBe(false);
+    });
+
+    it('reads fields on every non-5xx status, not only 400 and 409', async () => {
+      // `AppError::with_field` works on all eight Rust variants, so a
+      // `Forbidden` that names an input has to arrive here too. Reading only
+      // 400 and 409 made the first such annotation invisible to every
+      // consumer with nothing failing anywhere.
+      const statuses: ReadonlyArray<[number, string, string]> = [
+        [401, 'Unauthorized', 'unauthenticated'],
+        [403, 'Forbidden', 'forbidden'],
+        [404, 'NotFound', 'not_found'],
+        [410, 'Conflict', 'gone'],
+        [413, 'PayloadTooLarge', 'payload_too_large'],
+        [418, 'Conflict', 'client_error'],
+        [429, 'Conflict', 'rate_limited'],
+      ];
+
+      for (const [status, type, kind] of statuses) {
+        server.use(
+          http.post('http://localhost:8080/api/projects', () =>
+            HttpResponse.json(
+              {
+                error: {
+                  type,
+                  message: 'nope',
+                  fields: [{ field: 'role', code: 'invalid' }],
+                },
+              },
+              { status },
+            ),
+          ),
+        );
+
+        const error = expectErr(await createProject());
+
+        expect(error.kind, `status ${status}`).toBe(kind);
+        expect(error, `status ${status}`).toMatchObject({
+          fields: [{ field: 'role', code: 'invalid' }],
+        });
+        // Still a plain object across the RSC boundary.
+        expect(structuredClone(error)).toEqual(error);
+      }
+    });
+
+    it('discards a 5xx body wholesale, fields included', async () => {
+      // The 5xx redaction is not negotiable: `AppError::Internal` interpolates
+      // arbitrary internal text. `fields` must not become a way back in.
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          HttpResponse.json(
+            {
+              error: {
+                type: 'InternalError',
+                message: 'Internal server error: pool timed out at /var/run/x',
+                fields: [{ field: 'name', code: 'invalid' }],
+              },
+            },
+            { status: 500 },
+          ),
+        ),
+      );
+
+      const error = expectErr(await client.projects.create({ name: 'X' }));
+
+      expect(error.kind).toBe('server_error');
+      expect('fields' in error).toBe(false);
+      expect(error.message).toBe(SERVER_ERROR_MESSAGE);
+    });
+
+    it('strips a message that arrives on any code other than custom', async () => {
+      // Both sides' docs say copy is selected from `(field, code)` for every
+      // code but `custom`, so a message here is untranslatable English that a
+      // careless consumer would render. Drop it at the boundary rather than
+      // trusting the server never to send one.
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          HttpResponse.json(
+            {
+              error: {
+                type: 'Conflict',
+                message: 'Conflict: taken',
+                fields: [
+                  {
+                    field: 'slug',
+                    code: 'already_exists',
+                    message: 'That slug is taken, sorry!',
+                  },
+                ],
+              },
+            },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      const error = expectErr(await createProject());
+
+      expect(error).toMatchObject({
+        fields: [{ field: 'slug', code: 'already_exists' }],
+      });
+      const [only] = (error as { fields: FieldError[] }).fields;
+      expect(only && 'message' in only).toBe(false);
+    });
+
+    it('warns once when it drops an unrecognised code', async () => {
+      // Dropping is right, but a silent drop is indistinguishable from "the
+      // server named no field". A support engineer needs one line they can
+      // find. Deduped per code, so a list page does not flood the console.
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      server.use(
+        http.post('http://localhost:8080/api/projects', () =>
+          HttpResponse.json(
+            {
+              error: {
+                type: 'Conflict',
+                message: 'Conflict: taken',
+                fields: [
+                  { field: 'name', code: 'not_a_code_this_build_knows' },
+                ],
+              },
+            },
+            { status: 409 },
+          ),
+        ),
+      );
+
+      try {
+        expectErr(await createProject());
+        expectErr(await createProject());
+
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]?.[0]).toContain(
+          'not_a_code_this_build_knows',
+        );
+        expect(warn.mock.calls[0]?.[0]).toContain('@rustrak/client');
+      } finally {
+        warn.mockRestore();
       }
     });
   });
