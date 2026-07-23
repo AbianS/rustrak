@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError, ValidationError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 describe('ProjectsResource Integration', () => {
@@ -16,7 +16,7 @@ describe('ProjectsResource Integration', () => {
 
   describe('list()', () => {
     it('should fetch all projects', async () => {
-      const response = await client.projects.list();
+      const response = expectOk(await client.projects.list());
 
       expect(response.items).toHaveLength(2);
       expect(response.items[0]?.name).toBe('Test Project');
@@ -50,7 +50,10 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      await expect(client.projects.list()).rejects.toThrow(ValidationError);
+      const result = await client.projects.list();
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
 
     it('should handle empty array', async () => {
@@ -66,7 +69,8 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      const response = await client.projects.list();
+      // An empty collection is a success carrying `[]`, not a failure.
+      const response = expectOk(await client.projects.list());
       expect(response.items).toHaveLength(0);
     });
 
@@ -85,7 +89,7 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      await client.projects.list();
+      expectOk(await client.projects.list());
 
       expect(requestUrl).not.toContain('stats_period');
     });
@@ -105,7 +109,7 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      await client.projects.list({ stats_period: '24h' });
+      expectOk(await client.projects.list({ stats_period: '24h' }));
 
       expect(requestUrl).toContain('stats_period=24h');
     });
@@ -143,7 +147,9 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      const response = await client.projects.list({ stats_period: '24h' });
+      const response = expectOk(
+        await client.projects.list({ stats_period: '24h' }),
+      );
 
       expect(response.items[0]?.stats?.events.current).toBe(7);
       expect(response.items[0]?.stats?.trend).toEqual([0, 1, 4, 2]);
@@ -187,7 +193,7 @@ describe('ProjectsResource Integration', () => {
         }),
       );
 
-      const response = await client.projects.list();
+      const response = expectOk(await client.projects.list());
 
       expect(response.items[0]?.stats?.events.previous).toBeNull();
     });
@@ -195,19 +201,26 @@ describe('ProjectsResource Integration', () => {
 
   describe('get()', () => {
     it('should fetch single project by id', async () => {
-      const project = await client.projects.get(1);
+      const project = expectOk(await client.projects.get(1));
 
       expect(project.id).toBe(1);
       expect(project.name).toBe('Test Project');
       expect(project.slug).toBe('test-project');
     });
 
-    it('should throw NotFoundError for non-existent project', async () => {
-      await expect(client.projects.get(999)).rejects.toThrow(NotFoundError);
+    it('should report not_found for non-existent project', async () => {
+      const result = await client.projects.get(999);
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe(
+        'Resource not found: Project with id 999 not found',
+      );
     });
 
     it('should validate UUID format', async () => {
-      const project = await client.projects.get(1);
+      const project = expectOk(await client.projects.get(1));
 
       expect(project.sentry_key).toMatch(
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
@@ -215,7 +228,7 @@ describe('ProjectsResource Integration', () => {
     });
 
     it('should validate datetime format', async () => {
-      const project = await client.projects.get(1);
+      const project = expectOk(await client.projects.get(1));
 
       expect(new Date(project.created_at).toISOString()).toBe(
         project.created_at,
@@ -228,10 +241,12 @@ describe('ProjectsResource Integration', () => {
 
   describe('create()', () => {
     it('should create project with all fields', async () => {
-      const project = await client.projects.create({
-        name: 'New Project',
-        slug: 'new-project',
-      });
+      const project = expectOk(
+        await client.projects.create({
+          name: 'New Project',
+          slug: 'new-project',
+        }),
+      );
 
       expect(project.name).toBe('New Project');
       expect(project.slug).toBe('new-project');
@@ -239,76 +254,98 @@ describe('ProjectsResource Integration', () => {
     });
 
     it('should create project without optional slug', async () => {
-      const project = await client.projects.create({
-        name: 'Auto Slug Project',
-      });
+      const project = expectOk(
+        await client.projects.create({
+          name: 'Auto Slug Project',
+        }),
+      );
 
       expect(project.name).toBe('Auto Slug Project');
       expect(project.slug).toBeTruthy();
     });
 
     it('should create project with a platform', async () => {
-      const project = await client.projects.create({
-        name: 'Platform Project',
-        platform: 'javascript-nextjs',
-      });
+      const project = expectOk(
+        await client.projects.create({
+          name: 'Platform Project',
+          platform: 'javascript-nextjs',
+        }),
+      );
 
       expect(project.platform).toBe('javascript-nextjs');
     });
 
     it('should reject an empty platform', async () => {
-      await expect(
-        client.projects.create({ name: 'Empty Platform', platform: '' }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.projects.create({
+        name: 'Empty Platform',
+        platform: '',
+      });
+
+      expect(result.success).toBe(false);
+      // Caller input, checked before anything reaches the network:
+      // `invalid_request`, not the `invalid_response` a bad server body gets.
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should leave platform null when omitted', async () => {
-      const project = await client.projects.create({
-        name: 'No Platform Project',
-      });
+      const project = expectOk(
+        await client.projects.create({
+          name: 'No Platform Project',
+        }),
+      );
 
       expect(project.platform).toBeNull();
     });
 
     it('should reject empty name', async () => {
-      await expect(client.projects.create({ name: '' })).rejects.toThrow(
-        ValidationError,
-      );
+      const result = await client.projects.create({ name: '' });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should reject malformed input', async () => {
-      await expect(
+      const result = await client.projects.create(
         // @ts-expect-error - Testing runtime validation
-        client.projects.create({ invalid: 'field' }),
-      ).rejects.toThrow(ValidationError);
+        { invalid: 'field' },
+      );
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
   });
 
   describe('update()', () => {
     it('should update project name', async () => {
-      const updated = await client.projects.update(1, {
-        name: 'Updated Name',
-      });
+      const updated = expectOk(
+        await client.projects.update(1, {
+          name: 'Updated Name',
+        }),
+      );
 
       expect(updated.name).toBe('Updated Name');
       expect(updated.id).toBe(1);
     });
 
-    it('should throw NotFoundError for non-existent project', async () => {
-      await expect(
-        client.projects.update(999, { name: 'New Name' }),
-      ).rejects.toThrow(NotFoundError);
+    it('should report not_found for non-existent project', async () => {
+      const result = await client.projects.update(999, { name: 'New Name' });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
 
     it('should reject empty name', async () => {
-      await expect(client.projects.update(1, { name: '' })).rejects.toThrow(
-        ValidationError,
-      );
+      const result = await client.projects.update(1, { name: '' });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should update timestamp', async () => {
-      const original = await client.projects.get(1);
-      const updated = await client.projects.update(1, { name: 'Updated' });
+      const original = expectOk(await client.projects.get(1));
+      const updated = expectOk(
+        await client.projects.update(1, { name: 'Updated' }),
+      );
 
       expect(new Date(updated.updated_at).getTime()).toBeGreaterThanOrEqual(
         new Date(original.updated_at).getTime(),
@@ -316,17 +353,21 @@ describe('ProjectsResource Integration', () => {
     });
 
     it('should update project platform', async () => {
-      const updated = await client.projects.update(1, {
-        platform: 'python',
-      });
+      const updated = expectOk(
+        await client.projects.update(1, {
+          platform: 'python',
+        }),
+      );
 
       expect(updated.platform).toBe('python');
     });
 
     it('should update project slug', async () => {
-      const updated = await client.projects.update(1, {
-        slug: 'renamed-slug',
-      });
+      const updated = expectOk(
+        await client.projects.update(1, {
+          slug: 'renamed-slug',
+        }),
+      );
 
       expect(updated.slug).toBe('renamed-slug');
     });
@@ -334,11 +375,17 @@ describe('ProjectsResource Integration', () => {
 
   describe('delete()', () => {
     it('should delete project successfully', async () => {
-      await expect(client.projects.delete(1)).resolves.toBeUndefined();
+      const result = await client.projects.delete(1);
+
+      expect(result.success).toBe(true);
+      expect(expectOk(result)).toBeUndefined();
     });
 
-    it('should throw NotFoundError for non-existent project', async () => {
-      await expect(client.projects.delete(999)).rejects.toThrow(NotFoundError);
+    it('should report not_found for non-existent project', async () => {
+      const result = await client.projects.delete(999);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 });

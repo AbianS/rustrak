@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import { Ok, type Result } from '../result.js';
 import {
   acceptInvitationSchema,
   invitationInfoSchema,
@@ -15,7 +17,30 @@ import type {
   RegisterRequest,
   User,
 } from '../types/user.js';
-import { BaseResource } from './base.js';
+import { BaseResource, discardBody } from './base.js';
+
+/**
+ * Every `Set-Cookie` on a response, without assuming `Headers.getSetCookie`.
+ *
+ * `getSetCookie` landed in Node 18.16, well below the supported floor, but
+ * `engines` is advisory: npm does not enforce it unless the consumer opted in.
+ * These are the session-establishing calls, so an older runtime would throw a
+ * `TypeError` out of `login` precisely, from a method whose whole contract is
+ * that it returns a `Result` instead of throwing. The fallback reads the folded
+ * header, which is all the platform offers there.
+ *
+ * Exported for `tests/unit/base-resource.test.ts` only: the fallback is
+ * unreachable on a runtime that has `getSetCookie`, which is every runtime the
+ * suite can run on. It is not re-exported from `src/index.ts`.
+ */
+export function readSetCookie(response: Response): string[] {
+  if (typeof response.headers.getSetCookie === 'function') {
+    return response.headers.getSetCookie();
+  }
+
+  const folded = response.headers.get('set-cookie');
+  return folded === null ? [] : [folded];
+}
 
 /**
  * Authentication API resource
@@ -28,24 +53,21 @@ export class AuthResource extends BaseResource {
    * @param credentials - Email and password for the new account
    * @returns LoginResult with user information and session cookies
    */
-  async register(credentials: RegisterRequest): Promise<LoginResult> {
-    // Validate input
-    const validatedInput = this.validate(credentials, registerRequestSchema);
+  async register(
+    credentials: RegisterRequest,
+  ): Promise<Result<LoginResult, RustrakError>> {
+    const validatedInput = this.validateInput(
+      credentials,
+      registerRequestSchema,
+    );
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const response = await this.http.post('auth/register', {
-      json: validatedInput,
-    });
-
-    // Extract Set-Cookie headers for Server Actions
-    const cookies = response.headers.getSetCookie();
-
-    const data = await response.json();
-    const authResponse = this.validate(data, authResponseSchema);
-
-    return {
-      user: authResponse.user,
-      cookies,
-    };
+    return this.requestResponse(
+      () => this.http.post('auth/register', { json: validatedInput.data }),
+      (response) => this.readLoginResult(response),
+    );
   }
 
   /**
@@ -54,24 +76,18 @@ export class AuthResource extends BaseResource {
    * @param credentials - Email and password
    * @returns LoginResult with user information and session cookies
    */
-  async login(credentials: LoginRequest): Promise<LoginResult> {
-    // Validate input
-    const validatedInput = this.validate(credentials, loginRequestSchema);
+  async login(
+    credentials: LoginRequest,
+  ): Promise<Result<LoginResult, RustrakError>> {
+    const validatedInput = this.validateInput(credentials, loginRequestSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const response = await this.http.post('auth/login', {
-      json: validatedInput,
-    });
-
-    // Extract Set-Cookie headers for Server Actions
-    const cookies = response.headers.getSetCookie();
-
-    const data = await response.json();
-    const authResponse = this.validate(data, authResponseSchema);
-
-    return {
-      user: authResponse.user,
-      cookies,
-    };
+    return this.requestResponse(
+      () => this.http.post('auth/login', { json: validatedInput.data }),
+      (response) => this.readLoginResult(response),
+    );
   }
 
   /**
@@ -79,19 +95,32 @@ export class AuthResource extends BaseResource {
    * Clears the session cookie
    * @returns Array of Set-Cookie headers (typically clearing cookies)
    */
-  async logout(): Promise<string[]> {
-    const response = await this.http.post('auth/logout');
-    return response.headers.getSetCookie();
+  async logout(): Promise<Result<string[], RustrakError>> {
+    return this.requestResponse(
+      () => this.http.post('auth/logout'),
+      async (response) => {
+        const cookies = readSetCookie(response);
+        // Only the headers matter here, and an unread body holds its socket out
+        // of Node's keep-alive pool.
+        discardBody(response);
+        return Ok(cookies);
+      },
+    );
   }
 
   /**
    * Get current authenticated user
    * Requires a valid session cookie
-   * @returns User information
+   *
+   * No session is `{success: false, kind: 'unauthenticated'}`, not a `null`
+   * user: it is the literal reading of the server's 401. Callers must send the
+   * visitor to login on `unauthenticated` **only**. Treating `network` or
+   * `server_error` the same way turns a flaky connection into a login loop.
+   *
+   * @returns The current user, or `unauthenticated` when there is no session
    */
-  async getCurrentUser(): Promise<User> {
-    const data = await this.http.get('auth/me').json();
-    return this.validate(data, userSchema);
+  async getCurrentUser(): Promise<Result<User, RustrakError>> {
+    return this.request(() => this.http.get('auth/me'), userSchema);
   }
 
   /**
@@ -100,9 +129,13 @@ export class AuthResource extends BaseResource {
    * @param token - Invitation token
    * @returns Invitation info (email, role, status, expiry)
    */
-  async getInvitation(token: string): Promise<InvitationInfo> {
-    const data = await this.http.get(`auth/invitation/${token}`).json();
-    return this.validate(data, invitationInfoSchema);
+  async getInvitation(
+    token: string,
+  ): Promise<Result<InvitationInfo, RustrakError>> {
+    return this.request(
+      () => this.http.get(`auth/invitation/${token}`),
+      invitationInfoSchema,
+    );
   }
 
   /**
@@ -110,21 +143,45 @@ export class AuthResource extends BaseResource {
    * @param input - Invitation token and the new account's password
    * @returns LoginResult with user information and session cookies
    */
-  async acceptInvitation(input: AcceptInvitation): Promise<LoginResult> {
-    const validatedInput = this.validate(input, acceptInvitationSchema);
+  async acceptInvitation(
+    input: AcceptInvitation,
+  ): Promise<Result<LoginResult, RustrakError>> {
+    const validatedInput = this.validateInput(input, acceptInvitationSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const response = await this.http.post('auth/accept-invitation', {
-      json: validatedInput,
-    });
+    return this.requestResponse(
+      () =>
+        this.http.post('auth/accept-invitation', {
+          json: validatedInput.data,
+        }),
+      (response) => this.readLoginResult(response),
+    );
+  }
 
-    const cookies = response.headers.getSetCookie();
+  /**
+   * The three session-establishing endpoints share a body and need the
+   * `Set-Cookie` headers off the raw `Response`, which is why they go through
+   * `requestResponse` rather than the plain JSON path.
+   */
+  private async readLoginResult(
+    response: Response,
+  ): Promise<Result<LoginResult, RustrakError>> {
+    const cookies = readSetCookie(response);
 
-    const data = await response.json();
-    const authResponse = this.validate(data, authResponseSchema);
+    // `readJson` rather than a bare try/catch: a connection dying mid-body is
+    // `network`, not `invalid_response`, and a genuine bug still throws.
+    const body = await this.readJson(response);
+    if (!body.success) {
+      return body;
+    }
 
-    return {
-      user: authResponse.user,
-      cookies,
-    };
+    const authResponse = this.validate(body.data, authResponseSchema);
+    if (!authResponse.success) {
+      return authResponse;
+    }
+
+    return Ok({ user: authResponse.data.user, cookies });
   }
 }

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import { issueSchema } from '../schemas/index.js';
 import type { Issue } from '../types/index.js';
 import { BaseResource } from './base.js';
@@ -18,19 +20,19 @@ export class ReleasesResource extends BaseResource {
     projectId: number,
     release: string,
     limit?: number,
-  ): Promise<Issue[]> {
+  ): Promise<Result<Issue[], RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (limit !== undefined) {
       searchParams.limit = limit.toString();
     }
 
-    const data = await this.http
-      .get(
-        `api/projects/${projectId}/releases/${encodeURIComponent(release)}/new-issues`,
-        { searchParams },
-      )
-      .json();
-
-    return this.validate(data, z.array(issueSchema));
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/releases/${encodeURIComponent(release)}/new-issues`,
+          { searchParams },
+        ),
+      z.array(issueSchema),
+    );
   }
 }

@@ -482,6 +482,21 @@ export const handlers = [
       'Internal server error: failed to store source file: No space left on device (os error 28)',
     ),
   ),
+  // 410 and the catch-all have no `AppError` producer at all: `status_code`
+  // cannot return either. They exist for a retired endpoint and for whatever a
+  // proxy invents, so both bodies are proxy-shaped rather than `appErrorResponse`.
+  http.get(`${BASE_URL}/__status-transform/gone`, () =>
+    HttpResponse.json(
+      { error: 'This endpoint has been retired' },
+      { status: 410 },
+    ),
+  ),
+  // 418 is deliberate: it is a real status, no `AppError` maps to it, and
+  // nothing in `transformHttpError`'s switch enumerates it, so it can only
+  // reach the `default` arm.
+  http.get(`${BASE_URL}/__status-transform/unenumerated`, () =>
+    HttpResponse.json({ error: "I'm a teapot" }, { status: 418 }),
+  ),
 
   // Projects
   http.get(`${BASE_URL}/api/projects`, () => {

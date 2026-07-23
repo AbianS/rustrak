@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   alertIntegrationSchema,
   createAlertIntegrationSchema,
@@ -22,30 +24,41 @@ export class AlertIntegrationsResource extends BaseResource {
   /**
    * List all alert integrations
    */
-  async list(): Promise<AlertIntegration[]> {
-    const data = await this.http.get('api/integrations').json();
-    return this.validate(data, z.array(alertIntegrationSchema));
+  async list(): Promise<Result<AlertIntegration[], RustrakError>> {
+    return this.request(
+      () => this.http.get('api/integrations'),
+      z.array(alertIntegrationSchema),
+    );
   }
 
   /**
    * Get a single alert integration by ID
    */
-  async get(id: number): Promise<AlertIntegration> {
-    const data = await this.http.get(`api/integrations/${id}`).json();
-    return this.validate(data, alertIntegrationSchema);
+  async get(id: number): Promise<Result<AlertIntegration, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/integrations/${id}`),
+      alertIntegrationSchema,
+    );
   }
 
   /**
    * Create a new alert integration
    */
-  async create(input: CreateAlertIntegration): Promise<AlertIntegration> {
-    const validatedInput = this.validate(input, createAlertIntegrationSchema);
+  async create(
+    input: CreateAlertIntegration,
+  ): Promise<Result<AlertIntegration, RustrakError>> {
+    const validatedInput = this.validateInput(
+      input,
+      createAlertIntegrationSchema,
+    );
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .post('api/integrations', { json: validatedInput })
-      .json();
-
-    return this.validate(data, alertIntegrationSchema);
+    return this.request(
+      () => this.http.post('api/integrations', { json: validatedInput.data }),
+      alertIntegrationSchema,
+    );
   }
 
   /**
@@ -54,21 +67,29 @@ export class AlertIntegrationsResource extends BaseResource {
   async update(
     id: number,
     input: UpdateAlertIntegration,
-  ): Promise<AlertIntegration> {
-    const validatedInput = this.validate(input, updateAlertIntegrationSchema);
+  ): Promise<Result<AlertIntegration, RustrakError>> {
+    const validatedInput = this.validateInput(
+      input,
+      updateAlertIntegrationSchema,
+    );
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .patch(`api/integrations/${id}`, { json: validatedInput })
-      .json();
-
-    return this.validate(data, alertIntegrationSchema);
+    return this.request(
+      () =>
+        this.http.patch(`api/integrations/${id}`, {
+          json: validatedInput.data,
+        }),
+      alertIntegrationSchema,
+    );
   }
 
   /**
    * Delete an alert integration
    */
-  async delete(id: number): Promise<void> {
-    await this.http.delete(`api/integrations/${id}`);
+  async delete(id: number): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() => this.http.delete(`api/integrations/${id}`));
   }
 
   /**
@@ -78,22 +99,27 @@ export class AlertIntegrationsResource extends BaseResource {
   async test(
     id: number,
     routingOverride?: RoutingOverride,
-  ): Promise<TestChannelResponse> {
-    const body =
-      routingOverride !== undefined
-        ? this.validate(
-            { routing_override: routingOverride },
-            testIntegrationBodySchema,
-          )
-        : undefined;
+  ): Promise<Result<TestChannelResponse, RustrakError>> {
+    let body: unknown;
 
-    const data = await this.http
-      .post(
-        `api/integrations/${id}/test`,
-        body !== undefined ? { json: body } : undefined,
-      )
-      .json();
+    if (routingOverride !== undefined) {
+      const validatedInput = this.validateInput(
+        { routing_override: routingOverride },
+        testIntegrationBodySchema,
+      );
+      if (!validatedInput.success) {
+        return validatedInput;
+      }
+      body = validatedInput.data;
+    }
 
-    return this.validate(data, testChannelResponseSchema);
+    return this.request(
+      () =>
+        this.http.post(
+          `api/integrations/${id}/test`,
+          body !== undefined ? { json: body } : undefined,
+        ),
+      testChannelResponseSchema,
+    );
   }
 }

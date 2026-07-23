@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 
 const client = new RustrakClient({
   baseUrl: 'http://localhost:8080',
@@ -9,7 +10,7 @@ const client = new RustrakClient({
 describe('TransactionsResource', () => {
   describe('list()', () => {
     it('returns paginated transaction list', async () => {
-      const result = await client.transactions.list(1);
+      const result = expectOk(await client.transactions.list(1));
 
       expect(result.total_count).toBe(1);
       expect(result.items).toHaveLength(1);
@@ -17,7 +18,7 @@ describe('TransactionsResource', () => {
     });
 
     it('returns transaction with correct shape', async () => {
-      const result = await client.transactions.list(1);
+      const result = expectOk(await client.transactions.list(1));
       const txn = result.items[0];
 
       expect(txn.id).toBe('a1b2c3d4-e89b-12d3-a456-426614174000');
@@ -30,30 +31,36 @@ describe('TransactionsResource', () => {
     });
 
     it('accepts pagination options', async () => {
-      const result = await client.transactions.list(1, {
-        page: 1,
-        per_page: 10,
-      });
+      const result = expectOk(
+        await client.transactions.list(1, {
+          page: 1,
+          per_page: 10,
+        }),
+      );
       expect(result).toBeDefined();
     });
 
     it('accepts filter options', async () => {
-      const result = await client.transactions.list(1, {
-        name: '/api/checkout',
-        op: 'http.server',
-        status: 'ok',
-        environment: 'production',
-        release: '1.0.0',
-      });
+      const result = expectOk(
+        await client.transactions.list(1, {
+          name: '/api/checkout',
+          op: 'http.server',
+          status: 'ok',
+          environment: 'production',
+          release: '1.0.0',
+        }),
+      );
       expect(result).toBeDefined();
     });
   });
 
   describe('getSpans()', () => {
     it('returns the indexed spans for a transaction', async () => {
-      const spans = await client.transactions.getSpans(
-        1,
-        'a1b2c3d4-e89b-12d3-a456-426614174000',
+      const spans = expectOk(
+        await client.transactions.getSpans(
+          1,
+          'a1b2c3d4-e89b-12d3-a456-426614174000',
+        ),
       );
 
       expect(spans).toHaveLength(1);
@@ -66,10 +73,12 @@ describe('TransactionsResource', () => {
 
   describe('getStatForGroup()', () => {
     it('returns the aggregate for a single group', async () => {
-      const stat = await client.transactions.getStatForGroup(
-        1,
-        '/api/checkout',
-        'http.server',
+      const stat = expectOk(
+        await client.transactions.getStatForGroup(
+          1,
+          '/api/checkout',
+          'http.server',
+        ),
       );
 
       expect(stat.transaction_name).toBe('/api/checkout');
@@ -78,16 +87,17 @@ describe('TransactionsResource', () => {
       expect(stat.p50_ms).toBe(200.0);
     });
 
-    it('throws for an unknown group', async () => {
-      await expect(
-        client.transactions.getStatForGroup(1, '/missing'),
-      ).rejects.toThrow();
+    it('reports not_found for an unknown group', async () => {
+      const result = await client.transactions.getStatForGroup(1, '/missing');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 
   describe('getStats()', () => {
     it('returns paginated aggregate stats per transaction group', async () => {
-      const result = await client.transactions.getStats(1);
+      const result = expectOk(await client.transactions.getStats(1));
 
       expect(result.total_count).toBe(1);
       expect(result.items).toHaveLength(1);
@@ -101,9 +111,11 @@ describe('TransactionsResource', () => {
 
   describe('get()', () => {
     it('returns a transaction detail with full payload', async () => {
-      const txn = await client.transactions.get(
-        1,
-        'a1b2c3d4-e89b-12d3-a456-426614174000',
+      const txn = expectOk(
+        await client.transactions.get(
+          1,
+          'a1b2c3d4-e89b-12d3-a456-426614174000',
+        ),
       );
 
       expect(txn.transaction_name).toBe('/api/checkout');
@@ -114,8 +126,11 @@ describe('TransactionsResource', () => {
       expect(txn.data.measurements.lcp.value).toBe(1200.0);
     });
 
-    it('throws NotFoundError for a missing transaction', async () => {
-      await expect(client.transactions.get(1, 'missing')).rejects.toThrow();
+    it('reports not_found for a missing transaction', async () => {
+      const result = await client.transactions.get(1, 'missing');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 });

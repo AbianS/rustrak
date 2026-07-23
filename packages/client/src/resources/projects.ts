@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   createProjectSchema,
   offsetPaginatedResponseSchema,
@@ -22,7 +24,7 @@ export class ProjectsResource extends BaseResource {
    */
   async list(
     options?: ListProjectsOptions,
-  ): Promise<OffsetPaginatedResponse<Project>> {
+  ): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
     const searchParams = new URLSearchParams();
 
     if (options?.page !== undefined) {
@@ -41,50 +43,60 @@ export class ProjectsResource extends BaseResource {
     const query = searchParams.toString();
     const url = query ? `api/projects?${query}` : 'api/projects';
 
-    const data = await this.http.get(url).json();
-    return this.validate(data, offsetPaginatedResponseSchema(projectSchema));
+    return this.request(
+      () => this.http.get(url),
+      offsetPaginatedResponseSchema(projectSchema),
+    );
   }
 
   /**
    * Get a single project by ID
    */
-  async get(id: number): Promise<Project> {
-    const data = await this.http.get(`api/projects/${id}`).json();
-    return this.validate(data, projectSchema);
+  async get(id: number): Promise<Result<Project, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${id}`),
+      projectSchema,
+    );
   }
 
   /**
    * Create a new project
    */
-  async create(input: CreateProject): Promise<Project> {
-    // Validate input
-    const validatedInput = this.validate(input, createProjectSchema);
+  async create(input: CreateProject): Promise<Result<Project, RustrakError>> {
+    const validatedInput = this.validateInput(input, createProjectSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .post('api/projects', { json: validatedInput })
-      .json();
-
-    return this.validate(data, projectSchema);
+    return this.request(
+      () => this.http.post('api/projects', { json: validatedInput.data }),
+      projectSchema,
+    );
   }
 
   /**
    * Update an existing project
    */
-  async update(id: number, input: UpdateProject): Promise<Project> {
-    // Validate input
-    const validatedInput = this.validate(input, updateProjectSchema);
+  async update(
+    id: number,
+    input: UpdateProject,
+  ): Promise<Result<Project, RustrakError>> {
+    const validatedInput = this.validateInput(input, updateProjectSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .patch(`api/projects/${id}`, { json: validatedInput })
-      .json();
-
-    return this.validate(data, projectSchema);
+    return this.request(
+      () =>
+        this.http.patch(`api/projects/${id}`, { json: validatedInput.data }),
+      projectSchema,
+    );
   }
 
   /**
    * Delete a project
    */
-  async delete(id: number): Promise<void> {
-    await this.http.delete(`api/projects/${id}`);
+  async delete(id: number): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() => this.http.delete(`api/projects/${id}`));
   }
 }
