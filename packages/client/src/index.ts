@@ -13,6 +13,9 @@ export { RustrakClient } from './client.js';
 export type { ClientConfig } from './config.js';
 // Errors: one closed union, keyed on `kind`, replacing the nine classes.
 export {
+  FIELD_ERROR_CODES,
+  type FieldError,
+  type FieldErrorCode,
   isRetryable,
   NETWORK_ERROR_MESSAGE,
   type RustrakError,

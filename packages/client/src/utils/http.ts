@@ -1,6 +1,9 @@
 import ky, { type HTTPError, isHTTPError, type KyInstance } from 'ky';
 import type { ClientConfig } from '../config.js';
 import {
+  FIELD_ERROR_CODES,
+  type FieldError,
+  type FieldErrorCode,
   NETWORK_ERROR_MESSAGE,
   type RustrakError,
   SERVER_ERROR_MESSAGE,
@@ -64,6 +67,102 @@ function readErrorMessage(error: HTTPError, status: number): string {
   return fallback;
 }
 
+const KNOWN_FIELD_ERROR_CODES = new Set<string>(FIELD_ERROR_CODES);
+
+function isFieldErrorCode(value: unknown): value is FieldErrorCode {
+  return typeof value === 'string' && KNOWN_FIELD_ERROR_CODES.has(value);
+}
+
+/**
+ * Codes already reported by {@link warnUnknownFieldErrorCode}.
+ *
+ * Module-scoped so a list page rendering fifty rows against a newer server
+ * logs once per unknown code rather than once per row. Version skew does not
+ * change within a process, so once is the whole signal.
+ */
+const warnedFieldErrorCodes = new Set<string>();
+
+/**
+ * Make an unrecognised `code` visible without admitting it into the union.
+ *
+ * Dropping the entry is correct (see {@link readFieldErrors}), but a silent
+ * drop is indistinguishable from "the server named no field": a client one
+ * release behind a server that added a code loses every inline form error
+ * site-wide with nothing anywhere to explain it.
+ *
+ * `console.warn` is the least intrusive mechanism that a support engineer can
+ * actually act on. It needs no change to the public type, so no consumer has
+ * to opt in to see it; it lands in the browser devtools console in a client
+ * component and on stdout of the Node process (and therefore in whatever log
+ * aggregation already exists) in a Server Component. The alternatives were
+ * worse: throwing turns a cosmetic degradation into an outage, admitting the
+ * code breaks the closed union this drop exists to protect, and a new
+ * `fieldsDropped` flag on the union is invisible until somebody thinks to read
+ * it, which is the same silence in a new place.
+ */
+function warnUnknownFieldErrorCode(code: string, field: string): void {
+  if (warnedFieldErrorCodes.has(code)) return;
+  warnedFieldErrorCodes.add(code);
+
+  console.warn(
+    `[@rustrak/client] Dropped a field error with an unrecognised code ` +
+      `"${code}" (field "${field}"). This client build does not know that ` +
+      `code, so the affected inputs degrade to a form-level error. The ` +
+      `server is most likely newer than @rustrak/client; upgrade the client ` +
+      `to match the server version.`,
+  );
+}
+
+/**
+ * Read `error.fields` out of an `AppError` body.
+ *
+ * Returns `undefined` rather than `[]` when there is nothing usable, so the
+ * key stays absent on the `RustrakError` and a consumer can test for it.
+ *
+ * Entries are validated one by one and a malformed or unrecognised one is
+ * dropped, never coerced. `FieldErrorCode` is a closed union: admitting a code
+ * this build has never heard of would hand a consumer a value its own
+ * exhaustive `switch` cannot see. A newer server adding a code therefore
+ * degrades to a form-level error here, which is the same place an older client
+ * already lands, and is announced once via
+ * {@link warnUnknownFieldErrorCode} so the skew is not silent.
+ *
+ * `message` survives only alongside `code: 'custom'`. The server enforces the
+ * same rule at construction, but the docs on both sides tell consumers to
+ * select translated copy from `(field, code)` for every other code, so a
+ * `message` that reaches them there is untranslatable English a careless
+ * consumer would render. Dropping it here makes the rule true of the value, not
+ * only of its producer.
+ */
+function readFieldErrors(error: HTTPError): FieldError[] | undefined {
+  const body = error.data as { error?: { fields?: unknown } } | null;
+  const raw = body && typeof body === 'object' ? body.error?.fields : undefined;
+
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+
+  const fields: FieldError[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'object' || entry === null) continue;
+
+    const { field, code, message } = entry as Record<string, unknown>;
+    if (typeof field !== 'string') continue;
+    if (!isFieldErrorCode(code)) {
+      if (typeof code === 'string') warnUnknownFieldErrorCode(code, field);
+      continue;
+    }
+
+    fields.push(
+      code === 'custom' && typeof message === 'string'
+        ? { field, code, message }
+        : { field, code },
+    );
+  }
+
+  return fields.length > 0 ? fields : undefined;
+}
+
 /**
  * `Retry-After` in seconds, when the server sent a parseable one.
  *
@@ -103,6 +202,20 @@ function readRetryAfter(response: Response): number | undefined {
 }
 
 /**
+ * Attach `fields` to an error, or leave the key off entirely.
+ *
+ * The key is omitted rather than set to `undefined` so `'fields' in error`
+ * stays an honest test and the object round-trips through `structuredClone`
+ * with the same shape it was built with.
+ */
+function annotate<E extends RustrakError & { fields?: readonly FieldError[] }>(
+  base: E,
+  fields: readonly FieldError[] | undefined,
+): E {
+  return fields === undefined ? base : { ...base, fields };
+}
+
+/**
  * Map an HTTP status onto a `RustrakError` kind.
  *
  * Total by construction: every 5xx redacts, every other unanticipated status
@@ -123,29 +236,42 @@ export function transformHttpError(error: HTTPError): RustrakError {
 
   const message = readErrorMessage(error, status);
 
+  // Read once, for every non-5xx status. `AppError::with_field` works on all
+  // eight Rust variants, so restricting this to 400 and 409 meant an
+  // annotation added to, say, the `Forbidden` in `routes/team.rs` would be
+  // serialised, documented in `openapi.json`, and invisible to every consumer
+  // with no test failing anywhere. It costs nothing when the key is absent:
+  // `readFieldErrors` returns `undefined` without allocating.
+  const fields = readFieldErrors(error);
+
   switch (status) {
     case 400:
-      return { kind: 'validation', status, message };
+      // The key is omitted rather than set to `undefined` so that
+      // `'fields' in error` stays an honest test, matching `retryAfter` below.
+      return annotate({ kind: 'validation', status, message }, fields);
     case 401:
-      return { kind: 'unauthenticated', status, message };
+      return annotate({ kind: 'unauthenticated', status, message }, fields);
     case 403:
-      return { kind: 'forbidden', status, message };
+      return annotate({ kind: 'forbidden', status, message }, fields);
     case 404:
-      return { kind: 'not_found', status, message };
+      return annotate({ kind: 'not_found', status, message }, fields);
     case 409:
-      return { kind: 'conflict', status, message };
+      return annotate({ kind: 'conflict', status, message }, fields);
     case 410:
-      return { kind: 'gone', status, message };
+      return annotate({ kind: 'gone', status, message }, fields);
     case 413:
-      return { kind: 'payload_too_large', status, message };
+      return annotate({ kind: 'payload_too_large', status, message }, fields);
     case 429: {
       const retryAfter = readRetryAfter(response);
-      return retryAfter === undefined
-        ? { kind: 'rate_limited', status, message }
-        : { kind: 'rate_limited', status, message, retryAfter };
+      return annotate(
+        retryAfter === undefined
+          ? { kind: 'rate_limited', status, message }
+          : { kind: 'rate_limited', status, message, retryAfter },
+        fields,
+      );
     }
     default:
-      return { kind: 'client_error', status, message };
+      return annotate({ kind: 'client_error', status, message }, fields);
   }
 }
 

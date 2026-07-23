@@ -9,7 +9,7 @@ use chrono::{Duration, Utc};
 use uuid::Uuid;
 
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{
     AlertHistory, AlertIntegration, AlertPayload, AlertRule, AlertRuleChannel,
     AlertRuleChannelInput, AlertType, CreateAlertIntegration, CreateAlertRule, Issue, IssueInfo,
@@ -88,7 +88,8 @@ impl AlertService {
                     return AppError::Conflict(format!(
                         "Integration '{}' already exists",
                         input.name
-                    ));
+                    ))
+                    .with_field("name", FieldErrorCode::AlreadyExists);
                 }
             }
             AppError::Database(e)
@@ -133,7 +134,8 @@ impl AlertService {
         .map_err(|e| {
             if let sqlx::Error::Database(ref db_err) = e {
                 if db_err.is_unique_violation() {
-                    return AppError::Conflict("Integration name already exists".to_string());
+                    return AppError::Conflict("Integration name already exists".to_string())
+                        .with_field("name", FieldErrorCode::AlreadyExists);
                 }
             }
             AppError::Database(e)
@@ -279,7 +281,8 @@ impl AlertService {
                     return AppError::Conflict(format!(
                         "Alert rule for type '{}' already exists in this project",
                         input.alert_type
-                    ));
+                    ))
+                    .with_field("alert_type", FieldErrorCode::AlreadyExists);
                 }
             }
             AppError::Database(e)

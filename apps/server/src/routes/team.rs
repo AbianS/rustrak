@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::ApiActor;
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{User, UserRole};
 use crate::services::UsersService;
 
@@ -112,8 +112,15 @@ pub async fn update_team_role(
     require_admin(&actor)?;
 
     let user_id = path.into_inner();
-    let new_role = UserRole::parse(&body.role)
-        .ok_or_else(|| AppError::Validation(format!("Invalid role: {}", body.role)))?;
+    // Same `(role, invalid)` pair as the last-admin guard below, and
+    // deliberately so: `role` is the only input in the body either can blame.
+    // The status is what separates them: a 400 here means "not a role at
+    // all", the 409 below means "a real role, but not acceptable right now".
+    // See the `FieldErrorCode::Invalid` docs.
+    let new_role = UserRole::parse(&body.role).ok_or_else(|| {
+        AppError::Validation(format!("Invalid role: {}", body.role))
+            .with_field("role", FieldErrorCode::Invalid)
+    })?;
 
     // Guard: the primary (first-registered) account must remain an admin.
     if new_role != UserRole::Admin
@@ -130,9 +137,13 @@ pub async fn update_team_role(
             .await?
             .ok_or_else(|| AppError::NotFound(format!("User {} not found", user_id)))?;
         if target.is_admin() && UsersService::admin_count(pool.get_ref()).await? <= 1 {
-            return Err(AppError::Conflict(
-                "Cannot demote the last admin".to_string(),
-            ));
+            // `invalid`, not `already_exists`: the role the caller picked is
+            // well-formed but not acceptable for this user right now. The
+            // blamed input is the role select, the only field in the body.
+            return Err(
+                AppError::Conflict("Cannot demote the last admin".to_string())
+                    .with_field("role", FieldErrorCode::Invalid),
+            );
         }
     }
 

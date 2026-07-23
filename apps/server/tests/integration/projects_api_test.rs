@@ -460,8 +460,13 @@ async fn test_update_project_slug_conflict_is_reported_as_conflict() {
     )
     .await;
 
+    // `kind()`, not the error itself: this Conflict names the field it
+    // blames, so it arrives wrapped in `AppError::WithFields`.
     assert!(
-        matches!(result, Err(rustrak::error::AppError::Conflict(_))),
+        matches!(
+            result.as_ref().err().map(rustrak::error::AppError::kind),
+            Some(rustrak::error::AppError::Conflict(_))
+        ),
         "expected a Conflict error, got: {result:?}"
     );
 
@@ -697,7 +702,10 @@ async fn test_create_project_with_taken_user_slug_conflicts() {
     .await;
 
     assert!(
-        matches!(result, Err(rustrak::error::AppError::Conflict(_))),
+        matches!(
+            result.as_ref().err().map(rustrak::error::AppError::kind),
+            Some(rustrak::error::AppError::Conflict(_))
+        ),
         "a slug the user typed must conflict, not be de-duplicated, got: {result:?}"
     );
 
