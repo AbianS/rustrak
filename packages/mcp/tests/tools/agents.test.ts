@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('agent tools', () => {
   let mockClient: any;
@@ -49,7 +50,7 @@ describe('agent tools', () => {
 
   describe('get_agent_runs', () => {
     it('returns a timeseries of agent run counts', async () => {
-      mockClient.agents.getRuns.mockResolvedValue(mockTimeseries);
+      mockClient.agents.getRuns.mockResolvedValue(ok(mockTimeseries));
 
       const result = await callTool({
         name: 'get_agent_runs',
@@ -67,7 +68,7 @@ describe('agent tools', () => {
     });
 
     it('forwards period_hours and interval_hours', async () => {
-      mockClient.agents.getRuns.mockResolvedValue(mockTimeseries);
+      mockClient.agents.getRuns.mockResolvedValue(ok(mockTimeseries));
 
       await callTool({
         name: 'get_agent_runs',
@@ -81,7 +82,13 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getRuns.mockRejectedValue(new Error('API error'));
+      mockClient.agents.getRuns.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_agent_runs',
@@ -94,7 +101,7 @@ describe('agent tools', () => {
 
   describe('get_agent_duration', () => {
     it('returns a timeseries of avg/p95 duration', async () => {
-      mockClient.agents.getDuration.mockResolvedValue(mockDurationSeries);
+      mockClient.agents.getDuration.mockResolvedValue(ok(mockDurationSeries));
 
       const result = await callTool({
         name: 'get_agent_duration',
@@ -108,7 +115,13 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getDuration.mockRejectedValue(new Error('API error'));
+      mockClient.agents.getDuration.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_agent_duration',
@@ -121,7 +134,7 @@ describe('agent tools', () => {
 
   describe('get_agent_models_by_calls', () => {
     it('returns a breakdown of LLM calls by model', async () => {
-      mockClient.agents.getModelsByCalls.mockResolvedValue(mockBreakdown);
+      mockClient.agents.getModelsByCalls.mockResolvedValue(ok(mockBreakdown));
 
       const result = await callTool({
         name: 'get_agent_models_by_calls',
@@ -134,7 +147,7 @@ describe('agent tools', () => {
     });
 
     it('forwards limit and period_hours', async () => {
-      mockClient.agents.getModelsByCalls.mockResolvedValue(mockBreakdown);
+      mockClient.agents.getModelsByCalls.mockResolvedValue(ok(mockBreakdown));
 
       await callTool({
         name: 'get_agent_models_by_calls',
@@ -148,8 +161,12 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getModelsByCalls.mockRejectedValue(
-        new Error('API error'),
+      mockClient.agents.getModelsByCalls.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
       );
 
       const result = await callTool({
@@ -163,7 +180,7 @@ describe('agent tools', () => {
 
   describe('get_agent_models_by_tokens', () => {
     it('returns a breakdown of tokens by model', async () => {
-      mockClient.agents.getModelsByTokens.mockResolvedValue(mockBreakdown);
+      mockClient.agents.getModelsByTokens.mockResolvedValue(ok(mockBreakdown));
 
       const result = await callTool({
         name: 'get_agent_models_by_tokens',
@@ -178,8 +195,12 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getModelsByTokens.mockRejectedValue(
-        new Error('API error'),
+      mockClient.agents.getModelsByTokens.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
       );
 
       const result = await callTool({
@@ -193,9 +214,9 @@ describe('agent tools', () => {
 
   describe('get_agent_tools', () => {
     it('returns a breakdown of tool calls by tool', async () => {
-      mockClient.agents.getTools.mockResolvedValue([
-        { label: 'search', value: 4 },
-      ]);
+      mockClient.agents.getTools.mockResolvedValue(
+        ok([{ label: 'search', value: 4 }]),
+      );
 
       const result = await callTool({
         name: 'get_agent_tools',
@@ -208,7 +229,13 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getTools.mockRejectedValue(new Error('API error'));
+      mockClient.agents.getTools.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_agent_tools',
@@ -221,7 +248,7 @@ describe('agent tools', () => {
 
   describe('list_agent_traces', () => {
     it('returns paginated agent traces', async () => {
-      mockClient.agents.getTraces.mockResolvedValue(mockTracesPage);
+      mockClient.agents.getTraces.mockResolvedValue(ok(mockTracesPage));
 
       const result = await callTool({
         name: 'list_agent_traces',
@@ -239,7 +266,7 @@ describe('agent tools', () => {
     });
 
     it('forwards pagination options', async () => {
-      mockClient.agents.getTraces.mockResolvedValue(mockTracesPage);
+      mockClient.agents.getTraces.mockResolvedValue(ok(mockTracesPage));
 
       await callTool({
         name: 'list_agent_traces',
@@ -253,7 +280,13 @@ describe('agent tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.agents.getTraces.mockRejectedValue(new Error('API error'));
+      mockClient.agents.getTraces.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'list_agent_traces',

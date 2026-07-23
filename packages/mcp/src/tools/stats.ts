@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerStatsTools(
   server: McpServer,
@@ -30,18 +30,12 @@ export function registerStatsTools(
       },
     },
     async ({ project_id, period, interval }) => {
-      try {
-        const result = await client.stats.timeseries(
-          project_id,
-          period,
-          interval,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.stats.timeseries(
+        project_id,
+        period,
+        interval,
+      );
+      return mcpJson(result);
     },
   );
 
@@ -61,14 +55,8 @@ export function registerStatsTools(
       },
     },
     async ({ project_id, period }) => {
-      try {
-        const result = await client.stats.summary(project_id, period);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.stats.summary(project_id, period);
+      return mcpJson(result);
     },
   );
 }

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerProjectTools(
   server: McpServer,
@@ -23,14 +23,8 @@ export function registerProjectTools(
       },
     },
     async ({ page, per_page }) => {
-      try {
-        const result = await client.projects.list({ page, per_page });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.projects.list({ page, per_page });
+      return mcpJson(result);
     },
   );
 
@@ -43,14 +37,8 @@ export function registerProjectTools(
       },
     },
     async ({ project_id }) => {
-      try {
-        const result = await client.projects.get(project_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.projects.get(project_id);
+      return mcpJson(result);
     },
   );
 
@@ -67,14 +55,8 @@ export function registerProjectTools(
       },
     },
     async ({ name, slug }) => {
-      try {
-        const result = await client.projects.create({ name, slug });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.projects.create({ name, slug });
+      return mcpJson(result);
     },
   );
 }

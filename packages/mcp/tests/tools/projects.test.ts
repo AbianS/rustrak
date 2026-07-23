@@ -1,6 +1,5 @@
-import { NotFoundError } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('project tools', () => {
   let mockClient: any;
@@ -41,7 +40,7 @@ describe('project tools', () => {
         page: 1,
         per_page: 25,
       };
-      mockClient.projects.list.mockResolvedValue(mockData);
+      mockClient.projects.list.mockResolvedValue(ok(mockData));
 
       const result = await callTool({ name: 'list_projects', arguments: {} });
 
@@ -52,8 +51,12 @@ describe('project tools', () => {
     });
 
     it('returns isError on not found', async () => {
-      mockClient.projects.list.mockRejectedValue(
-        new NotFoundError('Resource not found: projects'),
+      mockClient.projects.list.mockResolvedValue(
+        fail({
+          kind: 'not_found',
+          status: 404,
+          message: 'Resource not found: projects',
+        }),
       );
 
       const result = await callTool({ name: 'list_projects', arguments: {} });
@@ -72,7 +75,7 @@ describe('project tools', () => {
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
-      mockClient.projects.get.mockResolvedValue(mockProject);
+      mockClient.projects.get.mockResolvedValue(ok(mockProject));
 
       const result = await callTool({
         name: 'get_project',
@@ -96,7 +99,7 @@ describe('project tools', () => {
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       };
-      mockClient.projects.create.mockResolvedValue(mockProject);
+      mockClient.projects.create.mockResolvedValue(ok(mockProject));
 
       const result = await callTool({
         name: 'create_project',
