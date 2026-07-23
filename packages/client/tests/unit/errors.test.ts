@@ -93,10 +93,13 @@ describe('Error Classes', () => {
   });
 
   describe('NotFoundError', () => {
-    it('should include resource in message', () => {
-      const error = new NotFoundError('Project');
+    it('should pass the message through verbatim', () => {
+      // The server's message already reads `Resource not found: <detail>`
+      // (`AppError::NotFound`'s thiserror prefix). The class must not prepend
+      // that prefix a second time.
+      const error = new NotFoundError('Resource not found: Project 42');
 
-      expect(error.message).toBe('Resource not found: Project');
+      expect(error.message).toBe('Resource not found: Project 42');
       expect(error.retryable).toBe(false);
       expect(error.statusCode).toBe(404);
     });

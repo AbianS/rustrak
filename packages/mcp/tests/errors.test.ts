@@ -11,15 +11,19 @@ import { toMcpError } from '../src/errors.js';
 
 describe('toMcpError', () => {
   it('returns isError: true for NotFoundError', () => {
-    const err = new NotFoundError('issue-123');
+    const err = new NotFoundError('Resource not found: issue-123');
     const result = toMcpError(err);
     expect(result.isError).toBe(true);
     expect(result.content[0]?.type).toBe('text');
-    expect(result.content[0]?.text).toMatch(/not found/i);
+    // Exactly once. A case-insensitive /not found/ match cannot tell
+    // `Resource not found: X` from `Not found: Resource not found: X`,
+    // which is how the doubled prefix survived here.
+    expect(result.content[0]?.text?.match(/not found/gi)).toHaveLength(1);
+    expect(result.content[0]?.text).toBe('Resource not found: issue-123');
   });
 
   it('does not include stack traces in error output', () => {
-    const err = new NotFoundError('issue-123');
+    const err = new NotFoundError('Resource not found: issue-123');
     const result = toMcpError(err);
     const text = result.content[0]?.text ?? '';
     expect(text).not.toMatch(/at Object\./);
@@ -82,7 +86,7 @@ describe('toMcpError', () => {
   });
 
   it('content items have correct type literal', () => {
-    const result = toMcpError(new NotFoundError('x'));
+    const result = toMcpError(new NotFoundError('Resource not found: x'));
     // type must be exactly 'text' for MCP content
     expect(result.content[0]?.type).toBe('text');
   });

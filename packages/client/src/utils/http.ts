@@ -23,7 +23,11 @@ function transformHttpError(error: HTTPError): RustrakError {
     error?: string | { type?: string; message?: string };
     message?: string;
   } | null;
-  if (body) {
+  // `typeof body === 'object'` on purpose: ky puts a non-JSON body in
+  // `error.data` as a plain string, and property access on a string primitive
+  // yields undefined, so a bare `if (body)` fell through to the generic message
+  // only by accident. Make the fallback deliberate.
+  if (body && typeof body === 'object') {
     const nested =
       typeof body.error === 'object' ? body.error?.message : body.error;
     errorMessage = nested || body.message || errorMessage;

@@ -33,10 +33,14 @@ export class AuthorizationError extends RustrakError {
 /**
  * Not found error (404 Not Found)
  * Not retryable
+ *
+ * The message is passed through verbatim. The server's `AppError::NotFound`
+ * already renders as `Resource not found: <detail>`, so prepending that prefix
+ * here produced `Resource not found: Resource not found: <detail>`.
  */
 export class NotFoundError extends RustrakError {
-  constructor(resource: string) {
-    super(`Resource not found: ${resource}`, {
+  constructor(message: string) {
+    super(message, {
       retryable: false,
       statusCode: 404,
     });

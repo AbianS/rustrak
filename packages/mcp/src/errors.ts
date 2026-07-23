@@ -16,7 +16,10 @@ function mcpError(text: string): McpErrorResult {
 
 export function toMcpError(err: unknown): McpErrorResult {
   if (err instanceof NotFoundError) {
-    return mcpError(`Not found: ${err.message}`);
+    // No prefix of our own: the server's message already reads
+    // `Resource not found: <detail>`, so adding one produced
+    // `Not found: Resource not found: <detail>`.
+    return mcpError(err.message);
   }
   if (err instanceof RateLimitError) {
     const after = err.retryAfter !== undefined ? err.retryAfter : '?';

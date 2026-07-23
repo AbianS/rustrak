@@ -22,7 +22,7 @@ describe('TeamResource Integration', () => {
     it('should list team members', async () => {
       const members = await client.team.list();
 
-      expect(members).toHaveLength(2);
+      expect(members).toHaveLength(3);
       expect(members[0]?.email).toBe('test@example.com');
       expect(members[0]?.role).toBe('member');
       expect(members[0]?.is_active).toBe(true);
@@ -59,16 +59,24 @@ describe('TeamResource Integration', () => {
       );
     });
 
+    // User 3 is the non-primary admin. `routes/team.rs:118-137` checks the
+    // primary guard first, so user 2 (primary) can never reach the 409.
     it('should surface 409 when demoting the last admin', async () => {
-      await expect(client.team.updateRole(2, 'member')).rejects.toMatchObject({
+      await expect(client.team.updateRole(3, 'member')).rejects.toMatchObject({
         statusCode: 409,
       });
     });
 
     it('should throw a RustrakError on 409', async () => {
-      await expect(client.team.updateRole(2, 'member')).rejects.toBeInstanceOf(
+      await expect(client.team.updateRole(3, 'member')).rejects.toBeInstanceOf(
         RustrakError,
       );
+    });
+
+    it('should surface 403, not 409, when changing the primary admin role', async () => {
+      await expect(client.team.updateRole(2, 'member')).rejects.toMatchObject({
+        statusCode: 403,
+      });
     });
   });
 
@@ -77,6 +85,7 @@ describe('TeamResource Integration', () => {
       const members = await client.team.list();
       expect(members[1]?.is_primary).toBe(true);
       expect(members[0]?.is_primary).toBe(false);
+      expect(members[2]?.is_primary).toBe(false);
     });
   });
 

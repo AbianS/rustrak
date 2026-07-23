@@ -52,7 +52,9 @@ describe('project tools', () => {
     });
 
     it('returns isError on not found', async () => {
-      mockClient.projects.list.mockRejectedValue(new NotFoundError('projects'));
+      mockClient.projects.list.mockRejectedValue(
+        new NotFoundError('Resource not found: projects'),
+      );
 
       const result = await callTool({ name: 'list_projects', arguments: {} });
 

@@ -112,7 +112,9 @@ describe('issue tools', () => {
 
   describe('error handling', () => {
     it('returns isError: true on 404', async () => {
-      mockClient.issues.get.mockRejectedValue(new NotFoundError('issue-xyz'));
+      mockClient.issues.get.mockRejectedValue(
+        new NotFoundError('Resource not found: issue-xyz'),
+      );
 
       const result = await callTool({
         name: 'get_issue',

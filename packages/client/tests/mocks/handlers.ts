@@ -2,6 +2,120 @@ import { HttpResponse, http } from 'msw';
 
 const BASE_URL = 'http://localhost:8080';
 
+/**
+ * The eight `type` literals `AppError::error_response` can emit
+ * (`apps/server/src/error.rs`). Declaring them as a union means a typo in a
+ * fixture is a compile error rather than a body that silently stops matching
+ * the server.
+ */
+export type AppErrorType =
+  | 'NotFound'
+  | 'ValidationError'
+  | 'Conflict'
+  | 'Unauthorized'
+  | 'Forbidden'
+  | 'PayloadTooLarge'
+  | 'DatabaseError'
+  | 'InternalError';
+
+/**
+ * The `Display` prefix `thiserror` puts in front of each variant's detail, from
+ * the `#[error("...")]` attributes in `apps/server/src/error.rs`.
+ *
+ * `tests/unit/app-error-contract.test.ts` reads that Rust file and asserts this
+ * table still matches it, so a reworded `#[error(...)]` fails the TypeScript
+ * suite instead of drifting past it.
+ */
+export const APP_ERROR_PREFIXES = {
+  NotFound: 'Resource not found: ',
+  ValidationError: 'Validation error: ',
+  Conflict: 'Conflict: ',
+  Unauthorized: 'Unauthorized: ',
+  Forbidden: 'Forbidden: ',
+  PayloadTooLarge: 'Payload too large: ',
+  DatabaseError: 'Database error: ',
+  InternalError: 'Internal server error: ',
+} as const satisfies Record<AppErrorType, string>;
+
+/**
+ * `AppError::status_code` (`apps/server/src/error.rs`) is a total function of
+ * the variant, so the status is derived here rather than passed in: the server
+ * cannot produce a `NotFound` that is not a 404, and neither can a fixture.
+ * The same contract test above checks this table against the Rust `match`.
+ */
+export const APP_ERROR_STATUS = {
+  NotFound: 404,
+  ValidationError: 400,
+  Conflict: 409,
+  Unauthorized: 401,
+  Forbidden: 403,
+  PayloadTooLarge: 413,
+  DatabaseError: 500,
+  InternalError: 500,
+} as const satisfies Record<AppErrorType, number>;
+
+/**
+ * Build the nested body every `AppError` produces:
+ * `{"error": {"type": ..., "message": ...}}`, with the status derived from the
+ * variant.
+ *
+ * `message` is `AppError`'s `Display`, so it always carries the thiserror
+ * prefix: a 404 reads `Resource not found: <detail>`, never a bare detail.
+ * Passing a message without its prefix throws here rather than producing a body
+ * the server could never send.
+ */
+export function appErrorResponse(type: AppErrorType, message: string) {
+  const prefix = APP_ERROR_PREFIXES[type];
+  if (!message.startsWith(prefix)) {
+    throw new Error(
+      `appErrorResponse('${type}', ...) expects the server's Display prefix: ` +
+        `message must start with ${JSON.stringify(prefix)}, got ${JSON.stringify(message)}`,
+    );
+  }
+  return HttpResponse.json(
+    { error: { type, message } },
+    { status: APP_ERROR_STATUS[type] },
+  );
+}
+
+/**
+ * The one flat error body the server still emits: the ingest rate limiter in
+ * `apps/server/src/routes/ingest.rs`, which is not an `AppError` and so keeps
+ * its own shape plus the `Retry-After` header.
+ */
+export function rateLimitResponse(retryAfter: number) {
+  return HttpResponse.json(
+    { error: 'rate_limit_exceeded', retry_after: retryAfter },
+    { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+  );
+}
+
+/**
+ * A missing project has two distinct wordings on the server and the actor
+ * decides which one you get:
+ *
+ * - `ProjectService::get_by_id` (`services/project.rs:142`) says
+ *   `Project with id {id} not found`. This is what an instance admin sees, and
+ *   a Bearer token is either user-less (legacy, treated as admin) or owned by
+ *   an admin in every fixture here, so `access::require` waves it through and
+ *   the lookup is what 404s.
+ * - `access::require` (`services/access.rs:65`) says `Project {id} not found`
+ *   for a non-member, deliberately not leaking existence. Use
+ *   `projectNotVisible` for endpoints whose only 404 comes from that guard.
+ *
+ * `services/project.rs:165` also has a bare `Project not found`, but it lives in
+ * `get_by_sentry_key`, which is `#[allow(dead_code)]` and wired to no route, so
+ * no client can ever observe it.
+ */
+export function projectNotFound(id: string | number | readonly string[]) {
+  return `Resource not found: Project with id ${id} not found`;
+}
+
+/** `access::require`'s non-member 404 (`services/access.rs:65`). */
+export function projectNotVisible(id: string | number | readonly string[]) {
+  return `Resource not found: Project ${id} not found`;
+}
+
 // Mock data
 export const mockProjects = [
   {
@@ -179,6 +293,19 @@ export const mockTeamMembers = [
     created_at: '2026-01-19T10:00:00.000Z',
     last_login: null,
   },
+  // A second admin who is NOT the primary account. Without this, the only admin
+  // in the roster was the primary one, and `routes/team.rs:118-137` checks the
+  // primary guard before the last-admin guard, so demoting them can only ever
+  // produce the 403, so the 409 fixture was unreachable on the real server.
+  {
+    id: 3,
+    email: 'second-admin@example.com',
+    role: 'admin',
+    is_active: true,
+    is_primary: false,
+    created_at: '2026-01-18T10:00:00.000Z',
+    last_login: null,
+  },
 ];
 
 export const mockInvitations = [
@@ -314,6 +441,48 @@ export const mockAlertHistory = [
 ];
 
 export const handlers = [
+  // ---------------------------------------------------------------------
+  // Status-transform fixtures.
+  //
+  // These paths do NOT exist on the server. They exist so the status ->
+  // error-class mapping in `src/utils/http.ts::transformHttpError` can be
+  // exercised for statuses whose only real sources are endpoints this client
+  // never calls:
+  //
+  //   - `AppError::PayloadTooLarge` is produced solely by envelope ingestion
+  //     (`ingest/decompression.rs:17,38`, `ingest/parser.rs:81,107`).
+  //   - The flat 429 body is produced solely by the ingest rate limiter
+  //     (`routes/ingest.rs:38-46`).
+  //   - `AppError::Database` / `AppError::Internal` can surface from any route,
+  //     so they are parked here too rather than pinned to one arbitrary GET.
+  //
+  // They used to hang off `GET /api/projects/:id` under reserved ids, which
+  // taught a contract the server does not honour: a bodyless GET can never
+  // answer "payload too large". Drive them with a bare ky instance
+  // (`createKyInstance`), not with a resource method.
+  // ---------------------------------------------------------------------
+  http.get(`${BASE_URL}/__status-transform/payload-too-large`, () =>
+    appErrorResponse(
+      'PayloadTooLarge',
+      'Payload too large: Compressed payload exceeds 104857600 bytes',
+    ),
+  ),
+  http.get(`${BASE_URL}/__status-transform/rate-limited`, () =>
+    rateLimitResponse(59),
+  ),
+  http.get(`${BASE_URL}/__status-transform/database-error`, () =>
+    appErrorResponse(
+      'DatabaseError',
+      'Database error: pool timed out while waiting for an open connection',
+    ),
+  ),
+  http.get(`${BASE_URL}/__status-transform/internal-error`, () =>
+    appErrorResponse(
+      'InternalError',
+      'Internal server error: failed to store source file: No space left on device (os error 28)',
+    ),
+  ),
+
   // Projects
   http.get(`${BASE_URL}/api/projects`, () => {
     return HttpResponse.json({
@@ -330,7 +499,7 @@ export const handlers = [
     const project = mockProjects.find((p) => p.id === Number(id));
 
     if (!project) {
-      return HttpResponse.json({ error: 'Project not found' }, { status: 404 });
+      return appErrorResponse('NotFound', projectNotFound(id));
     }
 
     return HttpResponse.json(project);
@@ -371,7 +540,7 @@ export const handlers = [
     const project = mockProjects.find((p) => p.id === Number(id));
 
     if (!project) {
-      return HttpResponse.json({ error: 'Project not found' }, { status: 404 });
+      return appErrorResponse('NotFound', projectNotFound(id));
     }
 
     const updated = {
@@ -388,7 +557,7 @@ export const handlers = [
     const project = mockProjects.find((p) => p.id === Number(id));
 
     if (!project) {
-      return HttpResponse.json({ error: 'Project not found' }, { status: 404 });
+      return appErrorResponse('NotFound', projectNotFound(id));
     }
 
     return new HttpResponse(null, { status: 204 });
@@ -513,7 +682,10 @@ export const handlers = [
       const issue = mockIssues.find((i) => i.id === issueId);
 
       if (!issue) {
-        return HttpResponse.json({ error: 'Issue not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Issue ${issueId} not found`,
+        );
       }
 
       return HttpResponse.json(issue);
@@ -534,7 +706,10 @@ export const handlers = [
       const issue = mockIssues.find((i) => i.id === issueId);
 
       if (!issue) {
-        return HttpResponse.json({ error: 'Issue not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Issue ${issueId} not found`,
+        );
       }
 
       // Resolve the canonical status the way the server does: `status` wins,
@@ -573,7 +748,10 @@ export const handlers = [
       const issue = mockIssues.find((i) => i.id === issueId);
 
       if (!issue) {
-        return HttpResponse.json({ error: 'Issue not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Issue ${issueId} not found`,
+        );
       }
 
       return new HttpResponse(null, { status: 204 });
@@ -714,7 +892,10 @@ export const handlers = [
       const { eventId } = params;
 
       if (eventId !== mockEventDetail.id) {
-        return HttpResponse.json({ error: 'Event not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Event ${eventId} not found`,
+        );
       }
 
       return HttpResponse.json(mockEventDetail);
@@ -731,7 +912,10 @@ export const handlers = [
     const token = mockTokens.find((t) => t.id === Number(id));
 
     if (!token) {
-      return HttpResponse.json({ error: 'Token not found' }, { status: 404 });
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: Token with id ${id} not found`,
+      );
     }
 
     // Get by ID now returns the full token (not masked)
@@ -761,60 +945,26 @@ export const handlers = [
     const token = mockTokens.find((t) => t.id === Number(id));
 
     if (!token) {
-      return HttpResponse.json({ error: 'Token not found' }, { status: 404 });
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: Token with id ${id} not found`,
+      );
     }
 
     return new HttpResponse(null, { status: 204 });
   }),
 
   // Authentication
-  http.post(`${BASE_URL}/auth/register`, async ({ request }) => {
-    const body = (await request.json()) as {
-      email: string;
-      password: string;
-    };
-
-    // Validate email format
-    if (!body.email.includes('@')) {
-      return HttpResponse.json(
-        { error: 'Invalid email format' },
-        { status: 400 },
-      );
-    }
-
-    // Password is required (no length policy, matching the real server)
-    if (body.password.length === 0) {
-      return HttpResponse.json(
-        { error: 'Password is required' },
-        { status: 400 },
-      );
-    }
-
-    // Check for duplicate email (simulate database constraint)
-    if (body.email === 'existing@example.com') {
-      return HttpResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 },
-      );
-    }
-
-    const newUser = {
-      id: 3,
-      email: body.email,
-      role: 'member',
-      is_admin: false,
-    };
-
-    return HttpResponse.json(
-      { user: newUser },
-      {
-        status: 201,
-        headers: {
-          'Set-Cookie': 'session=mock-session-cookie; HttpOnly; SameSite=Lax',
-        },
-      },
-    );
-  }),
+  //
+  // `POST /auth/register` is live (`routes/auth.rs:277`) but
+  // `routes/auth.rs:106-115` ignores its body entirely and always returns
+  // `AppError::Forbidden("Registration is invite-only")`. There is no success
+  // path and no validation branch: signing up goes through
+  // `/auth/accept-invitation`. This fixture used to invent a 201 and three 400s
+  // that the endpoint cannot produce.
+  http.post(`${BASE_URL}/auth/register`, () =>
+    appErrorResponse('Forbidden', 'Forbidden: Registration is invite-only'),
+  ),
 
   http.post(`${BASE_URL}/auth/login`, async ({ request }) => {
     const body = (await request.json()) as {
@@ -852,14 +1002,17 @@ export const handlers = [
 
     // Check for inactive user
     if (body.email === 'inactive@example.com') {
-      return HttpResponse.json(
-        { error: 'Account is disabled' },
-        { status: 401 },
+      return appErrorResponse(
+        'Unauthorized',
+        'Unauthorized: Account is disabled',
       );
     }
 
     // Invalid credentials
-    return HttpResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    return appErrorResponse(
+      'Unauthorized',
+      'Unauthorized: Invalid credentials',
+    );
   }),
 
   http.post(`${BASE_URL}/auth/logout`, () => {
@@ -876,7 +1029,10 @@ export const handlers = [
 
     // Check if session cookie is present
     if (!cookieHeader?.includes('session=mock-session-cookie')) {
-      return HttpResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      return appErrorResponse(
+        'Unauthorized',
+        'Unauthorized: Not authenticated',
+      );
     }
 
     // Return current user based on session
@@ -888,18 +1044,18 @@ export const handlers = [
     const { token } = params;
 
     if (token === 'expired-token') {
-      return HttpResponse.json(
-        { error: 'Invitation expired or used' },
-        { status: 400 },
+      return appErrorResponse(
+        'ValidationError',
+        'Validation error: Invitation is expired or already used',
       );
     }
 
     const invitation = mockInvitations.find((i) => i.token === token);
 
     if (!invitation) {
-      return HttpResponse.json(
-        { error: 'Invitation not found' },
-        { status: 404 },
+      return appErrorResponse(
+        'NotFound',
+        'Resource not found: Invitation not found',
       );
     }
 
@@ -918,10 +1074,30 @@ export const handlers = [
       password: string;
     };
 
+    // Guard order mirrors `services/invitation.rs:111-126`: unknown token,
+    // then expired/used, then the empty password.
     if (body.token === 'invalid-token') {
-      return HttpResponse.json(
-        { error: 'Invalid or expired invitation' },
-        { status: 400 },
+      return appErrorResponse(
+        'ValidationError',
+        'Validation error: Invalid invitation token',
+      );
+    }
+
+    if (body.token === 'expired-token') {
+      return appErrorResponse(
+        'ValidationError',
+        'Validation error: Invitation is expired or already used',
+      );
+    }
+
+    // `Password is required` is real here (invitation.rs:125), not on
+    // `/auth/register` where this file used to claim it. `acceptInvitationSchema`
+    // rejects an empty password client-side, so this branch documents the server
+    // contract rather than a reachable client path.
+    if (body.password.length === 0) {
+      return appErrorResponse(
+        'ValidationError',
+        'Validation error: Password is required',
       );
     }
 
@@ -954,21 +1130,45 @@ export const handlers = [
       const { userId } = params;
       const body = (await request.json()) as { role: string };
 
+      // Guard order mirrors `routes/team.rs:113-137` exactly, because the order
+      // is observable: demoting the primary admin yields 403, never the 409.
       if (body.role !== 'admin' && body.role !== 'member') {
-        return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+        return appErrorResponse(
+          'ValidationError',
+          `Validation error: Invalid role: ${body.role}`,
+        );
       }
 
       const member = mockTeamMembers.find((m) => m.id === Number(userId));
 
-      if (!member) {
-        return HttpResponse.json({ error: 'User not found' }, { status: 404 });
+      // 1. The primary account's role can never change (routes/team.rs:118-125).
+      //    This is checked before the user lookup on the server, so an unknown
+      //    id that happened to be primary could not exist anyway.
+      if (member?.is_primary && body.role !== 'admin') {
+        return appErrorResponse(
+          'Forbidden',
+          "Forbidden: The primary admin's role cannot be changed",
+        );
       }
 
-      // Simulate "cannot demote the last admin"
-      if (member.id === 2 && body.role === 'member') {
-        return HttpResponse.json(
-          { error: 'Cannot demote the last admin' },
-          { status: 409 },
+      // 2. Then the user must exist (routes/team.rs:129-131).
+      if (!member) {
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: User ${userId} not found`,
+        );
+      }
+
+      // 3. Then the last-admin guard (routes/team.rs:127-137). User 3 is the
+      //    non-primary admin, so demoting them is what trips the 409.
+      if (
+        member.role === 'admin' &&
+        !member.is_primary &&
+        body.role === 'member'
+      ) {
+        return appErrorResponse(
+          'Conflict',
+          'Conflict: Cannot demote the last admin',
         );
       }
 
@@ -977,15 +1177,19 @@ export const handlers = [
   ),
 
   http.delete(`${BASE_URL}/api/team/:userId`, ({ params }) => {
-    const member = mockTeamMembers.find((m) => m.id === Number(params.userId));
+    const { userId } = params;
+    const member = mockTeamMembers.find((m) => m.id === Number(userId));
     if (!member) {
-      return HttpResponse.json({ error: 'User not found' }, { status: 404 });
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: User ${userId} not found`,
+      );
     }
     // Simulate "the primary user cannot be deleted".
     if (member.is_primary) {
-      return HttpResponse.json(
-        { error: 'The primary admin cannot be deleted' },
-        { status: 403 },
+      return appErrorResponse(
+        'Forbidden',
+        'Forbidden: The primary admin cannot be deleted',
       );
     }
     return new HttpResponse(null, { status: 204 });
@@ -999,14 +1203,35 @@ export const handlers = [
   http.post(`${BASE_URL}/api/invitations`, async ({ request }) => {
     const body = (await request.json()) as { email: string; role: string };
 
+    // Guard order mirrors `services/invitation.rs:22-47`.
     if (body.role !== 'admin' && body.role !== 'member') {
-      return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+      return appErrorResponse(
+        'ValidationError',
+        `Validation error: Invalid role: ${body.role}`,
+      );
+    }
+
+    // `Invalid email format` is real, but it belongs to the invitation flow
+    // (services/invitation.rs:26), not to `/auth/register` where this fixture
+    // file used to put it.
+    if (!body.email.includes('@')) {
+      return appErrorResponse(
+        'ValidationError',
+        'Validation error: Invalid email format',
+      );
     }
 
     if (body.email === 'existing@example.com') {
-      return HttpResponse.json(
-        { error: 'Email already a user or pending invite' },
-        { status: 409 },
+      return appErrorResponse(
+        'Conflict',
+        'Conflict: A user with that email already exists',
+      );
+    }
+
+    if (body.email === 'pending@example.com') {
+      return appErrorResponse(
+        'Conflict',
+        'Conflict: A pending invitation for that email already exists',
       );
     }
 
@@ -1028,9 +1253,9 @@ export const handlers = [
     const invitation = mockInvitations.find((i) => i.token === token);
 
     if (!invitation) {
-      return HttpResponse.json(
-        { error: 'Pending invitation not found' },
-        { status: 404 },
+      return appErrorResponse(
+        'NotFound',
+        'Resource not found: Pending invitation not found',
       );
     }
 
@@ -1043,7 +1268,10 @@ export const handlers = [
     const project = mockProjects.find((p) => p.id === Number(projectId));
 
     if (!project) {
-      return HttpResponse.json({ error: 'Project not found' }, { status: 404 });
+      // `list_members` (routes/members.rs:37) has no 404 of its own: an admin
+      // actor gets an empty list for a missing project. The only 404 reachable
+      // here is `access::require`'s non-member guard.
+      return appErrorResponse('NotFound', projectNotVisible(projectId));
     }
 
     return HttpResponse.json(mockProjectMembers);
@@ -1060,21 +1288,24 @@ export const handlers = [
       const project = mockProjects.find((p) => p.id === Number(projectId));
 
       if (!project) {
-        return HttpResponse.json(
-          { error: 'Project or user not found' },
-          { status: 404 },
+        return appErrorResponse(
+          'NotFound',
+          'Resource not found: Project or user not found',
         );
       }
 
       if (!['viewer', 'editor', 'admin'].includes(body.role)) {
-        return HttpResponse.json({ error: 'Invalid role' }, { status: 400 });
+        return appErrorResponse(
+          'ValidationError',
+          'Validation error: Invalid role',
+        );
       }
 
       // Simulate "cannot downgrade last project admin"
       if (body.user_id === 2 && body.role !== 'admin') {
-        return HttpResponse.json(
-          { error: 'Cannot downgrade last project admin' },
-          { status: 409 },
+        return appErrorResponse(
+          'Conflict',
+          'Conflict: Cannot downgrade the last project admin',
         );
       }
 
@@ -1091,17 +1322,17 @@ export const handlers = [
       );
 
       if (!member) {
-        return HttpResponse.json(
-          { error: 'Membership not found' },
-          { status: 404 },
+        return appErrorResponse(
+          'NotFound',
+          'Resource not found: Membership not found',
         );
       }
 
       // Simulate "cannot remove last project admin"
       if (member.user_id === 2) {
-        return HttpResponse.json(
-          { error: 'Cannot remove last project admin' },
-          { status: 409 },
+        return appErrorResponse(
+          'Conflict',
+          'Conflict: Cannot remove the last project admin',
         );
       }
 
@@ -1119,9 +1350,9 @@ export const handlers = [
     const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
     if (!integration) {
-      return HttpResponse.json(
-        { error: 'Integration not found' },
-        { status: 404 },
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: Integration ${id} not found`,
       );
     }
 
@@ -1167,9 +1398,9 @@ export const handlers = [
       );
 
       if (!integration) {
-        return HttpResponse.json(
-          { error: 'Integration not found' },
-          { status: 404 },
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Integration ${id} not found`,
         );
       }
 
@@ -1188,9 +1419,9 @@ export const handlers = [
     const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
     if (!integration) {
-      return HttpResponse.json(
-        { error: 'Integration not found' },
-        { status: 404 },
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: Integration ${id} not found`,
       );
     }
 
@@ -1202,9 +1433,9 @@ export const handlers = [
     const integration = mockAlertIntegrations.find((c) => c.id === Number(id));
 
     if (!integration) {
-      return HttpResponse.json(
-        { error: 'Integration not found' },
-        { status: 404 },
+      return appErrorResponse(
+        'NotFound',
+        `Resource not found: Integration ${id} not found`,
       );
     }
 
@@ -1233,7 +1464,10 @@ export const handlers = [
       );
 
       if (!rule) {
-        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Alert rule ${ruleId} not found`,
+        );
       }
 
       return HttpResponse.json(rule);
@@ -1295,7 +1529,10 @@ export const handlers = [
       );
 
       if (!rule) {
-        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Alert rule ${ruleId} not found`,
+        );
       }
 
       const integrationIds = body.channels
@@ -1322,7 +1559,10 @@ export const handlers = [
       );
 
       if (!rule) {
-        return HttpResponse.json({ error: 'Rule not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Alert rule ${ruleId} not found`,
+        );
       }
 
       return new HttpResponse(null, { status: 204 });
@@ -1404,7 +1644,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/sessions/stats`,
     ({ params, request }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       const rows = [
         {
@@ -1453,7 +1696,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/sessions/summary`,
     ({ params }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       return HttpResponse.json({
         total: 300,
@@ -1472,7 +1718,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/releases/:release/new-issues`,
     ({ params }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       return HttpResponse.json(mockIssues);
     },
@@ -1483,7 +1732,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/sessions/timeseries`,
     ({ params }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       return HttpResponse.json([
         {
@@ -1507,7 +1759,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/events/stats`,
     ({ params, request }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       const url = new URL(request.url);
       // Echo the interval back through the bucket spacing so a test can prove
@@ -1542,7 +1797,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/stats/summary`,
     ({ params, request }) => {
       if (params.projectId === '999') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          projectNotVisible(params.projectId),
+        );
       }
       const url = new URL(request.url);
       const period = url.searchParams.get('period');
@@ -1567,7 +1825,7 @@ export const handlers = [
   // Logs — list logs for project
   http.get(`${BASE_URL}/api/projects/:projectId/logs`, ({ params }) => {
     if (params.projectId === '999') {
-      return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      return appErrorResponse('NotFound', projectNotVisible(params.projectId));
     }
     return HttpResponse.json({
       items: [
@@ -1604,7 +1862,7 @@ export const handlers = [
   // Transactions — list transactions for project
   http.get(`${BASE_URL}/api/projects/:projectId/transactions`, ({ params }) => {
     if (params.projectId === '999') {
-      return HttpResponse.json({ error: 'not found' }, { status: 404 });
+      return appErrorResponse('NotFound', projectNotVisible(params.projectId));
     }
     return HttpResponse.json({
       items: [
@@ -1656,7 +1914,10 @@ export const handlers = [
     ({ request }) => {
       const url = new URL(request.url);
       if (url.searchParams.get('name') === '/missing') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: No stats for transaction '${url.searchParams.get('name')}'`,
+        );
       }
       return HttpResponse.json({
         transaction_name: '/api/checkout',
@@ -1712,7 +1973,10 @@ export const handlers = [
     `${BASE_URL}/api/projects/:projectId/transactions/:transactionId`,
     ({ params }) => {
       if (params.transactionId === 'missing') {
-        return HttpResponse.json({ error: 'not found' }, { status: 404 });
+        return appErrorResponse(
+          'NotFound',
+          `Resource not found: Transaction ${params.transactionId} not found`,
+        );
       }
       return HttpResponse.json({
         id: 'a1b2c3d4-e89b-12d3-a456-426614174000',
@@ -1847,9 +2111,9 @@ export const handlers = [
     `${BASE_URL}/api/0/projects/:orgSlug/:projectSlug/files/source-maps/`,
     ({ params }) => {
       if (params.projectSlug === 'not-found') {
-        return HttpResponse.json(
-          { error: 'project not found' },
-          { status: 404 },
+        return appErrorResponse(
+          'NotFound',
+          'Resource not found: project not found: not-found',
         );
       }
       return HttpResponse.json({

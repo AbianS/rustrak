@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
 import {
   AuthenticationError,
+  AuthorizationError,
   BadRequestError,
   NotFoundError,
   ValidationError,
@@ -19,70 +20,50 @@ describe('AuthResource Integration', () => {
     });
   });
 
+  // `POST /auth/register` is invite-only: `routes/auth.rs:106-115` returns
+  // `AppError::Forbidden("Registration is invite-only")` for every input,
+  // regardless of body. There is no success path and no server-side validation
+  // branch, so the only things worth testing are the client-side schema (which
+  // never reaches the network) and that single 403.
   describe('register()', () => {
-    it('should register new user successfully', async () => {
-      const result = await client.auth.register({
-        email: 'newuser@example.com',
-        password: 'password123',
-      });
+    it('should always be rejected with 403 Forbidden', async () => {
+      const error = await client.auth
+        .register({ email: 'newuser@example.com', password: 'password123' })
+        .catch((e) => e);
 
-      expect(result.user.id).toBe(3);
-      expect(result.user.email).toBe('newuser@example.com');
-      expect(result.user.is_admin).toBe(false);
-      expect(result.cookies).toBeDefined();
+      expect(error).toBeInstanceOf(AuthorizationError);
+      expect(error.message).toBe('Forbidden: Registration is invite-only');
+      expect(error.statusCode).toBe(403);
     });
 
-    it('should validate email format', async () => {
-      await expect(
-        client.auth.register({
-          email: 'not-an-email',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
-    });
-
-    it('should reject an empty password (required, no length policy)', async () => {
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: '',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
-    });
-
-    it('should reject duplicate email', async () => {
+    it('should be rejected the same way for an already-registered email', async () => {
       await expect(
         client.auth.register({
           email: 'existing@example.com',
           password: 'password123',
         }),
-      ).rejects.toThrow(BadRequestError);
+      ).rejects.toThrow(AuthorizationError);
     });
 
-    it('should create non-admin user by default', async () => {
-      const result = await client.auth.register({
-        email: 'regular@example.com',
-        password: 'password123',
-      });
-
-      expect(result.user.is_admin).toBe(false);
-    });
-
-    it('should handle very long email addresses', async () => {
-      const longEmail = `${'a'.repeat(240)}@example.com`;
-
-      // Should succeed if under 255 chars total
-      if (longEmail.length < 255) {
-        const result = await client.auth.register({
-          email: longEmail,
+    it('should validate email format client-side, before any request', async () => {
+      await expect(
+        client.auth.register({
+          email: 'not-an-email',
           password: 'password123',
-        });
-
-        expect(result.user.email).toBe(longEmail);
-      }
+        }),
+      ).rejects.toThrow(ValidationError);
     });
 
-    it('should validate email format strictly', async () => {
+    it('should reject an empty password client-side (required, no length policy)', async () => {
+      await expect(
+        client.auth.register({
+          email: 'test@example.com',
+          password: '',
+        }),
+      ).rejects.toThrow(ValidationError);
+    });
+
+    it('should validate email format strictly, client-side', async () => {
       const invalidEmails = [
         'no-at-sign',
         '@no-local-part.com',
@@ -93,30 +74,9 @@ describe('AuthResource Integration', () => {
 
       for (const email of invalidEmails) {
         await expect(
-          client.auth.register({
-            email,
-            password: 'password123',
-          }),
-        ).rejects.toThrow(ValidationError); // Client-side validation
+          client.auth.register({ email, password: 'password123' }),
+        ).rejects.toThrow(ValidationError);
       }
-    });
-
-    it('should accept short (non-empty) passwords (no length policy)', async () => {
-      const result = await client.auth.register({
-        email: 'test8@example.com',
-        password: '1234567', // 7 chars — allowed
-      });
-
-      expect(result.user.email).toBe('test8@example.com');
-    });
-
-    it('should handle special characters in email', async () => {
-      const result = await client.auth.register({
-        email: 'user+tag@example.com',
-        password: 'password123',
-      });
-
-      expect(result.user.email).toBe('user+tag@example.com');
     });
   });
 
@@ -411,13 +371,14 @@ describe('AuthResource Integration', () => {
   });
 
   describe('Session Cookie Handling', () => {
-    it('should return cookies from register', async () => {
-      const result = await client.auth.register({
-        email: 'cookie@example.com',
+    // `acceptInvitation`, not `register`, is the endpoint that creates an
+    // account and sets a session cookie (`routes/auth.rs:297-307`).
+    it('should return cookies from acceptInvitation', async () => {
+      const result = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
         password: 'password123',
       });
 
-      // Register should return cookies
       expect(result.cookies).toBeDefined();
       expect(Array.isArray(result.cookies)).toBe(true);
     });
@@ -453,13 +414,13 @@ describe('AuthResource Integration', () => {
       expect(results[1]?.user.email).toBe('admin@example.com');
     });
 
-    it('should handle rapid register/logout/login sequence', async () => {
-      // Register
-      const registered = await client.auth.register({
-        email: 'rapid@example.com',
+    it('should handle rapid accept-invitation/logout/login sequence', async () => {
+      // Accept an invitation (the only account-creating endpoint)
+      const registered = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
         password: 'password123',
       });
-      expect(registered.user.email).toBe('rapid@example.com');
+      expect(registered.user.email).toBe('invitee@example.com');
 
       // Logout
       await client.auth.logout();
@@ -485,16 +446,16 @@ describe('AuthResource Integration', () => {
       ).rejects.toThrow(ValidationError);
     });
 
-    it('should reject extremely long passwords gracefully', async () => {
+    it('should handle extremely long passwords gracefully', async () => {
       const veryLongPassword = 'a'.repeat(10000);
 
-      // Should not crash, server should handle it
-      const result = await client.auth.register({
-        email: 'longpass@example.com',
+      // Should not crash: there is no length policy server-side.
+      const result = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
         password: veryLongPassword,
       });
 
-      expect(result.user.email).toBe('longpass@example.com');
+      expect(result.user.email).toBe('invitee@example.com');
     });
 
     it('should handle whitespace in credentials', async () => {
@@ -510,9 +471,9 @@ describe('AuthResource Integration', () => {
   });
 
   describe('TypeScript Type Safety', () => {
-    it('should return properly typed LoginResult from register', async () => {
-      const result = await client.auth.register({
-        email: 'typed@example.com',
+    it('should return properly typed LoginResult from acceptInvitation', async () => {
+      const result = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
         password: 'password123',
       });
 
