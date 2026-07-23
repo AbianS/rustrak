@@ -1,6 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
+import { expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 describe('Pagination', () => {
@@ -111,12 +112,12 @@ describe('Pagination', () => {
       );
 
       // Get first page
-      const firstPage = await client.issues.list(1, { page: 1 });
+      const firstPage = expectOk(await client.issues.list(1, { page: 1 }));
       expect(firstPage.items).toHaveLength(1);
       expect(firstPage.total_pages).toBe(2);
 
       // Get second page
-      const secondPage = await client.issues.list(1, { page: 2 });
+      const secondPage = expectOk(await client.issues.list(1, { page: 2 }));
       expect(secondPage.items).toHaveLength(1);
 
       expect(requestCount).toBe(2);
@@ -135,7 +136,7 @@ describe('Pagination', () => {
         }),
       );
 
-      const response = await client.issues.list(1);
+      const response = expectOk(await client.issues.list(1));
 
       expect(response.items).toHaveLength(0);
       expect(response.total_count).toBe(0);
@@ -167,11 +168,13 @@ describe('Pagination', () => {
         ),
       );
 
-      await client.issues.list(1, {
-        sort: 'last_seen',
-        order: 'asc',
-        filter: 'all',
-      });
+      expectOk(
+        await client.issues.list(1, {
+          sort: 'last_seen',
+          order: 'asc',
+          filter: 'all',
+        }),
+      );
     });
 
     it('should preserve query params across pagination', async () => {
@@ -207,16 +210,20 @@ describe('Pagination', () => {
         ),
       );
 
-      await client.issues.list(1, {
-        sort: 'last_seen',
-        filter: 'all',
-      });
+      expectOk(
+        await client.issues.list(1, {
+          sort: 'last_seen',
+          filter: 'all',
+        }),
+      );
 
-      await client.issues.list(1, {
-        sort: 'last_seen',
-        filter: 'all',
-        page: 2,
-      });
+      expectOk(
+        await client.issues.list(1, {
+          sort: 'last_seen',
+          filter: 'all',
+          page: 2,
+        }),
+      );
 
       expect(capturedParams.first?.get('sort')).toBe('last_seen');
       expect(capturedParams.second?.get('sort')).toBe('last_seen');
@@ -262,18 +269,17 @@ describe('Pagination', () => {
         ),
       );
 
-      const firstPage = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
+      const firstPage = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000'),
       );
 
       expect(firstPage.items).toHaveLength(1);
       expect(firstPage.has_more).toBe(true);
 
-      const secondPage = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        { cursor: firstPage.next_cursor },
+      const secondPage = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000', {
+          cursor: firstPage.next_cursor,
+        }),
       );
 
       expect(secondPage.items).toHaveLength(0);
@@ -303,7 +309,7 @@ describe('Pagination', () => {
         ),
       );
 
-      await client.issues.list(1, { per_page: 5 });
+      expectOk(await client.issues.list(1, { per_page: 5 }));
     });
 
     it('should handle last page correctly', async () => {
@@ -319,7 +325,7 @@ describe('Pagination', () => {
         }),
       );
 
-      const response = await client.issues.list(1, { page: 3 });
+      const response = expectOk(await client.issues.list(1, { page: 3 }));
 
       expect(response.page).toBe(3);
       expect(response.total_pages).toBe(3);
@@ -346,7 +352,7 @@ describe('Pagination', () => {
       const responses = await Promise.all(requests);
       expect(responses).toHaveLength(10);
       responses.forEach((response) => {
-        expect(response.items).toBeDefined();
+        expect(expectOk(response).items).toBeDefined();
       });
     });
   });

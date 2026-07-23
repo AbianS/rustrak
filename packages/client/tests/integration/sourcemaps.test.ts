@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError, ValidationError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 const BASE_URL = 'http://localhost:8080';
@@ -18,7 +18,9 @@ describe('SourceMapsResource Integration', () => {
 
   describe('getChunkUploadCapability()', () => {
     it('should return upload URL and limits', async () => {
-      const caps = await client.sourceMaps.getChunkUploadCapability('my-org');
+      const caps = expectOk(
+        await client.sourceMaps.getChunkUploadCapability('my-org'),
+      );
 
       expect(caps.url).toContain('my-org');
       expect(caps.chunkSize).toBe(2097152);
@@ -35,9 +37,11 @@ describe('SourceMapsResource Integration', () => {
         ),
       );
 
-      await expect(
-        client.sourceMaps.getChunkUploadCapability('bad-org'),
-      ).rejects.toThrow(ValidationError);
+      const result =
+        await client.sourceMaps.getChunkUploadCapability('bad-org');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
   });
 
@@ -49,9 +53,10 @@ describe('SourceMapsResource Integration', () => {
           type: 'application/octet-stream',
         }),
       };
-      await expect(
-        client.sourceMaps.uploadChunks('my-org', [chunk]),
-      ).resolves.toBeUndefined();
+      const result = await client.sourceMaps.uploadChunks('my-org', [chunk]);
+
+      expect(result.success).toBe(true);
+      expect(expectOk(result)).toBeUndefined();
     });
 
     it('should upload multiple chunks', async () => {
@@ -69,9 +74,10 @@ describe('SourceMapsResource Integration', () => {
           data: new Blob(['chunk3']),
         },
       ];
-      await expect(
-        client.sourceMaps.uploadChunks('my-org', chunks),
-      ).resolves.toBeUndefined();
+      const result = await client.sourceMaps.uploadChunks('my-org', chunks);
+
+      expect(result.success).toBe(true);
+      expect(expectOk(result)).toBeUndefined();
     });
 
     it('should batch chunks into multiple requests when count exceeds chunksPerRequest', async () => {
@@ -101,43 +107,105 @@ describe('SourceMapsResource Integration', () => {
           data: new Blob(['c']),
         },
       ];
-      await client.sourceMaps.uploadChunks('batch-org', chunks, 2);
+      expectOk(await client.sourceMaps.uploadChunks('batch-org', chunks, 2));
 
       expect(requestCount).toBe(2);
+    });
+
+    // `chunksPerRequest` used to `throw new Error(...)`. It is caller input
+    // checked before any request, so it is now the matrix's `invalid_request`
+    // row and no bytes leave the process.
+    it('should reject a non-positive chunksPerRequest without sending anything', async () => {
+      let requestCount = 0;
+      server.use(
+        http.post(
+          `${BASE_URL}/api/0/organizations/my-org/chunk-upload/`,
+          () => {
+            requestCount++;
+            return new HttpResponse(null, { status: 200 });
+          },
+        ),
+      );
+
+      const result = await client.sourceMaps.uploadChunks(
+        'my-org',
+        [{ hash: 'a'.repeat(40), data: new Blob(['x']) }],
+        0,
+      );
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
+      expect(requestCount).toBe(0);
     });
   });
 
   describe('assembleBundle()', () => {
     it('should return ok state when all chunks are present', async () => {
-      const result = await client.sourceMaps.assembleBundle('my-org', {
-        checksum: 'abc123',
-        chunks: ['sha1hash1', 'sha1hash2'],
-        projects: ['my-project'],
-      });
+      const result = expectOk(
+        await client.sourceMaps.assembleBundle('my-org', {
+          checksum: 'abc123',
+          chunks: ['sha1hash1', 'sha1hash2'],
+          projects: ['my-project'],
+        }),
+      );
 
       expect(result.state).toBe('ok');
       expect(result.missingChunks).toHaveLength(0);
     });
 
     it('should return not_found with missing chunks', async () => {
-      const result = await client.sourceMaps.assembleBundle('my-org', {
-        checksum: 'missing-abc123',
-        chunks: ['sha1hash1', 'sha1hash2'],
-        projects: ['my-project'],
-      });
+      const result = expectOk(
+        await client.sourceMaps.assembleBundle('my-org', {
+          checksum: 'missing-abc123',
+          chunks: ['sha1hash1', 'sha1hash2'],
+          projects: ['my-project'],
+        }),
+      );
 
       expect(result.state).toBe('not_found');
       expect(result.missingChunks.length).toBeGreaterThan(0);
     });
 
-    it('should throw BadRequestError when projects array is empty', async () => {
-      await expect(
-        client.sourceMaps.assembleBundle('my-org', {
-          checksum: 'abc123',
+    // `assembleBundle` used to be the only input-taking method that skipped
+    // `validateInput`, so an empty `projects` was a round trip that came back
+    // 400. It is now the same `invalid_request` every other method reports, and
+    // the assertion that the handler was never reached is the point: nothing
+    // was sent.
+    it('rejects an empty projects array locally, without sending it', async () => {
+      let reached = false;
+      server.use(
+        http.post(
+          `${BASE_URL}/api/0/organizations/my-org/artifactbundle/assemble/`,
+          () => {
+            reached = true;
+            return HttpResponse.json({ state: 'ok', missingChunks: [] });
+          },
+        ),
+      );
+
+      const result = await client.sourceMaps.assembleBundle('my-org', {
+        checksum: 'abc123',
+        chunks: ['sha1hash1'],
+        projects: [],
+      });
+
+      const error = expectErr(result);
+      expect(error.kind).toBe('invalid_request');
+      // No status: nothing reached the server.
+      expect(error).not.toHaveProperty('status');
+      expect(reached).toBe(false);
+    });
+
+    it('rejects an empty checksum locally', async () => {
+      const error = expectErr(
+        await client.sourceMaps.assembleBundle('my-org', {
+          checksum: '',
           chunks: ['sha1hash1'],
-          projects: [],
+          projects: ['my-project'],
         }),
-      ).rejects.toThrow();
+      );
+
+      expect(error.kind).toBe('invalid_request');
     });
 
     it('should validate response schema', async () => {
@@ -148,19 +216,22 @@ describe('SourceMapsResource Integration', () => {
         ),
       );
 
-      await expect(
-        client.sourceMaps.assembleBundle('bad-org', {
-          checksum: 'abc',
-          chunks: [],
-          projects: ['p'],
-        }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.sourceMaps.assembleBundle('bad-org', {
+        checksum: 'abc',
+        chunks: [],
+        projects: ['p'],
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
   });
 
   describe('list()', () => {
     it('should return list of source map files', async () => {
-      const result = await client.sourceMaps.list('my-org', 'my-project');
+      const result = expectOk(
+        await client.sourceMaps.list('my-org', 'my-project'),
+      );
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]?.debugId).toBe(
@@ -171,10 +242,11 @@ describe('SourceMapsResource Integration', () => {
       expect(result.data[0]?.timesUsed).toBe(3);
     });
 
-    it('should throw NotFoundError for unknown project', async () => {
-      await expect(
-        client.sourceMaps.list('my-org', 'not-found'),
-      ).rejects.toThrow(NotFoundError);
+    it('should report not_found for an unknown project', async () => {
+      const result = await client.sourceMaps.list('my-org', 'not-found');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
 
     it('should validate response schema', async () => {
@@ -185,9 +257,10 @@ describe('SourceMapsResource Integration', () => {
         ),
       );
 
-      await expect(
-        client.sourceMaps.list('my-org', 'bad-project'),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.sourceMaps.list('my-org', 'bad-project');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
   });
 });

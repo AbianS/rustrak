@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError, ValidationError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 describe('AlertRulesResource Integration', () => {
@@ -17,7 +17,7 @@ describe('AlertRulesResource Integration', () => {
 
   describe('list()', () => {
     it('should fetch all alert rules for a project', async () => {
-      const rules = await client.alertRules.list(projectId);
+      const rules = expectOk(await client.alertRules.list(projectId));
 
       expect(rules).toHaveLength(2);
       expect(rules[0]?.name).toBe('New Issue Alert');
@@ -46,9 +46,10 @@ describe('AlertRulesResource Integration', () => {
         }),
       );
 
-      await expect(client.alertRules.list(projectId)).rejects.toThrow(
-        ValidationError,
-      );
+      const result = await client.alertRules.list(projectId);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
 
     it('should handle empty array', async () => {
@@ -58,7 +59,7 @@ describe('AlertRulesResource Integration', () => {
         }),
       );
 
-      const rules = await client.alertRules.list(projectId);
+      const rules = expectOk(await client.alertRules.list(projectId));
       expect(rules).toHaveLength(0);
     });
 
@@ -69,14 +70,14 @@ describe('AlertRulesResource Integration', () => {
         }),
       );
 
-      const rules = await client.alertRules.list(2);
+      const rules = expectOk(await client.alertRules.list(2));
       expect(rules).toHaveLength(0);
     });
   });
 
   describe('get()', () => {
     it('should fetch single rule by id', async () => {
-      const rule = await client.alertRules.get(projectId, 1);
+      const rule = expectOk(await client.alertRules.get(projectId, 1));
 
       expect(rule.id).toBe(1);
       expect(rule.name).toBe('New Issue Alert');
@@ -85,27 +86,32 @@ describe('AlertRulesResource Integration', () => {
       expect(rule.integration_ids).toEqual([1, 2]);
     });
 
-    it('should throw NotFoundError for non-existent rule', async () => {
-      await expect(client.alertRules.get(projectId, 999)).rejects.toThrow(
-        NotFoundError,
+    it('should report not_found for a non-existent rule', async () => {
+      const result = await client.alertRules.get(projectId, 999);
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe(
+        'Resource not found: Alert rule 999 not found',
       );
     });
 
     it('should validate datetime format', async () => {
-      const rule = await client.alertRules.get(projectId, 1);
+      const rule = expectOk(await client.alertRules.get(projectId, 1));
 
       expect(new Date(rule.created_at).toISOString()).toBe(rule.created_at);
       expect(new Date(rule.updated_at).toISOString()).toBe(rule.updated_at);
     });
 
     it('should handle nullable last_triggered_at', async () => {
-      const rule = await client.alertRules.get(projectId, 2);
+      const rule = expectOk(await client.alertRules.get(projectId, 2));
 
       expect(rule.last_triggered_at).toBeNull();
     });
 
     it('should include conditions object', async () => {
-      const rule = await client.alertRules.get(projectId, 1);
+      const rule = expectOk(await client.alertRules.get(projectId, 1));
 
       expect(rule.conditions).toBeDefined();
       expect(typeof rule.conditions).toBe('object');
@@ -114,13 +120,15 @@ describe('AlertRulesResource Integration', () => {
 
   describe('create()', () => {
     it('should create new_issue rule with channels', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'New Alert Rule',
-        alert_type: 'new_issue',
-        channels: [
-          { integration_id: 1, routing_override: { channel: '#alerts' } },
-        ],
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'New Alert Rule',
+          alert_type: 'new_issue',
+          channels: [
+            { integration_id: 1, routing_override: { channel: '#alerts' } },
+          ],
+        }),
+      );
 
       expect(rule.name).toBe('New Alert Rule');
       expect(rule.alert_type).toBe('new_issue');
@@ -130,98 +138,114 @@ describe('AlertRulesResource Integration', () => {
     });
 
     it('should create rule with multiple channels and routing overrides', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Multi-channel Rule',
-        alert_type: 'new_issue',
-        channels: [
-          { integration_id: 1, routing_override: {} },
-          { integration_id: 2, routing_override: { channel: '#dev' } },
-        ],
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Multi-channel Rule',
+          alert_type: 'new_issue',
+          channels: [
+            { integration_id: 1, routing_override: {} },
+            { integration_id: 2, routing_override: { channel: '#dev' } },
+          ],
+        }),
+      );
 
       expect(rule.integration_ids).toEqual([1, 2]);
     });
 
     it('should create regression rule', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Regression Rule',
-        alert_type: 'regression',
-        channels: [{ integration_id: 1, routing_override: {} }],
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Regression Rule',
+          alert_type: 'regression',
+          channels: [{ integration_id: 1, routing_override: {} }],
+        }),
+      );
 
       expect(rule.alert_type).toBe('regression');
     });
 
     it('should create unmute rule', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Unmute Rule',
-        alert_type: 'unmute',
-        channels: [{ integration_id: 2, routing_override: {} }],
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Unmute Rule',
+          alert_type: 'unmute',
+          channels: [{ integration_id: 2, routing_override: {} }],
+        }),
+      );
 
       expect(rule.alert_type).toBe('unmute');
     });
 
     it('should create rule with cooldown', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Cooldown Rule',
-        alert_type: 'new_issue',
-        channels: [{ integration_id: 1, routing_override: {} }],
-        cooldown_minutes: 30,
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Cooldown Rule',
+          alert_type: 'new_issue',
+          channels: [{ integration_id: 1, routing_override: {} }],
+          cooldown_minutes: 30,
+        }),
+      );
 
       expect(rule.cooldown_minutes).toBe(30);
     });
 
     it('should create rule with custom conditions', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Conditional Rule',
-        alert_type: 'new_issue',
-        channels: [{ integration_id: 1, routing_override: {} }],
-        conditions: { min_events: 5 },
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Conditional Rule',
+          alert_type: 'new_issue',
+          channels: [{ integration_id: 1, routing_override: {} }],
+          conditions: { min_events: 5 },
+        }),
+      );
 
       expect(rule.conditions).toEqual({ min_events: 5 });
     });
 
     it('should create disabled rule', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Disabled Rule',
-        alert_type: 'new_issue',
-        channels: [{ integration_id: 1, routing_override: {} }],
-        is_enabled: false,
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Disabled Rule',
+          alert_type: 'new_issue',
+          channels: [{ integration_id: 1, routing_override: {} }],
+          is_enabled: false,
+        }),
+      );
 
       expect(rule.is_enabled).toBe(false);
     });
 
     it('should reject empty name', async () => {
-      await expect(
-        client.alertRules.create(projectId, {
-          name: '',
-          alert_type: 'new_issue',
-          channels: [{ integration_id: 1, routing_override: {} }],
-        }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.alertRules.create(projectId, {
+        name: '',
+        alert_type: 'new_issue',
+        channels: [{ integration_id: 1, routing_override: {} }],
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should reject invalid alert type', async () => {
-      await expect(
-        client.alertRules.create(projectId, {
-          name: 'Test',
-          // @ts-expect-error - Testing runtime validation
-          alert_type: 'invalid',
-          channels: [],
-        }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.alertRules.create(projectId, {
+        name: 'Test',
+        // @ts-expect-error - Testing runtime validation
+        alert_type: 'invalid',
+        channels: [],
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should accept empty channels array (relies on server validation)', async () => {
-      const rule = await client.alertRules.create(projectId, {
-        name: 'Empty Channels Rule',
-        alert_type: 'new_issue',
-        channels: [],
-      });
+      const rule = expectOk(
+        await client.alertRules.create(projectId, {
+          name: 'Empty Channels Rule',
+          alert_type: 'new_issue',
+          channels: [],
+        }),
+      );
 
       expect(rule.name).toBe('Empty Channels Rule');
     });
@@ -229,59 +253,74 @@ describe('AlertRulesResource Integration', () => {
 
   describe('update()', () => {
     it('should update rule name', async () => {
-      const updated = await client.alertRules.update(projectId, 1, {
-        name: 'Updated Rule Name',
-      });
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          name: 'Updated Rule Name',
+        }),
+      );
 
       expect(updated.name).toBe('Updated Rule Name');
       expect(updated.id).toBe(1);
     });
 
     it('should update rule enabled state', async () => {
-      const updated = await client.alertRules.update(projectId, 1, {
-        is_enabled: false,
-      });
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          is_enabled: false,
+        }),
+      );
 
       expect(updated.is_enabled).toBe(false);
     });
 
     it('should update channels with routing overrides', async () => {
-      const updated = await client.alertRules.update(projectId, 1, {
-        channels: [
-          { integration_id: 2, routing_override: { channel: '#dev' } },
-        ],
-      });
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          channels: [
+            { integration_id: 2, routing_override: { channel: '#dev' } },
+          ],
+        }),
+      );
 
       expect(updated.integration_ids).toEqual([2]);
     });
 
     it('should update cooldown', async () => {
-      const updated = await client.alertRules.update(projectId, 1, {
-        cooldown_minutes: 120,
-      });
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          cooldown_minutes: 120,
+        }),
+      );
 
       expect(updated.cooldown_minutes).toBe(120);
     });
 
     it('should update conditions', async () => {
-      const updated = await client.alertRules.update(projectId, 1, {
-        conditions: { min_events: 10 },
-      });
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          conditions: { min_events: 10 },
+        }),
+      );
 
       expect(updated.conditions).toEqual({ min_events: 10 });
     });
 
-    it('should throw NotFoundError for non-existent rule', async () => {
-      await expect(
-        client.alertRules.update(projectId, 999, { name: 'New Name' }),
-      ).rejects.toThrow(NotFoundError);
+    it('should report not_found for a non-existent rule', async () => {
+      const result = await client.alertRules.update(projectId, 999, {
+        name: 'New Name',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
 
     it('should update timestamp', async () => {
-      const original = await client.alertRules.get(projectId, 1);
-      const updated = await client.alertRules.update(projectId, 1, {
-        name: 'Updated',
-      });
+      const original = expectOk(await client.alertRules.get(projectId, 1));
+      const updated = expectOk(
+        await client.alertRules.update(projectId, 1, {
+          name: 'Updated',
+        }),
+      );
 
       expect(new Date(updated.updated_at).getTime()).toBeGreaterThanOrEqual(
         new Date(original.updated_at).getTime(),
@@ -291,21 +330,23 @@ describe('AlertRulesResource Integration', () => {
 
   describe('delete()', () => {
     it('should delete rule successfully', async () => {
-      await expect(
-        client.alertRules.delete(projectId, 1),
-      ).resolves.toBeUndefined();
+      const result = await client.alertRules.delete(projectId, 1);
+
+      expect(result.success).toBe(true);
+      expect(expectOk(result)).toBeUndefined();
     });
 
-    it('should throw NotFoundError for non-existent rule', async () => {
-      await expect(client.alertRules.delete(projectId, 999)).rejects.toThrow(
-        NotFoundError,
-      );
+    it('should report not_found for a non-existent rule', async () => {
+      const result = await client.alertRules.delete(projectId, 999);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 
   describe('listHistory()', () => {
     it('should fetch alert history for a project', async () => {
-      const history = await client.alertRules.listHistory(projectId);
+      const history = expectOk(await client.alertRules.listHistory(projectId));
 
       expect(history).toHaveLength(2);
       expect(history[0]?.alert_type).toBe('new_issue');
@@ -331,9 +372,10 @@ describe('AlertRulesResource Integration', () => {
         }),
       );
 
-      await expect(client.alertRules.listHistory(projectId)).rejects.toThrow(
-        ValidationError,
-      );
+      const result = await client.alertRules.listHistory(projectId);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
 
     it('should handle empty history', async () => {
@@ -343,20 +385,22 @@ describe('AlertRulesResource Integration', () => {
         }),
       );
 
-      const history = await client.alertRules.listHistory(projectId);
+      const history = expectOk(await client.alertRules.listHistory(projectId));
       expect(history).toHaveLength(0);
     });
 
     it('should respect limit parameter', async () => {
-      const history = await client.alertRules.listHistory(projectId, {
-        limit: 1,
-      });
+      const history = expectOk(
+        await client.alertRules.listHistory(projectId, {
+          limit: 1,
+        }),
+      );
 
       expect(history).toHaveLength(1);
     });
 
     it('should include all required fields', async () => {
-      const history = await client.alertRules.listHistory(projectId);
+      const history = expectOk(await client.alertRules.listHistory(projectId));
       const item = history[0];
 
       expect(item).toBeDefined();
@@ -371,7 +415,7 @@ describe('AlertRulesResource Integration', () => {
     });
 
     it('should include optional fields when present', async () => {
-      const history = await client.alertRules.listHistory(projectId);
+      const history = expectOk(await client.alertRules.listHistory(projectId));
       const sentItem = history.find((h) => h.status === 'sent');
       const failedItem = history.find((h) => h.status === 'failed');
 
@@ -382,7 +426,7 @@ describe('AlertRulesResource Integration', () => {
     });
 
     it('should return integration_id in history entries', async () => {
-      const history = await client.alertRules.listHistory(projectId);
+      const history = expectOk(await client.alertRules.listHistory(projectId));
 
       expect(history[0]?.integration_id).toBe(1);
       expect(history[1]?.integration_id).toBe(2);

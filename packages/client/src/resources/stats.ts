@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   eventTimeseriesSchema,
   projectStatsSummarySchema,
@@ -28,7 +30,7 @@ export class StatsResource extends BaseResource {
     projectId: number,
     period?: string,
     interval?: number,
-  ): Promise<EventTimeseries> {
+  ): Promise<Result<EventTimeseries, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (period) {
       searchParams.period = period;
@@ -37,11 +39,13 @@ export class StatsResource extends BaseResource {
       searchParams.interval = interval.toString();
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/events/stats`, { searchParams })
-      .json();
-
-    return this.validate(data, eventTimeseriesSchema);
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/events/stats`, {
+          searchParams,
+        }),
+      eventTimeseriesSchema,
+    );
   }
 
   /**
@@ -55,16 +59,18 @@ export class StatsResource extends BaseResource {
   async summary(
     projectId: number,
     period?: string,
-  ): Promise<ProjectStatsSummary> {
+  ): Promise<Result<ProjectStatsSummary, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (period) {
       searchParams.period = period;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/stats/summary`, { searchParams })
-      .json();
-
-    return this.validate(data, projectStatsSummarySchema);
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/stats/summary`, {
+          searchParams,
+        }),
+      projectStatsSummarySchema,
+    );
   }
 }

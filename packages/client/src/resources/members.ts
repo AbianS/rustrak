@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   projectMemberSchema,
   upsertProjectMemberSchema,
@@ -14,11 +16,13 @@ export class MembersResource extends BaseResource {
    * List members of a project
    * @param projectId - ID of the project
    */
-  async list(projectId: number): Promise<ProjectMember[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/members`)
-      .json();
-    return this.validate(data, projectMemberSchema.array());
+  async list(
+    projectId: number,
+  ): Promise<Result<ProjectMember[], RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/members`),
+      projectMemberSchema.array(),
+    );
   }
 
   /**
@@ -26,11 +30,20 @@ export class MembersResource extends BaseResource {
    * @param projectId - ID of the project
    * @param input - User ID and per-project role
    */
-  async upsert(projectId: number, input: UpsertProjectMember): Promise<void> {
-    const validatedInput = this.validate(input, upsertProjectMemberSchema);
-    await this.http.put(`api/projects/${projectId}/members`, {
-      json: validatedInput,
-    });
+  async upsert(
+    projectId: number,
+    input: UpsertProjectMember,
+  ): Promise<Result<void, RustrakError>> {
+    const validatedInput = this.validateInput(input, upsertProjectMemberSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.requestVoid(() =>
+      this.http.put(`api/projects/${projectId}/members`, {
+        json: validatedInput.data,
+      }),
+    );
   }
 
   /**
@@ -38,7 +51,12 @@ export class MembersResource extends BaseResource {
    * @param projectId - ID of the project
    * @param userId - ID of the user to remove
    */
-  async remove(projectId: number, userId: number): Promise<void> {
-    await this.http.delete(`api/projects/${projectId}/members/${userId}`);
+  async remove(
+    projectId: number,
+    userId: number,
+  ): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() =>
+      this.http.delete(`api/projects/${projectId}/members/${userId}`),
+    );
   }
 }

@@ -11,18 +11,24 @@ export { RustrakClient } from './client.js';
 
 // Configuration
 export type { ClientConfig } from './config.js';
-// Errors
+// Errors: one closed union, keyed on `kind`, replacing the nine classes.
 export {
-  AuthenticationError,
-  AuthorizationError,
-  BadRequestError,
-  NetworkError,
-  NotFoundError,
-  RateLimitError,
-  RustrakError,
-  ServerError,
-  ValidationError,
-} from './errors/index.js';
+  isRetryable,
+  NETWORK_ERROR_MESSAGE,
+  type RustrakError,
+  type RustrakErrorKind,
+  SERVER_ERROR_MESSAGE,
+  TIMEOUT_ERROR_MESSAGE,
+} from './errors.js';
+// Result: every resource method returns one of these.
+export {
+  Err,
+  mapResult,
+  Ok,
+  type Result,
+  unwrap,
+  unwrapOr,
+} from './result.js';
 // Types
 export type {
   AcceptInvitation,

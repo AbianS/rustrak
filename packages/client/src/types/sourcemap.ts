@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type {
+  assembleInputSchema,
   assembleResponseSchema,
   chunkUploadCapabilitySchema,
   listSourceMapsResponseSchema,
@@ -13,8 +14,4 @@ export type ListSourceMapsResponse = z.infer<
   typeof listSourceMapsResponseSchema
 >;
 
-export interface AssembleInput {
-  checksum: string;
-  chunks: string[];
-  projects: string[];
-}
+export type AssembleInput = z.infer<typeof assembleInputSchema>;

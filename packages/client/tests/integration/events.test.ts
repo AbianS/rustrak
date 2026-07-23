@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 
 describe('EventsResource Integration', () => {
   let client: RustrakClient;
@@ -14,9 +14,8 @@ describe('EventsResource Integration', () => {
 
   describe('list()', () => {
     it('should fetch events for an issue', async () => {
-      const response = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
+      const response = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000'),
       );
 
       expect(response.items).toHaveLength(1);
@@ -24,29 +23,28 @@ describe('EventsResource Integration', () => {
     });
 
     it('should support order parameter', async () => {
-      const response = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        { order: 'asc' },
+      const response = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000', {
+          order: 'asc',
+        }),
       );
 
       expect(response.items).toBeDefined();
     });
 
     it('should support cursor pagination', async () => {
-      const response = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        { cursor: 'some-cursor' },
+      const response = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000', {
+          cursor: 'some-cursor',
+        }),
       );
 
       expect(response.items).toBeDefined();
     });
 
     it('should validate event structure', async () => {
-      const response = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
+      const response = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000'),
       );
 
       const event = response.items[0];
@@ -63,9 +61,8 @@ describe('EventsResource Integration', () => {
     });
 
     it('should validate datetime format', async () => {
-      const response = await client.events.list(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
+      const response = expectOk(
+        await client.events.list(1, '323e4567-e89b-12d3-a456-426614174000'),
       );
 
       const event = response.items[0];
@@ -76,10 +73,12 @@ describe('EventsResource Integration', () => {
 
   describe('get()', () => {
     it('should fetch event detail with full data', async () => {
-      const event = await client.events.get(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        '523e4567-e89b-12d3-a456-426614174000',
+      const event = expectOk(
+        await client.events.get(
+          1,
+          '323e4567-e89b-12d3-a456-426614174000',
+          '523e4567-e89b-12d3-a456-426614174000',
+        ),
       );
 
       expect(event.id).toBe('523e4567-e89b-12d3-a456-426614174000');
@@ -92,31 +91,40 @@ describe('EventsResource Integration', () => {
     });
 
     it('should validate full Sentry event data', async () => {
-      const event = await client.events.get(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        '523e4567-e89b-12d3-a456-426614174000',
+      const event = expectOk(
+        await client.events.get(
+          1,
+          '323e4567-e89b-12d3-a456-426614174000',
+          '523e4567-e89b-12d3-a456-426614174000',
+        ),
       );
 
       expect(event.data).toHaveProperty('exception');
       expect(event.data.exception).toHaveProperty('values');
     });
 
-    it('should throw NotFoundError for non-existent event', async () => {
-      await expect(
-        client.events.get(
-          1,
-          '323e4567-e89b-12d3-a456-426614174000',
-          '999e4567-e89b-12d3-a456-426614174000',
-        ),
-      ).rejects.toThrow(NotFoundError);
+    it('should report not_found for a non-existent event', async () => {
+      const result = await client.events.get(
+        1,
+        '323e4567-e89b-12d3-a456-426614174000',
+        '999e4567-e89b-12d3-a456-426614174000',
+      );
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe(
+        'Resource not found: Event 999e4567-e89b-12d3-a456-426614174000 not found',
+      );
     });
 
     it('should validate datetime formats', async () => {
-      const event = await client.events.get(
-        1,
-        '323e4567-e89b-12d3-a456-426614174000',
-        '523e4567-e89b-12d3-a456-426614174000',
+      const event = expectOk(
+        await client.events.get(
+          1,
+          '323e4567-e89b-12d3-a456-426614174000',
+          '523e4567-e89b-12d3-a456-426614174000',
+        ),
       );
 
       expect(new Date(event.timestamp).toISOString()).toBe(event.timestamp);

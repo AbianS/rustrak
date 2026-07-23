@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   authTokenCreatedSchema,
   authTokenSchema,
@@ -17,9 +19,11 @@ export class TokensResource extends BaseResource {
   /**
    * List all auth tokens (masked)
    */
-  async list(): Promise<AuthToken[]> {
-    const data = await this.http.get('api/tokens').json();
-    return this.validate(data, authTokenSchema.array());
+  async list(): Promise<Result<AuthToken[], RustrakError>> {
+    return this.request(
+      () => this.http.get('api/tokens'),
+      authTokenSchema.array(),
+    );
   }
 
   /**
@@ -28,30 +32,35 @@ export class TokensResource extends BaseResource {
    * Previously returned a masked version, but the server now returns the
    * complete token for GET /api/tokens/{id}.
    */
-  async get(id: number): Promise<AuthTokenCreated> {
-    const data = await this.http.get(`api/tokens/${id}`).json();
-    return this.validate(data, authTokenCreatedSchema);
+  async get(id: number): Promise<Result<AuthTokenCreated, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/tokens/${id}`),
+      authTokenCreatedSchema,
+    );
   }
 
   /**
    * Create a new auth token
    * Note: The full token is only returned once during creation
    */
-  async create(input: CreateAuthToken): Promise<AuthTokenCreated> {
-    // Validate input
-    const validatedInput = this.validate(input, createAuthTokenSchema);
+  async create(
+    input: CreateAuthToken,
+  ): Promise<Result<AuthTokenCreated, RustrakError>> {
+    const validatedInput = this.validateInput(input, createAuthTokenSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .post('api/tokens', { json: validatedInput })
-      .json();
-
-    return this.validate(data, authTokenCreatedSchema);
+    return this.request(
+      () => this.http.post('api/tokens', { json: validatedInput.data }),
+      authTokenCreatedSchema,
+    );
   }
 
   /**
    * Delete an auth token
    */
-  async delete(id: number): Promise<void> {
-    await this.http.delete(`api/tokens/${id}`);
+  async delete(id: number): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() => this.http.delete(`api/tokens/${id}`));
   }
 }

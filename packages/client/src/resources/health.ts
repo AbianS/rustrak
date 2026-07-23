@@ -1,10 +1,14 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import type { ServerVersion } from '../schemas/version.js';
 import { serverVersionSchema } from '../schemas/version.js';
 import { BaseResource } from './base.js';
 
 export class HealthResource extends BaseResource {
-  async getVersion(): Promise<ServerVersion> {
-    const data = await this.http.get('health/version').json();
-    return this.validate(data, serverVersionSchema);
+  async getVersion(): Promise<Result<ServerVersion, RustrakError>> {
+    return this.request(
+      () => this.http.get('health/version'),
+      serverVersionSchema,
+    );
   }
 }

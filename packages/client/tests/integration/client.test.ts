@@ -1,5 +1,8 @@
+import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
+import { expectOk } from '../helpers/result.js';
+import { server } from '../setup.js';
 
 describe('RustrakClient', () => {
   describe('Constructor', () => {
@@ -120,8 +123,58 @@ describe('RustrakClient', () => {
 
       // This will make a request and the token will be in the Authorization header
       // MSW will verify this indirectly by responding correctly
-      const response = await client.projects.list();
+      const response = expectOk(await client.projects.list());
       expect(response.items).toBeDefined();
+    });
+  });
+
+  // `BaseResource` awaits the `Response` and parses the body itself instead of
+  // calling ky's `.json()` shortcut, and that shortcut was what used to set
+  // `Accept`. Without an explicit default every one of the 86 methods would
+  // send `Accept: */*`, so a content-negotiating proxy could answer with HTML
+  // and the caller would see `invalid_response` with no clue why.
+  describe('Request headers', () => {
+    async function headersOfNextRequest(
+      client: RustrakClient,
+    ): Promise<Headers> {
+      let seen: Headers | undefined;
+      server.use(
+        http.get('http://localhost:8080/api/projects', ({ request }) => {
+          seen = request.headers;
+          return HttpResponse.json({
+            items: [],
+            total_count: 0,
+            page: 1,
+            per_page: 20,
+            total_pages: 0,
+          });
+        }),
+      );
+
+      expectOk(await client.projects.list());
+      if (seen === undefined) {
+        expect.fail('the request never reached the handler');
+      }
+      return seen;
+    }
+
+    it('asks for JSON on every request', async () => {
+      const headers = await headersOfNextRequest(
+        new RustrakClient({ baseUrl: 'http://localhost:8080' }),
+      );
+
+      expect(headers.get('accept')).toBe('application/json');
+    });
+
+    it('lets a caller override Accept', async () => {
+      const headers = await headersOfNextRequest(
+        new RustrakClient({
+          baseUrl: 'http://localhost:8080',
+          headers: { Accept: 'application/vnd.rustrak+json' },
+        }),
+      );
+
+      expect(headers.get('accept')).toBe('application/vnd.rustrak+json');
     });
   });
 
@@ -138,13 +191,13 @@ describe('RustrakClient', () => {
       });
 
       // Both clients should work independently
-      const [response1, response2] = await Promise.all([
+      const [result1, result2] = await Promise.all([
         client1.projects.list(),
         client2.projects.list(),
       ]);
 
-      expect(response1.items).toHaveLength(2);
-      expect(response2.items).toHaveLength(2);
+      expect(expectOk(result1).items).toHaveLength(2);
+      expect(expectOk(result2).items).toHaveLength(2);
     });
   });
 });

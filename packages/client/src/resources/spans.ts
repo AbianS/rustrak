@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import { offsetPaginatedResponseSchema, spanSchema } from '../schemas/index.js';
 import type {
   ListSpansOptions,
@@ -19,7 +21,7 @@ export class SpansResource extends BaseResource {
   async list(
     projectId: number,
     options?: ListSpansOptions,
-  ): Promise<OffsetPaginatedResponse<Span>> {
+  ): Promise<Result<OffsetPaginatedResponse<Span>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.page) {
@@ -41,10 +43,9 @@ export class SpansResource extends BaseResource {
       searchParams.operation_type = options.operation_type;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/spans`, { searchParams })
-      .json();
-
-    return this.validate(data, offsetPaginatedResponseSchema(spanSchema));
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/spans`, { searchParams }),
+      offsetPaginatedResponseSchema(spanSchema),
+    );
   }
 }
