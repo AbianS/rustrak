@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('stats tools', () => {
   let mockClient: any;
@@ -49,7 +50,7 @@ describe('stats tools', () => {
 
   describe('get_error_volume', () => {
     it('returns event volume split by severity', async () => {
-      mockClient.stats.timeseries.mockResolvedValue(mockTimeseries);
+      mockClient.stats.timeseries.mockResolvedValue(ok(mockTimeseries));
 
       const result = await callTool({
         name: 'get_error_volume',
@@ -71,7 +72,7 @@ describe('stats tools', () => {
     });
 
     it('keeps zero-filled buckets rather than dropping them', async () => {
-      mockClient.stats.timeseries.mockResolvedValue(mockTimeseries);
+      mockClient.stats.timeseries.mockResolvedValue(ok(mockTimeseries));
 
       const result = await callTool({
         name: 'get_error_volume',
@@ -83,7 +84,7 @@ describe('stats tools', () => {
     });
 
     it('passes period and interval when provided', async () => {
-      mockClient.stats.timeseries.mockResolvedValue(mockTimeseries);
+      mockClient.stats.timeseries.mockResolvedValue(ok(mockTimeseries));
 
       await callTool({
         name: 'get_error_volume',
@@ -94,7 +95,13 @@ describe('stats tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.stats.timeseries.mockRejectedValue(new Error('API error'));
+      mockClient.stats.timeseries.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_error_volume',
@@ -102,13 +109,13 @@ describe('stats tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 
   describe('get_project_stats', () => {
     it('returns counters with their previous-period comparison', async () => {
-      mockClient.stats.summary.mockResolvedValue(mockSummary);
+      mockClient.stats.summary.mockResolvedValue(ok(mockSummary));
 
       const result = await callTool({
         name: 'get_project_stats',
@@ -125,12 +132,14 @@ describe('stats tools', () => {
     });
 
     it('omits the period for an all-time request', async () => {
-      mockClient.stats.summary.mockResolvedValue({
-        period_hours: null,
-        events: { current: 5000, previous: null },
-        new_issues: { current: 120, previous: null },
-        open_issues: 40,
-      });
+      mockClient.stats.summary.mockResolvedValue(
+        ok({
+          period_hours: null,
+          events: { current: 5000, previous: null },
+          new_issues: { current: 120, previous: null },
+          open_issues: 40,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_project_stats',
@@ -144,7 +153,13 @@ describe('stats tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.stats.summary.mockRejectedValue(new Error('API error'));
+      mockClient.stats.summary.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_project_stats',
@@ -152,7 +167,7 @@ describe('stats tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 });

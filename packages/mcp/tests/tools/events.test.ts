@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, ok } from '../setup.js';
 
 describe('event tools', () => {
   let mockClient: any;
@@ -35,7 +35,7 @@ describe('event tools', () => {
         next_cursor: null,
         has_more: false,
       };
-      mockClient.events.list.mockResolvedValue(mockData);
+      mockClient.events.list.mockResolvedValue(ok(mockData));
 
       const result = await callTool({
         name: 'list_events',
@@ -61,7 +61,7 @@ describe('event tools', () => {
         platform: 'javascript',
         data: { exception: { values: [{ type: 'TypeError', value: 'oops' }] } },
       };
-      mockClient.events.get.mockResolvedValue(mockEvent);
+      mockClient.events.get.mockResolvedValue(ok(mockEvent));
 
       const result = await callTool({
         name: 'get_event',

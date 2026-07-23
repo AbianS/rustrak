@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpDone, mcpJson } from '../errors.js';
 
 /**
  * Team management tools: the global user roster + roles, invitations, and
@@ -26,14 +26,8 @@ export function registerTeamTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.team.list();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.team.list();
+      return mcpJson(result);
     },
   );
 
@@ -50,14 +44,8 @@ export function registerTeamTools(
       },
     },
     async ({ user_id, role }) => {
-      try {
-        await client.team.updateRole(user_id, role);
-        return {
-          content: [{ type: 'text', text: `User ${user_id} is now ${role}.` }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.team.updateRole(user_id, role);
+      return mcpDone(result, `User ${user_id} is now ${role}.`);
     },
   );
 
@@ -72,14 +60,8 @@ export function registerTeamTools(
       annotations: { destructiveHint: true },
     },
     async ({ user_id }) => {
-      try {
-        await client.team.remove(user_id);
-        return {
-          content: [{ type: 'text', text: `User ${user_id} removed.` }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.team.remove(user_id);
+      return mcpDone(result, `User ${user_id} removed.`);
     },
   );
 
@@ -98,14 +80,8 @@ export function registerTeamTools(
       },
     },
     async ({ email, role }) => {
-      try {
-        const result = await client.invitations.create({ email, role });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.invitations.create({ email, role });
+      return mcpJson(result);
     },
   );
 
@@ -117,14 +93,8 @@ export function registerTeamTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.invitations.list();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.invitations.list();
+      return mcpJson(result);
     },
   );
 
@@ -139,14 +109,8 @@ export function registerTeamTools(
       annotations: { destructiveHint: true },
     },
     async ({ token }) => {
-      try {
-        await client.invitations.revoke(token);
-        return {
-          content: [{ type: 'text', text: 'Invitation revoked.' }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.invitations.revoke(token);
+      return mcpDone(result, 'Invitation revoked.');
     },
   );
 
@@ -162,14 +126,8 @@ export function registerTeamTools(
       },
     },
     async ({ project_id }) => {
-      try {
-        const result = await client.members.list(project_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.members.list(project_id);
+      return mcpJson(result);
     },
   );
 
@@ -187,19 +145,11 @@ export function registerTeamTools(
       },
     },
     async ({ project_id, user_id, role }) => {
-      try {
-        await client.members.upsert(project_id, { user_id, role });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `User ${user_id} is now ${role} on project ${project_id}.`,
-            },
-          ],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.members.upsert(project_id, { user_id, role });
+      return mcpDone(
+        result,
+        `User ${user_id} is now ${role} on project ${project_id}.`,
+      );
     },
   );
 
@@ -218,19 +168,11 @@ export function registerTeamTools(
       annotations: { destructiveHint: true },
     },
     async ({ project_id, user_id }) => {
-      try {
-        await client.members.remove(project_id, user_id);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `User ${user_id} removed from project ${project_id}.`,
-            },
-          ],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.members.remove(project_id, user_id);
+      return mcpDone(
+        result,
+        `User ${user_id} removed from project ${project_id}.`,
+      );
     },
   );
 }

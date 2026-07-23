@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpDone, mcpJson } from '../errors.js';
 
 export function registerTokenTools(
   server: McpServer,
@@ -15,14 +15,8 @@ export function registerTokenTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.tokens.list();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.tokens.list();
+      return mcpJson(result);
     },
   );
 
@@ -36,14 +30,8 @@ export function registerTokenTools(
       },
     },
     async ({ token_id }) => {
-      try {
-        const result = await client.tokens.get(token_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.tokens.get(token_id);
+      return mcpJson(result);
     },
   );
 
@@ -60,14 +48,8 @@ export function registerTokenTools(
       },
     },
     async ({ description }) => {
-      try {
-        const result = await client.tokens.create({ description });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.tokens.create({ description });
+      return mcpJson(result);
     },
   );
 
@@ -82,16 +64,8 @@ export function registerTokenTools(
       annotations: { destructiveHint: true },
     },
     async ({ token_id }) => {
-      try {
-        await client.tokens.delete(token_id);
-        return {
-          content: [
-            { type: 'text', text: `Token ${token_id} revoked successfully.` },
-          ],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.tokens.delete(token_id);
+      return mcpDone(result, `Token ${token_id} revoked successfully.`);
     },
   );
 }

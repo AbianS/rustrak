@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 const timeseriesInput = {
   project_id: z.number().int().describe('Project ID'),
@@ -46,17 +46,11 @@ export function registerAgentTools(
       inputSchema: timeseriesInput,
     },
     async ({ project_id, period_hours, interval_hours }) => {
-      try {
-        const result = await client.agents.getRuns(project_id, {
-          period_hours,
-          interval_hours,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getRuns(project_id, {
+        period_hours,
+        interval_hours,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -68,17 +62,11 @@ export function registerAgentTools(
       inputSchema: timeseriesInput,
     },
     async ({ project_id, period_hours, interval_hours }) => {
-      try {
-        const result = await client.agents.getDuration(project_id, {
-          period_hours,
-          interval_hours,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getDuration(project_id, {
+        period_hours,
+        interval_hours,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -90,17 +78,11 @@ export function registerAgentTools(
       inputSchema: breakdownInput,
     },
     async ({ project_id, period_hours, limit }) => {
-      try {
-        const result = await client.agents.getModelsByCalls(project_id, {
-          period_hours,
-          limit,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getModelsByCalls(project_id, {
+        period_hours,
+        limit,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -112,17 +94,11 @@ export function registerAgentTools(
       inputSchema: breakdownInput,
     },
     async ({ project_id, period_hours, limit }) => {
-      try {
-        const result = await client.agents.getModelsByTokens(project_id, {
-          period_hours,
-          limit,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getModelsByTokens(project_id, {
+        period_hours,
+        limit,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -134,17 +110,11 @@ export function registerAgentTools(
       inputSchema: breakdownInput,
     },
     async ({ project_id, period_hours, limit }) => {
-      try {
-        const result = await client.agents.getTools(project_id, {
-          period_hours,
-          limit,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getTools(project_id, {
+        period_hours,
+        limit,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -171,17 +141,11 @@ export function registerAgentTools(
       },
     },
     async ({ project_id, page, per_page }) => {
-      try {
-        const result = await client.agents.getTraces(project_id, {
-          page,
-          per_page,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.agents.getTraces(project_id, {
+        page,
+        per_page,
+      });
+      return mcpJson(result);
     },
   );
 }

@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerTransactionTools(
   server: McpServer,
@@ -55,22 +55,16 @@ export function registerTransactionTools(
       environment,
       release,
     }) => {
-      try {
-        const result = await client.transactions.list(project_id, {
-          page,
-          per_page,
-          name,
-          op,
-          status,
-          environment,
-          release,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.transactions.list(project_id, {
+        page,
+        per_page,
+        name,
+        op,
+        status,
+        environment,
+        release,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -85,17 +79,8 @@ export function registerTransactionTools(
       },
     },
     async ({ project_id, transaction_id }) => {
-      try {
-        const result = await client.transactions.get(
-          project_id,
-          transaction_id,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.transactions.get(project_id, transaction_id);
+      return mcpJson(result);
     },
   );
 
@@ -122,17 +107,11 @@ export function registerTransactionTools(
       },
     },
     async ({ project_id, page, per_page }) => {
-      try {
-        const result = await client.transactions.getStats(project_id, {
-          page,
-          per_page,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.transactions.getStats(project_id, {
+        page,
+        per_page,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -147,17 +126,11 @@ export function registerTransactionTools(
       },
     },
     async ({ project_id, transaction_id }) => {
-      try {
-        const result = await client.transactions.getSpans(
-          project_id,
-          transaction_id,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.transactions.getSpans(
+        project_id,
+        transaction_id,
+      );
+      return mcpJson(result);
     },
   );
 }

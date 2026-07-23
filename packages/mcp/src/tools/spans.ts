@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerSpanTools(
   server: McpServer,
@@ -50,21 +50,15 @@ export function registerSpanTools(
       trace_id,
       operation_type,
     }) => {
-      try {
-        const result = await client.spans.list(project_id, {
-          page,
-          per_page,
-          op,
-          status,
-          trace_id,
-          operation_type,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.spans.list(project_id, {
+        page,
+        per_page,
+        op,
+        status,
+        trace_id,
+        operation_type,
+      });
+      return mcpJson(result);
     },
   );
 }
