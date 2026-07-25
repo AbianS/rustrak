@@ -1,0 +1,368 @@
+'use client';
+
+import {
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useScroll,
+  useTransform,
+} from 'motion/react';
+import { useRef, useState } from 'react';
+import { DUR, EASE } from '../motion';
+import { Band, Cell } from '../primitives/grid';
+import { Heading, Pill } from '../primitives/heading';
+import { DESKTOP, useMediaQuery } from '../use-media-query';
+import { EngineScene, PARTS } from './engine-scene';
+
+/**
+ * How the server stays small, told by opening it.
+ *
+ * ── The band is a stage, not a grid ─────────────────────────────────────────
+ *
+ * One viewport, pinned, with a long scroll track behind it. Everything that
+ * happens in this section happens inside that single held frame:
+ *
+ *   1. The cube arrives shut and alone, using the whole width.
+ *   2. It opens. The lid lifts, the near walls swing away, the components
+ *      inside stand up one after another.
+ *   3. The drawing slides left to make room, the leader lines draw, and the
+ *      reading panel comes in from the right. They are one gesture.
+ *   4. Five claims, one per component, the drawing lighting the part being
+ *      described.
+ *   5. The panel leaves, the leaders retract, and the box shuts again.
+ *
+ * ── Why it had to stop being a grid ─────────────────────────────────────────
+ *
+ * The previous version was a two-column layout with the drawing sticky in the
+ * left cell and the claims scrolling in the right, and it had a bug that no
+ * amount of tuning was going to fix: the reader always arrived to find the box
+ * already open.
+ *
+ * The cause is worth writing down because it is the standard trap with
+ * `useScroll` on a sibling. Progress was measured on the claims column with
+ * `['start end', 'start center']` — from the column's top touching the bottom
+ * of the viewport to it touching the middle. That whole range is spent *before*
+ * the column has properly entered the screen, and the drawing beside it is
+ * sticky, so by the time the drawing was centred and worth looking at, the
+ * progress driving it had long since reached 1. The animation ran, correctly,
+ * off screen.
+ *
+ * Measuring on a pinned track removes the class of bug rather than the
+ * instance. The element being measured is the element being held, `start start`
+ * to `end end` is exactly the distance it is held for, and there is no longer
+ * any way for the two to disagree.
+ */
+
+/**
+ * The track, in screen heights.
+ *
+ * Five claims that each need to be read, plus an opening and a closing that are
+ * the point of the section rather than transitions to be got through. Shorter
+ * and the box snaps open; much longer and the reader is scrolling through a
+ * held frame wondering whether the page has stopped working.
+ */
+const TRACK = '560svh';
+
+/**
+ * Where each act begins and ends, as fractions of the track.
+ *
+ * Kept as one table because the acts have to abut exactly: a gap between two of
+ * them is a stretch of scrolling where nothing at all changes, which on a
+ * pinned section reads as the page having frozen.
+ */
+const ACT = {
+  /** The box opens. Generous — this is the moment the section exists for. */
+  open: [0.02, 0.22],
+  /** The drawing shifts left, the leaders draw, the panel comes in. */
+  panel: [0.22, 0.32],
+  /** One slot per claim. */
+  claims: [0.32, 0.8],
+  /** The panel leaves and the leaders retract. */
+  exit: [0.8, 0.88],
+  /** The box shuts. */
+  close: [0.88, 0.99],
+} as const;
+
+const CLAIMS = [
+  {
+    question: 'The cheapest work is the work it refuses',
+    answer:
+      'The quota is checked before a single byte is decompressed. A project over its limit gets a 429 and a Retry-After, and the rest of the machine never hears about the request at all.',
+  },
+  {
+    question: 'It knows what everything is before it touches it',
+    answer:
+      'One request can carry errors, transactions, sessions, logs and spans at once. They are pulled apart into eight typed kinds under a hard size cap, and which handler each kind goes to was settled when the binary was compiled, not looked up again per event.',
+  },
+  {
+    question: 'Your app stops waiting here',
+    answer:
+      'The event lands on disk and the 200 goes straight back. Everything expensive happens after your SDK has already moved on, and because it is on disk rather than in memory, a process that dies in between still has the event when it comes back.',
+  },
+  {
+    question: 'One process, not five',
+    answer:
+      'Grouping, source maps, session rollups and alerts all run on threads the server already has. There is no queue to install, no broker to keep alive, no worker fleet to scale, and no garbage collector waiting to pause any of it.',
+  },
+  {
+    question: 'A million crashes, one row',
+    answer:
+      'Every event gets a deterministic fingerprint, and identical crashes fold onto the same issue with a counter. A bad deploy at three in the morning costs you one row and a number going up, not a million rows.',
+  },
+];
+
+const HEADING = {
+  lead: 'Five parts, one process.',
+  rest: 'This is every piece of the event processor that touches a crash, and the order it touches them in. Scroll the server open.',
+};
+
+/* -------------------------------------------------------------------------- */
+/* The pinned stage                                                            */
+/* -------------------------------------------------------------------------- */
+
+function Stage() {
+  const track = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: track,
+    offset: ['start start', 'end end'],
+  });
+
+  /*
+    The box. Opens over the first act, is held all the way through the claims,
+    and shuts on the way out — one motion value with four stops rather than two
+    separate animations, so the closing is literally the opening reversed and
+    cannot drift out of agreement with it.
+  */
+  const open = useTransform(
+    scrollYProgress,
+    [ACT.open[0], ACT.open[1], ACT.close[0], ACT.close[1]],
+    [0, 1, 1, 0],
+  );
+
+  /* The leaders and the panel share a clock, because they are one gesture. */
+  const label = useTransform(
+    scrollYProgress,
+    [ACT.panel[0], ACT.panel[1], ACT.exit[0], ACT.exit[1]],
+    [0, 1, 1, 0],
+  );
+
+  /*
+    The drawing moves aside rather than shrinking into a column. Percentages of
+    its own box, so it lands correctly at any width, and both of these are
+    transforms — the compositor animates them for free, which matters on a
+    pinned section where something is moving on every frame for five screens.
+  */
+  /*
+    Sized against the narrowest desktop rather than the widest, which is the
+    only way a pair of transform numbers can serve every viewport. At 1024 the
+    stage is about 1000px of usable width, the panel takes 320 of it, and the
+    drawing letterboxed into the remaining height comes out ~820 wide — so it
+    has to come down to 0.82 and move a seventh of the frame left to clear the
+    panel with a margin. On a wide monitor the same numbers simply leave more
+    air on the left, which is the harmless direction to be wrong in.
+  */
+  const sceneX = useTransform(label, [0, 1], ['0%', '-15%']);
+  const sceneScale = useTransform(label, [0, 1], [1, 0.82]);
+  const panelX = useTransform(label, [0, 1], ['12%', '0%']);
+
+  /*
+    Which claim is being read.
+
+    Derived from the same scroll value rather than from an observer, because on
+    a pinned stage there is nothing travelling through the viewport for an
+    observer to watch — the panel never moves. `useMotionValueEvent` keeps this
+    off the render path: it fires per frame and only calls `setState` on the
+    frames the index actually changes, which is four times in five screens.
+  */
+  const [active, setActive] = useState(-1);
+  useMotionValueEvent(scrollYProgress, 'change', (p) => {
+    if (p < ACT.claims[0] || p >= ACT.exit[0]) {
+      setActive(-1);
+      return;
+    }
+    const span = (ACT.claims[1] - ACT.claims[0]) / CLAIMS.length;
+    const index = Math.min(
+      CLAIMS.length - 1,
+      Math.floor((p - ACT.claims[0]) / span),
+    );
+    setActive(index);
+  });
+
+  const claim = active >= 0 ? CLAIMS[active] : null;
+
+  return (
+    <div ref={track} style={{ height: TRACK }} className="relative">
+      <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden">
+        {/* The drawing. Centred in the whole frame to begin with, and pushed
+            left only when there is something to make room for. */}
+        {/* The drawing fills the held frame and letterboxes inside it. It used
+            to be capped at `max-w-[46rem]` and centred, which on a tall stage
+            left a third of the height empty and rendered the cube at about half
+            the size the section had room for. */}
+        {/* Vertical padding well beyond the horizontal, because the two are
+            bounded by different things. Sideways there is the whole frame to
+            play with; downward the stage starts immediately under a fixed nav
+            and the drawing was landing hard against it. This is the air that
+            keeps the cube sitting *in* the frame rather than wedged at the top
+            of it, and it costs about 8% of the drawing's size to buy. */}
+        <motion.div
+          className="absolute inset-0 px-6 py-10 lg:px-8 lg:py-14"
+          style={{ x: sceneX, scale: sceneScale }}
+        >
+          <EngineScene
+            active={active}
+            open={open}
+            label={label}
+            className="h-full w-full"
+          />
+        </motion.div>
+
+        {/* The reading panel. Slides in with the leader lines and leaves with
+            them, and shows one claim at a time rather than a list — the list
+            is the drawing, and repeating it here in words would be asking the
+            reader to look at the same five things twice. */}
+        <motion.aside
+          className="absolute inset-y-0 right-0 flex w-[20rem] items-center border-l border-rule bg-[var(--surface-soft)] px-7 xl:w-[22rem] xl:px-8"
+          style={{ x: panelX, opacity: label }}
+        >
+          <div className="min-w-0">
+            {/*
+              Keyed and remounted, with no exit animation, and that is a
+              deliberate choice against `AnimatePresence`.
+
+              `mode="wait"` holds the incoming claim until the outgoing one has
+              finished leaving, so a change costs exit plus enter back to back.
+              That is fine when a human clicks a tab and wrong here: this panel
+              is driven by a scrub, a reader can cross three claims in one flick
+              of a trackpad, and the queue means the panel is still playing
+              catch-up several claims after they stopped. Without `mode="wait"`
+              the two animate together and overlap in the layout instead, which
+              on a block of prose is a jump.
+
+              Remounting on `key` sidesteps both: the outgoing claim is simply
+              gone, the incoming one fades up from nothing, and however fast the
+              reader scrolls the panel is never showing anything but the current
+              claim.
+            */}
+            {claim ? (
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: DUR.fast, ease: EASE }}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-[11px] tabular-nums text-primary">
+                    {String(active + 1).padStart(2, '0')}
+                  </span>
+                  <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+                    {PARTS[active].label}
+                  </span>
+                </div>
+
+                <p className="mt-4 text-[19px] font-medium leading-snug tracking-[-0.015em] text-foreground">
+                  {claim.question}
+                </p>
+
+                <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
+                  {claim.answer}
+                </p>
+              </motion.div>
+            ) : null}
+
+            {/* The reader's position in the section, which a pinned frame
+                otherwise hides completely: the scrollbar is moving and nothing
+                says how much of this is left. */}
+            <div className="mt-10 flex gap-1.5">
+              {CLAIMS.map((item, index) => (
+                <span
+                  key={item.question}
+                  className={
+                    index === active
+                      ? 'h-px flex-1 bg-primary transition-colors duration-500'
+                      : 'h-px flex-1 bg-rule transition-colors duration-500'
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        </motion.aside>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* The unpinned fallback                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a phone gets, and what the exported HTML contains.
+ *
+ * The whole device depends on holding one frame still while several screens of
+ * scrolling drive it, and a phone has neither the width to put a panel beside
+ * the drawing nor the patience for five screens of a section that will not move
+ * on. So it gets the drawing already open, once, and the claims as an ordinary
+ * list underneath.
+ *
+ * It is also what the server renders, since `useMediaQuery` starts `false`
+ * everywhere — which is the right way round: every word of the copy is in the
+ * HTML, and the pinned stage is the enhancement that arrives late.
+ */
+function Stacked() {
+  const held = useMotionValue(1);
+
+  return (
+    <div className="border-t border-rule">
+      <div className="bg-[var(--surface-soft)] px-4 py-10 sm:px-8">
+        <EngineScene active={-1} open={held} label={held} />
+      </div>
+
+      <ul className="border-t border-rule">
+        {CLAIMS.map((claim, index) => (
+          <li
+            key={claim.question}
+            className={`px-5 py-8 sm:px-10 sm:py-9 ${
+              index < CLAIMS.length - 1 ? 'border-b border-rule' : ''
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[11px] tabular-nums text-primary">
+                {String(index + 1).padStart(2, '0')}
+              </span>
+              <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+                {PARTS[index].label}
+              </span>
+            </div>
+            <p className="mt-3 max-w-[30ch] text-[17px] font-medium leading-snug tracking-[-0.015em] text-foreground">
+              {claim.question}
+            </p>
+            <p className="mt-2.5 max-w-[52ch] text-[13.5px] leading-relaxed text-muted-foreground sm:text-[14.5px]">
+              {claim.answer}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function Engine() {
+  const desktop = useMediaQuery(DESKTOP);
+
+  return (
+    <Band>
+      <Cell className="max-w-[52rem] pb-6 sm:pb-10">
+        <Pill>Engine</Pill>
+        <Heading
+          className="display-lg mt-6"
+          lead={HEADING.lead}
+          rest={HEADING.rest}
+          scrub
+        />
+      </Cell>
+
+      {desktop ? <Stage /> : <Stacked />}
+    </Band>
+  );
+}

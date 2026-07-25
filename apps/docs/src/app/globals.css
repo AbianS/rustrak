@@ -1,11 +1,18 @@
 @import "tailwindcss";
 @import "nextra-theme-docs/style.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* The landing's grid rule, as a real theme colour so every Tailwind border
+     utility and every responsive variant of one works against it. Defining it
+     as a hand-written `.rule-r` class instead looks equivalent until the first
+     `lg:rule-r`, which silently emits nothing. */
+  --color-rule: var(--rule);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -26,11 +33,28 @@
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-instrument-serif);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
@@ -42,34 +66,47 @@
 
   /* Backgrounds - Light mode */
   --background: oklch(1 0 0); /* #FFFFFF white */
-  --foreground: oklch(0.15 0 0); /* #111827 dark text */
+  --foreground: oklch(0.145 0 0); /* #111827 dark text */
 
   /* Surfaces - Light mode */
-  --card: oklch(0.98 0 0); /* #F8F9FA light gray */
-  --card-foreground: oklch(0.15 0 0);
+  --card: oklch(1 0 0); /* #F8F9FA light gray */
+  --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.15 0 0);
+  --popover-foreground: oklch(0.145 0 0);
 
   /* Neutral elements - Light mode */
-  --secondary: oklch(0.96 0 0); /* #F1F3F5 */
-  --secondary-foreground: oklch(0.15 0 0);
-  --muted: oklch(0.96 0 0);
-  --muted-foreground: oklch(0.48 0 0); /* #6B7280 gray */
-  --accent: oklch(0.96 0 0);
-  --accent-foreground: oklch(0.15 0 0);
+  --secondary: oklch(0.97 0 0); /* #F1F3F5 */
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0); /* #6B7280 gray */
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
 
   /* Borders and inputs - Light mode */
-  --border: oklch(0.91 0 0); /* #E5E7EB */
-  --input: oklch(0.91 0 0);
+  --border: oklch(0.922 0 0); /* #E5E7EB */
+  --input: oklch(0.922 0 0);
   --ring: oklch(0.65 0.18 127); /* Lime focus ring */
 
   /* Status colors */
-  --destructive: oklch(0.58 0.24 29); /* Red */
+  --destructive: oklch(0.577 0.245 27.325); /* Red */
 
   /* Nextra theme overrides */
   --nextra-primary-hue: 85deg;
   --nextra-primary-saturation: 100%;
   --nextra-primary-lightness: 45%;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.65 0.18 127);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.65 0.18 127);
 }
 
 .dark {
@@ -78,36 +115,49 @@
   --primary-foreground: oklch(0.2 0 0); /* Dark text on lime */
 
   /* Backgrounds - Dark mode */
-  --background: oklch(0.14 0 0); /* #121212 almost black */
-  --foreground: oklch(0.98 0 0); /* #FAFAFA white text */
+  --background: oklch(0.145 0 0); /* #121212 almost black */
+  --foreground: oklch(0.985 0 0); /* #FAFAFA white text */
 
   /* Surfaces - Dark mode */
-  --card: oklch(0.18 0 0); /* #1A1A1A surface */
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.18 0 0);
-  --popover-foreground: oklch(0.98 0 0);
+  --card: oklch(0.205 0 0); /* #1A1A1A surface */
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
 
   /* Neutral elements - Dark mode */
-  --secondary: oklch(0.22 0 0); /* #2A2A2A elevated */
-  --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.58 0 0); /* #888888 muted text */
-  --accent: oklch(0.22 0 0);
-  --accent-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.269 0 0); /* #2A2A2A elevated */
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0); /* #888888 muted text */
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
 
   /* Borders and inputs - Dark mode */
-  --border: oklch(0.22 0 0); /* #2A2A2A */
-  --input: oklch(0.22 0 0);
+  --border: oklch(1 0 0 / 10%); /* #2A2A2A */
+  --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.91 0.18 127); /* Lime focus ring */
 
   /* Status colors */
-  --destructive: oklch(0.63 0.24 29); /* Red */
+  --destructive: oklch(0.704 0.191 22.216); /* Red */
 
   /* Nextra theme overrides */
   --nextra-primary-hue: 85deg;
   --nextra-primary-saturation: 100%;
   --nextra-primary-lightness: 55%;
   --nextra-bg: 18, 18, 18;
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.91 0.18 127);
+  --sidebar-primary-foreground: oklch(0.2 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.91 0.18 127);
 }
 
 @layer base {
@@ -116,6 +166,9 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
   }
 }
 
@@ -200,4 +253,264 @@ body.blog-layout .nextra-content {
 
 .dark .blog-section .prose :not(pre) > code {
   background: oklch(0.22 0 0);
+}
+
+/* ---------------------------------------------------------------------------
+   Landing page
+   The landing is dark-locked regardless of the docs theme toggle: the whole
+   composition (contrast ratios, the single lime accent, the glow behind the
+   product frame) is designed for one surface, and a light variant would be a
+   different design, not the same one inverted. Redefining the tokens on a
+   scope rather than in `:root` leaves the docs theming untouched.
+--------------------------------------------------------------------------- */
+.landing-root {
+  color-scheme: dark;
+
+  --primary: oklch(0.91 0.18 127);
+  --primary-foreground: oklch(0.2 0 0);
+  --background: oklch(0.14 0 0);
+  --foreground: oklch(0.98 0 0);
+  --card: oklch(0.18 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --secondary: oklch(0.22 0 0);
+  --secondary-foreground: oklch(0.98 0 0);
+  --muted: oklch(0.22 0 0);
+  /* Lifted from the app's 0.58: on this surface 0.58 lands just under AA for
+     the small mono labels the landing leans on. */
+  --muted-foreground: oklch(0.66 0 0);
+  --accent: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.98 0 0);
+  --border: oklch(0.26 0 0);
+  --input: oklch(0.22 0 0);
+  --ring: oklch(0.91 0.18 127);
+  --destructive: oklch(0.63 0.24 29);
+
+  /* Sidebar, mirroring the app's dark scale. The recreated shell reads these
+     rather than hardcoding greys, so the nav rail sits on the same surface as
+     the real one (`--sidebar` equals `--card`, one step above the page). */
+  --sidebar: oklch(0.18 0 0);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.91 0.18 127);
+  --sidebar-primary-foreground: oklch(0.2 0 0);
+  --sidebar-accent: oklch(0.24 0 0);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.26 0 0);
+
+  /* Mirrors apps/webview-ui/src/app/globals.css so the recreated UI reads as
+     the real product and not an approximation of it. Each hue is lifted a step
+     for the smaller marks the landing draws, but the assignment is the app's:
+     severity is reserved and never reused as a series colour.
+
+     `sev-info` stays the app's de-emphasis grey rather than a blue. It is what
+     makes the error-volume stack read correctly — info is context the chart
+     should not shout about, and colouring it would put a third loud band next
+     to the two that carry the meaning. */
+  --sev-error: oklch(0.704 0.191 24.9);
+  --sev-warning: oklch(0.812 0.161 75.1);
+  --sev-info: oklch(0.55 0 0);
+  --chart-1: oklch(0.66 0.163 255.5);
+  --chart-2: oklch(0.72 0.175 40.6);
+  --chart-3: oklch(0.72 0.141 162.1);
+  --chart-4: oklch(0.81 0.161 75.1);
+  --chart-5: oklch(0.76 0.141 357.4);
+
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Three rules used to sit here, and all three were the landing undoing a layout
+   it had been given against its will: the prose width cap released, the theme's
+   trailing "last updated" spacer hidden, `--nextra-content-width` forced back
+   to 100% so the page did not sit between bars on a wide monitor.
+
+   None of them are needed any more. The landing is `app/page.tsx` now, outside
+   the docs route group, so the theme never wraps it and there is nothing left
+   to undo. That is the part of this change worth noticing: it did not just move
+   weight off the page, it removed a whole category of fighting. */
+body:has(.landing-root) {
+  background: oklch(0.14 0 0);
+}
+
+/* The two pools of darkness the hero's painting is read through. See the
+   `scrim` block in `landing/ascii-field.tsx` for what each one protects.
+
+   The phone case is not the desktop one scaled down. The headline is four
+   lines rather than two, so the pool has to be much taller; and the painting
+   is overscanned far harder at that width, so what is behind those lines is
+   the brightly lit centre of the table rather than the dim edge of the room.
+   Both call for a wider, deeper, lower-centred radial. */
+.landing-root .ascii-scrim {
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(10, 10, 10, 0.82),
+      rgba(10, 10, 10, 0.5) 64px,
+      transparent 190px
+    ),
+    radial-gradient(
+      46% 26% at 50% 23%,
+      rgba(10, 10, 10, 0.86),
+      rgba(10, 10, 10, 0.45) 55%,
+      transparent 78%
+    );
+}
+
+@media (max-width: 639px) {
+  .landing-root .ascii-scrim {
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(10, 10, 10, 0.88),
+        rgba(10, 10, 10, 0.62) 64px,
+        transparent 220px
+      ),
+      radial-gradient(
+        82% 36% at 50% 30%,
+        rgba(10, 10, 10, 0.9),
+        rgba(10, 10, 10, 0.52) 55%,
+        transparent 82%
+      );
+  }
+}
+
+/* One display scale for the whole page. `clamp` does the responsive work so no
+   headline needs per-breakpoint overrides.
+   Deliberately restrained: the reference this page follows tops out around
+   72px on desktop and lets the ruled grid and the white space carry the
+   composition. Poster-sized type was doing that job before and it fought the
+   product screens for attention.
+
+   The lower bound is a *phone* size, not a floor the desktop scale happens to
+   bottom out at: 5.2vw only falls below it under about 690px, so lowering it
+   moves the headline on a phone and nothing anywhere else. At 2.5rem the stem
+   took four lines on a 390px screen and the rotating tail changed the height
+   of the block as it typed. */
+.landing-root .display-xl {
+  font-size: clamp(2.125rem, 5.2vw, 4.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+}
+
+/* 1.02 is a leading for one or two lines of poster type. The same sentence is
+   four lines on a phone, and four lines set solid is a paragraph-shaped block
+   rather than a headline. Only the leading opens up — the size and the
+   tracking stay exactly as the scale above sets them. */
+@media (max-width: 639px) {
+  .landing-root .display-xl {
+    line-height: 1.1;
+  }
+}
+
+.landing-root .display-lg {
+  font-size: clamp(1.875rem, 3.1vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.028em;
+  font-weight: 500;
+}
+
+.landing-root .display-md {
+  font-size: clamp(1.375rem, 1.9vw, 1.75rem);
+  line-height: 1.2;
+  letter-spacing: -0.022em;
+  font-weight: 500;
+}
+
+/* The serif accent sits on the same baseline at the same optical size, so it
+   needs a nudge up in size and a looser tracking to match the sans. */
+.landing-root .accent-serif {
+  font-family: var(--font-serif), Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-size: 1.08em;
+}
+
+.landing-root .eyebrow {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.6875rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.landing-root .hairline {
+  border-color: color-mix(in oklab, var(--foreground) 12%, transparent);
+}
+
+/* The ruled grid is the page's structure, not decoration: two vertical rules
+   run the full height and every band and cell closes against them. It has to
+   be faint enough to read as a drawn guide rather than as a table border. */
+.landing-root {
+  --rule: color-mix(in oklab, var(--foreground) 9%, transparent);
+  /* Two lifts off the page, mirroring the two tints the reference uses to
+     separate a showcase cell from a plain one. Both are deliberately shallow:
+     the rules do the dividing, the tint only says which kind of cell this is. */
+  --surface: oklch(0.172 0 0);
+  --surface-soft: oklch(0.153 0 0);
+}
+
+/* Used as `border-x border-rule`, `lg:border-r-0` and so on — see the
+   `--color-rule` note at the top of this file. */
+
+/* The showcase cells used to carry `content-visibility: auto` here, and it was
+   removed rather than lost. It is worth writing down why, because on paper it
+   is exactly the right property for a page like this one.
+
+   The two optimisations turned out to fight. `content-visibility: auto` skips
+   layout and paint for an off-screen subtree — and an element inside a skipped
+   subtree reports an empty rectangle to `IntersectionObserver`. The deferred
+   mount downstream (see `primitives/deferred.tsx`) is driven by exactly such an
+   observer, with a deliberately generous 1200px margin so a chunk has time to
+   fetch, parse and hydrate before anyone sees the frame it belongs in. Inside a
+   skipped subtree that margin is dead: the observer cannot report anything
+   until the browser un-skips the cell, which it does only as the cell nears the
+   viewport, and the screen would land visibly late.
+
+   Deferring the mount is the stronger of the two anyway. `content-visibility`
+   skips layout and paint; the deferred mount skips downloading the JavaScript,
+   parsing it, hydrating it and serialising it into the HTML — a superset, on
+   the axis that actually costs a visitor something. So the weaker one goes. */
+
+/* The hero painting's drift. Deliberately CSS rather than a Motion animation:
+   Motion's frame loop only sleeps when nothing at all is animating, and a
+   `repeat: Infinity` here kept the whole scheduler awake for the life of the
+   page. This runs on the compositor and asks nothing of the main thread.
+
+   It sits on a wrapper rather than on the canvas itself, so the canvas stays a
+   static masked layer and this stays a bare transform over it — see the note in
+   `ascii-field.tsx`. */
+/* Scale only, from the centre. No pan.
+
+   There used to be a `translate3d(2.5%, 0, 0)` riding along with the zoom, and
+   the two together did not read as a camera move — they read as the picture
+   being stretched sideways. A pan and a zoom sharing one axis is the problem: a
+   horizontal drift over a static image gives the eye a fixed edge to measure
+   against, and once it has one, the widening is the only thing it sees.
+
+   A centred scale has no direction to notice. It breathes.
+
+   The floor is 1.01 rather than 1, and that is load-bearing now that the canvas
+   is `object-fit: cover`: the element fills its box exactly, so a scale of 1
+   leaves nothing in reserve and a subpixel rounding error can expose a hairline
+   of background at an edge. A hundredth of overscan costs nothing and
+   guarantees there is always something to crop. */
+@keyframes ascii-drift {
+  0%,
+  100% {
+    transform: scale(1.01);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.landing-root .ascii-drift {
+  animation: ascii-drift 54s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-root .ascii-drift {
+    animation: none;
+  }
 }
