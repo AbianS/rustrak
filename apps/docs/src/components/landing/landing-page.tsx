@@ -6,6 +6,7 @@ import { Closing } from './sections/closing';
 import { Compatible } from './sections/compatible';
 import { DayOne } from './sections/day-one';
 import { Engine } from './sections/engine';
+import { SiteFooter } from './sections/footer';
 import { Hero } from './sections/hero';
 import { Manifesto } from './sections/manifesto';
 import { Migrate } from './sections/migrate';
@@ -84,7 +85,26 @@ export function LandingPage() {
             {/* Renders nothing when there is nobody to thank. */}
             <Sponsors />
           </main>
-          <Closing />
+          {/*
+            The page ends the way its middle began: one band slides over
+            another. The footer is stuck to the bottom of the screen and the
+            closing band is the opaque lid over it, which is why this one is
+            wrapped in `Cover` — without a background the wordmark behind it
+            shows straight through and the effect collapses into a z-index bug.
+
+            The box around the pair is not tidying. A sticky element is clamped
+            by its containing block, so this is what limits the footer's travel
+            to the closing band: left as siblings inside the ruled frame, the
+            frame itself would be the containing block and the footer would sit
+            against the bottom of the screen from the first section onwards.
+            See `sections/footer.tsx`.
+          */}
+          <div>
+            <Cover>
+              <Closing />
+            </Cover>
+            <SiteFooter />
+          </div>
         </GridFrame>
       </div>
     </SmoothScroll>
