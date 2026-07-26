@@ -3,6 +3,8 @@
 import { motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { POINTER_ORIGIN } from '../app-mock/pointer-origin';
+import { EASE } from '../motion';
 import { useOnScreen } from '../use-on-screen';
 
 /**
@@ -53,12 +55,30 @@ export function Typewriter({
   active = true,
   className,
   caretClassName,
+  handedOver = false,
 }: {
   phrases: readonly string[];
   /** Held false until whatever should precede this has finished. */
   active?: boolean;
   className?: string;
   caretClassName?: string;
+  /**
+   * Whether the pointer is currently away with this caret.
+   *
+   * The landing's hero grows its product pointer out of this bar: at 2.5s the
+   * bar stops being drawn here and starts being drawn in the panel, at the same
+   * place and the same size on the same frame, and then it leaves. Three
+   * seconds later this end fades a caret back in, by which time the pointer is
+   * down in the product clicking things and the two are never compared.
+   *
+   * Held invisible rather than unmounted, because it is what reserves the
+   * space: taking it out of the line would shift the claim sideways by its own
+   * width at the hand-over.
+   *
+   * The caret is also what the pointer measures, so it carries a marker
+   * attribute. See `app-mock/pointer-origin.ts`.
+   */
+  handedOver?: boolean;
 }) {
   const reduced = useReducedMotion();
   const box = useRef<HTMLSpanElement>(null);
@@ -122,6 +142,7 @@ export function Typewriter({
             // and only while it is on screen, since an infinite repeat is what
             // keeps Motion's frame loop from ever going quiet.
             blinking={running && phase === 'holding'}
+            hidden={handedOver}
             className={caretClassName}
           />
         )}
@@ -132,29 +153,56 @@ export function Typewriter({
 
 function Caret({
   blinking,
+  hidden = false,
   className,
 }: {
   blinking: boolean;
+  hidden?: boolean;
   className?: string;
 }) {
   return (
+    /*
+      Two elements, two opacities.
+
+      The blink is an infinite keyframe loop and the hand-over is a one-shot
+      fade, and they are on the same property. Put on one element they fight:
+      coming back while the phrase is holding, the fade would be interrupted by
+      the loop's first keyframe and the caret would snap to full strength
+      instead of arriving.
+
+      Nested, the compositor multiplies them and neither knows about the other.
+      The outer one also carries the marker and the layout box, because it is
+      the box the pointer measures.
+    */
     <motion.span
-      className={cn(
-        'ml-[0.06em] inline-block w-[0.06em] translate-y-[0.06em] self-stretch bg-current align-baseline',
-        className,
-      )}
-      style={{ height: '0.82em' }}
-      animate={blinking ? { opacity: [1, 1, 0, 0] } : { opacity: 1 }}
-      transition={
-        blinking
-          ? {
-              duration: 1.06,
-              times: [0, 0.5, 0.5, 1],
-              repeat: Number.POSITIVE_INFINITY,
-              ease: 'linear',
-            }
-          : { duration: 0.1 }
-      }
-    />
+      className="ml-[0.06em] inline-block align-baseline"
+      {...{ [POINTER_ORIGIN]: '' }}
+      animate={{ opacity: hidden ? 0 : 1 }}
+      transition={{
+        // Instant on the way out, because on that frame the pointer starts
+        // drawing the identical rectangle at the identical place and a fade is
+        // the only thing that could make the seam visible. Unhurried on the way
+        // back, because by then the pointer is a screen away and there is
+        // nothing to line up with.
+        duration: hidden ? 0 : 0.6,
+        ease: EASE,
+      }}
+    >
+      <motion.span
+        className={cn('block w-[0.06em] bg-current', className)}
+        style={{ height: '0.82em', y: '0.06em' }}
+        animate={blinking ? { opacity: [1, 1, 0, 0] } : { opacity: 1 }}
+        transition={
+          blinking
+            ? {
+                duration: 1.06,
+                times: [0, 0.5, 0.5, 1],
+                repeat: Number.POSITIVE_INFINITY,
+                ease: 'linear',
+              }
+            : { duration: 0.1 }
+        }
+      />
+    </motion.span>
   );
 }

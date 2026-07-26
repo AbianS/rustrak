@@ -3,7 +3,16 @@
 import { motion, useTransform } from 'motion/react';
 import { Fragment } from 'react';
 import type { SessionBucket, VolumeBucket } from './fixtures';
-import { Breath, Draw, Grow, Pulse, Sweep, useSlot, Wash } from './stage';
+import {
+  Breath,
+  Draw,
+  Grow,
+  Pulse,
+  StepGrow,
+  Sweep,
+  useSlot,
+  Wash,
+} from './stage';
 
 /**
  * The overview's charts, recreated.
@@ -143,12 +152,32 @@ function roundedTop(
  * The bars grow from the baseline in time order, which is not decoration —
  * left-to-right on a time axis is the buckets filling as the day happened.
  */
+/**
+ * How much the current bucket grows per event that lands on it, and the ceiling
+ * it may not pass.
+ *
+ * The cap is not tuning, it is honesty: the loop runs for as long as the hero is
+ * on screen, and an uncapped step would eventually push the bar through the top
+ * of its own plot and past the mean line that is supposed to measure it. Six
+ * arrivals of visible growth is more than any reader watches.
+ */
+const STEP_PER_EVENT = 0.05;
+const STEP_CEILING = 0.3;
+
 export function ErrorVolumeChart({
   data,
+  boost = 0,
   width = 452,
   height = 208,
 }: {
   data: VolumeBucket[];
+  /**
+   * Events that have landed on the current bucket since the screen settled.
+   *
+   * The hero supplies it from its scene. Elsewhere it is zero, and the chart is
+   * the static series it has always been.
+   */
+  boost?: number;
   width?: number;
   height?: number;
 }) {
@@ -229,7 +258,21 @@ export function ErrorVolumeChart({
 
           return (
             <Grow key={bucket.hoursAgo} index={index} origin={`0 ${plotH}px`}>
-              {current ? <Breath origin={`0 ${plotH}px`}>{bars}</Breath> : bars}
+              {current ? (
+                // Three scales on one baseline: the entrance, the step every
+                // arrival adds, and the breath over the top of both. They
+                // multiply because they share an origin, which is the whole
+                // reason the growth can be layered onto a bar that was already
+                // moving instead of replacing what it was doing.
+                <StepGrow
+                  origin={`0 ${plotH}px`}
+                  amount={Math.min(boost * STEP_PER_EVENT, STEP_CEILING)}
+                >
+                  <Breath origin={`0 ${plotH}px`}>{bars}</Breath>
+                </StepGrow>
+              ) : (
+                bars
+              )}
             </Grow>
           );
         })}

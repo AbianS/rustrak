@@ -1,20 +1,19 @@
 'use client';
 
 import {
-  type MotionValue,
   motion,
+  useMotionValue,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
 import Link from 'next/link';
-import { Fragment, type ReactNode, useRef } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { GithubIcon } from '@/components/icons/github';
 import StaggerFromCenter from '@/components/smoothui/stagger-from-center';
 import { AppFrame } from '../app-mock/app-frame';
 import { MockOverview } from '../app-mock/mock-overview';
-import { IssueCard, SessionCard, TraceCard } from '../app-mock/satellites';
-import { Drift, IdleProvider, useSettled } from '../app-mock/stage';
+import { Tour } from '../app-mock/tour';
 import { AsciiField } from '../ascii-field';
 import { GITHUB } from '../links';
 import { EASE } from '../motion';
@@ -82,59 +81,6 @@ function Words({
   );
 }
 
-interface Satellite {
-  node: ReactNode;
-  z: number;
-  /** Offsets from the composition's own box, as fractions of it. */
-  left?: string;
-  right?: string;
-  top: string;
-  width: string;
-  /** Where it travels in from, in pixels. */
-  from: { x: number; y: number };
-}
-
-/**
- * The windows that orbit the hero panel, placed as fractions of the
- * composition rather than in pixels so the arrangement holds its proportions
- * at every width.
- *
- * `z` is the point of it. The panel sits at 30, so the issue row and the trace
- * pass *behind* it and only the session card comes in front. Layering them all
- * on top would read as three cards dropped onto a screenshot; threading the
- * panel through the middle of the stack is what gives the group depth.
- *
- * Which one comes forward is not arbitrary. The front card overlaps the screen
- * it is sitting on, so it has to be the one that can be read without being
- * studied — a single large percentage, rather than a row or a waterfall.
- */
-const SATELLITES: Satellite[] = [
-  {
-    node: <IssueCard />,
-    z: 20,
-    left: '-17%',
-    top: '-6%',
-    width: '26%',
-    from: { x: -90, y: -40 },
-  },
-  {
-    node: <TraceCard />,
-    z: 10,
-    right: '-18%',
-    top: '5%',
-    width: '26%',
-    from: { x: 100, y: -24 },
-  },
-  {
-    node: <SessionCard />,
-    z: 40,
-    left: '-15%',
-    top: '44%',
-    width: '29%',
-    from: { x: -100, y: 56 },
-  },
-];
-
 /**
  * The second line of the headline, rotating.
  *
@@ -187,55 +133,69 @@ export function Hero() {
   const onClaim = useOnScreen(claim, { rootMargin: '400px' });
 
   /*
-    The satellites only exist from `lg` up — below it they would either cover
-    the panel they annotate or shrink past legibility. Everything that exists
-    *for* them has to go with them, which is the whole opening move: the pull
-    back, and the tall track it needs to happen in.
+    The tour only runs from `lg` up, and everything that exists for it goes with
+    it: the pull back, and the tall track that buys it time on screen.
 
-    Left in place on a phone it was worse than pointless. The panel is already
-    the narrowest it will ever be, so shrinking it a further 16% bought room
-    for nothing, and the 138vh track pinned it through more than a screen of
-    scrolling while nothing arrived. What a phone gets instead is the panel at
-    full size, held briefly and then released.
+    On a phone the panel is already the narrowest it will ever be, and a screen
+    swapping under a reader who is holding the page still with their thumb is a
+    layout shift they did not ask for. What a phone gets instead is the overview
+    at full size, played once, held briefly and then released.
   */
-  const orbiting = useMediaQuery(DESKTOP) && !reduced;
+  const held = useMediaQuery(DESKTOP) && !reduced;
 
   const { scrollY } = useScroll();
 
-  // The composition scales as one piece, panel and satellites together. That
-  // is what makes room for them: at rest the panel is as wide as the page
-  // allows and there is nowhere for a card to sit, so the group has to pull
-  // back before the group can exist.
-  const scale = useTransform(scrollY, [0, RUN], [1, 0.84], { clamp: true });
-  // Held back so the first stretch of scrolling is purely the panel receding.
-  // The satellites arriving on the very first wheel click was the thing that
-  // made this feel like a trick rather than a reveal.
-  const orbit = useTransform(scrollY, [RUN * 0.3, RUN * 0.92], [0, 1], {
-    clamp: true,
-  });
+  /*
+    The camera settling back as the reader starts to scroll, which is what makes
+    the panel read as something being stepped away from rather than a picture at
+    a fixed size.
+
+    It used to go to 0.84, because there were cards placed outside the panel and
+    this was the only thing making room for them. There are no cards any more,
+    so what is left is the gesture on its own: six percent is enough to feel and
+    not enough for anything to depend on.
+  */
+  const scale = useTransform(scrollY, [0, RUN], [1, 0.94], { clamp: true });
 
   /*
-    Not a visual. The pinned hero's box never travels through the viewport, so
-    a measured "how far past centre am I" would read 0 forever — which would
-    leave the dashboard's counters ticking and the satellites floating long
-    after the section had scrolled away. Read off the *track* instead, in track
-    units rather than pixels so it behaves the same on a laptop and on a tall
-    monitor, and used only to shut the idle loops off.
+    Whether the panel is on screen at all, and the gate that follows from it.
 
-    All of which is true only while the panel is pinned. Below `lg` it is an
-    ordinary element travelling down the page, and `MockStage` already knows
-    how to measure one of those — so the override is withdrawn (see `gate`
-    below) and the track reading is left unused rather than made to mean
-    something on a box it no longer describes.
+    ── The bug this replaces ───────────────────────────────────────────────────
+
+    This used to be read off the pin: `scrollYProgress` over the sticky track,
+    with everything shut down once it passed 0.72. That number is not the
+    viewport, it is a fraction of a 138vh scroll corridor, and the two part
+    company badly — at 72% of the track the panel is still sitting in the middle
+    of the screen, fully visible, and every loop inside it had already been
+    switched off. Scroll a little and the tour froze, the pointer stopped, the
+    log tail stopped, and nothing started again until the panel was scrolled
+    back to the top.
+
+    A reader will scroll. They should not have to hold still for the page to
+    keep working, and there is no version of "how far through a scroll track am
+    I" that answers the question being asked, which is simply: can this be seen.
+
+    So it is an intersection observer on the panel itself, with a margin that
+    keeps it alive a little past the edges. `MockStage` wants this as a
+    `MotionValue` where anything above 0.06 means gone, so the boolean is
+    published into one.
   */
-  const { scrollYProgress: pin } = useScroll({
-    target: track,
-    offset: ['start start', 'end end'],
-  });
-  const past = useTransform(pin, [0.72, 1], [0, 1], { clamp: true });
+  const panel = useRef<HTMLDivElement>(null);
+  const visible = useOnScreen(panel, { rootMargin: '15% 0px' });
+  const gate = useMotionValue(0);
 
-  // The satellites' idle window: assembled, and still on screen.
-  const composed = useSettled(orbit, past, !reduced);
+  useEffect(() => {
+    gate.set(visible ? 0 : 1);
+  }, [visible, gate]);
+
+  /*
+    Whether the pointer currently has the headline's caret.
+
+    Owned here because the two ends of it are siblings: the caret is in the `h1`
+    and the pointer is in the panel, and this is the nearest thing that renders
+    both.
+  */
+  const [caretAway, setCaretAway] = useState(false);
 
   /** Everything above the panel enters on one clock, started at mount. */
   const enter = (delay: number, duration = 1) =>
@@ -433,10 +393,22 @@ export function Hero() {
                 gradient above is clipped to glyph shapes, and a bare element
                 inside it would come out invisible.
               */}
+              {/*
+                The caret at the end of this line is also the product pointer.
+
+                At 2.5s the bar leaves the line, unfolds into an arrow and
+                drifts down into the panel to click its way through the app. A
+                third of the way down it sheds a piece that turns over and
+                glides back up here, and from then on this end draws its own
+                caret again — so the line is only without one for the couple of
+                seconds it takes, which is the couple of seconds the caret is
+                genuinely elsewhere. See `app-mock/cursor.tsx`.
+              */}
               <Typewriter
                 phrases={TAILS}
                 active={started}
                 caretClassName="bg-primary"
+                handedOver={caretAway}
               />
             </motion.span>
             <span
@@ -498,18 +470,21 @@ export function Hero() {
       </div>
 
       {/*
-        A tall track with the composition pinned inside it. Without the pin the
-        move has only the height of one screen to happen in, which is why it
-        felt rushed: the panel was leaving the viewport before the satellites
-        had finished arriving. Pinned, the scroll buys time instead of
-        distance.
+        A tall track with the panel pinned inside it. Without the pin the panel
+        has the height of one screen to be looked at in, and the tour needs
+        rather more than that: five screens at five to seven seconds each is
+        half a minute of product, and a panel that has scrolled away after four
+        of them has shown the reader a dashboard and a list.
 
-        None of which applies below `lg`, where there are no satellites to wait
-        for. A pin with nothing arriving during it is just a section that will
-        not scroll: the panel hung in place for over a screen's worth of thumb
-        while the page appeared to be stuck. So the track has no extra height
-        there and the panel does not stick — it arrives, it is read, it leaves,
-        and the section is only as tall as the thing in it.
+        Pinned, the scroll buys time instead of distance. 138vh is a little over
+        a third of a screen of extra scrolling, which is enough to hold the panel
+        through several stops without the page feeling stuck.
+
+        None of which applies below `lg`, where there is no tour to wait for. A
+        pin with nothing happening during it is just a section that will not
+        scroll. So the track has no extra height there and the panel does not
+        stick — it arrives, it is read, it leaves, and the section is only as
+        tall as the thing in it.
       */}
       <div ref={track} className="relative mt-14 sm:mt-20 lg:h-[138vh]">
         <div className="px-3 sm:px-6 lg:sticky lg:top-[13vh] lg:px-10">
@@ -549,117 +524,64 @@ export function Hero() {
             transition={{ duration: 1.9, ease: EASE, delay: 2 }}
           >
             <motion.div
+              ref={panel}
               className="relative mx-auto w-full max-w-[1160px]"
-              style={orbiting ? { scale } : undefined}
+              style={held ? { scale } : undefined}
             >
-              <div className="relative z-30">
-                {/*
-                The one screen that plays on entry rather than on scroll: it is
-                already on the page at first paint, so scrubbing it would mean
-                an empty dashboard until the visitor scrolled. `armed` holds the
-                boot-up until the client is alive to run it.
+              {held ? (
+                /*
+                  The product using itself: a pointer comes up from outside the
+                  window, clicks through five screens, and each one plays its
+                  own entrance and then lives for as long as it is up. See
+                  `app-mock/tour.tsx`.
 
-                Its idle phase then runs for as long as the panel is pinned:
-                the lifetime event counter keeps accruing, the current hour's
-                bar keeps filling, light crosses the surface. That is the whole
-                first impression, so it is the last place a frozen screenshot
-                would do.
+                  This is the first thing anybody sees of Rustrak, and a single
+                  dashboard held still was answering the wrong question. A
+                  reader looking at one overview learns that there is an
+                  overview. A reader watching the issue list open into a stack
+                  trace, then a log stream, then an agent waterfall, learns the
+                  shape of the whole product before scrolling once.
 
-                ── Why the fill-in is delayed ─────────────────────────────────
+                  It opens its own `AppFrame`, because the pointer starts below
+                  the product and the frame hides its overflow.
+                */
+                <Tour
+                  armed={started && visible}
+                  gate={gate}
+                  onCaret={setCaretAway}
+                />
+              ) : (
+                /*
+                  Below `lg`: the overview alone, played once on entry rather
+                  than scrubbed on scroll, because it is already on the page at
+                  first paint and scrubbing would mean an empty dashboard until
+                  the visitor scrolled.
 
-                `armed` answers "is there a client alive to run this", which
-                turned out not to be the question. Armed at mount, the fill-in
-                ran from 0 to 1.9s — and the panel wrapping it is at `opacity: 0`
-                until 2s. Every mark on this dashboard animated where nobody
-                could see it, and finished at the exact moment the panel began
-                to appear. The visitor got a complete, static dashboard fading
-                in: the one thing the comment above says this must not be.
+                  ── Why the fill-in is delayed ──────────────────────────────
 
-                It also cost. Measured over the opening, those sixty-odd motion
-                values were landing on the same frames as the background
-                painting's reveal, and that overlap is where the page fell from
-                120fps to 64.
+                  `armed` answers "is there a client alive to run this", which
+                  turned out not to be the question. Armed at mount, the fill-in
+                  ran from 0 to 1.9s — and the panel wrapping it is at
+                  `opacity: 0` until 2s. Every mark on the dashboard animated
+                  where nobody could see it, and finished at the exact moment
+                  the panel began to appear.
 
-                So it starts at 2.3s instead: three tenths of a second behind
-                the panel's own arrival, trailing it the whole way, which is the
-                same "the frame is there to receive them" ordering the platform
-                chapters use (see `primitives/layered.tsx`).
-              */}
+                  It also cost. Measured over the opening, those sixty-odd
+                  motion values were landing on the same frames as the
+                  background painting's reveal, and that overlap is where the
+                  page fell from 120fps to 64.
+
+                  So it starts at 2.3s: three tenths of a second behind the
+                  panel's own arrival, trailing it the whole way.
+                */
                 <AppFrame>
-                  {/* The gate is only supplied while the panel is pinned.
-                      Unpinned, `MockStage` measures its own travel through the
-                      viewport, which is both correct and what every other
-                      screen on the page already does. */}
-                  <MockOverview
-                    mode="enter"
-                    armed={started}
-                    enterDelay={2.3}
-                    gate={orbiting ? past : undefined}
-                  />
+                  <MockOverview mode="enter" armed={started} enterDelay={2.3} />
                 </AppFrame>
-              </div>
-
-              {/* Not merely hidden below `lg` — not mounted. Three extra
-                  screens of DOM and nine scroll transforms are exactly the
-                  weight a phone should not be carrying for something it will
-                  never see. */}
-              {orbiting
-                ? SATELLITES.map((satellite, index) => (
-                    <Orbiting
-                      key={satellite.z}
-                      satellite={satellite}
-                      progress={orbit}
-                      idle={composed}
-                      index={index}
-                    />
-                  ))
-                : null}
+              )}
             </motion.div>
           </motion.div>
         </div>
       </div>
     </section>
-  );
-}
-
-function Orbiting({
-  satellite,
-  progress,
-  idle,
-  index,
-}: {
-  satellite: Satellite;
-  progress: MotionValue<number>;
-  idle: boolean;
-  index: number;
-}) {
-  const opacity = useTransform(progress, [0, 0.6], [0, 1]);
-  const x = useTransform(progress, [0, 1], [satellite.from.x, 0]);
-  const y = useTransform(progress, [0, 1], [satellite.from.y, 0]);
-
-  return (
-    <motion.div
-      aria-hidden
-      className="pointer-events-none absolute hidden lg:block"
-      style={{
-        zIndex: satellite.z,
-        top: satellite.top,
-        left: satellite.left,
-        right: satellite.right,
-        width: satellite.width,
-        opacity,
-        x,
-        y,
-      }}
-    >
-      {/* Idle: they float once they have arrived, out of phase with each other
-          and with the panel they orbit. Three planes at three cadences is what
-          reads as depth. */}
-      <IdleProvider value={idle}>
-        <Drift distance={8} duration={11 + index * 1.5} phase={index * 2.2}>
-          {satellite.node}
-        </Drift>
-      </IdleProvider>
-    </motion.div>
   );
 }

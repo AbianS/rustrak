@@ -12,9 +12,17 @@ import {
   TransactionP95Bars,
   TrendSparkline,
 } from './charts';
+import { useScene } from './event-scene';
 import { ISSUES, SESSIONS, TRANSACTIONS, VOLUME } from './fixtures';
 import { MockCard, MockLevel, MockShell, usePad } from './mock-shell';
-import { Enter, MockStage, Settle, type StageMode, Ticker } from './stage';
+import {
+  Enter,
+  Flash,
+  MockStage,
+  Settle,
+  type StageMode,
+  Ticker,
+} from './stage';
 
 /**
  * The project overview, recreated from
@@ -27,8 +35,33 @@ import { Enter, MockStage, Settle, type StageMode, Ticker } from './stage';
  * which tiles ignore the period filter.
  */
 
+/**
+ * How much traffic one beat of the hero's scene lands.
+ *
+ * The loop is thirteen seconds and the project's background trickle is 3.2
+ * events a second, so a batch of forty is what those two numbers already imply.
+ * Picking it out of the air would have been visible: a counter that crawls at
+ * three a second and then jumps by four hundred is describing two different
+ * services.
+ */
+const BATCH = 38;
+
+/**
+ * Beats between new fingerprints.
+ *
+ * Most of what arrives groups onto an issue that already exists — that is what
+ * the grouping algorithm is *for*, and a dashboard where every batch minted a
+ * new issue would be advertising the opposite of what the server does. So the
+ * new-issue tile moves on every other batch, and the rest of the time the
+ * traffic lands on the counters and the current bucket without creating
+ * anything.
+ */
+const NEW_ISSUE_EVERY = 2;
+
 /** `ProjectHeader` — the band every project route opens with. */
 function ProjectHeaderBand() {
+  const { tick } = useScene();
+
   return (
     <div
       className={cn(
@@ -51,9 +84,17 @@ function ProjectHeaderBand() {
         {/* The project's lifetime digested-event count, which is the one
             figure on this page that is genuinely never still. It keeps
             accruing while the screen is idle rather than freezing at a
-            plausible-looking total. */}
+            plausible-looking total — and it steps when a batch lands, so the
+            trickle and the arrival are visibly different events rather than one
+            undifferentiated drift. */}
         <p className="text-xl font-bold text-primary">
-          <Ticker value={4812004} delay={0.3} live={3.2} />
+          <Ticker
+            value={4812004}
+            delay={0.3}
+            live={3.2}
+            beat={tick}
+            beatBy={BATCH}
+          />
         </p>
       </div>
     </div>
@@ -95,20 +136,40 @@ function StatTile({
   change,
   footnote,
   delay,
+  beat = 0,
+  beatBy = 0,
+  flash = 0,
 }: {
   label: string;
   value: number;
   change: string;
   footnote?: string;
   delay: number;
+  /** Batches landed so far, and what each one adds to this figure. */
+  beat?: number;
+  beatBy?: number;
+  /**
+   * Rings the tile when this changes. Deliberately separate from `beat`: a tile
+   * whose `compact` label did not move is a tile with nothing to point at, and
+   * a highlight over an unchanged number teaches the reader to ignore the
+   * highlight.
+   */
+  flash?: number;
 }) {
   return (
-    <MockCard title={label} className="justify-between">
+    <MockCard title={label} className="relative justify-between">
+      <Flash run={flash} />
       <div className="flex flex-col gap-1.5">
         {/* Proportional figures, not tabular: at this size tabular digits give
             every glyph the width of a zero and the number reads loose. */}
         <p className="text-3xl font-bold leading-none">
-          <Ticker value={value} format={compact} delay={delay} />
+          <Ticker
+            value={value}
+            format={compact}
+            delay={delay}
+            beat={beat}
+            beatBy={beatBy}
+          />
         </p>
         <span className="flex items-center gap-0.5 text-xs font-medium tabular-nums text-red-400">
           <ArrowUpRight className="size-3.5" />
@@ -148,6 +209,12 @@ export function MockOverview({
   const full = narrow ? 'col-span-2' : 'col-span-4';
   const wide = narrow ? 'col-span-2' : 'col-span-3';
 
+  // Zero everywhere but the hero, where the scene supplies it — so this screen
+  // is the static overview it has always been in the platform chapters, and the
+  // live one only where there is something on the page causing it to be live.
+  const { tick } = useScene();
+  const fingerprints = Math.floor(tick / NEW_ISSUE_EVERY);
+
   return (
     <MockStage mode={mode} armed={armed} delay={enterDelay} gate={gate}>
       <MockShell active="Overview">
@@ -176,7 +243,10 @@ export function MockOverview({
           >
             <Settle index={0} className="col-span-2 min-w-0">
               <MockCard title="Error volume by severity" className="h-full">
-                <ErrorVolumeChart data={VOLUME} height={200} />
+                {/* The tile the pulse lands on, and the only mark on this
+                    screen whose growth is caused by something the reader
+                    watched cross the page. */}
+                <ErrorVolumeChart data={VOLUME} boost={tick} height={200} />
               </MockCard>
             </Settle>
 
@@ -187,6 +257,8 @@ export function MockOverview({
                   value={48204}
                   change="+12.4%"
                   delay={0.4}
+                  beat={tick}
+                  beatBy={BATCH}
                 />
               </Settle>
               <Settle index={2}>
@@ -196,6 +268,9 @@ export function MockOverview({
                   change="+50.0%"
                   footnote="37 open"
                   delay={0.5}
+                  beat={fingerprints}
+                  beatBy={1}
+                  flash={fingerprints}
                 />
               </Settle>
               <Settle index={3} className="col-span-2 min-w-0">

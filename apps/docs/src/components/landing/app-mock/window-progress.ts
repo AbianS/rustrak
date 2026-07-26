@@ -34,3 +34,22 @@ import { createContext } from 'react';
 export const WindowProgressContext = createContext<MotionValue<number> | null>(
   null,
 );
+
+/**
+ * The off-centre signal a screen runs its idle loops against, published by
+ * whatever is holding that screen still.
+ *
+ * The companion to the above, and it exists for the mirror-image reason. A
+ * stage decides whether its loops may run by measuring how far past centre its
+ * own box has travelled — which is the right question for a screen scrolling
+ * down the page and an unanswerable one for a screen that is pinned. The hero
+ * holds its panel at a fixed offset for the whole of a 138vh track, so the
+ * measurement reads "long gone" from the first frame and every counter, tail
+ * and breath inside it stays switched off for the entire time the reader is
+ * looking at it.
+ *
+ * `MockStage` takes a `gate` prop for exactly this, but a prop only reaches the
+ * stage the hero opens itself. The screens the hero shows each open their own,
+ * four components down, so the signal has to travel as context or not at all.
+ */
+export const StageGateContext = createContext<MotionValue<number> | null>(null);

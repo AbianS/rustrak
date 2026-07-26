@@ -23,7 +23,7 @@ import {
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
 import { useOnScreen } from '../use-on-screen';
-import { WindowProgressContext } from './window-progress';
+import { StageGateContext, WindowProgressContext } from './window-progress';
 
 /**
  * The motion vocabulary the recreated screens share.
@@ -234,6 +234,7 @@ export function MockStage({
   armed = true,
   delay = 0,
   gate,
+  progress,
 }: {
   children: ReactNode;
   className?: string;
@@ -262,6 +263,24 @@ export function MockStage({
    * it had scrolled away.
    */
   gate?: MotionValue<number>;
+  /**
+   * The whole clock, supplied from outside, replacing the measured one.
+   *
+   * `gate` fixes the *idle* window for a surface that does not travel; this
+   * fixes the entrance for a surface that does not travel *either*, which is a
+   * different failure and used to go unnoticed because it happens off screen.
+   *
+   * The hero's satellites are the case. Each one measured its own box crossing
+   * the viewport, and each one is pinned — so their fill-in reached 1 at around
+   * 300px of scroll, while the card carrying it was still at 14% opacity and
+   * halfway through flying in. Every bar swept, every counter counted up, and
+   * all of it was over before the card was legible: they arrived already
+   * finished, which is exactly what a screenshot looks like.
+   *
+   * Handed the same progress value that flies the card in, the two can no
+   * longer disagree: the surface fills in *as* it arrives.
+   */
+  progress?: MotionValue<number>;
 }) {
   const reduced = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
@@ -284,6 +303,7 @@ export function MockStage({
     than badly timed. See `window-progress.ts`.
   */
   const windowed = useContext(WindowProgressContext);
+  const gated = useContext(StageGateContext);
 
   const played = useMotionValue(0);
   const settled = useMotionValue(1);
@@ -295,17 +315,14 @@ export function MockStage({
     return () => controls.stop();
   }, [reduced, mode, armed, delay, played]);
 
-  const progress = reduced
-    ? settled
-    : mode === 'enter'
-      ? played
-      : (windowed ?? entering);
-  const past = reduced ? still : (gate ?? passing);
+  const measured = mode === 'enter' ? played : (windowed ?? entering);
+  const clock = reduced ? settled : (progress ?? measured);
+  const past = reduced ? still : (gate ?? gated ?? passing);
 
-  const idle = useSettled(progress, past, !reduced);
+  const idle = useSettled(clock, past, !reduced);
 
   return (
-    <StageContext.Provider value={progress}>
+    <StageContext.Provider value={clock}>
       <IdleContext.Provider value={idle}>
         <div ref={ref} className={cn('h-full w-full', className)}>
           {children}
@@ -507,6 +524,8 @@ export function Ticker({
   format = (n) => PLAIN.format(Math.round(n)),
   delay = 0,
   live = 0,
+  beat = 0,
+  beatBy = 0,
   className,
 }: {
   value: number;
@@ -521,10 +540,19 @@ export function Ticker({
    * count-up has finished.
    */
   live?: number;
+  /**
+   * How many discrete arrivals have landed so far. Where `live` is the trickle
+   * nobody is meant to catch, this is the jump they are meant to: the hero's
+   * scene lands one event at a time, and the counter has to visibly answer.
+   */
+  beat?: number;
+  /** Units added per arrival. */
+  beatBy?: number;
   className?: string;
 }) {
   const p = useSlot(delay, 0.55);
   const gained = useMotionValue(0);
+  const stepped = useMotionValue(0);
   const idle = useIdle();
 
   useEffect(() => {
@@ -538,8 +566,19 @@ export function Ticker({
     return () => controls.stop();
   }, [idle, live, gained]);
 
-  const text = useTransform([p, gained], ([t, g]: number[]) =>
-    format(t * (value + g)),
+  // Driven off the running total rather than incremented, so a beat missed
+  // while the screen was off centre is caught up on rather than lost.
+  useEffect(() => {
+    if (beatBy <= 0) return;
+    const controls = animate(stepped, beat * beatBy, {
+      duration: 1.1,
+      ease: EASE,
+    });
+    return () => controls.stop();
+  }, [beat, beatBy, stepped]);
+
+  const text = useTransform([p, gained, stepped], ([t, g, s]: number[]) =>
+    format(t * (value + g + s)),
   );
   return <motion.span className={className}>{text}</motion.span>;
 }
@@ -586,6 +625,77 @@ export function Breath({
     >
       {children}
     </motion.g>
+  );
+}
+
+/**
+ * A mark that steps up when something lands on it, and never steps back down.
+ *
+ * `Breath` says "this bucket is still filling" as a mood; this says it as a
+ * fact, because the growth is caused by an arrival the reader has just watched
+ * cross the screen. Composes with `Breath` and with `Grow` — all three scale on
+ * the same baseline origin, so nesting them multiplies rather than fights.
+ *
+ * Capped by the caller, and it has to be: a bar that grows on every loop would
+ * eventually leave the plot, and a chart that outgrows its own axis is a worse
+ * lie than a chart that never moves.
+ */
+export function StepGrow({
+  origin,
+  amount,
+  children,
+}: {
+  origin: string;
+  /** Total growth so far, as a fraction of the mark's height. */
+  amount: number;
+  children: ReactNode;
+}) {
+  const reduced = useReducedMotion();
+  const scaleY = useMotionValue(1);
+
+  useEffect(() => {
+    if (reduced) return;
+    const controls = animate(scaleY, 1 + amount, { duration: 1.1, ease: EASE });
+    return () => controls.stop();
+  }, [amount, reduced, scaleY]);
+
+  return (
+    <motion.g style={{ transformOrigin: origin, scaleY }}>{children}</motion.g>
+  );
+}
+
+/**
+ * The mark left on a surface that just changed: a ring in the accent, fading.
+ *
+ * A number that jumps is easy to miss on a dashboard with sixty other marks on
+ * it. This is what makes the change findable without making it loud — it is
+ * gone in just over a second, and it only ever fires on something the reader
+ * has a reason to look at.
+ *
+ * One opacity on one element, and it is keyed on the arrival so it restarts
+ * rather than queueing. The parent has to be positioned.
+ *
+ * A border rather than a ring, and that is not a style choice: the card this
+ * sits in clips its own overflow, and a ring is drawn *outside* the box it is
+ * on — an `inset-0` ring would be cropped away on all four sides by the parent
+ * it is meant to outline.
+ */
+export function Flash({ run }: { run: number }) {
+  const reduced = useReducedMotion();
+
+  if (reduced || run <= 0) {
+    return null;
+  }
+
+  return (
+    <motion.span
+      key={run}
+      aria-hidden
+      className="pointer-events-none absolute inset-0 rounded-xl border border-primary/60"
+      initial={{ opacity: 0.85 }}
+      animate={{ opacity: 0 }}
+      transition={{ duration: 1.3, ease: 'easeOut' }}
+    />
   );
 }
 
