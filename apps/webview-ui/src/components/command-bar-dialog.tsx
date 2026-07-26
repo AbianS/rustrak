@@ -38,6 +38,10 @@ interface CommandBarDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function searchify(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export default function CommandBarDialog({
   open,
   onOpenChange,
@@ -47,10 +51,10 @@ export default function CommandBarDialog({
   const [activeIndex, setActiveIndex] = useState(0);
 
   const results = useMemo(() => {
-    const needle = query.trim().toLowerCase();
+    const needle = searchify(query);
     if (!needle) return COMMANDS;
     return COMMANDS.filter((command) =>
-      command.label.toLowerCase().includes(needle),
+      searchify(command.label).includes(needle),
     );
   }, [query]);
 
