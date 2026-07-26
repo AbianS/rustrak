@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { logout } from '@/actions/auth';
+import CommandBar from '@/components/command-bar';
 import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,7 +16,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import CommandBar from "@/components/command-bar";
 
 interface HeaderProps {
   user: User;
