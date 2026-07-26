@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import CommandBar from "@/components/command-bar";
 
 interface HeaderProps {
   user: User;
@@ -42,6 +43,8 @@ export function Header({ user }: HeaderProps) {
           </span>
         </Link>
       </div>
+
+      <CommandBar />
 
       {/* User Menu */}
       <div className="flex items-center gap-4">
