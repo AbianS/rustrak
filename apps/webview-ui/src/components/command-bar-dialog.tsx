@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { Button } from "./ui/button";
 
 interface CommandItem {
   label: string;
@@ -182,15 +181,15 @@ export default function CommandBarDialog({
             </p>
           ) : (
             results.map((command, index) => (
-              <Button
+              <button
                 key={command.href}
                 type="button"
-                variant="primary-ghost"
                 onClick={() => select(command)}
                 onMouseMove={() => setActiveIndex(index)}
                 className={cn(
-                  "w-full justify-between",
-                  active === index && "bg-primary/10 text-primary",
+                  "flex p-2 gap-1.5 rounded-md w-full justify-between hover:bg-transparent hover:text-inherit dark:hover:bg-transparent",
+                  active === index &&
+                    "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/10",
                 )}
               >
                 <span className="flex items-center gap-1.5">
@@ -198,7 +197,7 @@ export default function CommandBarDialog({
                   {command.label}
                 </span>
                 <span className="opacity-35">{command.category}</span>
-              </Button>
+              </button>
             ))
           )}
         </div>
