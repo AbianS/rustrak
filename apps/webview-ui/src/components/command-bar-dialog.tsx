@@ -154,14 +154,14 @@ export default function CommandBarDialog({
                 onMouseMove={() => setActiveIndex(index)}
                 className={cn(
                   "flex justify-between w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
-                  index === activeIndex && "bg-accent text-accent-foreground",
+                  index === activeIndex && "bg-primary/10 text-primary",
                 )}
               >
                 <span className="flex items-center gap-2">
                   <command.icon className="size-4 shrink-0 opacity-70" />
                   {command.label}
                 </span>
-                <span className="opacity-40">{command.category}</span>
+                <span className="opacity-50">{command.category}</span>
               </button>
             ))
           )}
