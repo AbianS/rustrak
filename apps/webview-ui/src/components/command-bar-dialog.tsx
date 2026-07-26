@@ -7,7 +7,8 @@ import {
   SunMoonIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getProjects } from "@/actions/projects";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import { Button } from "./ui/button";
 interface CommandItem {
   label: string;
   href: string;
-  category: "Settings" | "Projects";
+  category: "Settings" | "Projects" | "Project";
   icon: typeof SearchIcon;
 }
 
@@ -76,14 +77,47 @@ export default function CommandBarDialog({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [projectCommands, setProjectCommands] = useState<CommandItem[]>([]);
+
+  // Warm the project list in the background so it is already there the first
+  // time the bar is opened.
+  useEffect(() => {
+    let cancelled = false;
+
+    getProjects({ per_page: 100 })
+      .then((response) => {
+        if (cancelled) return;
+        setProjectCommands(
+          response.items.map((project) => ({
+            label: project.name,
+            href: `/projects/${project.id}`,
+            category: "Project",
+            icon: FolderIcon,
+          })),
+        );
+      })
+      .catch(() => {
+        // Projects are an enhancement here; the static commands still work.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const results = useMemo(() => {
+    const commands = [...projectCommands, ...COMMANDS];
     const needle = searchify(query);
-    if (!needle) return COMMANDS;
-    return COMMANDS.filter((command) =>
+    if (!needle) return commands;
+    return commands.filter((command) =>
       searchify(command.label).includes(needle),
     );
-  }, [query]);
+  }, [query, projectCommands]);
+
+  // Results can grow while the bar is open (projects arriving) or shrink as the
+  // query narrows, so keep the highlight inside the list.
+  const active =
+    results.length === 0 ? 0 : Math.min(activeIndex, results.length - 1);
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
@@ -103,13 +137,13 @@ export default function CommandBarDialog({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((prev) => (prev + 1) % results.length);
+      setActiveIndex((active + 1) % results.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((prev) => (prev - 1 + results.length) % results.length);
+      setActiveIndex((active - 1 + results.length) % results.length);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const command = results[activeIndex];
+      const command = results[active];
       if (command) select(command);
     }
   };
@@ -156,7 +190,7 @@ export default function CommandBarDialog({
                 onMouseMove={() => setActiveIndex(index)}
                 className={cn(
                   "w-full justify-between",
-                  activeIndex === index && "bg-primary/10 text-primary",
+                  active === index && "bg-primary/10 text-primary",
                 )}
               >
                 <span className="flex items-center gap-1.5">
