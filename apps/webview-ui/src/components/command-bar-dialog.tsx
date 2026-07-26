@@ -19,15 +19,41 @@ import { cn } from "@/lib/utils";
 interface CommandItem {
   label: string;
   href: string;
+  category: "Settings" | "Projects";
   icon: typeof SearchIcon;
 }
 
 const COMMANDS: CommandItem[] = [
-  { label: "Projects", href: "/projects", icon: FolderIcon },
-  { label: "New project", href: "/projects/new", icon: FolderIcon },
-  { label: "API tokens", href: "/settings/tokens", icon: SettingsIcon },
-  { label: "Account", href: "/settings/account", icon: SettingsIcon },
-  { label: "Appearance", href: "/settings/appearance", icon: SunMoonIcon },
+  {
+    label: "Projects",
+    href: "/projects",
+    category: "Projects",
+    icon: FolderIcon,
+  },
+  {
+    label: "New project",
+    href: "/projects/new",
+    category: "Projects",
+    icon: FolderIcon,
+  },
+  {
+    label: "API tokens",
+    href: "/settings/tokens",
+    category: "Settings",
+    icon: SettingsIcon,
+  },
+  {
+    label: "Account",
+    href: "/settings/account",
+    category: "Settings",
+    icon: SettingsIcon,
+  },
+  {
+    label: "Appearance",
+    href: "/settings/appearance",
+    category: "Settings",
+    icon: SunMoonIcon,
+  },
 ];
 
 const KBD =
@@ -127,12 +153,15 @@ export default function CommandBarDialog({
                 onClick={() => select(command)}
                 onMouseMove={() => setActiveIndex(index)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
+                  "flex justify-between w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm",
                   index === activeIndex && "bg-accent text-accent-foreground",
                 )}
               >
-                <command.icon className="size-4 shrink-0 opacity-70" />
-                {command.label}
+                <span className="flex items-center gap-2">
+                  <command.icon className="size-4 shrink-0 opacity-70" />
+                  {command.label}
+                </span>
+                <span className="opacity-40">{command.category}</span>
               </button>
             ))
           )}
