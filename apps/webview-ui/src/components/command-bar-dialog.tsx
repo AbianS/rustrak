@@ -2,6 +2,8 @@
 
 import {
   FolderIcon,
+  KeyIcon,
+  PlusIcon,
   SearchIcon,
   SettingsIcon,
   SunMoonIcon,
@@ -36,13 +38,13 @@ const COMMANDS: CommandItem[] = [
     label: "New project",
     href: "/projects/new",
     category: "Projects",
-    icon: FolderIcon,
+    icon: PlusIcon,
   },
   {
     label: "API tokens",
     href: "/settings/tokens",
     category: "Settings",
-    icon: SettingsIcon,
+    icon: KeyIcon,
   },
   {
     label: "Account",
@@ -96,9 +98,7 @@ export default function CommandBarDialog({
           })),
         );
       })
-      .catch(() => {
-        // Projects are an enhancement here; the static commands still work.
-      });
+      .catch(() => {});
 
     return () => {
       cancelled = true;
