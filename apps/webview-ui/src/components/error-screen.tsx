@@ -22,11 +22,22 @@ export function ErrorScreen({
   guidance,
   detail,
   actions,
+  brandStatement = 'Your data is safe',
+  brandDescription = 'Nothing has been lost and your session is intact. This screen is about reaching Rustrak, not about what is stored in it.',
 }: {
   /** The one-line answer to "what happened", on the content side. */
   headline: string;
   /** One sentence saying what went wrong. */
   description: string;
+  /**
+   * The large line on the brand panel. Defaults to the reassurance an outage
+   * needs; a 404 overrides it, because nothing failed there and telling
+   * someone their data is safe when they simply mistyped a URL is a non
+   * sequitur.
+   */
+  brandStatement?: string;
+  /** The paragraph under {@link brandStatement}. */
+  brandDescription?: string;
   /** What the reader can do, when there is anything useful to say. */
   guidance?: string | null;
   /** Monospace footnote: an error id, a version, anything diagnostic. */
@@ -53,12 +64,11 @@ export function ErrorScreen({
             every viewport wide enough to show both. */}
         <div className="relative z-20 max-w-xl">
           <h2 className="text-6xl xl:text-7xl font-extrabold tracking-tighter leading-[1.05] mb-8 text-balance">
-            Your data is safe
+            {brandStatement}
             <span className="text-primary">.</span>
           </h2>
           <p className="text-muted-foreground text-lg font-medium leading-relaxed max-w-md">
-            Nothing has been lost and your session is intact. This screen is
-            about reaching Rustrak, not about what is stored in it.
+            {brandDescription}
           </p>
         </div>
 

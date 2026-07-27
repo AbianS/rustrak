@@ -108,9 +108,14 @@ The inventory's four-group split is the useful axis for the 78 webview sites: 62
 - `cd apps/server && cargo test` -- expected: exit 0, unchanged.
 - `pnpm run ci` -- expected: **exit 0**.
 
-**Manual checks:**
-- Stop the API, load a gated page, and confirm the page reports an outage rather than redirecting to login.
-- Create a project with a taken slug and confirm the slug input goes red with the app's own copy.
+**Manual checks:** both performed by Abian on 2026-07-27 against a local stack,
+and both passed. They are recorded here because no suite reaches either: the
+webview tests do not exercise a Server Action against a real API, so these two
+behaviours could regress silently.
+
+- [x] Stop the API, load a gated page, and confirm the page reports an outage rather than redirecting to login. Observed: the gated page stayed on its own URL and rendered the outage surface. The login loop this phase exists to prevent does not occur.
+- [x] Create a project with a taken slug and confirm the slug input goes red with the app's own copy. Observed: "Slug is already taken." on the input.
+- [x] The name variant, which is the fourth acceptance criterion and a different branch: a taken **name** while the slug was auto-derived must mark the name, not the read-only slug input. Observed: "Project name is already taken." on the name. This is the path that reads `applied.marked` to decide whether to switch the slug field to manual, so it is the one that proves the helper's return value is actually consumed rather than merely produced.
 
 ### Review Findings
 
