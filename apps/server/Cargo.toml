@@ -108,6 +108,11 @@ utoipa = { version = "5.5.0", features = ["actix_extras", "uuid", "chrono"], opt
 utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
 
 [dev-dependencies]
+# The crate depends on itself so the integration tests, which are separate
+# crates, get `test-seams` enabled. Gating the seams on `debug_assertions`
+# instead made `cargo test --release` fail to compile.
+rustrak = { path = ".", features = ["test-seams"] }
+
 # Test framework & fixtures
 rstest = "0.26.1"
 serial_test = "3.5.0"
@@ -160,3 +165,8 @@ default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
 openapi = ["dep:utoipa", "dep:utoipa-scalar"]
+# Compiles the `ProjectService` test seams (`create_with_stale_slug` and the two
+# race helpers). Never enabled for the shipped binary: the self dev-dependency
+# below turns it on for test targets only, so `cargo test --release` builds
+# while `cargo build --release` still cannot reach them.
+test-seams = []

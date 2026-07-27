@@ -3645,6 +3645,7 @@ dependencies = [
  "rand 0.10.2",
  "reqwest",
  "rstest",
+ "rustrak",
  "sentry",
  "serde",
  "serde_json",

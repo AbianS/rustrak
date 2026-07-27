@@ -275,11 +275,18 @@ impl ProjectService {
     /// production reaches it only by losing a TOCTOU race. Mirrors
     /// [`Self::create_with_stale_slug`] on the update path.
     ///
-    /// **Test seam.** `#[cfg(debug_assertions)]`, not merely `#[doc(hidden)]`:
-    /// hiding it from rustdoc left it in the binary and callable, and this one
-    /// reads like a legitimate variant of `update` while silently skipping the
-    /// slug pre-check. It does not exist in a release build.
-    #[cfg(debug_assertions)]
+    /// **Test seam**, and not merely `#[doc(hidden)]`: hiding it from rustdoc
+    /// left it in the binary and callable, and this one reads like a
+    /// legitimate variant of `update` while silently skipping the slug
+    /// pre-check. It does not exist in the shipped binary.
+    ///
+    /// The gate is `debug_assertions` **or** the `test-seams` feature, not
+    /// `debug_assertions` alone. Integration tests are separate crates that
+    /// call this unconditionally, so gating on `debug_assertions` only made
+    /// `cargo test --release` fail to compile. `Cargo.toml` enables the
+    /// feature through a self dev-dependency, which reaches test targets and
+    /// never `cargo build --release`.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
     #[doc(hidden)]
     pub async fn update_with_raced_slug(
         pool: &DbPool,
@@ -493,9 +500,9 @@ impl ProjectService {
     /// Bypass slug generation and directly try INSERT with a pre-computed
     /// (possibly stale) slug. Used in integration tests to simulate TOCTOU.
     ///
-    /// **Test seam**, `#[cfg(debug_assertions)]`: it does not exist in a
-    /// release build. See [`Self::update_with_raced_slug`].
-    #[cfg(debug_assertions)]
+    /// **Test seam**, gated like [`Self::update_with_raced_slug`]: it is absent
+    /// from the shipped binary but present for tests in either profile.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
     #[doc(hidden)]
     pub async fn create_with_stale_slug(
         pool: &DbPool,
@@ -515,9 +522,9 @@ impl ProjectService {
     /// Exists because the branch it reaches is otherwise reachable only by
     /// losing a real TOCTOU race, which no test can lose on purpose.
     ///
-    /// **Test seam**, `#[cfg(debug_assertions)]`: it does not exist in a
-    /// release build. See [`Self::update_with_raced_slug`].
-    #[cfg(debug_assertions)]
+    /// **Test seam**, gated like [`Self::update_with_raced_slug`]: it is absent
+    /// from the shipped binary but present for tests in either profile.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
     #[doc(hidden)]
     pub async fn create_with_raced_user_slug(
         pool: &DbPool,
