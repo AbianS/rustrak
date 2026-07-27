@@ -50,11 +50,20 @@ export async function Sponsors() {
       <div className="grid lg:grid-cols-2">
         <Cell className="flex flex-col justify-center">
           <div>
-            <Pill>Support</Pill>
+            <Pill>Sponsors</Pill>
+            {/*
+              Thanks, and nothing else.
+
+              It used to read "Rustrak is free, GPL-3.0 and self-hosted. These
+              people pay for that.", which made two claims the section should not
+              be making. The licence belongs to the closing band, and sponsorship
+              is not what funds the project: it helps, and overstating it turns a
+              thank-you into a pitch.
+            */}
             <Heading
               className="display-lg mt-6 max-w-[18ch]"
               lead="Thank you."
-              rest="Rustrak is free, GPL-3.0 and self-hosted. These people pay for that."
+              rest="To everyone sponsoring Rustrak on GitHub."
               scrub
             />
           </div>

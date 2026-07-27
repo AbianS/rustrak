@@ -22,8 +22,18 @@ const SDKS = [
 export function Compatible() {
   return (
     <Band>
-      <p className="border-b border-rule px-5 py-5 text-center text-[13px] text-muted-foreground sm:px-10 sm:py-6 sm:text-[13.5px]">
-        Point any official Sentry SDK at your own server. No forks, no shims.
+      {/*
+        A rubric over the grid rather than a sentence.
+
+        It used to be one: "Point any official Sentry SDK at your own server. No
+        forks, no shims." Every clause in it had already been said in the
+        headline a screen above, so the first thing a reader met after scrolling
+        was a paragraph that told them nothing they did not already know. Three
+        words that name what the grid below is get out of the way and let the
+        list do the arguing.
+      */}
+      <p className="eyebrow border-b border-rule px-5 py-5 text-center sm:px-10 sm:py-6">
+        Already works with
       </p>
 
       {/*

@@ -72,8 +72,8 @@ export function OneCommand() {
         <Pill>Install</Pill>
         <Heading
           className="display-lg mx-auto mt-6 max-w-[22ch]"
-          lead="One command."
-          rest="Then point your DSN at it."
+          lead="Up with one command."
+          rest="Docker, SQLite by default, and an admin user created on first boot."
           scrub
         />
 

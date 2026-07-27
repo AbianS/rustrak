@@ -109,37 +109,48 @@ const ACT = {
   close: [0.88, 0.99],
 } as const;
 
+/**
+ * The five claims, in the order the parts are met.
+ *
+ * `question` names the part the drawing is labelling at that moment rather than
+ * commenting on it. The earlier set was written as aphorisms ("The cheapest work
+ * is the work it refuses", "Your app stops waiting here"), which read well on
+ * their own and badly here: the scene puts its own label on the part at the same
+ * time, so a reader met "Admission control" in the gutter and a sentence beside
+ * it that named nothing, and had to work out for themselves that the two were
+ * about the same thing.
+ */
 const CLAIMS = [
   {
-    question: 'The cheapest work is the work it refuses',
+    question: 'Over-quota requests are rejected first',
     answer:
-      'The quota is checked before a single byte is decompressed. A project over its limit gets a 429 and a Retry-After, and the rest of the machine never hears about the request at all.',
+      'The quota is checked before a single byte is decompressed. A project over its limit gets a 429 with a Retry-After, and nothing else in the server ever sees the request.',
   },
   {
-    question: 'It knows what everything is before it touches it',
+    question: 'Every item is typed on arrival',
     answer:
-      'One request can carry errors, transactions, sessions, logs and spans at once. They are pulled apart into eight typed kinds under a hard size cap, and which handler each kind goes to was settled when the binary was compiled, not looked up again per event.',
+      'One request can carry errors, transactions, sessions, logs and spans at once. They are split into eight typed kinds under a hard size cap, and each kind ended up with its handler when the binary was compiled rather than being looked up per event.',
   },
   {
-    question: 'Your app stops waiting here',
+    question: 'A restart never loses an event',
     answer:
-      'The event lands on disk and the 200 goes straight back. Everything expensive happens after your SDK has already moved on, and because it is on disk rather than in memory, a process that dies in between still has the event when it comes back.',
+      'The event is written to disk and the response goes straight back. Everything expensive happens after your SDK has moved on, and a process that dies in between still has the event when it restarts.',
   },
   {
-    question: 'One process, not five',
+    question: 'No queue, no broker, no workers to scale',
     answer:
-      'Grouping, source maps, session rollups and alerts all run on threads the server already has. There is no queue to install, no broker to keep alive, no worker fleet to scale, and no garbage collector waiting to pause any of it.',
+      'Grouping, source maps, session rollups and alerts run on threads the server already has. Nothing extra to install, and no garbage collector waiting to pause any of it.',
   },
   {
-    question: 'A million crashes, one row',
+    question: 'Identical crashes fold into one row',
     answer:
-      'Every event gets a deterministic fingerprint, and identical crashes fold onto the same issue with a counter. A bad deploy at three in the morning costs you one row and a number going up, not a million rows.',
+      'Every event gets a deterministic fingerprint, so a bad deploy costs you one issue with a counter going up instead of a million rows.',
   },
 ];
 
 const HEADING = {
   lead: 'Five parts, one process.',
-  rest: 'This is every piece of the event processor that touches a crash, and the order it touches them in. Scroll the server open.',
+  rest: 'These are the stages an event passes through, in the order it passes through them. Scroll to open it.',
 };
 
 /* -------------------------------------------------------------------------- */

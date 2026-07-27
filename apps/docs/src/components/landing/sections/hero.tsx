@@ -103,9 +103,9 @@ function Words({
  */
 const TAILS = [
   'One binary.',
+  'Your server.',
   'Your database.',
-  'No per-event bill.',
-  'GPL-3.0.',
+  'Your data.',
 ] as const;
 
 /**
@@ -384,10 +384,16 @@ export function Hero() {
               }}
             >
               {/*
-                Four endings to one sentence. Each is a different reason the
-                same claim is true — the memory, the artifact, the deployment,
-                the ownership — so the line argues four times in the space of
-                one, and the reader never has to re-read the stem.
+                Four endings to one sentence. Each names a different layer of
+                the same claim: the artifact, where it runs, where it writes,
+                and what comes out the other side. The line argues four times in
+                the space of one, and the reader never has to re-read the stem.
+
+                Cost and licence used to be two of the four. Both were cut for
+                arguing the wrong thing here: if the server is yours the bill
+                follows on its own, and a licence is something a reader goes
+                looking for rather than something a headline announces. Both are
+                still stated, in the closing band and in the footer.
 
                 `caretClassName` paints the caret in the flat accent: the
                 gradient above is clipped to glyph shapes, and a bare element
@@ -420,7 +426,7 @@ export function Hero() {
 
         <p className="mx-auto mt-6 max-w-[52ch] text-pretty text-[15.5px] leading-relaxed text-muted-foreground sm:mt-7 sm:text-[17px]">
           <Words
-            text="Your app already knows how to report crashes. Point it at a server you run, and the stack traces never leave the building."
+            text="Works with the Sentry SDKs you already use. Change one line of config and every event lands on infrastructure you control."
             active={started}
             delay={1000}
             stagger={11}

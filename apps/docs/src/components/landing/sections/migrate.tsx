@@ -38,7 +38,7 @@ const UNCHANGED = [
   { label: 'SDK', detail: 'The official package, at the version you pinned.' },
   { label: 'Instrumentation', detail: 'Every capture, span and breadcrumb.' },
   { label: 'Source maps', detail: 'The same upload step in the same CI job.' },
-  { label: 'Releases', detail: 'Still tagged by the release you already set.' },
+  { label: 'Releases', detail: 'Tagged with the release you already set.' },
 ];
 
 export function Migrate() {
@@ -46,9 +46,10 @@ export function Migrate() {
   const block = useRef<HTMLDivElement>(null);
   /*
     Once. The strike-through and the line sliding in are a one-shot event, not
-    a state to scrub: a DSN that un-replaces itself on the way back up would be
-    telling the reader the change is reversible in a way the section is
-    explicitly claiming it is not worth worrying about.
+    a state to scrub. The heading does say the change is reversible, but that is
+    a claim about an operator typing the old DSN back in, not about scroll
+    position: a line that un-replaces itself every time the reader scrolls up
+    reads as an animation that cannot make up its mind.
   */
   const shown = useOnScreen(block, { once: true, rootMargin: '-15% 0px' });
 
@@ -60,8 +61,8 @@ export function Migrate() {
             <Pill>Migration</Pill>
             <Heading
               className="display-lg mt-6"
-              lead="Change one line."
-              rest="Not a fork, not a shim, not a compatibility layer you have to keep patched. The DSN points somewhere else and everything above it carries on."
+              lead="One line of configuration."
+              rest="Point the DSN at your own server and deploy. Point it back and the migration is reverted."
               scrub
             />
           </Cell>

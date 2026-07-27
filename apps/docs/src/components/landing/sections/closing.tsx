@@ -175,8 +175,8 @@ export function Closing() {
         <div className="relative w-full px-5 py-20 text-center sm:px-10 sm:py-32">
           <Heading
             className="display-lg mx-auto max-w-[20ch]"
-            lead="Stop renting your stack traces."
-            rest="Sentry-compatible, self-hosted, GPL-3.0, and yours to run."
+            lead="Yours end to end."
+            rest="The server, the dashboard and the data. GPL-3.0, deployed wherever you say."
             scrub
           />
 

@@ -40,11 +40,24 @@ const COLUMNS = [
       { href: GITHUB, label: 'GitHub' },
     ],
   },
+  /*
+    Named for what a reader wants from it, not for what they can give.
+
+    It was "Support" over `Sponsor` and `Contributing`, which are both ways of
+    supporting the project rather than ways of being supported by it. Somebody
+    arriving at that heading with a broken deploy found two invitations to help
+    and no way to ask for any.
+
+    `Issues` is the link that fixes it, and it was missing from the whole footer.
+    Discussions is deliberately absent: it is switched off on the repository, so
+    there is nowhere for it to point.
+  */
   {
-    title: 'Support',
+    title: 'Community',
     links: [
-      { href: SPONSOR_URL, label: 'Sponsor' },
+      { href: `${GITHUB}/issues`, label: 'Issues' },
       { href: '/reference/contributing', label: 'Contributing' },
+      { href: SPONSOR_URL, label: 'Sponsor' },
     ],
   },
 ] as const;

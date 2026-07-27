@@ -341,8 +341,8 @@ export function Alerts() {
           <Pill>Alerts</Pill>
           <Heading
             className="display-md mt-6 max-w-[30ch]"
-            lead="Woken up for the right things."
-            rest="Write a rule once and it decides who hears about what. The error at three in the morning can page somebody. Everything quieter waits for the digest."
+            lead="Alert rules with conditions and escalation."
+            rest="A rule decides what fires it, what it checks before firing, and where it goes. If nobody acknowledges it, it escalates on its own."
             scrub
           />
 

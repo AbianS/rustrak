@@ -218,8 +218,18 @@ const CHAPTERS: Chapter[] = [
   {
     label: 'Issues',
     variant: 'stacked',
-    lead: 'Ten thousand crashes, one line to read.',
-    rest: 'Deterministic fingerprinting folds every event with the same cause into a single issue, so triage starts with a list you can finish rather than a stream you can only sample.',
+    /*
+      The statement describes the list, not the grouping.
+
+      All three pieces of copy in this chapter used to explain fingerprinting:
+      the lead, the paragraph under it, and the first half of the two-up below,
+      which is sitting next to a diagram that draws raw events folding onto one
+      issue. The diagram cannot say anything else, so the paragraph gives up the
+      mechanism and describes what the screen above it actually shows, which is
+      a triage list with a status, a priority and a trend on every row.
+    */
+    lead: 'Start with a list, not a stream.',
+    rest: 'Every row carries a status, a priority and a 24-hour trend, so new issues, regressions and escalations are visible before you open anything.',
     screen: {
       node: <MockIssues />,
       chrome: true,
@@ -240,13 +250,21 @@ const CHAPTERS: Chapter[] = [
     },
     split: [
       {
-        lead: 'One cause, one row.',
-        rest: 'The same exception from a thousand sessions is a single issue with a count, not a thousand lines to scroll past.',
+        lead: 'Automatic grouping.',
+        rest: 'Every event with the same fingerprint lands on the same issue, with a counter instead of a thousand duplicates.',
         visual: <GroupingMini />,
       },
       {
-        lead: 'Told once, where you already are.',
-        rest: 'Rules fire on first seen, on regression or on a spike, and reach Slack, Discord, PagerDuty, email or a webhook.',
+        /*
+          Deliberately short of everything it could say. The `Alerts` band, four
+          sections down, is a full-width diagram of triggers, conditions,
+          channels and escalation. This half used to name the same triggers and
+          list all five destinations, so by the time the reader arrived at the
+          band built to explain routing, routing had already been explained in
+          two lines beside a thumbnail.
+        */
+        lead: 'Alerts where you already work.',
+        rest: 'A rule decides which issues are worth an interruption and which channel they arrive on.',
         visual: <AlertRoutesMini />,
       },
     ],
@@ -254,8 +272,18 @@ const CHAPTERS: Chapter[] = [
   {
     label: 'Stack traces',
     variant: 'stacked',
-    lead: 'Land on the line you wrote.',
-    rest: 'Source maps are applied server side against the release that produced them, so the frame you open is the one in your editor and not the one your bundler emitted.',
+    /*
+      Same division as `Issues`: the statement describes the page, the two-up
+      below keeps the mechanism.
+
+      The paragraph here used to explain server-side source maps, and the half
+      underneath it explained server-side source maps again, down to repeating
+      "against the release that produced them" word for word. The screen above
+      is an event detail with the resolved frame, the breadcrumbs, the tags and
+      the context all on it, so that is what the statement names.
+    */
+    lead: 'Open an event and land on your own source.',
+    rest: 'The failing frame, the breadcrumbs before it, the tags and the context are on one page, with the next event one click away.',
     screen: {
       node: <MockIssueDetail />,
       /*
@@ -293,13 +321,19 @@ const CHAPTERS: Chapter[] = [
     },
     split: [
       {
-        lead: 'Uploaded once, applied always.',
-        rest: 'Artifacts are resolved against the release that produced them, so an event from six months ago still symbolicates correctly.',
+        lead: 'Source maps applied server side.',
+        rest: 'Maps are resolved against the release that produced the event, so a crash from six months ago still lands on the right line.',
         visual: <StackFrameMini />,
       },
       {
-        lead: 'The seconds before the throw.',
-        rest: 'Breadcrumbs arrive with the event: the route, the request and the click that led into the frame that failed.',
+        /*
+          Every heading in this chapter names the feature rather than narrating
+          it. This half was "The seconds before the throw", which was also the
+          `Logs` chapter's heading with a different clock on it, and neither one
+          told a reader scanning the page what the thing under it was.
+        */
+        lead: 'Breadcrumbs with every event.',
+        rest: 'The route, the request and the click that led into the frame that failed.',
         visual: <BreadcrumbsMini />,
       },
     ],
@@ -307,8 +341,8 @@ const CHAPTERS: Chapter[] = [
   {
     label: 'Performance',
     variant: 'wide',
-    lead: 'Where the request actually went.',
-    rest: 'Every span the SDK emits lands on one timeline, so a slow endpoint stops being a number and becomes a picture: the queries, the third-party call that costs more than all of them, and the gaps in between.',
+    lead: 'See where every request spends its time.',
+    rest: 'Every span the SDK sends lands on one waterfall: queries, outbound calls and cache lookups, with total and self time on each row.',
     screen: {
       node: <MockPerformance />,
       view: 560,
@@ -329,14 +363,14 @@ const CHAPTERS: Chapter[] = [
       { label: 'Spans', value: 'the full tree' },
       { label: 'Timing', value: 'self and total' },
       { label: 'Ops', value: 'db, http, cache' },
-      { label: 'Source', value: 'the same DSN' },
+      { label: 'Ingest', value: 'the same DSN' },
     ],
   },
   {
     label: 'Logs',
     variant: 'inverted',
-    lead: 'The five minutes before the crash.',
-    rest: 'Structured logs come through the same DSN and sit on the same timeline as the errors they precede, with every attribute the SDK attached still keyed and still typed.',
+    lead: 'Logs and errors in the same system.',
+    rest: 'Structured logs arrive through the same DSN and carry the trace ID, so the lines that ran before a crash are one click from the crash itself.',
     screen: {
       node: <MockLogs />,
       // Opens on the level filter at 115, so the seven levels are the first
@@ -346,13 +380,13 @@ const CHAPTERS: Chapter[] = [
     },
     split: [
       {
-        lead: 'Every level, one stream.',
-        rest: 'Trace through fatal arrive on the same endpoint and filter in the same list, so a debug line and the error it explains are one scroll apart.',
+        lead: 'Six levels, one view.',
+        rest: 'Trace, debug, info, warn, error and fatal all arrive on the same endpoint and filter in the same list.',
         visual: <LogLevelsMini />,
       },
       {
-        lead: 'Attributes stay attributes.',
-        rest: 'What the SDK attached is stored keyed and typed rather than flattened into the message, so it is still something you can filter on.',
+        lead: 'Attributes stay typed.',
+        rest: 'What the SDK attached is stored keyed and typed instead of flattened into the message, so you can still filter on it.',
         visual: <AttributesMini />,
       },
     ],
@@ -360,8 +394,8 @@ const CHAPTERS: Chapter[] = [
   {
     label: 'Agent traces',
     variant: 'wide',
-    lead: 'See what the model actually cost you.',
-    rest: 'Model calls and tool calls arrive as spans, with the tokens and the latency sitting next to the call that spent them.',
+    lead: 'Debug agents like any other request.',
+    rest: 'Model calls, tool calls and handoffs between agents arrive as spans, on the same waterfall as your HTTP and database work.',
     screen: {
       node: <MockAgents />,
       /*
@@ -378,10 +412,10 @@ const CHAPTERS: Chapter[] = [
       view: 620,
     },
     facts: [
-      { label: 'Cost', value: 'tokens per span' },
-      { label: 'Tools', value: 'on the timeline' },
+      { label: 'Tokens', value: 'input and output' },
+      { label: 'Latency', value: 'per span' },
       { label: 'Handoffs', value: 'agent to agent' },
-      { label: 'Failures', value: 'the span that threw' },
+      { label: 'Status', value: 'on every span' },
     ],
   },
 ];
@@ -808,8 +842,8 @@ export function Platform() {
         <Pill>Platform</Pill>
         <Heading
           className="display-lg mt-6"
-          lead="Everything the SDK already sends."
-          rest="Errors, logs, traces, releases and sessions land in one place, from the DSN you are pointing at Sentry today."
+          lead="One place for everything your SDK sends."
+          rest="Errors, logs, traces, releases and sessions, all from a single DSN."
           scrub
         />
       </Cell>

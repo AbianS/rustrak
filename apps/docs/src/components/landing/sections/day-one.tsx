@@ -56,11 +56,16 @@ export function DayOne() {
         {/* Kept to two short sentences on purpose. This band is the lid over a
             pinned painting, so its height is structural rather than free: every
             extra line here is a line the reader scrolls before the reveal can
-            start, and the claim does not need them. */}
+            start, and the claim does not need them.
+
+            The lead used to be "There is nothing to set up.", which the very
+            next sentence then contradicted by listing three things to do.
+            Counting them instead keeps the promise small enough to be true, and
+            three is a small number anyway. */}
         <Heading
           className="display-lg mx-auto mt-5 max-w-[20ch]"
-          lead="There is nothing to set up."
-          rest="Create a project, copy the DSN, deploy. The rest fills itself in."
+          lead="Set up in three steps."
+          rest="Create a project, copy the DSN, deploy. Releases, sessions and issues start filling in on their own."
           scrub
         />
 

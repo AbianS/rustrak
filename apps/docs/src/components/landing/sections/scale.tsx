@@ -5,6 +5,14 @@ import { Heading, Pill } from '../primitives/heading';
  * Targets, not measurements. These are the budgets the server is built and
  * tested against, which is what the label says — publishing them as achieved
  * throughput would be a claim nobody has benchmarked on the reader's hardware.
+ *
+ * The statement above them used to end "It runs beside your app on the box you
+ * already pay for", which is wrong twice: Rustrak keeps its own database rather
+ * than sharing the application's, and where it is deployed is the operator's
+ * choice, with a separate VPS being an ordinary one. Both databases are named
+ * outright now because the install band below defaults to the SQLite tab, and a
+ * reader who has just been told "one binary and a database" and then meets two
+ * tabs has been left to work out which one the page meant.
  */
 const NUMBERS = [
   { value: '<100MB', label: 'Resident memory, idle' },
@@ -20,8 +28,8 @@ export function Scale() {
         <Pill>Footprint</Pill>
         <Heading
           className="display-lg mt-6"
-          lead="Small enough to forget about."
-          rest="One Rust binary and a database. It runs beside your app on the box you already pay for."
+          lead="It fits on the cheapest machine you have."
+          rest="One Rust binary, SQLite out of the box, PostgreSQL when you need it, and nothing else to install."
           scrub
         />
       </Cell>

@@ -125,9 +125,18 @@ export function Typewriter({
 
   return (
     <>
-      {/* The sentence as a reader of the page should receive it: one claim,
-          stated once. */}
-      <span className="sr-only">{phrases[0]}</span>
+      {/*
+        The sentence as a reader of the page should receive it: one claim,
+        stated once.
+
+        `select-none` keeps it out of the clipboard. Both this and the visible
+        span below carry the same claim, so a drag across the headline was
+        copying it twice; the visible one wins because it is an ordinary inline
+        box that a selection always reaches, while this is clipped to a pixel.
+        The cost is that copying mid-keystroke gets a half-typed phrase, which
+        is at least what the page is showing at that moment.
+      */}
+      <span className="sr-only select-none">{phrases[0]}</span>
 
       <span
         ref={box}

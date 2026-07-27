@@ -48,14 +48,35 @@ function Word({
 
   return (
     <span className="relative mr-[0.25em] inline-block">
-      {/* The ghost only holds the space. It carries the same text as the lit
-          copy laid over it, so without `aria-hidden` the heading is announced
-          with every word doubled — "Small Small enough enough". The upstream
-          component has this too. */}
-      <span aria-hidden className="text-foreground/12">
-        {children}
-      </span>
-      <motion.span className={cn('absolute inset-0', tone)} style={{ opacity }}>
+      {/*
+        Every word is painted twice: once dim and in flow to hold the space, and
+        once lit and absolutely positioned on top, so the line never reflows as
+        it fills in. Both copies are real text in the DOM, so exactly one of them
+        has to be the authoritative one and the other has to be invisible to
+        everything that reads the page.
+
+        The in-flow copy is the one that counts. It is what a screen reader
+        announces and what a selection picks up, which is why the lit copy above
+        it carries both `aria-hidden` and `select-none`.
+
+        It used to be the other way round, and selection was the half nobody had
+        checked: `aria-hidden` kept the heading from being announced as "Small
+        Small enough enough", but it does nothing to the clipboard. Dragging
+        across any scrubbed heading and copying gave every word twice
+        ("ThankThankyou.you."). Marking the overlay `select-none` makes the
+        browser skip it and take the text underneath instead.
+
+        Authority sits on the in-flow copy rather than the overlay because an
+        absolutely positioned element is an unreliable selection target: it is
+        out of flow, so a drag across the line is not guaranteed to pick it up.
+        The dim copy is an ordinary inline box and always is.
+      */}
+      <span className="text-foreground/12">{children}</span>
+      <motion.span
+        aria-hidden
+        className={cn('absolute inset-0 select-none', tone)}
+        style={{ opacity }}
+      >
         {children}
       </motion.span>
     </span>
