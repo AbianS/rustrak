@@ -1,5 +1,11 @@
 # docs
 
+## 0.14.1
+
+### Patch Changes
+
+- [`4b1a2be`](https://github.com/rustrak/rustrak/commit/4b1a2bed8c7e3f73ddfbccf82155c92f2cf2a362) Thanks [@AbianS](https://github.com/AbianS)! - Fix the ASCII paintings not rendering on the published site. `AsciiField` fetched its source with an absolute path, and Next's `basePath` does not rewrite a string handed to `fetch`, so under GitHub Pages the request resolved against the domain root instead of `/rustrak/` and returned a 404. The hero, manifesto and closing sections all went blank with no error on the page.
+
 ## 0.14.0
 
 ### Minor Changes
