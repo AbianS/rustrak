@@ -1,136 +1,120 @@
 import type { Metadata } from 'next';
-import { importPage } from 'nextra/pages';
-import { formatDateShort, getReleases } from '@/lib/changelog';
+import { ChangelogFeed } from '@/components/changelog/changelog-feed';
+import {
+  getChunkCount,
+  getReleaseChunk,
+  getReleases,
+  RELEASES_PER_CHUNK,
+} from '@/lib/changelog';
+import { formatReleaseDate } from '@/lib/release';
 
 export const metadata: Metadata = {
   title: 'Changelog',
   description: 'Release notes and version history for the Rustrak project.',
 };
 
-function DotIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
-      <circle cx="8" cy="8" r="4" />
-    </svg>
-  );
-}
-
-function Tag({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
-      {label}
-    </span>
-  );
-}
-
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-xs font-semibold tracking-widest uppercase text-neutral-400 dark:text-neutral-500 mb-6 flex items-center gap-3">
-      <span>{children}</span>
-      <span className="flex-1 h-px bg-neutral-200 dark:bg-neutral-800" />
-    </h2>
-  );
-}
-
-export default async function ChangelogPage() {
+/**
+ * The changelog.
+ *
+ * Two things shape this page. The first is that it grows forever: it rendered
+ * every release in full on one URL, which was 604KB of HTML and climbing by a
+ * release a fortnight, so only the first chunk is inlined now and the rest is
+ * fetched (see `changelog-feed.tsx`). The second is that a changelog is read by
+ * scanning, so the whole page is one ruled column with a fixed rhythm —
+ * version strip, title, lead, numbered sections — and every entry is that same
+ * shape whether it shipped one fix or five features.
+ */
+export default function ChangelogPage() {
   const releases = getReleases();
+  const first = getReleaseChunk(1);
+  const chunkCount = getChunkCount();
+  const latest = releases[0];
 
-  const mdxModules = await Promise.all(
-    releases.map((r) =>
-      importPage(['changelog', r.slug]).catch(() => ({ default: null })),
-    ),
-  );
+  /*
+    Both anchors of every release and the chunk it sits in. It is the only
+    thing on the page that scales with the full list, and it is deliberate: at
+    roughly 50 bytes an entry the whole map costs less than a single release
+    would, and without it a deep link into an unfetched release silently does
+    nothing.
+  */
+  const chunkByAnchor: Record<string, number> = {};
+  releases.forEach((release, index) => {
+    const chunk = Math.floor(index / RELEASES_PER_CHUNK) + 1;
+    chunkByAnchor[release.anchor] = chunk;
+    chunkByAnchor[release.slug] = chunk;
+  });
 
-  const grouped = releases.reduce(
-    (acc, r) => {
-      const year = r.date.slice(0, 4);
-      if (!acc[year]) acc[year] = [];
-      acc[year].push(r);
-      return acc;
+  const stats = [
+    { value: latest?.version ?? '—', label: 'Current release' },
+    { value: String(releases.length), label: 'Releases shipped' },
+    {
+      value: latest ? formatReleaseDate(latest.date) : '—',
+      label: 'Last published',
     },
-    {} as Record<string, typeof releases>,
-  );
-
-  const years = Object.keys(grouped).sort((a, b) => Number(b) - Number(a));
+  ];
 
   return (
-    <div className="mx-auto max-w-3xl px-6 py-16">
-      <div className="mb-16">
-        <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100 mb-3">
-          Changelog
-        </h1>
-        <p className="text-lg text-neutral-600 dark:text-neutral-400">
-          Every release of Rustrak, from the first commit to the latest feature.
-        </p>
-      </div>
+    <div className="changelog-root mx-auto w-full max-w-[72rem] px-4 py-10 sm:px-6 sm:py-14">
+      <div className="overflow-x-clip border-x border-t border-rule">
+        <header className="border-b border-rule px-5 py-14 sm:px-9 sm:py-20">
+          <span className="eyebrow">Changelog</span>
+          <h1 className="display-xl mt-6 text-foreground">
+            Every release, in order.
+          </h1>
+          <p className="mt-6 max-w-[56ch] text-[15.5px] leading-relaxed text-muted-foreground">
+            The server, the dashboard and the client packages ship together
+            under one version number. This is what each of those numbers
+            carried.
+          </p>
+        </header>
 
-      <div className="relative">
-        <div className="absolute left-3.75 top-3 bottom-3 w-px bg-neutral-200 dark:bg-neutral-800" />
+        {/*
+          The landing's figure treatment, so the two pages read as one site: a
+          short primary rule turns a number into a labelled reading.
 
-        {years.map((year) => (
-          <div key={year} className="mb-16 last:mb-0">
-            <div className="relative pl-12 mb-10">
-              <div className="absolute left-0 top-0 flex items-center justify-center w-7.75 h-7.75 rounded-full bg-neutral-100 dark:bg-neutral-800 border-2 border-white dark:border-neutral-950 z-10">
-                <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
-                  {year.slice(2)}
-                </span>
+          Two up on a phone rather than three stacked, with the date taking the
+          full row it needs. Stacked, the band alone was most of a phone screen
+          and pushed the newest release — the thing the visitor came for —
+          entirely below the fold.
+
+          Each border is written out as a literal class rather than assembled
+          from a variable: Tailwind scans source text, and a class name built
+          from a prefix is never generated.
+        */}
+        <dl className="grid grid-cols-2 border-b border-rule sm:grid-cols-3">
+          {stats.map((stat, index) => (
+            <div
+              key={stat.label}
+              className={[
+                'border-rule px-5 py-5 sm:px-9 sm:py-6',
+                index === 0 ? 'border-b border-r sm:border-b-0' : '',
+                index === 1 ? 'border-b sm:border-r sm:border-b-0' : '',
+                index === 2 ? 'col-span-2 sm:col-span-1' : '',
+              ].join(' ')}
+            >
+              <div className="border-l-2 border-primary pl-3">
+                <dt className="sr-only">{stat.label}</dt>
+                <dd className="font-mono text-[17px] leading-none tracking-tight text-foreground">
+                  {stat.value}
+                </dd>
+                <p
+                  aria-hidden
+                  className="mt-2 text-[12px] text-muted-foreground"
+                >
+                  {stat.label}
+                </p>
               </div>
-              <SectionHeading>{year}</SectionHeading>
             </div>
+          ))}
+        </dl>
 
-            <div className="space-y-14">
-              {grouped[year].map((release) => {
-                const idx = releases.indexOf(release);
-                const MDXContent = mdxModules[idx]?.default;
-
-                return (
-                  <div
-                    key={release.slug}
-                    id={release.slug}
-                    className="relative pl-12 group scroll-mt-24"
-                  >
-                    <div className="absolute left-0 top-1 flex items-center justify-center w-7.75 h-7.75 rounded-full bg-white dark:bg-neutral-950 border-2 border-neutral-300 dark:border-neutral-700 z-10 group-hover:border-primary transition-colors duration-200">
-                      <DotIcon />
-                    </div>
-
-                    <div className="min-w-0 pt-1">
-                      <div className="flex flex-wrap items-center gap-2.5 mb-3">
-                        <span className="font-mono text-sm font-bold tracking-tight text-primary bg-primary/10 dark:bg-primary/20 px-2.5 py-0.5 rounded-md">
-                          {release.version}
-                        </span>
-                        <time
-                          className="text-sm text-neutral-400 dark:text-neutral-500"
-                          dateTime={release.date}
-                        >
-                          {formatDateShort(release.date)}
-                        </time>
-                        {release.tags.map((tag) => (
-                          <Tag key={tag} label={tag} />
-                        ))}
-                      </div>
-
-                      <h3 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100 mb-3">
-                        {release.title}
-                      </h3>
-
-                      {release.description && (
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-5 leading-relaxed">
-                          {release.description}
-                        </p>
-                      )}
-
-                      {MDXContent && (
-                        <article className="prose prose-neutral dark:prose-invert max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-primary prose-code:font-mono prose-headings:text-base prose-headings:mt-0 prose-p:text-sm prose-p:leading-relaxed prose-p:text-neutral-600 dark:prose-p:text-neutral-400 prose-ul:mt-2 prose-li:text-sm prose-li:leading-relaxed prose-li:text-neutral-600 dark:prose-li:text-neutral-400 prose-hr:my-6">
-                          <MDXContent />
-                        </article>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <ChangelogFeed
+          initial={first.releases}
+          chunkCount={chunkCount}
+          total={releases.length}
+          perChunk={RELEASES_PER_CHUNK}
+          chunkByAnchor={chunkByAnchor}
+        />
       </div>
     </div>
   );
