@@ -116,18 +116,30 @@ export function OneCommand() {
               up and a flag can end up looking like an argument to the one
               above it. `overscroll-x-contain` keeps a swipe that reaches the
               end of the block from turning into a page-level back gesture.
+
+              Below `sm` the two longest flags run past the edge, so the block
+              gets a fade there to say it can be dragged. `sm:hidden` rather
+              than measured: above that width the command fits, and a scroll
+              hint over content that does not scroll is worse than none.
             */}
-            <pre className="overflow-x-auto overscroll-x-contain px-4 py-4 font-mono text-[11.5px] leading-[1.85] sm:px-5 sm:py-5 sm:text-[12.5px]">
-              <code>
-                {command.split('\n').map((line, index) => (
-                  // The command is a fixed authored string, never reordered.
-                  // biome-ignore lint/suspicious/noArrayIndexKey: static list.
-                  <span key={index} className="block whitespace-pre">
-                    {highlight(line, index)}
-                  </span>
-                ))}
-              </code>
-            </pre>
+            <div className="relative">
+              <pre className="overflow-x-auto overscroll-x-contain px-4 py-4 font-mono text-[11.5px] leading-[1.85] sm:px-5 sm:py-5 sm:text-[12.5px]">
+                <code>
+                  {command.split('\n').map((line, index) => (
+                    // The command is a fixed authored string, never reordered.
+                    // biome-ignore lint/suspicious/noArrayIndexKey: static list.
+                    <span key={index} className="block whitespace-pre">
+                      {highlight(line, index)}
+                    </span>
+                  ))}
+                </code>
+              </pre>
+
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-[oklch(0.115_0_0)] via-[oklch(0.115_0_0)]/70 to-transparent sm:hidden"
+              />
+            </div>
           </div>
 
           <p className="mt-4 text-center text-[13px] text-muted-foreground">

@@ -34,6 +34,27 @@ export function useMediaQuery(query: string): boolean {
 export const DESKTOP = '(min-width: 1024px)';
 
 /**
+ * Below `lg`: a portrait stage rather than a narrow landscape one.
+ *
+ * Deliberately the exact complement of `DESKTOP` rather than a second opinion
+ * about where a phone starts. A section that offers one layout above the
+ * breakpoint and another below it has to agree with itself on where the
+ * breakpoint is, and two independently authored queries is how a width appears
+ * that gets neither.
+ */
+export const COMPACT = '(max-width: 1023px)';
+
+/**
+ * A bar-sized screen: where the nav is already down to a wordmark and a menu
+ * button, and where a fixed bar is a real fraction of the page.
+ *
+ * `md`, not `lg`, and not the same line as `COMPACT`. This one is about the
+ * nav's own layout rather than about the width available to a section, and the
+ * nav collapses a breakpoint earlier than the sections do.
+ */
+export const HANDHELD = '(max-width: 767px)';
+
+/**
  * A device that points rather than touches. Not a width test: a narrow desktop
  * window is still a mouse, and a wide tablet is still a finger.
  */

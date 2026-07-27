@@ -66,77 +66,103 @@ export function Migrate() {
             />
           </Cell>
 
-          <div
-            ref={block}
-            className="overflow-x-auto border-t border-rule bg-[var(--surface)] px-4 py-8 sm:px-10 sm:py-12"
-          >
-            <pre className="min-w-max font-mono text-[12px] leading-[2] sm:text-[13.5px]">
-              {LINES.map((line, index) => {
-                const removed = line.state === 'removed';
-                const added = line.state === 'added';
+          {/*
+            The diff scrolls sideways below `sm`, and it has to.
 
-                return (
-                  <motion.div
-                    // Lines are a fixed authored snippet, never reordered.
-                    key={`${index}-${line.state}`}
-                    className="relative flex items-center gap-3"
-                    initial={reduced || !added ? false : { opacity: 0, x: -12 }}
-                    animate={
-                      reduced || !added
-                        ? undefined
-                        : shown
-                          ? { opacity: 1, x: 0 }
-                          : { opacity: 0, x: -12 }
-                    }
-                    transition={{ duration: 0.7, ease: EASE, delay: 0.55 }}
-                  >
-                    {/* The gutter mark. Kept lines get a blank of the same
+            The line that matters is the replacement DSN, which is 56 characters
+            of monospace — at 390 wide it would have to come down to about 9px
+            to fit, and the whole section is an argument that this one line is
+            the entire migration. A line the reader has to squint at does not
+            make that argument.
+
+            So it keeps its size and the block scrolls, with a fade at the right
+            edge to say so. The fade is `sm:hidden` rather than conditional on
+            measurement: above that width the snippet fits at every size this
+            page runs at, so a scroll hint there would be a gradient over
+            nothing.
+          */}
+          <div className="relative border-t border-rule bg-[var(--surface)]">
+            <div
+              ref={block}
+              className="overflow-x-auto overscroll-x-contain px-4 py-8 sm:px-10 sm:py-12"
+            >
+              <pre className="min-w-max font-mono text-[12px] leading-[2] sm:text-[13.5px]">
+                {LINES.map((line, index) => {
+                  const removed = line.state === 'removed';
+                  const added = line.state === 'added';
+
+                  return (
+                    <motion.div
+                      // Lines are a fixed authored snippet, never reordered.
+                      key={`${index}-${line.state}`}
+                      className="relative flex items-center gap-3"
+                      initial={
+                        reduced || !added ? false : { opacity: 0, x: -12 }
+                      }
+                      animate={
+                        reduced || !added
+                          ? undefined
+                          : shown
+                            ? { opacity: 1, x: 0 }
+                            : { opacity: 0, x: -12 }
+                      }
+                      transition={{ duration: 0.7, ease: EASE, delay: 0.55 }}
+                    >
+                      {/* The gutter mark. Kept lines get a blank of the same
                         width so nothing shifts sideways between states. */}
-                    <span
-                      aria-hidden
-                      className={
-                        removed
-                          ? 'w-3 shrink-0 text-center text-destructive'
-                          : added
-                            ? 'w-3 shrink-0 text-center text-primary'
-                            : 'w-3 shrink-0'
-                      }
-                    >
-                      {removed ? '−' : added ? '+' : ''}
-                    </span>
+                      <span
+                        aria-hidden
+                        className={
+                          removed
+                            ? 'w-3 shrink-0 text-center text-destructive'
+                            : added
+                              ? 'w-3 shrink-0 text-center text-primary'
+                              : 'w-3 shrink-0'
+                        }
+                      >
+                        {removed ? '−' : added ? '+' : ''}
+                      </span>
 
-                    <span
-                      className={
-                        removed
-                          ? 'relative text-white/32'
-                          : added
-                            ? 'text-primary'
-                            : 'text-white/55'
-                      }
-                    >
-                      {line.text}
-                      {/* Drawn rather than `line-through`, so it can be timed
+                      <span
+                        className={
+                          removed
+                            ? 'relative text-white/32'
+                            : added
+                              ? 'text-primary'
+                              : 'text-white/55'
+                        }
+                      >
+                        {line.text}
+                        {/* Drawn rather than `line-through`, so it can be timed
                           with the replacement arriving underneath it. */}
-                      {removed ? (
-                        <motion.span
-                          aria-hidden
-                          className="absolute inset-y-0 left-0 my-auto block h-px bg-destructive/70"
-                          initial={reduced ? { width: '100%' } : { width: 0 }}
-                          animate={
-                            reduced ? undefined : { width: shown ? '100%' : 0 }
-                          }
-                          transition={{
-                            duration: 0.5,
-                            ease: EASE,
-                            delay: 0.15,
-                          }}
-                        />
-                      ) : null}
-                    </span>
-                  </motion.div>
-                );
-              })}
-            </pre>
+                        {removed ? (
+                          <motion.span
+                            aria-hidden
+                            className="absolute inset-y-0 left-0 my-auto block h-px bg-destructive/70"
+                            initial={reduced ? { width: '100%' } : { width: 0 }}
+                            animate={
+                              reduced
+                                ? undefined
+                                : { width: shown ? '100%' : 0 }
+                            }
+                            transition={{
+                              duration: 0.5,
+                              ease: EASE,
+                              delay: 0.15,
+                            }}
+                          />
+                        ) : null}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </pre>
+            </div>
+
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[var(--surface)] via-[var(--surface)]/70 to-transparent sm:hidden"
+            />
           </div>
         </div>
 

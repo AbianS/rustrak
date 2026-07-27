@@ -64,9 +64,32 @@ import { cn } from '@/lib/utils';
  * *resolved*", which is the same thing the product does to a stack trace.
  *
  * It is also the only expensive thing here, so it is bounded: the loop repaints
- * the whole grid at 30fps for about three seconds, then paints the final state
- * once and stops for good. After that there is no per-frame JavaScript at all —
- * the drift is a CSS transform on a finished bitmap, which is compositor-only.
+ * the grid at 30fps for about three seconds, then paints the final state once
+ * and stops for good. After that there is no per-frame JavaScript at all — the
+ * drift is a CSS transform on a finished bitmap, which is compositor-only.
+ *
+ * ── Only the part that is on screen ─────────────────────────────────────────
+ *
+ * "The grid", above, used to mean all 470 × 123 of it, and on a phone that was
+ * about five times too much work.
+ *
+ * The canvas is a 2.3:1 strip shown with `object-fit: cover`, so a portrait box
+ * scales it to fit the *height* and crops the width hard. Measured on a 390 ×
+ * 844 screen the cover scale is 0.86 and 20.5% of the columns are inside the
+ * frame — every one of the other 79.5% was being scrambled, joined into a
+ * string, and painted, thirty times a second, outside the element.
+ *
+ * So the loop now solves the crop first and works in columns rather than in the
+ * whole row. It is not a mobile special case: a 1440 × 1200 monitor shows about
+ * half the columns and saves the other half. It is simply the amount of picture
+ * that is actually being displayed, which is what should have been driving this
+ * from the start.
+ *
+ * The reveal is unchanged by it. The front spreads from the centre of the
+ * painting and `object-position` is `center`, so the part that is cropped away
+ * is the part that resolves last anyway — and every cell's delay is still
+ * computed against the full grid, so scrolling or rotating into a wider frame
+ * shows exactly the picture it would have shown.
  */
 
 const SOURCE = '/last-supper.txt';
@@ -172,6 +195,9 @@ export function AsciiField({
 
     let cancelled = false;
     let raf = 0;
+    /* Created once the grid has been fetched and measured, so it is declared
+       out here purely to be disconnectable from the teardown below. */
+    let sizer: ResizeObserver | null = null;
 
     fetch(source)
       .then((response) => (response.ok ? response.text() : null))
@@ -275,35 +301,102 @@ export function AsciiField({
         /**
          * Trims one lane to its painted extent. `null` when it holds nothing.
          *
-         * `length` bounds the scan, because the lanes are allocated at full grid
-         * width and reused: the idle patches only fill their own span, and
-         * reading past it would drag in whatever a wider row left behind.
+         * The bounds are given rather than assumed, because the lanes are
+         * allocated at full grid width and reused by two callers that fill
+         * different parts of them: the full paint fills the visible column
+         * window, and an idle patch fills only its own span. Reading past what
+         * this caller wrote would drag in whatever the other one left behind.
+         *
+         * `base` is the canvas x of index 0 of the lane, which is 0 when the
+         * lane is indexed by column and the patch's left edge when it is not.
          */
         const runOf = (
           glyphLane: string[],
-          length = cols,
-          xBase = 0,
+          from: number,
+          to: number,
+          base = 0,
         ): { x: number; text: string } | null => {
-          let first = 0;
-          while (first < length && glyphLane[first] === ' ') first++;
-          if (first === length) return null;
-          let last = length - 1;
+          let first = from;
+          while (first <= to && glyphLane[first] === ' ') first++;
+          if (first > to) return null;
+          let last = to;
           while (last > first && glyphLane[last] === ' ') last--;
           return {
-            x: xBase + first * cellW,
+            x: base + first * cellW,
             text: glyphLane.slice(first, last + 1).join(''),
           };
         };
+
+        /* ---- the crop ---- */
+
+        /**
+         * The columns and rows `object-fit: cover` will actually show.
+         *
+         * Cover scales by whichever axis needs the larger factor and centres the
+         * overflow, so the visible source rectangle is the box divided by that
+         * factor, centred. Everything outside it is painted into pixels the
+         * element does not have.
+         *
+         * A column of margin either side, because the mask and the drift both
+         * move the frame by a hair and a crop fitted exactly would show its own
+         * edge as a column of missing glyphs.
+         */
+        let colFrom = 0;
+        let colTo = cols - 1;
+        let rowFrom = 0;
+        let rowTo = rows.length - 1;
+
+        const measure = () => {
+          const rect = box.current?.getBoundingClientRect();
+          if (!rect || rect.width === 0 || rect.height === 0) return false;
+
+          const scale = Math.max(
+            rect.width / canvas.width,
+            rect.height / canvas.height,
+          );
+          const halfW = rect.width / scale / 2;
+          const halfH = rect.height / scale / 2;
+
+          const from = Math.max(
+            0,
+            Math.floor((canvas.width / 2 - halfW) / cellW) - 1,
+          );
+          const to = Math.min(
+            cols - 1,
+            Math.ceil((canvas.width / 2 + halfW) / cellW) + 1,
+          );
+          const top = Math.max(
+            0,
+            Math.floor((canvas.height / 2 - halfH) / cellH) - 1,
+          );
+          const bottom = Math.min(
+            rows.length - 1,
+            Math.ceil((canvas.height / 2 + halfH) / cellH) + 1,
+          );
+
+          const changed =
+            from !== colFrom ||
+            to !== colTo ||
+            top !== rowFrom ||
+            bottom !== rowTo;
+          colFrom = from;
+          colTo = to;
+          rowFrom = top;
+          rowTo = bottom;
+          return changed;
+        };
+
+        measure();
 
         const bucketOf = (ink: number) => (ink >= HOT ? 3 : ink >= MID ? 2 : 1);
 
         const paint = (elapsed: number | null) => {
           for (let b = 0; b < 4; b++) out[b].length = 0;
 
-          for (let y = 0; y < rows.length; y++) {
-            for (let b = 0; b < 4; b++) lane[b].fill(' ');
+          for (let y = rowFrom; y <= rowTo; y++) {
+            for (let b = 0; b < 4; b++) lane[b].fill(' ', colFrom, colTo + 1);
 
-            for (let x = 0; x < cols; x++) {
+            for (let x = colFrom; x <= colTo; x++) {
               const i = y * cols + x;
               const ink = glyphs[i];
               if (ink === 0) continue;
@@ -329,10 +422,18 @@ export function AsciiField({
                 RAMP[Math.min(RAMP.length - 1, reach)];
             }
 
-            for (let b = 0; b < 4; b++) out[b].push(runOf(lane[b]));
+            for (let b = 0; b < 4; b++)
+              out[b].push(runOf(lane[b], colFrom, colTo));
           }
 
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Only the cropped band is cleared. On a phone that is a fifth of the
+          // bitmap — 466k pixels rather than 2.3M, thirty times a second.
+          ctx.clearRect(
+            colFrom * cellW,
+            rowFrom * cellH,
+            (colTo - colFrom + 1) * cellW,
+            (rowTo - rowFrom + 1) * cellH + 1,
+          );
           for (let b = 0; b < 4; b++) {
             ctx.fillStyle = styles[b];
             const lines = out[b];
@@ -340,7 +441,10 @@ export function AsciiField({
               const run = lines[y];
               // A row this lane never touched costs nothing at all now, where
               // before it cost a full-width `fillText` of pure whitespace.
-              if (run) ctx.fillText(run.text, run.x, (y * cellH) | 0);
+              // `out` starts at `rowFrom`, so the row index has to be offset
+              // back onto the grid.
+              if (run)
+                ctx.fillText(run.text, run.x, ((y + rowFrom) * cellH) | 0);
             }
           }
         };
@@ -420,11 +524,10 @@ export function AsciiField({
         const repaintPatch = (patch: Patch, time: number) => {
           spans.length = 0;
 
-          const top = Math.max(0, Math.floor(patch.cy - patch.ry) - 1);
-          const bottom = Math.min(
-            rows.length - 1,
-            Math.ceil(patch.cy + patch.ry) + 1,
-          );
+          // Clamped to the crop as well as to the grid: a patch that reaches
+          // past the frame has nothing to disturb out there.
+          const top = Math.max(rowFrom, Math.floor(patch.cy - patch.ry) - 1);
+          const bottom = Math.min(rowTo, Math.ceil(patch.cy + patch.ry) + 1);
 
           for (let y = top; y <= bottom; y++) {
             const dy = (y - patch.cy) / patch.ry;
@@ -432,8 +535,8 @@ export function AsciiField({
             if (inside <= 0) continue;
 
             const half = patch.rx * Math.sqrt(inside);
-            const x0 = Math.max(0, Math.floor(patch.cx - half) - 1);
-            const x1 = Math.min(cols - 1, Math.ceil(patch.cx + half) + 1);
+            const x0 = Math.max(colFrom, Math.floor(patch.cx - half) - 1);
+            const x1 = Math.min(colTo, Math.ceil(patch.cx + half) + 1);
             if (x1 < x0) continue;
             const width = x1 - x0 + 1;
 
@@ -477,10 +580,10 @@ export function AsciiField({
             spans.push({
               y: (y * cellH) | 0,
               runs: [
-                runOf(lane[0], width, base),
-                runOf(lane[1], width, base),
-                runOf(lane[2], width, base),
-                runOf(lane[3], width, base),
+                runOf(lane[0], 0, width - 1, base),
+                runOf(lane[1], 0, width - 1, base),
+                runOf(lane[2], 0, width - 1, base),
+                runOf(lane[3], 0, width - 1, base),
               ],
             });
           }
@@ -508,6 +611,22 @@ export function AsciiField({
         let origin = 0;
         let last = 0;
         let resolved = false;
+
+        /*
+          The crop is a function of the element's size, so it has to be
+          re-solved when that changes — a rotation, a desktop window dragged
+          wider, a phone's URL bar collapsing.
+
+          Widening is the case that needs the repaint: columns outside the old
+          window were never painted, so without one they would come into frame
+          blank. While the reveal is running the next frame covers it anyway;
+          once the picture has resolved there is no next frame, which is the
+          only reason this asks rather than just re-measuring.
+        */
+        sizer = new ResizeObserver(() => {
+          if (measure() && resolved) paint(null);
+        });
+        if (box.current) sizer.observe(box.current);
 
         const loop = (now: number) => {
           if (cancelled) return;
@@ -544,8 +663,13 @@ export function AsciiField({
 
           if (elapsed > nextPatch && patches.length < MAX_PATCHES) {
             patches.push({
-              cx: hash(Math.floor(elapsed * 977)) * cols,
-              cy: hash(Math.floor(elapsed * 613) + 5) * rows.length,
+              // Placed inside the crop, not inside the grid. Scattered over the
+              // whole picture, four patches in five landed outside the frame on
+              // a phone and the idle read as nothing happening at all.
+              cx: colFrom + hash(Math.floor(elapsed * 977)) * (colTo - colFrom),
+              cy:
+                rowFrom +
+                hash(Math.floor(elapsed * 613) + 5) * (rowTo - rowFrom),
               // Wide. A patch that covers a third of the picture reads as the
               // painting itself coming apart; the small ones only ever read as
               // a blemish somewhere on it. The cost of the bigger area is
@@ -582,6 +706,7 @@ export function AsciiField({
       cancelled = true;
       cancelAnimationFrame(raf);
       watcher.disconnect();
+      sizer?.disconnect();
     };
   }, [reduced, source, intensity]);
 

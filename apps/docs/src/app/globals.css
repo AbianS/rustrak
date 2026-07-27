@@ -355,21 +355,51 @@ body:has(.landing-root) {
     );
 }
 
+/* On a phone it is not a pool at all, and that is the whole difference between
+   these two rules.
+
+   ── Why the shape changes ──────────────────────────────────────────────────
+
+   A radial that leaves the picture showing around the type is right on a
+   monitor, where the headline is a block in the middle of a wide screen with
+   painting either side of it to leave alone. On a phone the type *is* the
+   screen: the headline sets to 350 of 390 available pixels and the paragraph to
+   the same. There is no "either side" to protect — there are only the ends of
+   every line, which is exactly where a radial centred on the column has already
+   fallen to half strength. Measured at 390 x 844 the old one covered the ends
+   of the headline at about 0.5 and the buttons at effectively nothing, which is
+   what put the outline of "View on GitHub" into a lit patch of tablecloth.
+
+   ── Why the stops are in pixels ────────────────────────────────────────────
+
+   Because the thing being protected is. The hero opens at `pt-32`, a fixed
+   128px, and the headline and paragraph follow at their own fixed leading — so
+   the type block sits at the same absolute offsets on every phone. A gradient
+   sized in percentages of the viewport does not: at 844 tall the paragraph fell
+   inside the dark part and at 667 the same paragraph fell outside it, because
+   the pool had shrunk by a quarter while the text had not moved at all.
+
+   This is also why it can be one gradient rather than two. The scrim is pinned
+   to the viewport, not to the page, so what it has to be is dark at the top of
+   the screen and clear by the bottom — which serves the nav at every scroll
+   position and the headline at the top, and those were the two pools.
+
+   The dip at 72px is deliberate and is the one non-monotonic part: it is the
+   strip between the bar and the headline, and letting the painting through
+   there is what stops a phone visitor being told there is a picture only by the
+   parts of it around the product panel four hundred pixels further down. */
 @media (max-width: 639px) {
   .landing-root .ascii-scrim {
-    background:
-      linear-gradient(
-        to bottom,
-        rgba(10, 10, 10, 0.88),
-        rgba(10, 10, 10, 0.62) 64px,
-        transparent 220px
-      ),
-      radial-gradient(
-        82% 36% at 50% 30%,
-        rgba(10, 10, 10, 0.9),
-        rgba(10, 10, 10, 0.52) 55%,
-        transparent 82%
-      );
+    background: linear-gradient(
+      to bottom,
+      rgba(10, 10, 10, 0.9) 0,
+      rgba(10, 10, 10, 0.68) 72px,
+      rgba(10, 10, 10, 0.85) 150px,
+      rgba(10, 10, 10, 0.82) 380px,
+      rgba(10, 10, 10, 0.5) 470px,
+      rgba(10, 10, 10, 0.18) 550px,
+      transparent 620px
+    );
   }
 }
 

@@ -178,6 +178,24 @@ const LID_RISE = 1.15;
 const WALL_OUT = 1.9;
 
 /**
+ * The same travel on a portrait frame, shortened.
+ *
+ * The walls are what set the drawing's width — they leave along the two screen
+ * diagonals, so every unit of travel costs `cos30 · U` at each end and the
+ * frame has to be wide enough for both. At 1.9 the open drawing is half again
+ * as wide as it is tall, which on a portrait stage is paid for in scale: the
+ * frame letterboxes by width and the extra width is dead space above and below
+ * the machine.
+ *
+ * Shortening the travel there buys that back. The gesture is the same one and
+ * reads the same at a glance; what changes is that the frame comes out very
+ * nearly square, and the cube inside it about a seventh larger on the same
+ * phone. On a screen this size that is the difference between seeing the five
+ * parts and knowing they are there.
+ */
+const WALL_OUT_TALL = 1.15;
+
+/**
  * Half-extent of the ground lattice, and its spacing.
  *
  * The lattice is a diamond on screen, and its half-width is `2 · GROUND ·
@@ -1171,6 +1189,34 @@ const VIEW_W = 588;
 const VIEW_H = 430;
 
 /**
+ * The same drawing with the label gutter taken away, for a portrait frame.
+ *
+ * A phone cannot have the gutter. The type in it is authored in viewBox units,
+ * so it scales with the drawing — at 9 units it lands near 11px across the
+ * desktop range and near 5px at 390 wide, which is not small type, it is a grey
+ * smear. And it is the gutter that makes the frame 1.37 wide in the first
+ * place: two fifths of the width is reserved for text nobody on a phone can
+ * read, and the cube is paying for it.
+ *
+ * So on a portrait stage the names move into the reading panel, where they are
+ * set in real pixels, and the frame closes down to the machine itself. These
+ * numbers are the drawing's own extent at full extension — the raised lid at
+ * the top, the two near walls at the ends of their shortened travel, the ground
+ * lattice under it — plus about 14 units of margin.
+ *
+ * The result is very nearly square, which is what lets the portrait stage give
+ * it a tall slot without wasting either dimension, and the cube comes out about
+ * half again as large on the same 390px screen as it was inside the landscape
+ * frame. Squaring it up is also why the walls travel less here — see
+ * `WALL_OUT_TALL`, which these numbers are derived from, and which has to move
+ * with them.
+ */
+const TALL_X = 94;
+const TALL_Y = 12;
+const TALL_W = 400;
+const TALL_H = 392;
+
+/**
  * ── There is no re-framing animation, and there must not be ─────────────────
  *
  * One frame, fixed, for every moment of the section. The only things that move
@@ -1210,6 +1256,7 @@ function Component({
   ghosted,
   open,
   label,
+  named,
 }: {
   index: number;
   active: boolean;
@@ -1217,6 +1264,8 @@ function Component({
   ghosted: boolean;
   open: MotionValue<number>;
   label: MotionValue<number>;
+  /** Whether this part draws its leader out to the gutter. See `TALL_*`. */
+  named: boolean;
 }) {
   const part = PARTS[index];
 
@@ -1296,38 +1345,41 @@ function Component({
       </motion.g>
 
       {/* Leader out to the gutter, in the convention of the drawing: a hairline
-          from the part, one elbow, then its name. */}
-      <motion.g style={{ opacity: annotation }}>
-        <path
-          d={`M${anchorX} ${anchorY} L${LEADER_FROM} ${labelY + 6} L${LEADER_TO} ${labelY + 6}`}
-          fill="none"
-          stroke={active ? 'var(--primary)' : 'var(--rule)'}
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-          style={{ transition: `stroke ${DUR.base}s` }}
-        />
-        <text
-          x={LABEL_X}
-          y={labelY + 3}
-          fill={active ? 'var(--foreground)' : 'var(--muted-foreground)'}
-          fontSize={LABEL_SIZE}
-          fontWeight={500}
-          style={{ transition: `fill ${DUR.base}s` }}
-        >
-          {part.label}
-        </text>
-        <text
-          x={LABEL_X}
-          y={labelY + 15}
-          fill="var(--muted-foreground)"
-          fontFamily="var(--font-geist-mono), monospace"
-          fontSize={NOTE_SIZE}
-          opacity={active ? 0.9 : 0.42}
-          style={{ transition: `opacity ${DUR.base}s` }}
-        >
-          {part.note}
-        </text>
-      </motion.g>
+          from the part, one elbow, then its name. Absent on a portrait frame,
+          where the names are set in the reading panel instead. */}
+      {named ? (
+        <motion.g style={{ opacity: annotation }}>
+          <path
+            d={`M${anchorX} ${anchorY} L${LEADER_FROM} ${labelY + 6} L${LEADER_TO} ${labelY + 6}`}
+            fill="none"
+            stroke={active ? 'var(--primary)' : 'var(--rule)'}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+            style={{ transition: `stroke ${DUR.base}s` }}
+          />
+          <text
+            x={LABEL_X}
+            y={labelY + 3}
+            fill={active ? 'var(--foreground)' : 'var(--muted-foreground)'}
+            fontSize={LABEL_SIZE}
+            fontWeight={500}
+            style={{ transition: `fill ${DUR.base}s` }}
+          >
+            {part.label}
+          </text>
+          <text
+            x={LABEL_X}
+            y={labelY + 15}
+            fill="var(--muted-foreground)"
+            fontFamily="var(--font-geist-mono), monospace"
+            fontSize={NOTE_SIZE}
+            opacity={active ? 0.9 : 0.42}
+            style={{ transition: `opacity ${DUR.base}s` }}
+          >
+            {part.note}
+          </text>
+        </motion.g>
+      ) : null}
     </>
   );
 }
@@ -1340,6 +1392,7 @@ export function EngineScene({
   active,
   open,
   label,
+  named = true,
   className = 'h-auto w-full',
 }: {
   active: number;
@@ -1347,6 +1400,15 @@ export function EngineScene({
   open: MotionValue<number>;
   /** Draws the leader lines and their names, once the box is open. */
   label: MotionValue<number>;
+  /**
+   * Whether the drawing labels itself.
+   *
+   * On a landscape stage it does: five leaders out to a gutter, which is the
+   * convention the whole drawing is in. On a portrait one it cannot — the type
+   * would come out at about 5px — so the gutter goes, the frame closes down to
+   * the machine, and the names are set in the panel instead. See `TALL_*`.
+   */
+  named?: boolean;
   /**
    * How the drawing sizes itself.
    *
@@ -1379,9 +1441,13 @@ export function EngineScene({
     given separately because an isometric translation is two screen components:
     moving `WALL_OUT` along +x is `(+cos30, +sin30) · WALL_OUT · U` on screen,
     and along +z it is `(−cos30, +sin30) · WALL_OUT · U`.
+
+    Shorter on a portrait frame, which is what lets that frame be square. See
+    `WALL_OUT_TALL`.
   */
-  const outX = WALL_OUT * COS30 * U;
-  const outY = WALL_OUT * SIN30 * U;
+  const travel = named ? WALL_OUT : WALL_OUT_TALL;
+  const outX = travel * COS30 * U;
+  const outY = travel * SIN30 * U;
   const rightX = useTransform(drive, [0, 0.34], [0, outX]);
   const rightY = useTransform(drive, [0, 0.34], [0, outY]);
   const leftX = useTransform(drive, [0, 0.34], [0, -outX]);
@@ -1408,7 +1474,11 @@ export function EngineScene({
 
   return (
     <svg
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      viewBox={
+        named
+          ? `0 0 ${VIEW_W} ${VIEW_H}`
+          : `${TALL_X} ${TALL_Y} ${TALL_W} ${TALL_H}`
+      }
       className={className}
       role="img"
       aria-label="An isometric drawing of the Rustrak server as a single cube standing on a grid. It opens: the lid lifts and the two near walls swing away, revealing the five components inside — admission control, the envelope decoder, the durable spool, the digest workers and the fingerprint."
@@ -1528,6 +1598,7 @@ export function EngineScene({
             ghosted={active >= 0 && index !== active}
             open={drive}
             label={naming}
+            named={named}
           />
         ))}
 

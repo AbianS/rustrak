@@ -1,17 +1,19 @@
 'use client';
 
 import {
+  type MotionValue,
   motion,
   useMotionValue,
   useMotionValueEvent,
+  useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
-import { useRef, useState } from 'react';
+import { type RefObject, useRef, useState } from 'react';
 import { DUR, EASE } from '../motion';
 import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
-import { DESKTOP, useMediaQuery } from '../use-media-query';
+import { COMPACT, DESKTOP, useMediaQuery } from '../use-media-query';
 import { EngineScene, PARTS } from './engine-scene';
 
 /**
@@ -51,6 +53,19 @@ import { EngineScene, PARTS } from './engine-scene';
  * instance. The element being measured is the element being held, `start start`
  * to `end end` is exactly the distance it is held for, and there is no longer
  * any way for the two to disagree.
+ *
+ * ── Two stages, one sequence ────────────────────────────────────────────────
+ *
+ * The five acts are told twice, at two aspect ratios. `Stage` puts the panel
+ * beside the drawing and lets the drawing label itself out to a gutter;
+ * `PhoneStage` puts the panel under the drawing and moves the names into it,
+ * because the gutter's type is authored in viewBox units and comes out at about
+ * 5px on a phone.
+ *
+ * They share `useActs`, which owns the track, the two clocks and the claim
+ * index. That is deliberate and it is the part to protect: the difference
+ * between the two is meant to be geometry and nothing else, so any change to
+ * the pacing lands on both or on neither.
  */
 
 /**
@@ -62,6 +77,17 @@ import { EngineScene, PARTS } from './engine-scene';
  * held frame wondering whether the page has stopped working.
  */
 const TRACK = '560svh';
+
+/**
+ * The same track on a phone, shorter.
+ *
+ * Not because a phone deserves less of the section — it gets all five claims —
+ * but because a thumb covers more of a track per gesture than a wheel does, and
+ * a held frame that outlasts the reader's patience is the one failure mode this
+ * device has. The acts are the same fractions of a shorter distance, so each
+ * claim still gets about a screen and a half of travel.
+ */
+const TRACK_PHONE = '480svh';
 
 /**
  * Where each act begins and ends, as fractions of the track.
@@ -117,11 +143,18 @@ const HEADING = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* The pinned stage                                                            */
+/* The clock both stages run on                                                */
 /* -------------------------------------------------------------------------- */
 
-function Stage() {
-  const track = useRef<HTMLDivElement>(null);
+/**
+ * Everything the acts drive, derived from one pinned track.
+ *
+ * Shared because the two stages are the same five-act sequence told at two
+ * aspect ratios, and the moment they stop being that is the moment a change to
+ * the pacing has to be made twice and gets made once. What differs between them
+ * is only where things are put on screen, which is the part each one owns.
+ */
+function useActs(track: RefObject<HTMLDivElement | null>) {
   const { scrollYProgress } = useScroll({
     target: track,
     offset: ['start start', 'end end'],
@@ -147,25 +180,6 @@ function Stage() {
   );
 
   /*
-    The drawing moves aside rather than shrinking into a column. Percentages of
-    its own box, so it lands correctly at any width, and both of these are
-    transforms — the compositor animates them for free, which matters on a
-    pinned section where something is moving on every frame for five screens.
-  */
-  /*
-    Sized against the narrowest desktop rather than the widest, which is the
-    only way a pair of transform numbers can serve every viewport. At 1024 the
-    stage is about 1000px of usable width, the panel takes 320 of it, and the
-    drawing letterboxed into the remaining height comes out ~820 wide — so it
-    has to come down to 0.82 and move a seventh of the frame left to clear the
-    panel with a margin. On a wide monitor the same numbers simply leave more
-    air on the left, which is the harmless direction to be wrong in.
-  */
-  const sceneX = useTransform(label, [0, 1], ['0%', '-15%']);
-  const sceneScale = useTransform(label, [0, 1], [1, 0.82]);
-  const panelX = useTransform(label, [0, 1], ['12%', '0%']);
-
-  /*
     Which claim is being read.
 
     Derived from the same scroll value rather than from an observer, because on
@@ -187,6 +201,56 @@ function Stage() {
     );
     setActive(index);
   });
+
+  return { open, label, active };
+}
+
+/** The reader's position in the section, which a pinned frame otherwise hides
+    completely: the scrollbar is moving and nothing says how much of this is
+    left. */
+function Ticks({ active, className }: { active: number; className?: string }) {
+  return (
+    <div className={`flex gap-1.5 ${className ?? ''}`}>
+      {CLAIMS.map((item, index) => (
+        <span
+          key={item.question}
+          className={
+            index === active
+              ? 'h-px flex-1 bg-primary transition-colors duration-500'
+              : 'h-px flex-1 bg-rule transition-colors duration-500'
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* The pinned stage                                                            */
+/* -------------------------------------------------------------------------- */
+
+function Stage() {
+  const track = useRef<HTMLDivElement>(null);
+  const { open, label, active } = useActs(track);
+
+  /*
+    The drawing moves aside rather than shrinking into a column. Percentages of
+    its own box, so it lands correctly at any width, and both of these are
+    transforms — the compositor animates them for free, which matters on a
+    pinned section where something is moving on every frame for five screens.
+  */
+  /*
+    Sized against the narrowest desktop rather than the widest, which is the
+    only way a pair of transform numbers can serve every viewport. At 1024 the
+    stage is about 1000px of usable width, the panel takes 320 of it, and the
+    drawing letterboxed into the remaining height comes out ~820 wide — so it
+    has to come down to 0.82 and move a seventh of the frame left to clear the
+    panel with a margin. On a wide monitor the same numbers simply leave more
+    air on the left, which is the harmless direction to be wrong in.
+  */
+  const sceneX = useTransform(label, [0, 1], ['0%', '-15%']);
+  const sceneScale = useTransform(label, [0, 1], [1, 0.82]);
+  const panelX = useTransform(label, [0, 1], ['12%', '0%']);
 
   const claim = active >= 0 ? CLAIMS[active] : null;
 
@@ -270,23 +334,242 @@ function Stage() {
               </motion.div>
             ) : null}
 
-            {/* The reader's position in the section, which a pinned frame
-                otherwise hides completely: the scrollbar is moving and nothing
-                says how much of this is left. */}
-            <div className="mt-10 flex gap-1.5">
-              {CLAIMS.map((item, index) => (
-                <span
-                  key={item.question}
-                  className={
-                    index === active
-                      ? 'h-px flex-1 bg-primary transition-colors duration-500'
-                      : 'h-px flex-1 bg-rule transition-colors duration-500'
-                  }
-                />
-              ))}
-            </div>
+            <Ticks active={active} className="mt-10" />
           </div>
         </motion.aside>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* The portrait stage                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * How tall the reading panel is on a phone, reserved whether or not there is
+ * anything in it yet.
+ *
+ * Fixed rather than fitted to the claim, and that is the whole trick of this
+ * layout. The five answers are between 160 and 260 characters, which at this
+ * measure is a two-line difference — and a panel that resized to each of them
+ * would move the drawing above it on every claim change. On a stage whose one
+ * job is to hold a frame still, a machine that hops up and down four times is
+ * worse than a little slack at the bottom of the shortest claim.
+ *
+ * Sized to the longest answer at the narrowest width this stage runs at.
+ */
+const PANEL_H = '17.5rem';
+
+/**
+ * One row of the parts list, lighting as its component stands up.
+ *
+ * A component rather than a loop body because each row needs its own transform
+ * and hooks cannot be called in a loop. The window is the same one
+ * `engine-scene` stands the part up on — `0.26 + i · 0.06` — copied rather than
+ * shared, which is the one duplication in this file worth the risk: exporting
+ * it would tie the drawing's internal timing to a caption's, and the caption
+ * being a frame behind is invisible where a locked API is not.
+ */
+function LegendRow({
+  index,
+  open,
+}: {
+  index: number;
+  open: MotionValue<number>;
+}) {
+  /*
+    Not from zero. The rows are an index as well as a caption, so the list is
+    on the page from the first frame of the section — dim, all five, in the
+    order the machine will assemble itself — and each one comes up to full as
+    its part arrives. Starting at 0 left the panel genuinely blank for the
+    first flick of the track, under a cube that had not started opening yet,
+    and a third of a phone screen of nothing reads as a section that failed to
+    render rather than one that has not begun.
+  */
+  const arrive = useTransform(
+    open,
+    [0.26 + index * 0.06, 0.5 + index * 0.06],
+    [0.16, 1],
+  );
+  const part = PARTS[index];
+
+  return (
+    <motion.li
+      className="flex items-baseline gap-3"
+      style={{ opacity: arrive }}
+    >
+      <span className="font-mono text-[10.5px] tabular-nums text-primary">
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <span className="text-[13.5px] text-foreground">{part.label}</span>
+      <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
+        {part.note}
+      </span>
+    </motion.li>
+  );
+}
+
+/**
+ * What the panel holds before the claims start: the five parts, named.
+ *
+ * This is the portrait stage's answer to the label gutter, and it turned out to
+ * be a better one than the leaders were. On the landscape stage the names
+ * arrive all at once in act two, after the machine has finished assembling
+ * itself; here each name arrives with the part it names, so the reader is told
+ * what they are watching stand up at the moment it stands up.
+ *
+ * It also solves a plain layout problem. The panel's height is reserved from
+ * the first frame of the section, and the claims do not start until act three —
+ * so without this the slot spends the whole opening act as a third of a phone
+ * screen of black under the drawing, which reads as the page having failed to
+ * load something rather than as a panel waiting its turn.
+ */
+function Legend({ open }: { open: MotionValue<number> }) {
+  return (
+    <ul className="space-y-3">
+      {PARTS.map((part, index) => (
+        <LegendRow key={part.key} index={index} open={open} />
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The section on a phone: the same five acts, stacked instead of side by side.
+ *
+ * ── Why this exists at all ──────────────────────────────────────────────────
+ *
+ * It used to be a static drawing with the claims listed underneath, on the
+ * reasoning that a phone has neither the width for a panel beside the machine
+ * nor the patience for a section that will not move on. The second half of that
+ * was right and the first half was answered the wrong way: a panel that will
+ * not go *beside* the drawing goes *under* it, and a portrait screen has plenty
+ * of room for both if the drawing stops carrying a label gutter it cannot set
+ * type in.
+ *
+ * And the static version had a specific tell. The heading says "Scroll the
+ * server open", and on a phone nothing happened when you did — the box was
+ * already open when it arrived, so the section's own instruction read as a
+ * desktop line that nobody had checked on a phone.
+ *
+ * ── What differs from the landscape stage ───────────────────────────────────
+ *
+ * Only the geometry. Same track, same acts, same claim clock.
+ *
+ * The drawing does not move aside, because there is nowhere sideways to go; it
+ * simply gives up the bottom of the frame, which it can do for free since it is
+ * letterboxed into whatever height it is left with. So there is no transform on
+ * it at all — the panel is a flex sibling that is always in the layout, and the
+ * drawing takes the rest. That is one fewer thing animating per frame than the
+ * desktop version, on the device that can least afford it.
+ *
+ * The leaders and the gutter are gone with the width, so the panel carries the
+ * part's name and its note. The note is the one thing the phone shows and the
+ * desktop does not, and it is there because on desktop it is already in the
+ * drawing.
+ */
+function PhoneStage() {
+  const track = useRef<HTMLDivElement>(null);
+  const { open, label, active } = useActs(track);
+
+  /* The parts list holds the panel until the claims take it over. One value
+     rather than two independent fades, so the hand-over cannot leave the slot
+     briefly empty or briefly holding both. */
+  const legend = useTransform(label, [0, 1], [1, 0]);
+
+  const claim = active >= 0 ? CLAIMS[active] : null;
+
+  return (
+    <div ref={track} style={{ height: TRACK_PHONE }} className="relative">
+      <div className="sticky top-16 flex h-[calc(100svh-4rem)] flex-col overflow-hidden">
+        {/*
+          The drawing, letterboxed into whatever the panel leaves it.
+
+          `min-h-0` is load-bearing rather than defensive: a flex child's
+          default `min-height: auto` refuses to shrink below its content, and
+          an SVG at `h-full` inside one resolves to a height that then refuses
+          to be the height it was given. Without it the drawing pushes the
+          panel off the bottom of the held frame on a short phone.
+        */}
+        {/* No side padding. The frame is now sized to the drawing rather than
+            to a gutter, so there is nothing in it that can touch an edge, and
+            on a 390px screen the inset was costing scale for nothing. */}
+        <div className="relative min-h-0 flex-1 pt-5 pb-1">
+          <EngineScene
+            active={active}
+            open={open}
+            label={label}
+            named={false}
+            className="h-full w-full"
+          />
+        </div>
+
+        {/*
+          The reading panel.
+
+          The surface itself never animates — it is a fixed slot in the layout
+          from the first frame to the last, and only what is inside it changes.
+          Fading the whole panel in and out would mean the horizontal rule under
+          the drawing appearing and disappearing twice per visit, which on a
+          page built out of ruled bands reads as the frame breaking rather than
+          as a panel arriving.
+        */}
+        <aside
+          className="relative shrink-0 border-t border-rule bg-[var(--surface-soft)] px-5 pt-5 pb-6 sm:px-8"
+          style={{ height: PANEL_H }}
+        >
+          {/* The two states of the slot, in the same box, cross-faded on the
+              panel clock: the parts list while the machine assembles itself,
+              then one claim at a time. */}
+          <motion.div
+            className="absolute inset-x-5 top-5 sm:inset-x-8"
+            style={{ opacity: legend }}
+          >
+            <Legend open={open} />
+          </motion.div>
+
+          {/* Remounted on `key` with no exit animation, for the reason set out
+              on the desktop panel: this is a scrub, and a thumb crosses three
+              claims in one flick. */}
+          {claim ? (
+            <motion.div
+              className="absolute inset-x-5 top-5 sm:inset-x-8"
+              key={active}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: DUR.fast, ease: EASE }}
+            >
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[11px] tabular-nums text-primary">
+                  {String(active + 1).padStart(2, '0')}
+                </span>
+                <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {PARTS[active].label}
+                </span>
+                {/* The gutter's note, which has nowhere else to be now. */}
+                <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
+                  {PARTS[active].note}
+                </span>
+              </div>
+
+              <p className="mt-3.5 text-[17px] font-medium leading-snug tracking-[-0.015em] text-foreground">
+                {claim.question}
+              </p>
+
+              <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted-foreground">
+                {claim.answer}
+              </p>
+            </motion.div>
+          ) : null}
+
+          {/* Pinned to the bottom edge rather than flowing after the prose, so
+              it sits in one place across five claims of different lengths. */}
+          <Ticks
+            active={active}
+            className="absolute inset-x-5 bottom-5 sm:inset-x-8"
+          />
+        </aside>
       </div>
     </div>
   );
@@ -297,25 +580,38 @@ function Stage() {
 /* -------------------------------------------------------------------------- */
 
 /**
- * What a phone gets, and what the exported HTML contains.
+ * What the exported HTML contains, and what reduced motion gets.
  *
- * The whole device depends on holding one frame still while several screens of
- * scrolling drive it, and a phone has neither the width to put a panel beside
- * the drawing nor the patience for five screens of a section that will not move
- * on. So it gets the drawing already open, once, and the claims as an ordinary
- * list underneath.
+ * Both stages depend on holding one frame still while several screens of
+ * scrolling drive it — the first is a scroll-linked animation and the second is
+ * the same animation, so neither is something to offer a reader who has asked
+ * the machine to stop moving. This is that reader's version: the drawing
+ * already open, once, and the claims as an ordinary list underneath.
  *
  * It is also what the server renders, since `useMediaQuery` starts `false`
  * everywhere — which is the right way round: every word of the copy is in the
- * HTML, and the pinned stage is the enhancement that arrives late.
+ * HTML, and both stages are the enhancement that arrives late.
  */
 function Stacked() {
   const held = useMotionValue(1);
 
   return (
     <div className="border-t border-rule">
+      {/* Unnamed, at every width this is reached at. The gutter's type is
+          authored in viewBox units, so on a phone it renders at about 5px —
+          and the list underneath names all five parts anyway, which makes the
+          leaders a second copy of a label rather than the only one. */}
       <div className="bg-[var(--surface-soft)] px-4 py-10 sm:px-8">
-        <EngineScene active={-1} open={held} label={held} />
+        <EngineScene
+          active={-1}
+          open={held}
+          label={held}
+          /* Capped and centred rather than full width. The portrait frame is
+             very nearly square, so at the band's full width on a monitor it
+             would render a metre-tall drawing of a cube. */
+          className="mx-auto h-auto w-full max-w-[32rem] sm:max-w-[38rem]"
+          named={false}
+        />
       </div>
 
       <ul className="border-t border-rule">
@@ -347,8 +643,28 @@ function Stacked() {
   );
 }
 
+/**
+ * Three renderings of one section, chosen in this order.
+ *
+ * Reduced motion is asked first and answers for every width: a scroll-linked
+ * scrub is the thing that setting is about, and a portrait one is not a gentler
+ * version of it.
+ *
+ * The two queries are complements rather than a single boolean because both
+ * start `false` — so the server and the first client render both produce
+ * `Stacked`, which is the version with all five claims in the markup. Whichever
+ * stage the viewport wants then replaces it. A single `desktop ? … : …` would
+ * have made the phone stage the server-rendered case, and the phone stage has
+ * one claim in the DOM at a time.
+ */
 export function Engine() {
   const desktop = useMediaQuery(DESKTOP);
+  const compact = useMediaQuery(COMPACT);
+  const reduced = useReducedMotion();
+
+  let stage = <Stacked />;
+  if (!reduced && desktop) stage = <Stage />;
+  else if (!reduced && compact) stage = <PhoneStage />;
 
   return (
     <Band>
@@ -362,7 +678,7 @@ export function Engine() {
         />
       </Cell>
 
-      {desktop ? <Stage /> : <Stacked />}
+      {stage}
     </Band>
   );
 }
