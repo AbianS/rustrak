@@ -1,10 +1,9 @@
 "use client";
 
 import Fuse from "fuse.js";
-import { FolderIcon, SearchIcon } from "lucide-react";
+import { SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { getProjects } from "@/actions/projects";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Kbd, KbdGroup } from "./ui/kbd";
-import { CommandItem, COMMANDS } from "@/lib/command-bar";
+import { CommandItem, COMMANDS, getProjectCommands } from "@/lib/command-bar";
 
 /** "New project" -> "np", so acronym-style queries match. */
 function initials(label: string) {
@@ -39,24 +38,13 @@ export default function CommandBarDialog({
   const [activeIndex, setActiveIndex] = useState(0);
   const [projectCommands, setProjectCommands] = useState<CommandItem[]>([]);
 
-  // Warm the project list in the background so it is already there the first
-  // time the bar is opened.
   useEffect(() => {
     let cancelled = false;
 
-    getProjects({ per_page: 100 })
-      .then((response) => {
-        if (cancelled) return;
-        setProjectCommands(
-          response.items.map((project) => ({
-            label: project.name,
-            href: `/projects/${project.id}`,
-            category: "Project",
-            icon: FolderIcon,
-          })),
-        );
-      })
-      .catch(() => {});
+    getProjectCommands().then((commands) => {
+      if (cancelled) return;
+      setProjectCommands(commands);
+    });
 
     return () => {
       cancelled = true;
