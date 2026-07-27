@@ -1,5 +1,6 @@
 "use client";
 
+import Fuse from "fuse.js";
 import { FolderIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -14,13 +15,19 @@ import { cn } from "@/lib/utils";
 import { Kbd, KbdGroup } from "./ui/kbd";
 import { CommandItem, COMMANDS } from "@/lib/command-bar";
 
+/** "New project" -> "np", so acronym-style queries match. */
+function initials(label: string) {
+  return label
+    .split(/[^a-z0-9]+/i)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join("")
+    .toLowerCase();
+}
+
 interface CommandBarDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-function searchify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 export default function CommandBarDialog({
@@ -56,14 +63,34 @@ export default function CommandBarDialog({
     };
   }, []);
 
+  const commands = useMemo(
+    () => [...projectCommands, ...COMMANDS],
+    [projectCommands],
+  );
+
+  const fuse = useMemo(
+    () =>
+      new Fuse(commands, {
+        keys: [
+          { name: "label", weight: 2 },
+          {
+            name: "initials",
+            weight: 1,
+            getFn: (command) => initials(command.label),
+          },
+          { name: "category", weight: 0.5 },
+        ],
+        threshold: 0.4,
+        ignoreLocation: true,
+      }),
+    [commands],
+  );
+
   const results = useMemo(() => {
-    const commands = [...projectCommands, ...COMMANDS];
-    const needle = searchify(query);
+    const needle = query.trim();
     if (!needle) return commands;
-    return commands.filter((command) =>
-      searchify(command.label).includes(needle),
-    );
-  }, [query, projectCommands]);
+    return fuse.search(needle).map((result) => result.item);
+  }, [query, commands, fuse]);
 
   // Results can grow while the bar is open (projects arriving) or shrink as the
   // query narrows, so keep the highlight inside the list.
