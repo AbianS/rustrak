@@ -3,6 +3,7 @@
 import Fuse from "fuse.js";
 import { SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { PlatformIcon } from "platformicons";
 import { useEffect, useMemo, useState } from "react";
 import {
   Dialog,
@@ -160,7 +161,16 @@ export default function CommandBarDialog({
                 )}
               >
                 <span className="flex items-center gap-1.5">
-                  <command.icon className="size-4 opacity-70" />
+                  {command.platform === undefined ? (
+                    <command.icon className="size-4 opacity-70" />
+                  ) : (
+                    <PlatformIcon
+                      platform={command.platform ?? "other"}
+                      size={16}
+                      format="lg"
+                      className="shrink-0 rounded-xs"
+                    />
+                  )}
                   {command.label}
                 </span>
                 <span className="opacity-35">{command.category}</span>

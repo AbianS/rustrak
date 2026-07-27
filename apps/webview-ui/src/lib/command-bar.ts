@@ -1,23 +1,15 @@
 import { getProjects } from "@/actions/projects";
 import {
-  AlertCircleIcon,
-  BellIcon,
-  BotIcon,
   DatabaseIcon,
   FolderIcon,
   InfoIcon,
   KeyIcon,
-  KeyRoundIcon,
   PaletteIcon,
   PlugIcon,
   PlusIcon,
-  RocketIcon,
-  ScrollTextIcon,
   SettingsIcon,
-  SlidersHorizontalIcon,
   UserIcon,
   UsersIcon,
-  ZapIcon,
 } from "lucide-react";
 
 export type CommandItem = {
@@ -25,6 +17,11 @@ export type CommandItem = {
   href: string;
   category: "Settings" | "Projects" | "Project" | ({} & string);
   icon: typeof SettingsIcon;
+  /**
+   * Project-scoped commands render the project's platform icon instead of
+   * `icon`, so the whole group reads as belonging to that project.
+   */
+  platform?: string | null;
 };
 
 export const COMMANDS: CommandItem[] = [
@@ -89,38 +86,32 @@ export async function getProjectCommands(): Promise<CommandItem[]> {
   return projects.items.flatMap((project) => {
     const base = `/projects/${project.id}`;
 
-    const pages: { label: string; segment: string; icon: typeof FolderIcon }[] = [
-      { label: "Issues", segment: "/issues", icon: AlertCircleIcon },
-      { label: "Releases", segment: "/releases", icon: RocketIcon },
-      { label: "Performance", segment: "/performance", icon: ZapIcon },
-      { label: "Agents", segment: "/agents", icon: BotIcon },
-      { label: "Logs", segment: "/logs", icon: ScrollTextIcon },
-      {
-        label: "General settings",
-        segment: "/settings/general",
-        icon: SlidersHorizontalIcon,
-      },
-      { label: "Alerts", segment: "/settings/alerts", icon: BellIcon },
-      { label: "Members", segment: "/settings/members", icon: UsersIcon },
-      {
-        label: "Client keys",
-        segment: "/settings/client-keys",
-        icon: KeyRoundIcon,
-      },
+    const pages: { label: string; segment: string }[] = [
+      { label: "Issues", segment: "/issues" },
+      { label: "Releases", segment: "/releases" },
+      { label: "Performance", segment: "/performance" },
+      { label: "Agents", segment: "/agents" },
+      { label: "Logs", segment: "/logs" },
+      { label: "General settings", segment: "/settings/general" },
+      { label: "Alerts", segment: "/settings/alerts" },
+      { label: "Members", segment: "/settings/members" },
+      { label: "Client keys", segment: "/settings/client-keys" },
     ];
 
     return [
       {
         label: project.name,
         href: base,
-        category: "Project",
+        category: project.name,
         icon: FolderIcon,
+        platform: project.platform,
       },
       ...pages.map((page) => ({
-        label: page.label,
+        label: `${project.name} ${page.label}`,
         href: `${base}${page.segment}`,
         category: project.name,
-        icon: page.icon,
+        icon: FolderIcon,
+        platform: project.platform,
       })),
     ];
   });
