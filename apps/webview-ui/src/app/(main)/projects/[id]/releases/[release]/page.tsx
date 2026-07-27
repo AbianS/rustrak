@@ -4,6 +4,9 @@ import { getProject } from '@/actions/projects';
 import { getNewIssuesForRelease } from '@/actions/releases';
 import { getAllReleaseHealthRows } from '@/actions/sessions';
 import { IssueListCard } from '@/components/issue-list-card';
+import { LoadFailure } from '@/components/load-failure';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { loadAll } from '@/lib/results';
 import { ReleaseEnvironmentCards } from './release-environment-cards';
 
 interface ReleaseDetailPageProps {
@@ -18,12 +21,12 @@ export async function generateMetadata({
   const project = await getProject(parseInt(id, 10));
   const releaseVersion = decodeURIComponent(release);
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `${releaseVersion} | ${project.name} | Rustrak`,
+    title: `${releaseVersion} | ${project.data.name} | Rustrak`,
     description: `Release health for ${releaseVersion}`,
   };
 }
@@ -37,17 +40,41 @@ export default async function ReleaseDetailPage({
   const projectId = parseInt(id, 10);
   const releaseVersion = decodeURIComponent(release);
 
-  const project = await getProject(projectId);
+  // Started here, awaited below. It is kept *out* of `loadAll` because the page
+  // does not need it: the environment cards are the release's real content and
+  // stand on their own, so its failure degrades this one panel instead of the
+  // page -- and it degrades to a failure, never to "no new issues introduced in
+  // this release", which is a statement about the release we did not obtain.
+  //
+  // Kept out of `loadAll` but not out of the same round-trip: awaiting it after
+  // `loadAll` resolved would isolate the failure and serialise the request,
+  // when only the first was wanted.
+  const newIssuesPromise = getNewIssuesForRelease(
+    projectId,
+    releaseVersion,
+    10,
+  );
 
-  if (!project) {
-    notFound();
-  }
-
-  const [rows, newIssues] = await Promise.all([
+  const loaded = await loadAll([
+    getProject(projectId),
     getAllReleaseHealthRows(projectId, releaseVersion),
-    getNewIssuesForRelease(projectId, releaseVersion, 10),
   ]);
 
+  if (!loaded.success) {
+    // The in-flight request above has no consumer now. Take its rejection so a
+    // transport-level failure cannot surface as an unhandled rejection.
+    void newIssuesPromise.catch(() => undefined);
+    return (
+      <LoadFailure error={loaded.error} title="Could not load this release" />
+    );
+  }
+
+  const [project, rows] = loaded.data;
+
+  const newIssues = await newIssuesPromise;
+
+  // No health rows at all means the release in the URL was never reported.
+  // Distinct from the failure above, which is why the check stays after it.
   if (rows.length === 0) {
     notFound();
   }
@@ -68,12 +95,31 @@ export default async function ReleaseDetailPage({
       <div className="flex-1 w-full px-4 md:px-8 py-4 md:py-6 flex flex-col gap-4">
         <ReleaseEnvironmentCards rows={visibleRows} />
 
-        <IssueListCard
-          projectId={projectId}
-          issues={newIssues}
-          title="New Issues"
-          emptyMessage="No new issues introduced in this release"
-        />
+        {newIssues.success ? (
+          <IssueListCard
+            projectId={projectId}
+            issues={newIssues.data}
+            title="New Issues"
+            emptyMessage="No new issues introduced in this release"
+          />
+        ) : (
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                New Issues
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* A 404 from this endpoint alone is not grounds for replacing a
+                  release page that already rendered its health cards. */}
+              <LoadFailure
+                error={newIssues.error}
+                title="Could not load new issues"
+                notFoundOnMissing={false}
+              />
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

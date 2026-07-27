@@ -24,6 +24,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -34,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { copyToClipboard } from '@/lib/clipboard';
+import { applyServerFieldErrors } from '@/lib/form-errors';
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -56,13 +58,22 @@ export function InviteForm() {
       });
 
       if (!result.success) {
-        toast.error('Failed to create invitation', {
-          description: result.error,
+        // An address that already has an account, or already has a pending
+        // invite, comes back as a `conflict` naming `email`. That belongs on
+        // the email input, where the fix is.
+        const applied = applyServerFieldErrors(form, result.error, {
+          labels: { email: 'That email address', role: 'Role' },
         });
+
+        if (applied.formLevel) {
+          toast.error('Failed to create invitation', {
+            description: applied.formLevel,
+          });
+        }
         return;
       }
 
-      const link = `${window.location.origin}/invite/${result.invitation.token}`;
+      const link = `${window.location.origin}/invite/${result.data.token}`;
       form.reset({ email: '', role: 'member' });
       router.refresh();
 
@@ -169,6 +180,8 @@ export function InviteForm() {
               {isPending ? 'Inviting...' : 'Invite'}
             </Button>
           </form>
+          {/* Where a failure that named no field of this form lands. */}
+          <FormRootError />
         </Form>
       </CardContent>
     </Card>

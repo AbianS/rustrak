@@ -2,7 +2,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getEventDetail, getEventNavigation } from '@/actions/events';
 import {
   getIssue,
@@ -16,6 +15,7 @@ import { CopyAsDropdown } from '@/components/copy-as-dropdown';
 import { EventChart } from '@/components/event-chart';
 import { EventHighlights } from '@/components/event-highlights';
 import { StatusIndicator } from '@/components/issue-indicators';
+import { LoadFailure } from '@/components/load-failure';
 import { TagDistribution } from '@/components/tag-distribution';
 import {
   normalizeBreadcrumbs,
@@ -51,11 +51,14 @@ export async function generateMetadata({
     getEventDetail(projectId, issueId, eventId),
   ]);
 
-  if (!project || !event) {
+  if (!project.success || !event.success) {
     return { title: 'Event Not Found | Rustrak' };
   }
 
-  return { title: `${project.name} | Rustrak`, description: 'Event details' };
+  return {
+    title: `${project.data.name} | Rustrak`,
+    description: 'Event details',
+  };
 }
 
 const LEVEL_TEXT: Record<string, string> = {
@@ -76,20 +79,61 @@ export default async function EventPage({ params }: EventPageProps) {
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
 
-  const [project, issue, event, navigation, aggregates, stats30d, activity] =
-    await Promise.all([
-      getProject(projectId),
-      getIssue(projectId, issueId),
-      getEventDetail(projectId, issueId, eventId),
-      getEventNavigation(projectId, issueId, eventId),
-      getIssueAggregates(projectId, issueId).catch(() => null),
-      getIssueStats(projectId, issueId, '30d').catch(() => null),
-      getIssueActivity(projectId, issueId).catch(() => []),
-    ]);
+  const [
+    projectResult,
+    issueResult,
+    eventResult,
+    navigationResult,
+    aggregatesResult,
+    statsResult,
+    activityResult,
+  ] = await Promise.all([
+    getProject(projectId),
+    getIssue(projectId, issueId),
+    getEventDetail(projectId, issueId, eventId),
+    getEventNavigation(projectId, issueId, eventId),
+    getIssueAggregates(projectId, issueId),
+    getIssueStats(projectId, issueId, '30d'),
+    getIssueActivity(projectId, issueId),
+  ]);
 
-  if (!project || !issue || !event) {
-    notFound();
+  // The four the page cannot render without.
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
+  if (!issueResult.success) {
+    return (
+      <LoadFailure error={issueResult.error} title="Could not load issue" />
+    );
+  }
+  if (!eventResult.success) {
+    return (
+      <LoadFailure error={eventResult.error} title="Could not load event" />
+    );
+  }
+  if (!navigationResult.success) {
+    return (
+      <LoadFailure
+        error={navigationResult.error}
+        title="Could not load the events in this issue"
+      />
+    );
+  }
+
+  const issue = issueResult.data;
+  const event = eventResult.data;
+  const navigation = navigationResult.data;
+
+  // The three that decorate the page. Each already degraded on failure before
+  // the Result conversion; the degradation is now written out rather than
+  // hidden behind a `.catch()`, and it stays deliberate: an issue with no tags
+  // and an aggregates endpoint that failed genuinely render the same panel, and
+  // neither is worth taking the event view down for.
+  const aggregates = aggregatesResult.success ? aggregatesResult.data : null;
+  const stats30d = statsResult.success ? statsResult.data : null;
+  const activity = activityResult.success ? activityResult.data : [];
 
   const eventData = event.data as Record<string, unknown>;
   const {

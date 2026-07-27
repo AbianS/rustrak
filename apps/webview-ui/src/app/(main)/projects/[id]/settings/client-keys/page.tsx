@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { ClientKeysSettings } from './client-keys-settings';
 
 interface ClientKeysPageProps {
@@ -15,8 +15,8 @@ export default async function ClientKeysPage({ params }: ClientKeysPageProps) {
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
-    notFound();
+  if (!project.success) {
+    return <LoadFailure error={project.error} title="Could not load project" />;
   }
 
   return (
@@ -30,7 +30,7 @@ export default async function ClientKeysPage({ params }: ClientKeysPageProps) {
         </p>
       </div>
 
-      <ClientKeysSettings project={project} />
+      <ClientKeysSettings project={project.data} />
     </>
   );
 }

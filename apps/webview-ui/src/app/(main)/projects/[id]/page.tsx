@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { parseOverviewPeriod } from '@/lib/session-health';
 import { OverviewPeriodFilter } from './overview-period-filter';
 import {
@@ -26,13 +26,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `${project.name} | Rustrak`,
-    description: `Overview for ${project.name}`,
+    title: `${project.data.name} | Rustrak`,
+    description: `Overview for ${project.data.name}`,
   };
 }
 
@@ -49,12 +49,15 @@ export default async function ProjectPage({
   // reads as selected. Drop it instead, so the URL and the UI always agree.
   const period = parseOverviewPeriod(rawPeriod);
 
-  const project = await getProject(projectId);
+  const projectResult = await getProject(projectId);
 
-  if (!project) {
-    notFound();
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
 
+  const project = projectResult.data;
   const tile = { projectId, period };
 
   return (

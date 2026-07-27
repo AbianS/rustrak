@@ -15,8 +15,10 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { SERVER_ERROR_PATH } from '@/lib/form-errors';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -24,6 +26,37 @@ const loginSchema = z.object({
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+/**
+ * Copy for a failure that is not a verdict on the credentials.
+ *
+ * `rate_limited` is called out because the generic sentence ends "Please try
+ * again", and on a login page behind a proxy rate-limit that is the one
+ * instruction that makes things worse: every retry extends the block.
+ */
+function loginFailureMessage(
+  error: 'unreachable' | 'rate_limited' | 'unknown',
+  retryAfter: number | undefined,
+): string {
+  switch (error) {
+    case 'unreachable':
+      return 'Could not reach the server. Check your connection and try again.';
+    case 'rate_limited':
+      return retryAfter && retryAfter > 0
+        ? `Too many login attempts. Wait about ${formatWait(retryAfter)} before trying again.`
+        : 'Too many login attempts. Wait a few minutes before trying again.';
+    case 'unknown':
+      return 'An unexpected error occurred. Please try again.';
+  }
+}
+
+function formatWait(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  const hours = Math.round(seconds / 3600);
+  return `${hours} hour${hours === 1 ? '' : 's'}`;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -46,17 +79,46 @@ export function LoginForm() {
 
       if (result.success) {
         router.push('/');
-      } else if (result.error === 'invalid_credentials') {
+        return;
+      }
+
+      if (result.error === 'invalid_credentials') {
+        // **This form deliberately gets no per-field errors, and that is not an
+        // oversight the field-error work should "fix".**
+        //
+        // Every other form in the app now reads `error.fields` and marks the
+        // input the server named. Login must not, because here the server's
+        // answer is itself the secret. "This email exists but the password is
+        // wrong" is user enumeration: it turns the login page into an oracle
+        // that confirms whether an address has an account, which is the first
+        // step of a credential-stuffing run and, on a self-hosted instance, of
+        // working out who the team is.
+        //
+        // So all three real outcomes -- unknown address, wrong password,
+        // disabled account -- collapse into this one sentence, and it is
+        // attached to `password` only so it lands next to the field the user
+        // will retype. The server helps by making them indistinguishable
+        // upstream too: it checks `is_active` *before* verifying the password,
+        // so a distinct "account disabled" answer would leak the same fact.
         form.setError('password', {
           type: 'server',
           message: 'Invalid email or password',
         });
-      } else {
-        form.setError('password', {
-          type: 'server',
-          message: 'An unexpected error occurred. Please try again.',
-        });
+        return;
       }
+
+      // Not a verdict on the credentials, so it does not go on a credential
+      // field. "An unexpected error occurred" under the password box, when the
+      // API is simply down, sends the user off to retype a password that was
+      // right all along.
+      //
+      // The path is imported rather than written out: `FormRootError` reads
+      // the same key, so a literal here would be a third copy of a constant
+      // nothing checks.
+      form.setError(SERVER_ERROR_PATH, {
+        type: 'server',
+        message: loginFailureMessage(result.error, result.retryAfter),
+      });
     });
   };
 
@@ -136,6 +198,9 @@ export function LoginForm() {
               </FormItem>
             )}
           />
+
+          {/* Where an outage lands, kept off the credential fields. */}
+          <FormRootError />
 
           <Button
             type="submit"

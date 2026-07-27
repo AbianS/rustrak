@@ -1,8 +1,9 @@
 import { Rocket } from 'lucide-react';
 import type { Metadata } from 'next';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getReleaseHealth } from '@/actions/sessions';
+import { LoadFailure } from '@/components/load-failure';
 import { parseReleasePeriod } from '@/lib/session-health';
 import { ReleasesList } from './releases-list';
 
@@ -17,13 +18,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `Releases | ${project.name} | Rustrak`,
-    description: `Release health for ${project.name}`,
+    title: `Releases | ${project.data.name} | Rustrak`,
+    description: `Release health for ${project.data.name}`,
   };
 }
 
@@ -51,19 +52,35 @@ export default async function ReleasesPage({
   // reads as selected. Drop it instead, so the URL and the UI always agree.
   const period = parseReleasePeriod(rawPeriod);
 
-  const project = await getProject(projectId);
+  const projectResult = await getProject(projectId);
 
-  if (!project) {
-    notFound();
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
 
-  // No catch: a fetch/auth failure must surface to the error boundary, not be
-  // disguised as the "no releases yet" onboarding state.
-  const health = await getReleaseHealth(projectId, {
+  const project = projectResult.data;
+
+  // Nothing is swallowed: a fetch/auth failure renders an outage surface rather
+  // than the "no releases yet" onboarding state.
+  const healthResult = await getReleaseHealth(projectId, {
     page: currentPage,
     per_page: 20,
     period,
   });
+
+  if (!healthResult.success) {
+    return (
+      <LoadFailure
+        error={healthResult.error}
+        title="Could not load release health"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const health = healthResult.data;
 
   // A page past the end still carries a positive total, which would render a
   // nonsensical range ("19961-27 of 27", "Page 999 of 2"). Send the browser to

@@ -9,6 +9,7 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**",
+        "!.next/dev/**",
         "out/**",
         "target/release/**",
         "!target/release/.fingerprint/**",
@@ -34,6 +35,9 @@
     },
     "check-types": {
       "dependsOn": ["^check-types", "^build"]
+    },
+    "webview-ui#check-types": {
+      "dependsOn": ["^check-types", "^build", "build"]
     },
     "test": {
       "dependsOn": ["^build"],

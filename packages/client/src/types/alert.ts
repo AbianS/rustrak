@@ -20,9 +20,6 @@ import type {
  */
 export type ProviderType = z.infer<typeof providerTypeSchema>;
 
-/** @deprecated Use ProviderType */
-export type ChannelType = ProviderType;
-
 /**
  * Alert type enum
  */
@@ -38,9 +35,6 @@ export type AlertStatus = z.infer<typeof alertStatusSchema>;
  */
 export type AlertIntegration = z.infer<typeof alertIntegrationSchema>;
 
-/** @deprecated Use AlertIntegration */
-export type NotificationChannel = AlertIntegration;
-
 /**
  * Create alert integration request
  */
@@ -48,18 +42,12 @@ export type CreateAlertIntegration = z.infer<
   typeof createAlertIntegrationSchema
 >;
 
-/** @deprecated Use CreateAlertIntegration */
-export type CreateNotificationChannel = CreateAlertIntegration;
-
 /**
  * Update alert integration request
  */
 export type UpdateAlertIntegration = z.infer<
   typeof updateAlertIntegrationSchema
 >;
-
-/** @deprecated Use UpdateAlertIntegration */
-export type UpdateNotificationChannel = UpdateAlertIntegration;
 
 /**
  * Per-rule channel routing entry

@@ -1,3 +1,4 @@
+import type { RustrakError } from '@rustrak/client';
 import { listIssues } from '@/actions/issues';
 import { getSessionSummary, getSessionTimeseries } from '@/actions/sessions';
 import {
@@ -11,6 +12,7 @@ import { SessionHealthArea } from '@/components/charts/session-health-area';
 import { StatTile } from '@/components/charts/stat-tile';
 import { TransactionP95Bars } from '@/components/charts/transaction-p95-bars';
 import { IssueListCard } from '@/components/issue-list-card';
+import { LoadFailure } from '@/components/load-failure';
 import {
   Card,
   CardContent,
@@ -20,6 +22,7 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { exactCount } from '@/lib/chart-format';
+import { loadAll } from '@/lib/results';
 import { type OverviewPeriod, overviewInterval } from '@/lib/session-health';
 
 /**
@@ -70,6 +73,22 @@ export function TileSkeleton({ height = 140 }: { height?: number }) {
   );
 }
 
+/**
+ * Every tile below renders {@link TileFailure} instead of its chart when its
+ * fetch fails. A tile that fell back to an empty series would draw a flat line
+ * at zero, which reads as "nothing is breaking" -- the most dangerous thing
+ * this page could say while wrong.
+ */
+function TileFailure({ error, title }: { error: RustrakError; title: string }) {
+  return (
+    <TileShell title={title}>
+      {/* 404 stays in place: one tile's endpoint answering 404 is not grounds
+          for replacing the whole overview with the app's not-found page. */}
+      <LoadFailure error={error} title={title} notFoundOnMissing={false} />
+    </TileShell>
+  );
+}
+
 export async function ErrorVolumeTile({ projectId, period }: TileProps) {
   const timeseries = await getProjectEventTimeseries(
     projectId,
@@ -77,15 +96,35 @@ export async function ErrorVolumeTile({ projectId, period }: TileProps) {
     overviewInterval(period),
   );
 
+  if (!timeseries.success) {
+    return (
+      <TileFailure error={timeseries.error} title="Error volume by severity" />
+    );
+  }
+
   return (
     <TileShell title="Error volume by severity">
-      <ErrorVolumeChart data={timeseries} />
+      <ErrorVolumeChart data={timeseries.data} />
     </TileShell>
   );
 }
 
 export async function CounterTiles({ projectId, period }: TileProps) {
-  const summary = await getProjectStatsSummary(projectId, period);
+  const result = await getProjectStatsSummary(projectId, period);
+
+  if (!result.success) {
+    // One fetch fills two grid cells, so it has to fail as two. Returning a
+    // single `TileFailure` left the grid one child short and the "New issues"
+    // tile simply disappeared, with nothing marking that a metric was missing.
+    return (
+      <>
+        <TileFailure error={result.error} title="Events" />
+        <TileFailure error={result.error} title="New issues" />
+      </>
+    );
+  }
+
+  const summary = result.data;
 
   return (
     <>
@@ -104,10 +143,21 @@ export async function CrashFreeTile({ projectId, period }: TileProps) {
   // The headline rates and the shape behind them come from two endpoints, so
   // they are fetched together rather than split across two Suspense
   // boundaries: half the tile arriving before the other half would flash.
-  const [summary, timeseries] = await Promise.all([
+  //
+  // Either one failing takes the whole tile to its failure state. Rendering the
+  // trend beside a missing headline, or a "0 sessions" headline beside a real
+  // trend, invents a relationship between two figures only one of which was
+  // measured.
+  const loaded = await loadAll([
     getSessionSummary(projectId, period),
     getSessionTimeseries(projectId, period, overviewInterval(period)),
   ]);
+
+  if (!loaded.success) {
+    return <TileFailure error={loaded.error} title="Crash-free sessions" />;
+  }
+
+  const [summary, timeseries] = loaded.data;
 
   return (
     <TileShell title="Crash-free sessions">
@@ -128,12 +178,16 @@ export async function SessionHealthTile({ projectId, period }: TileProps) {
     overviewInterval(period),
   );
 
+  if (!timeseries.success) {
+    return <TileFailure error={timeseries.error} title="Session health" />;
+  }
+
   return (
     <TileShell
       title="Session health"
       subtitle="Healthy and crashed sessions over time"
     >
-      <SessionHealthArea data={timeseries} height={220} />
+      <SessionHealthArea data={timeseries.data} height={220} />
     </TileShell>
   );
 }
@@ -144,9 +198,13 @@ export async function PerformanceTile({ projectId }: TileProps) {
   // rather than silently pretending to follow the filter.
   const stats = await getTransactionStats(projectId, { page: 1, per_page: 20 });
 
+  if (!stats.success) {
+    return <TileFailure error={stats.error} title="Latency" />;
+  }
+
   return (
     <TileShell title="Latency" subtitle="Slowest transactions by p95, all time">
-      <TransactionP95Bars projectId={projectId} rows={stats.items} />
+      <TransactionP95Bars projectId={projectId} rows={stats.data.items} />
     </TileShell>
   );
 }
@@ -164,10 +222,14 @@ export async function TopIssuesTile({ projectId }: TileProps) {
     order: 'desc',
   });
 
+  if (!response.success) {
+    return <TileFailure error={response.error} title="Top issues" />;
+  }
+
   return (
     <IssueListCard
       projectId={projectId}
-      issues={response.items}
+      issues={response.data.items}
       title="Top issues"
       subtitle="Open issues by total events, all time"
       emptyMessage="No issues yet"

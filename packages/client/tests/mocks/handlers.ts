@@ -389,9 +389,6 @@ export const mockAlertIntegrations = [
   },
 ];
 
-/** @deprecated Use mockAlertIntegrations */
-export const mockNotificationChannels = mockAlertIntegrations;
-
 export const mockAlertRules = [
   {
     id: 1,

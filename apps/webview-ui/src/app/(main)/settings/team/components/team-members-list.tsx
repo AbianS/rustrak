@@ -108,7 +108,14 @@ export function TeamMembersList({
         });
         router.refresh();
       } else {
-        toast.error('Failed to update role', { description: result.error });
+        // `error.message` rather than copy built from `error.fields`: the
+        // server does name `role` here, but there is no react-hook-form on
+        // this table to bind that to, and its own sentence ("Cannot demote
+        // the last admin") is far more use in a toast than "Role is not
+        // valid." would be.
+        toast.error('Failed to update role', {
+          description: result.error.message,
+        });
       }
     });
   };
@@ -123,7 +130,9 @@ export function TeamMembersList({
         setMemberToDelete(null);
         router.refresh();
       } else {
-        toast.error('Failed to remove member', { description: result.error });
+        toast.error('Failed to remove member', {
+          description: result.error.message,
+        });
       }
     });
   };

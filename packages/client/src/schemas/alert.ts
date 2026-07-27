@@ -41,9 +41,6 @@ export const alertIntegrationSchema = z.object({
   updated_at: dateTimeSchema,
 });
 
-/** @deprecated Use alertIntegrationSchema */
-export const notificationChannelSchema = alertIntegrationSchema;
-
 /**
  * Create alert integration request schema
  */
@@ -54,9 +51,6 @@ export const createAlertIntegrationSchema = z.object({
   is_enabled: z.boolean().optional(),
 });
 
-/** @deprecated Use createAlertIntegrationSchema */
-export const createNotificationChannelSchema = createAlertIntegrationSchema;
-
 /**
  * Update alert integration request schema
  */
@@ -65,9 +59,6 @@ export const updateAlertIntegrationSchema = z.object({
   credentials: z.record(z.string(), z.unknown()).optional(),
   is_enabled: z.boolean().optional(),
 });
-
-/** @deprecated Use updateAlertIntegrationSchema */
-export const updateNotificationChannelSchema = updateAlertIntegrationSchema;
 
 /**
  * Per-rule channel routing entry schema

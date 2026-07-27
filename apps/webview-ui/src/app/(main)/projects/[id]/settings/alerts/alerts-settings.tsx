@@ -59,6 +59,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -71,6 +72,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { applyServerFieldErrors } from '@/lib/form-errors';
 import { cn } from '@/lib/utils';
 
 // Alert type definitions
@@ -217,32 +219,38 @@ export function AlertsSettings({
 
   const handleToggleEnabled = (rule: AlertRule) => {
     startTransition(async () => {
-      try {
-        await updateAlertRule(project.id, rule.id, {
-          is_enabled: !rule.is_enabled,
+      const result = await updateAlertRule(project.id, rule.id, {
+        is_enabled: !rule.is_enabled,
+      });
+
+      if (!result.success) {
+        // A switch in a table row, not a form field: the message is the only
+        // place this can go.
+        toast.error('Failed to update rule', {
+          description: result.error.message,
         });
-        router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to update rule';
-        toast.error('Failed to update rule', { description: message });
+        return;
       }
+
+      router.refresh();
     });
   };
 
   const handleDelete = () => {
     if (!deletingRule) return;
     startTransition(async () => {
-      try {
-        await deleteAlertRule(project.id, deletingRule.id);
-        toast.success('Alert rule deleted');
-        setDeletingRule(null);
-        router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to delete rule';
-        toast.error('Failed to delete rule', { description: message });
+      const result = await deleteAlertRule(project.id, deletingRule.id);
+
+      if (!result.success) {
+        toast.error('Failed to delete rule', {
+          description: result.error.message,
+        });
+        return;
       }
+
+      toast.success('Alert rule deleted');
+      setDeletingRule(null);
+      router.refresh();
     });
   };
 
@@ -594,57 +602,64 @@ function AlertRuleFormDialog({
     }
 
     startTransition(async () => {
-      try {
-        const channelsPayload = data.selected_integration_ids.flatMap((id) => {
-          const routing = routingMap[id] ?? {};
-          const integration = integrations.find((i) => i.id === id);
-          if (!integration) return [];
-          const routingOverride: Record<string, unknown> = {};
+      const channelsPayload = data.selected_integration_ids.flatMap((id) => {
+        const routing = routingMap[id] ?? {};
+        const integration = integrations.find((i) => i.id === id);
+        if (!integration) return [];
+        const routingOverride: Record<string, unknown> = {};
 
-          if (
-            integration.provider_type === 'slack' &&
-            getSlackMethod(integration) === 'bot_token'
-          ) {
-            if (routing.channel)
-              routingOverride.channel = routing.channel.trim();
-          }
-          if (integration.provider_type === 'email' && routing.recipients) {
-            routingOverride.recipients = routing.recipients
-              .split(',')
-              .map((a) => a.trim())
-              .filter(Boolean);
-          }
-          if (integration.provider_type === 'webhook' && routing.url) {
-            routingOverride.url = routing.url.trim();
-          }
+        if (
+          integration.provider_type === 'slack' &&
+          getSlackMethod(integration) === 'bot_token'
+        ) {
+          if (routing.channel) routingOverride.channel = routing.channel.trim();
+        }
+        if (integration.provider_type === 'email' && routing.recipients) {
+          routingOverride.recipients = routing.recipients
+            .split(',')
+            .map((a) => a.trim())
+            .filter(Boolean);
+        }
+        if (integration.provider_type === 'webhook' && routing.url) {
+          routingOverride.url = routing.url.trim();
+        }
 
-          return [{ integration_id: id, routing_override: routingOverride }];
-        });
+        return [{ integration_id: id, routing_override: routingOverride }];
+      });
 
-        if (existingRule) {
-          await updateAlertRule(projectId, existingRule.id, {
+      const result = existingRule
+        ? await updateAlertRule(projectId, existingRule.id, {
             name: data.name,
             is_enabled: data.is_enabled,
             channels: channelsPayload,
             cooldown_minutes: data.cooldown_minutes,
-          });
-          toast.success('Alert rule updated');
-        } else {
-          await createAlertRule(projectId, {
+          })
+        : await createAlertRule(projectId, {
             name: data.name,
             alert_type: data.alert_type,
             channels: channelsPayload,
             is_enabled: data.is_enabled,
             cooldown_minutes: data.cooldown_minutes,
           });
-          toast.success('Alert rule created');
+
+      if (!result.success) {
+        // A duplicate rule name is a `conflict` naming `name`, and a second
+        // rule for an alert type already covered is one naming `alert_type`.
+        // Both are fields this dialog registers, so both land on their input.
+        const applied = applyServerFieldErrors(form, result.error, {
+          labels: { name: 'That name', alert_type: 'That alert type' },
+        });
+
+        if (applied.formLevel) {
+          toast.error('Failed to save rule', {
+            description: applied.formLevel,
+          });
         }
-        onSuccess();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to save rule';
-        toast.error('Failed to save rule', { description: message });
+        return;
       }
+
+      toast.success(existingRule ? 'Alert rule updated' : 'Alert rule created');
+      onSuccess();
     });
   };
 
@@ -1031,6 +1046,8 @@ function AlertRuleFormDialog({
                 {existingRule ? 'Save Changes' : 'Create Rule'}
               </Button>
             </DialogFooter>
+            {/* Where a failure that named no field of this form lands. */}
+            <FormRootError />
           </form>
         </Form>
       </DialogContent>

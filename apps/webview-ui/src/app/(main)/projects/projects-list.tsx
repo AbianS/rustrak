@@ -124,30 +124,32 @@ export function ProjectsList({
       // Optimistically remove from UI
       removeOptimistic(idsToDelete);
 
-      try {
-        // Actually delete
-        for (const id of idsToDelete) {
-          await deleteProject(id);
-        }
+      for (const id of idsToDelete) {
+        const result = await deleteProject(id);
 
-        // Success toast
-        toast.success(
-          idsToDelete.length > 1
-            ? `${idsToDelete.length} projects deleted`
-            : 'Project deleted',
-        );
-
-        if (isBatchDelete) {
-          setSelectedIds(new Set());
+        if (!result.success) {
+          // Stop at the first failure rather than carrying on: the optimistic
+          // removal is reverted by the refresh below, and continuing would
+          // report "3 projects deleted" over a set where one survived.
+          toast.error('Failed to delete', {
+            description: result.error.message,
+          });
+          router.refresh();
+          return;
         }
-        setProjectToDelete(null);
-        router.refresh();
-      } catch (err) {
-        // Revert will happen automatically on refresh
-        const message = err instanceof Error ? err.message : 'Delete failed';
-        toast.error('Failed to delete', { description: message });
-        router.refresh();
       }
+
+      toast.success(
+        idsToDelete.length > 1
+          ? `${idsToDelete.length} projects deleted`
+          : 'Project deleted',
+      );
+
+      if (isBatchDelete) {
+        setSelectedIds(new Set());
+      }
+      setProjectToDelete(null);
+      router.refresh();
     });
   };
 

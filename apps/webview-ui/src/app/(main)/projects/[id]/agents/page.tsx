@@ -1,6 +1,5 @@
 import { Bot } from 'lucide-react';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import {
   getAgentDuration,
   getAgentModelsByCalls,
@@ -10,6 +9,7 @@ import {
   getAgentTraces,
 } from '@/actions/agents';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import {
   Card,
   CardContent,
@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { loadAll } from '@/lib/results';
 import { AgentBreakdownChart } from './agent-breakdown-chart';
 import { AgentDurationChart } from './agent-duration-chart';
 import { AgentTimeseriesChart } from './agent-timeseries-chart';
@@ -33,13 +34,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `Agents | ${project.name} | Rustrak`,
-    description: `AI agent monitoring for ${project.name}`,
+    title: `Agents | ${project.data.name} | Rustrak`,
+    description: `AI agent monitoring for ${project.data.name}`,
   };
 }
 
@@ -52,23 +53,40 @@ export default async function AgentsPage({
   const projectId = parseInt(id, 10);
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
-  const project = await getProject(projectId);
+  const projectResult = await getProject(projectId);
 
-  if (!project) {
-    notFound();
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
 
-  // No catch: a fetch/auth failure must surface to the error boundary, not be
-  // disguised as the "no agent activity yet" onboarding state.
+  const project = projectResult.data;
+
+  // Nothing is swallowed: a fetch/auth failure renders an outage surface rather
+  // than the "no agent activity yet" onboarding state, which would tell a team
+  // whose agents are running that they never instrumented anything.
+  const loaded = await loadAll([
+    getAgentRuns(projectId),
+    getAgentDuration(projectId),
+    getAgentModelsByCalls(projectId),
+    getAgentModelsByTokens(projectId),
+    getAgentTools(projectId),
+    getAgentTraces(projectId, { page: currentPage, per_page: 20 }),
+  ]);
+
+  if (!loaded.success) {
+    return (
+      <LoadFailure
+        error={loaded.error}
+        title="Could not load agent activity"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
   const [runs, duration, modelsByCalls, modelsByTokens, tools, traces] =
-    await Promise.all([
-      getAgentRuns(projectId),
-      getAgentDuration(projectId),
-      getAgentModelsByCalls(projectId),
-      getAgentModelsByTokens(projectId),
-      getAgentTools(projectId),
-      getAgentTraces(projectId, { page: currentPage, per_page: 20 }),
-    ]);
+    loaded.data;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">

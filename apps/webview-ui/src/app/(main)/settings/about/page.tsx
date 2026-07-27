@@ -1,3 +1,4 @@
+import { PlugZap } from 'lucide-react';
 import type { Metadata } from 'next';
 import { getServerVersion } from '@/actions/server';
 import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
@@ -9,12 +10,31 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { APP_VERSION } from '@/lib/constants';
+import { describeError } from '@/lib/error-copy';
 
 export const metadata: Metadata = {
   title: 'About | Rustrak',
   description: 'About Rustrak error tracking system',
 };
 
+/**
+ * Neither `LoadFailure` nor `ServiceUnavailable` is used for the failed read
+ * here, and the reason is worth writing down so the next person does not
+ * "fix" it.
+ *
+ * `LoadFailure` navigates: `unauthenticated` redirects to login and `not_found`
+ * renders the 404. Both are right for a page whose subject is the thing that
+ * failed, and both are wrong here, where the rest of this page loaded and one
+ * row of a grid could not be filled. `ServiceUnavailable` is that row's honest
+ * content but the wrong shape for it, a full-width padded card standing where a
+ * version string goes.
+ *
+ * So the row reports itself, in place, and borrows `describeError` so the
+ * sentence explaining why matches the one used everywhere else. What matters is
+ * only that "the server said 0.13.0" and "we could not ask the server" do not
+ * render as the same thing, which is what a bare `null` collapsing into
+ * "Unavailable" used to guarantee.
+ */
 export default async function AboutPage() {
   const serverVersion = await getServerVersion();
 
@@ -50,17 +70,31 @@ export default async function AboutPage() {
               </div>
               <div>
                 <p className="text-muted-foreground">Server version</p>
-                <p className="font-mono font-medium">
-                  {serverVersion?.version
-                    ? `v${serverVersion.version}`
-                    : 'Unavailable'}
-                </p>
+                {serverVersion.success ? (
+                  <p className="font-mono font-medium">
+                    {serverVersion.data.version
+                      ? `v${serverVersion.data.version}`
+                      : 'Not reported'}
+                  </p>
+                ) : (
+                  <p className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                    <PlugZap aria-hidden="true" className="size-4 shrink-0" />
+                    Could not read
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">Environment</p>
                 <p className="font-mono font-medium">{process.env.NODE_ENV}</p>
               </div>
             </div>
+
+            {!serverVersion.success && (
+              <p className="text-xs text-muted-foreground">
+                {describeError(serverVersion.error)} The server version is
+                unknown until it answers; nothing is shown in its place.
+              </p>
+            )}
           </CardContent>
         </Card>
 

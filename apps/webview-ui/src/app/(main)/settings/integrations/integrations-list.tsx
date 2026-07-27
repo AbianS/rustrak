@@ -57,10 +57,12 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { applyServerFieldErrors, type ServerFieldMap } from '@/lib/form-errors';
 import { cn } from '@/lib/utils';
 
 // Active alert notification providers
@@ -87,6 +89,36 @@ const alertProviders = [
     color: 'bg-orange-600',
   },
 ];
+
+// ============================================================================
+// Server field paths -> the names these dialogs register
+// ============================================================================
+//
+// Every one of these dialogs renders flat inputs and posts them nested inside a
+// single opaque `credentials` object, so a `FieldError.field` is a dot path into
+// *the request body*: `credentials.webhook_url`, never `webhook_url`. Without
+// these maps the path matches no registered name and the message falls back to
+// the form-level slot, which is safe but strictly less useful than marking the
+// input the user has to fix. `name` and `is_enabled` are genuine top-level body
+// keys and need no entry.
+
+const WEBHOOK_FIELD_MAP: ServerFieldMap = {
+  'credentials.url': 'url',
+  'credentials.secret': 'secret',
+};
+
+const SLACK_FIELD_MAP: ServerFieldMap = {
+  'credentials.webhook_url': 'webhook_url',
+  'credentials.token': 'token',
+};
+
+const EMAIL_FIELD_MAP: ServerFieldMap = {
+  'credentials.smtp_host': 'smtp_host',
+  'credentials.smtp_port': 'smtp_port',
+  'credentials.smtp_username': 'smtp_username',
+  'credentials.smtp_password': 'smtp_password',
+  'credentials.from_address': 'from_address',
+};
 
 // ============================================================================
 // Form Schemas — credentials only, no routing fields
@@ -207,19 +239,23 @@ export function IntegrationsList({
     routingOverride?: Record<string, unknown>,
   ) => {
     startTransition(async () => {
-      try {
-        const result = await testIntegration(integration.id, routingOverride);
-        if (result.success) {
-          toast.success('Test notification sent', {
-            description: result.message,
-          });
-        } else {
-          toast.error('Test failed', { description: result.message });
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to send test';
-        toast.error('Failed to send test', { description: message });
+      const result = await testIntegration(integration.id, routingOverride);
+
+      if (!result.success) {
+        // The request itself failed. Distinct from the delivery result below,
+        // which is a successful request reporting that the provider refused.
+        toast.error('Failed to send test', {
+          description: result.error.message,
+        });
+        return;
+      }
+
+      if (result.data.success) {
+        toast.success('Test notification sent', {
+          description: result.data.message,
+        });
+      } else {
+        toast.error('Test failed', { description: result.data.message });
       }
     });
   };
@@ -227,23 +263,26 @@ export function IntegrationsList({
   const handleDelete = () => {
     if (!deleteIntegrationItem) return;
     startTransition(async () => {
-      try {
-        await deleteIntegration(deleteIntegrationItem.id);
-        toast.success('Integration deleted');
-        const remaining = initialIntegrations.filter(
-          (i) =>
-            i.provider_type === deleteIntegrationItem.provider_type &&
-            i.id !== deleteIntegrationItem.id,
-        );
-        if (remaining.length === 0) setManageType(null);
-        setDeleteIntegrationItem(null);
-        setConfigureType(null);
-        setEditIntegration(null);
-        router.refresh();
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to delete';
-        toast.error('Failed to delete integration', { description: message });
+      const result = await deleteIntegration(deleteIntegrationItem.id);
+
+      if (!result.success) {
+        toast.error('Failed to delete integration', {
+          description: result.error.message,
+        });
+        return;
       }
+
+      toast.success('Integration deleted');
+      const remaining = initialIntegrations.filter(
+        (i) =>
+          i.provider_type === deleteIntegrationItem.provider_type &&
+          i.id !== deleteIntegrationItem.id,
+      );
+      if (remaining.length === 0) setManageType(null);
+      setDeleteIntegrationItem(null);
+      setConfigureType(null);
+      setEditIntegration(null);
+      router.refresh();
     });
   };
 
@@ -617,35 +656,47 @@ function WebhookConfigDialog({
 
   const onSubmit = (data: WebhookFormData) => {
     startTransition(async () => {
-      try {
-        const credentials: Record<string, unknown> = {};
-        if (data.url && data.url.trim() !== '') credentials.url = data.url;
-        if (data.secret && data.secret.trim() !== '')
-          credentials.secret = data.secret;
+      const credentials: Record<string, unknown> = {};
+      if (data.url && data.url.trim() !== '') credentials.url = data.url;
+      if (data.secret && data.secret.trim() !== '')
+        credentials.secret = data.secret;
 
-        if (existingIntegration) {
-          await updateIntegration(existingIntegration.id, {
+      const result = existingIntegration
+        ? await updateIntegration(existingIntegration.id, {
             name: data.name,
             credentials,
             is_enabled: data.is_enabled,
-          });
-          toast.success('Webhook updated');
-        } else {
-          await createIntegration({
+          })
+        : await createIntegration({
             name: data.name,
             provider_type: 'webhook',
             credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Webhook created');
+
+      if (!result.success) {
+        const applied = applyServerFieldErrors(form, result.error, {
+          map: WEBHOOK_FIELD_MAP,
+          labels: {
+            name: 'That name',
+            url: 'That URL',
+            secret: 'That secret',
+          },
+        });
+
+        if (applied.formLevel) {
+          toast.error('Failed to save webhook', {
+            description: applied.formLevel,
+          });
         }
-        onOpenChange(false);
-        router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to save webhook';
-        toast.error('Failed to save webhook', { description: message });
+        return;
       }
+
+      toast.success(
+        existingIntegration ? 'Webhook updated' : 'Webhook created',
+      );
+      onOpenChange(false);
+      router.refresh();
     });
   };
 
@@ -795,6 +846,8 @@ function WebhookConfigDialog({
                 {existingIntegration ? 'Save Changes' : 'Create Webhook'}
               </Button>
             </DialogFooter>
+            {/* Where a failure that named no field of this dialog lands. */}
+            <FormRootError />
           </form>
         </Form>
       </DialogContent>
@@ -862,44 +915,54 @@ function SlackConfigDialog({
 
   const onSubmit = (data: SlackFormData) => {
     startTransition(async () => {
-      try {
-        let credentials: Record<string, unknown>;
+      let credentials: Record<string, unknown>;
 
-        if (data.method === 'webhook') {
-          credentials = { method: 'webhook', webhook_url: data.webhook_url };
-        } else {
-          credentials = { method: 'bot_token' };
-          const tokenEmpty = !data.token || data.token.trim() === '';
-          if (!tokenEmpty) credentials.token = data.token;
-        }
+      if (data.method === 'webhook') {
+        credentials = { method: 'webhook', webhook_url: data.webhook_url };
+      } else {
+        credentials = { method: 'bot_token' };
+        const tokenEmpty = !data.token || data.token.trim() === '';
+        if (!tokenEmpty) credentials.token = data.token;
+      }
 
-        if (existingIntegration) {
-          await updateIntegration(existingIntegration.id, {
+      const result = existingIntegration
+        ? await updateIntegration(existingIntegration.id, {
             name: data.name,
             credentials,
             is_enabled: data.is_enabled,
-          });
-          toast.success('Slack integration updated');
-        } else {
-          await createIntegration({
+          })
+        : await createIntegration({
             name: data.name,
             provider_type: 'slack',
             credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Slack integration created');
-        }
-        onOpenChange(false);
-        router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Failed to save Slack integration';
-        toast.error('Failed to save Slack integration', {
-          description: message,
+
+      if (!result.success) {
+        const applied = applyServerFieldErrors(form, result.error, {
+          map: SLACK_FIELD_MAP,
+          labels: {
+            name: 'That name',
+            webhook_url: 'That webhook URL',
+            token: 'That bot token',
+          },
         });
+
+        if (applied.formLevel) {
+          toast.error('Failed to save Slack integration', {
+            description: applied.formLevel,
+          });
+        }
+        return;
       }
+
+      toast.success(
+        existingIntegration
+          ? 'Slack integration updated'
+          : 'Slack integration created',
+      );
+      onOpenChange(false);
+      router.refresh();
     });
   };
 
@@ -1132,6 +1195,8 @@ function SlackConfigDialog({
                 {existingIntegration ? 'Save Changes' : 'Add Integration'}
               </Button>
             </DialogFooter>
+            {/* Where a failure that named no field of this dialog lands. */}
+            <FormRootError />
           </form>
         </Form>
       </DialogContent>
@@ -1214,42 +1279,55 @@ function EmailConfigDialog({
 
   const onSubmit = (data: EmailFormData) => {
     startTransition(async () => {
-      try {
-        const credentials: Record<string, unknown> = {
-          smtp_host: data.smtp_host,
-          smtp_port: data.smtp_port,
-          from_address: data.from_address,
-        };
-        if (data.smtp_username) credentials.smtp_username = data.smtp_username;
-        if (data.smtp_password) credentials.smtp_password = data.smtp_password;
+      const credentials: Record<string, unknown> = {
+        smtp_host: data.smtp_host,
+        smtp_port: data.smtp_port,
+        from_address: data.from_address,
+      };
+      if (data.smtp_username) credentials.smtp_username = data.smtp_username;
+      if (data.smtp_password) credentials.smtp_password = data.smtp_password;
 
-        if (existingIntegration) {
-          await updateIntegration(existingIntegration.id, {
+      const result = existingIntegration
+        ? await updateIntegration(existingIntegration.id, {
             name: data.name,
             credentials,
             is_enabled: data.is_enabled,
-          });
-          toast.success('Email integration updated');
-        } else {
-          await createIntegration({
+          })
+        : await createIntegration({
             name: data.name,
             provider_type: 'email',
             credentials,
             is_enabled: data.is_enabled,
           });
-          toast.success('Email integration created');
-        }
-        onOpenChange(false);
-        router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Failed to save email integration';
-        toast.error('Failed to save email integration', {
-          description: message,
+
+      if (!result.success) {
+        const applied = applyServerFieldErrors(form, result.error, {
+          map: EMAIL_FIELD_MAP,
+          labels: {
+            name: 'That name',
+            smtp_host: 'That SMTP host',
+            smtp_port: 'That SMTP port',
+            smtp_username: 'That SMTP username',
+            smtp_password: 'That SMTP password',
+            from_address: 'That from address',
+          },
         });
+
+        if (applied.formLevel) {
+          toast.error('Failed to save email integration', {
+            description: applied.formLevel,
+          });
+        }
+        return;
       }
+
+      toast.success(
+        existingIntegration
+          ? 'Email integration updated'
+          : 'Email integration created',
+      );
+      onOpenChange(false);
+      router.refresh();
     });
   };
 
@@ -1498,6 +1576,8 @@ function EmailConfigDialog({
                   : 'Create Email Integration'}
               </Button>
             </DialogFooter>
+            {/* Where a failure that named no field of this dialog lands. */}
+            <FormRootError />
           </form>
         </Form>
       </DialogContent>

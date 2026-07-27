@@ -56,8 +56,6 @@ export type {
   AuthTokenCreated,
   BulkDeleteIssues,
   BulkUpdateIssues,
-  /** @deprecated Use ProviderType */
-  ChannelType,
   ChunkUploadCapability,
   CleanupCounts,
   CleanupOptions,
@@ -66,8 +64,6 @@ export type {
   CreateAuthToken,
   CreateComment,
   CreateInvitation,
-  /** @deprecated Use CreateAlertIntegration */
-  CreateNotificationChannel,
   CreateProject,
   CreateUserReport,
   Event,
@@ -100,8 +96,6 @@ export type {
   LoginRequest,
   LoginResult,
   MetricDelta,
-  /** @deprecated Use AlertIntegration */
-  NotificationChannel,
   OffsetPaginatedResponse,
   PaginatedResponse,
   Project,
@@ -136,8 +130,6 @@ export type {
   UpdateAlertIntegration,
   UpdateAlertRule,
   UpdateIssueState,
-  /** @deprecated Use UpdateAlertIntegration */
-  UpdateNotificationChannel,
   UpdateProject,
   UpdateUserRole,
   UpsertProjectMember,

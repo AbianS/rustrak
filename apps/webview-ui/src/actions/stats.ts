@@ -1,6 +1,11 @@
 'use server';
 
-import type { EventTimeseries, ProjectStatsSummary } from '@rustrak/client';
+import type {
+  EventTimeseries,
+  ProjectStatsSummary,
+  Result,
+  RustrakError,
+} from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
 
 /**
@@ -18,7 +23,7 @@ export async function getProjectEventTimeseries(
   projectId: number,
   period?: string,
   interval?: number,
-): Promise<EventTimeseries> {
+): Promise<Result<EventTimeseries, RustrakError>> {
   const client = await createClient();
   return client.stats.timeseries(projectId, period, interval);
 }
@@ -36,7 +41,7 @@ export async function getProjectEventTimeseries(
 export async function getProjectStatsSummary(
   projectId: number,
   period?: string,
-): Promise<ProjectStatsSummary> {
+): Promise<Result<ProjectStatsSummary, RustrakError>> {
   const client = await createClient();
   return client.stats.summary(projectId, period);
 }

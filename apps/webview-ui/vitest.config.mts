@@ -6,6 +6,17 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: 'jsdom',
+    // The 5s default is too tight for this suite on a cold CI runner, and the
+    // failure mode is worse than a slow test: several files resolve the module
+    // under test with `await import(...)` inside the first `it`, so the whole
+    // cold module graph is loaded against the test's own clock. When that
+    // overran, the timed-out test kept going, resolved during the *next*
+    // test's window, and rendered into its DOM -- which surfaced as
+    // "Found multiple elements" in a test that renders exactly one thing.
+    // A GitHub runner reported `environment 72.92s` for 11 files, so this is
+    // headroom for a genuinely slow machine, not cover for a slow test.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
     // `globals` is what lets `describe`/`it`/`expect` resolve without a per-file
     // import, and it is also required by archunit's `toPassAsync` matcher, which
     // a later phase installs. Cheaper to set now than to redo the config then.
