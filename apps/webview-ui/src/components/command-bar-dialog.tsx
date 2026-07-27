@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  FolderIcon,
-  KeyIcon,
-  PlusIcon,
-  SearchIcon,
-  SettingsIcon,
-  SunMoonIcon,
-} from "lucide-react";
+import { FolderIcon, SearchIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getProjects } from "@/actions/projects";
@@ -19,46 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Kbd, KbdGroup } from "./ui/kbd";
-
-interface CommandItem {
-  label: string;
-  href: string;
-  category: "Settings" | "Projects" | "Project";
-  icon: typeof SearchIcon;
-}
-
-const COMMANDS: CommandItem[] = [
-  {
-    label: "Projects",
-    href: "/projects",
-    category: "Projects",
-    icon: FolderIcon,
-  },
-  {
-    label: "New project",
-    href: "/projects/new",
-    category: "Projects",
-    icon: PlusIcon,
-  },
-  {
-    label: "API tokens",
-    href: "/settings/tokens",
-    category: "Settings",
-    icon: KeyIcon,
-  },
-  {
-    label: "Account",
-    href: "/settings/account",
-    category: "Settings",
-    icon: SettingsIcon,
-  },
-  {
-    label: "Appearance",
-    href: "/settings/appearance",
-    category: "Settings",
-    icon: SunMoonIcon,
-  },
-];
+import { CommandItem, COMMANDS } from "@/lib/command-bar";
 
 interface CommandBarDialogProps {
   open: boolean;
