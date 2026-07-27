@@ -288,7 +288,14 @@ export const mockTeamMembers = [
     id: 2,
     email: 'admin@example.com',
     role: 'admin',
-    is_active: true,
+    // Deactivated on purpose, and it is what makes the last-admin 409
+    // reachable at all. `UsersService::admin_count` counts
+    // `role = 'admin' AND is_active = true` (`services/users.rs:167`), so with
+    // an *active* primary admin in the roster there are always two active
+    // admins and the server would answer 204, never the 409 this suite
+    // asserts. An admin account that was switched off, leaving one active
+    // admin behind, is exactly the state the guard exists to protect.
+    is_active: false,
     is_primary: true,
     created_at: '2026-01-19T10:00:00.000Z',
     last_login: null,
@@ -1159,12 +1166,21 @@ export const handlers = [
         );
       }
 
-      // 3. Then the last-admin guard (routes/team.rs:127-137). User 3 is the
-      //    non-primary admin, so demoting them is what trips the 409.
+      // 3. Then the last-admin guard (routes/team.rs:134-147). The count is
+      //    computed rather than assumed: the server asks
+      //    `COUNT(*) WHERE role = 'admin' AND is_active = true` and only
+      //    refuses at `<= 1`. Hard-coding the 409 for any non-primary admin
+      //    made this fixture answer 409 where the real server answers 204,
+      //    which is the fixture-vs-server divergence this phase exists to
+      //    remove.
+      const activeAdmins = mockTeamMembers.filter(
+        (m) => m.role === 'admin' && m.is_active,
+      ).length;
+
       if (
         member.role === 'admin' &&
-        !member.is_primary &&
-        body.role === 'member'
+        body.role === 'member' &&
+        activeAdmins <= 1
       ) {
         return appErrorResponse(
           'Conflict',

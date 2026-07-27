@@ -209,9 +209,8 @@ docker-compose up --build
 
 ### Testing
 ```bash
-# Server (Rust)
-cd apps/server
-cargo test
+# Server (Rust) — subshell, so the commands below still run from the repo root
+(cd apps/server && cargo test)
 
 # Frontend (vitest + jsdom)
 pnpm --filter=webview-ui test
