@@ -24,64 +24,33 @@ import { StageGateContext, WindowProgressContext } from './window-progress';
 /**
  * The product, being used.
  *
- * ── What this replaces, and why ─────────────────────────────────────────────
+ * The caret at the end of the headline unfolds into a pointer, drifts into the
+ * panel, clicks the rail, and the page under it changes. Five screens, so the
+ * claim is not "there is a dashboard" but "there are issues, a stack trace, a
+ * log stream and an agent waterfall", made inside the first screenful without
+ * the reader scrolling or clicking anything. The screens are the ones the
+ * platform section draws further down; nothing here was built for the hero.
  *
- * The hero used to be one screen with three cards orbiting it. The cards are
- * gone, and the reason applies to the whole genre: a composition of floating
- * panels is a picture *about* an application, and once a reader has worked out
- * that it is a picture there is nothing left in it to find.
+ * Every screen plays and then lives. Each arrival gets a fresh clock animated
+ * 0 → 1, published where `MockStage` will find it, so the screen runs its real
+ * entrance and spends what is left of its time idling — the log tail advancing,
+ * counters accruing — which is the half that only works because these are
+ * components rather than images. Neither half runs on its own here: a pinned
+ * panel never travels through the viewport, so a stage measuring its own box
+ * reads a finished entrance and a screen long past centre from the first frame.
+ * The two contexts published below are the fix.
  *
- * What is here instead is the application being driven. The caret at the end of
- * the headline unfolds into a pointer, drifts down into the panel, clicks the
- * rail, and the page under it changes; it clicks a row in the issue list and
- * the stack trace opens. Five screens, so the claim
- * is not "there is a dashboard" but "there are issues, a stack trace, a log
- * stream and an agent waterfall", made inside the first screenful without the
- * reader scrolling or clicking anything.
+ * Two speeds, on purpose. The pointer moves slowly, because that is the part
+ * asking to be watched; the screens, once clicked, are brisk, because a reader
+ * at the top of a landing page does not know anything is coming and a stop that
+ * takes six seconds is one most people scroll past the middle of. Dwell is per
+ * screen rather than uniform — a stack trace and a segmented list do not take
+ * the same time to recognise.
  *
- * The screens are the ones the platform section already draws further down, at
- * the app's own measurements, from the app's own components. Nothing here was
- * built for the hero.
- *
- * ── Every screen plays, and then lives ──────────────────────────────────────
- *
- * Each arrival gets a fresh clock animated 0 → 1, published where `MockStage`
- * will find it, so the screen runs its real entrance: rows land from the
- * leading edge, bars rise off their baseline, lines draw in the order the data
- * happened. What is left of its time on screen is its idle — the log tail
- * advancing, counters accruing, the current bucket breathing — which is the
- * half that only works because these are components rather than images.
- *
- * Neither half used to run here. A pinned panel never travels through the
- * viewport, so a stage measuring its own box read a finished entrance and a
- * screen long past centre from the first frame: fully drawn, permanently
- * switched off. That is what made this look like a screenshot, and it is fixed
- * by the two contexts published below rather than by animating anything new.
- *
- * ── Pacing ──────────────────────────────────────────────────────────────────
- *
- * Two speeds, on purpose. The pointer itself moves slowly — the descent from
- * the headline takes two and a half seconds and the hops between controls about
- * twice as long as a real hand would — because that is the part asking to be
- * watched. The screens, once clicked, are brisk: a reader at the top of a
- * landing page does not know anything is coming, so a stop that takes six
- * seconds to make its point is a stop most people scroll past the middle of.
- *
- * Each screen gets long enough to be recognised and no longer, on the
- * assumption that the reader catches two or three of them and that two or three
- * is the whole argument.
- *
- * Dwell is still per screen rather than uniform, because a stack trace and a
- * segmented list do not take the same time to recognise.
- *
- * ── Why the frame is opened here ────────────────────────────────────────────
- *
- * `AppFrame` hides its overflow, which it has to: it is a window onto a surface
- * larger than itself. The pointer is born up in the headline and spends the
- * first two and a half seconds of its life above the panel, so inside that
- * frame it would be cropped away until the exact moment it arrived — which is
- * the moment it stops being interesting. So the tour owns the frame and draws
- * the pointer as its sibling, above it, in the same box.
+ * The tour owns the `AppFrame` rather than sitting inside one, because the
+ * frame hides its overflow and the pointer spends the first two and a half
+ * seconds of its life above the panel. Inside, it would be cropped away until
+ * the exact moment it arrived, which is the moment it stops being interesting.
  */
 
 interface Stop {
@@ -122,18 +91,14 @@ const STOPS: Stop[] = [
 /**
  * The order the screens are visited in, forever.
  *
- * The pointer is born at the headline's caret once and never goes back. Each
- * pass picks up from wherever the last one left it, so the only thing that ever
- * happens twice is a hop between two controls.
+ * The pointer is born at the headline's caret once and never goes back — each
+ * pass picks up where the last left it, so the only thing that happens twice is
+ * a hop between two controls. Returning to the origin replays the descent every
+ * twenty seconds, which turns the one gesture worth watching into a tic and
+ * strands the pointer up in the type while the panel sits still underneath.
  *
- * Returning to the origin was tried and is wrong. It replays the descent from
- * the headline every twenty seconds, which takes the one gesture on this page
- * worth watching and turns it into a tic — and it strands the pointer up in the
- * type for a couple of seconds each cycle, doing nothing, while the panel it is
- * supposed to be demonstrating sits still underneath.
- *
- * The list starts at 1 because 0 is already on screen when the pointer arrives:
- * the first thing it does is take the reader somewhere new.
+ * Starts at 1 because 0 is already on screen when the pointer arrives: the
+ * first thing it does is take the reader somewhere new.
  */
 const ROUTE = [1, 2, 3, 4, 0];
 

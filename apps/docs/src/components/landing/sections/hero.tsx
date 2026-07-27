@@ -84,22 +84,18 @@ function Words({
 /**
  * The second line of the headline, rotating.
  *
- * These are the four things "own" actually means, and they are deliberately
- * flat statements of fact rather than benefits. The stem makes the claim; each
- * of these is something a reader can go and check, which is the only way a
- * claim like "you own it" survives contact with a sceptical developer.
+ * The four things "own" actually means, as flat statements of fact rather than
+ * benefits — each is something a reader can go and check, which is the only way
+ * a claim like "you own it" survives contact with a sceptical developer.
  *
- * The headline used to name Sentry outright, and it was cut for being a promise
- * the product does not keep. Rustrak speaks the Sentry protocol and answers the
- * Sentry SDKs; it is not a feature-for-feature replacement for a company with
- * hundreds of engineers, and a headline that implies otherwise gets found out
- * on the first visit. Compatibility is a fact, and it is stated where it is
- * true — in the SDK strip and in the migration section — instead of being
- * inflated into a headline.
+ * The headline deliberately does not name Sentry. Rustrak speaks the Sentry
+ * protocol and answers the Sentry SDKs; it is not a feature-for-feature
+ * replacement, and a headline implying otherwise gets found out on the first
+ * visit. Compatibility is stated where it is true, in the SDK strip and the
+ * migration section.
  *
- * Ordered so the first is the strongest, because it is the one a reader who
- * never waits still gets: it is also the phrase exposed to assistive tech and
- * the one shown outright under reduced motion.
+ * Ordered strongest first: that phrase is what a reader who never waits gets,
+ * and it is the one exposed to assistive tech and shown under reduced motion.
  */
 const TAILS = [
   'One binary.',
@@ -119,66 +115,43 @@ const RUN = 850;
 export function Hero() {
   const started = useStarted();
   const reduced = useReducedMotion();
-  const track = useRef<HTMLDivElement>(null);
+
   /*
     The rotating claim, and whether it is on screen. Gates its sheen.
 
-    The margin is what keeps the gate from being visible. The sheen restarts
-    from its first keyframe whenever it is re-armed, so opening the gate flush
-    with the viewport edge would snap the gradient across the letters at the
-    exact moment they came into view. Opening it a screenful early means the
-    restart has already happened by the time there is anything to see.
+    The generous margin is what keeps the gate itself from being visible: the
+    sheen restarts from its first keyframe whenever it is re-armed, so opening
+    the gate flush with the viewport edge would snap the gradient across the
+    letters at the exact moment they came into view.
   */
   const claim = useRef<HTMLSpanElement>(null);
   const onClaim = useOnScreen(claim, { rootMargin: '400px' });
 
   /*
     The tour only runs from `lg` up, and everything that exists for it goes with
-    it: the pull back, and the tall track that buys it time on screen.
-
-    On a phone the panel is already the narrowest it will ever be, and a screen
-    swapping under a reader who is holding the page still with their thumb is a
-    layout shift they did not ask for. What a phone gets instead is the overview
-    at full size, played once, held briefly and then released.
+    it: the pull back, and the tall track that buys it time on screen. On a
+    phone a screen swapping under a reader holding the page still with their
+    thumb is a layout shift they did not ask for, so a phone gets the overview
+    at full size instead, played once.
   */
   const held = useMediaQuery(DESKTOP) && !reduced;
 
   const { scrollY } = useScroll();
 
-  /*
-    The camera settling back as the reader starts to scroll, which is what makes
-    the panel read as something being stepped away from rather than a picture at
-    a fixed size.
-
-    It used to go to 0.84, because there were cards placed outside the panel and
-    this was the only thing making room for them. There are no cards any more,
-    so what is left is the gesture on its own: six percent is enough to feel and
-    not enough for anything to depend on.
-  */
+  /* The camera settling back as the reader starts to scroll, so the panel reads
+     as something being stepped away from rather than a picture at a fixed size.
+     Six percent is enough to feel and not enough for anything to depend on. */
   const scale = useTransform(scrollY, [0, RUN], [1, 0.94], { clamp: true });
 
   /*
     Whether the panel is on screen at all, and the gate that follows from it.
 
-    ── The bug this replaces ───────────────────────────────────────────────────
-
-    This used to be read off the pin: `scrollYProgress` over the sticky track,
-    with everything shut down once it passed 0.72. That number is not the
-    viewport, it is a fraction of a 138vh scroll corridor, and the two part
-    company badly — at 72% of the track the panel is still sitting in the middle
-    of the screen, fully visible, and every loop inside it had already been
-    switched off. Scroll a little and the tour froze, the pointer stopped, the
-    log tail stopped, and nothing started again until the panel was scrolled
-    back to the top.
-
-    A reader will scroll. They should not have to hold still for the page to
-    keep working, and there is no version of "how far through a scroll track am
-    I" that answers the question being asked, which is simply: can this be seen.
-
-    So it is an intersection observer on the panel itself, with a margin that
-    keeps it alive a little past the edges. `MockStage` wants this as a
-    `MotionValue` where anything above 0.06 means gone, so the boolean is
-    published into one.
+    An observer on the panel rather than a threshold on the pin's progress.
+    Progress through a 138vh corridor is not the viewport: at 72% of the track
+    the panel is still sitting mid-screen and fully visible, and reading the
+    gate off it froze the tour, the pointer and the log tail under a reader who
+    had merely scrolled a little. `MockStage` wants this as a `MotionValue`
+    where anything above 0.06 means gone, so the boolean is published into one.
   */
   const panel = useRef<HTMLDivElement>(null);
   const visible = useOnScreen(panel, { rootMargin: '15% 0px' });
@@ -210,66 +183,21 @@ export function Hero() {
   return (
     <section className="relative overflow-x-clip">
       {/*
-        Both layers span the section and are keyed off fixed pixel distances
-        from its top rather than off its height, which is what lets them behave
-        the same whatever the track ends up measuring.
+        The painting, pinned. One that stays rather than several handing off
+        down the section: the seams between stacked paintings never read as
+        anything but seams.
 
-        The headline sits in clear space, then the tint starts lifting from
-        380px — low enough to be under the buttons and the top of the panel on
-        the first screen, so there is already colour on the page before anyone
-        scrolls, and high enough that nothing competes with the headline.
-      */}
-      {/*
-        The wash, in the page's own colour rather than in lime.
+        The track is the whole section rather than a fixed height, so `inset-0`
+        follows whatever the section measures and nothing is left bare once the
+        pinned panel has scrolled past. Sticky rather than fixed, so it lets go
+        on its own without a scroll listener.
 
-        It used to be 14% primary, and the problem was never the amount: a tint
-        colours the space *between* the glyphs as well as the glyphs, so the
-        painting stopped being lime marks on black and became a lime area. Any
-        strength of green does that; less green just does it more quietly.
-
-        Black does the opposite thing for the same reason. It cannot tint what
-        is already the background, so it has no effect at all on the empty space
-        and acts only on the picture — which is exactly the one thing that
-        should be receding. The painting simply sinks into the page as you go
-        down, instead of the page turning green.
-
-        ── There is no wash here any more ──────────────────────────────────────
-
-        A lime gradient used to run down this section: transparent at 300px,
-        14% primary by 1400px. It is gone, and the reasoning is worth keeping
-        because the obvious replacements were all tried and none of them works.
-
-        Turning it down did not fix it, because the amount was never the
-        problem. A tint colours the space *between* the glyphs as well as the
-        glyphs, so any strength of green stops the painting being lime marks on
-        black and makes it a lime area — less green just does that more
-        quietly.
-
-        Doing the same thing in the page's own colour cannot work either, in
-        either direction, and this one is worth writing down because it sounds
-        like the right answer: the background *is* `oklch(0.14 0 0)`. Painting
-        near-black over near-black has nothing to do. What made the original
-        noticeable was that it added something, and black has nothing to add.
-
-        So the picture is left alone, and the join into the ruled frame is
-        carried by the canvas's own bottom mask instead — which is where a fade
-        belongs anyway, since that is the element that actually has something
-        to fade.
-      */}
-      {/*
-        The painting, pinned.
-
-        Stacking several different paintings down the section was tried and
-        abandoned: the seams between them never read as anything but seams, and
-        two extra pictures competing behind the product panel bought nothing.
-        One painting that *stays* is the stronger move — it holds the whole
-        opening together instead of handing off.
-
-        The track is the whole section rather than a fixed height. It was 1700px
-        at first, which left the last few hundred pixels bare once the pinned
-        panel had scrolled past — `inset-0` follows whatever the section
-        actually measures, so there is nothing left to leave uncovered. Sticky
-        rather than fixed so it lets go on its own, without a scroll listener.
+        There is deliberately no tint over it. A wash colours the space
+        *between* the glyphs as well as the glyphs, so any strength of green
+        stops the painting being lime marks on black and makes it a lime area;
+        and doing it in the page's own near-black has nothing to add over a
+        near-black background. The join into the ruled frame is carried by the
+        canvas's own bottom mask instead.
       */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="sticky top-0 h-svh">
@@ -287,25 +215,12 @@ export function Hero() {
       </div>
 
       <div className="relative px-5 pt-32 text-center sm:px-6 sm:pt-48">
-        {/*
-          The stem is set character by character from the middle outwards.
-          `StaggerFromCenter` splits into `inline-block` characters, which lets
-          a line break fall between any two of them and snap a word in half, so
-          each segment is wrapped in `Words` to keep the breaking on word
-          boundaries where it belongs.
-
-          It waits for the client rather than rendering set on the server, so
-          an invisible copy holds the space in the meantime and nothing shifts
-          when the letters arrive.
-        */}
-        {/* `text-balance` sits on the stem rather than on the `h1`, and that
-            placement is load-bearing rather than tidy. It is an inherited
-            property, so on the `h1` it also applied to the rotating tail below
-            — and balancing re-runs the line-breaking algorithm on every change
-            to the text inside the box. The tail changes width sixteen times a
-            second while it types, so the whole headline was being re-balanced
-            at that rate. The tail is one nowrap line and has nothing to
-            balance anyway. */}
+        {/* `text-balance` sits on the stem rather than on the `h1`, and the
+            placement is load-bearing. It inherits, so on the `h1` it also
+            applied to the rotating tail — and balancing re-runs line-breaking
+            on every change to the text inside the box, which for a tail that
+            changes width sixteen times a second means re-balancing the whole
+            headline at that rate. */}
         <h1 className="display-xl mx-auto max-w-[24ch] text-foreground">
           <span className="block text-balance">
             <Words
@@ -336,19 +251,16 @@ export function Hero() {
                       opacity: 1,
                       y: 0,
                       filter: 'blur(0px)',
-                      // A light travels across the claim and moves on. Only
-                      // the gradient's position animates, so the whole effect
-                      // is one composited property on one element — and it
-                      // runs long with a pause between passes, which is the
-                      // difference between a sheen and a novelty.
+                      // A light travels across the claim and moves on: only
+                      // the gradient's position animates, so the effect is one
+                      // composited property on one element.
                       //
                       // Dropped entirely once the headline is off screen. Not
-                      // for what this one element costs, but because Motion's
-                      // frame loop only sleeps when nothing at all is
-                      // animating: left running, this alone kept the whole
-                      // scheduler awake for the life of the page, and every
-                      // other loop on the landing being gated would have
-                      // bought nothing.
+                      // for what this element costs, but because Motion's frame
+                      // loop only sleeps when nothing at all is animating —
+                      // left running, this alone kept the scheduler awake for
+                      // the life of the page and every other gated loop on the
+                      // landing would have bought nothing.
                       ...(onClaim
                         ? {
                             backgroundPosition: [
@@ -384,31 +296,14 @@ export function Hero() {
               }}
             >
               {/*
-                Four endings to one sentence. Each names a different layer of
-                the same claim: the artifact, where it runs, where it writes,
-                and what comes out the other side. The line argues four times in
-                the space of one, and the reader never has to re-read the stem.
+                The caret at the end of this line is also the product pointer:
+                at 2.5s the bar leaves, unfolds into an arrow and drifts down
+                into the panel to click through the app, and the line draws its
+                own caret again a few seconds later. See `app-mock/cursor.tsx`.
 
-                Cost and licence used to be two of the four. Both were cut for
-                arguing the wrong thing here: if the server is yours the bill
-                follows on its own, and a licence is something a reader goes
-                looking for rather than something a headline announces. Both are
-                still stated, in the closing band and in the footer.
-
-                `caretClassName` paints the caret in the flat accent: the
-                gradient above is clipped to glyph shapes, and a bare element
-                inside it would come out invisible.
-              */}
-              {/*
-                The caret at the end of this line is also the product pointer.
-
-                At 2.5s the bar leaves the line, unfolds into an arrow and
-                drifts down into the panel to click its way through the app. A
-                third of the way down it sheds a piece that turns over and
-                glides back up here, and from then on this end draws its own
-                caret again — so the line is only without one for the couple of
-                seconds it takes, which is the couple of seconds the caret is
-                genuinely elsewhere. See `app-mock/cursor.tsx`.
+                `caretClassName` paints it in the flat accent — the gradient
+                above is clipped to glyph shapes, so a bare element inside it
+                would come out invisible.
               */}
               <Typewriter
                 phrases={TAILS}
@@ -450,22 +345,14 @@ export function Hero() {
           <a
             href={GITHUB}
             /*
-              A fill, not a louder outline.
-
-              This sits over the painting, and a hairline border with nothing
-              behind it has no chance there: an ASCII field is texture at exactly
-              the frequency a 1px edge lives at, so the button's own outline was
-              competing with thousands of glyphs the same weight. Turning the
-              border up would have won that fight by shouting, next to a solid
-              lime primary that has every right to be the loud one.
-
-              A very slightly lifted surface fixes it a different way. `bg-white/6`
-              is not visible as a colour — what it does is give the label a
-              consistent ground instead of whatever glyphs happen to be behind
-              it, so the edge reads as a shape rather than as one more line in
-              the noise. Deliberately not `backdrop-blur`: the background here
-              repaints, and a backdrop filter over a repainting canvas is
-              re-read every frame.
+              A fill, not a louder outline. This sits over the painting, and an
+              ASCII field is texture at exactly the frequency a 1px edge lives
+              at, so a hairline border competes with thousands of glyphs of the
+              same weight. `bg-white/6` is not visible as a colour; it gives the
+              label a consistent ground so the edge reads as a shape rather than
+              one more line in the noise. Deliberately not `backdrop-blur` — the
+              background here repaints, and a backdrop filter over a repainting
+              canvas is re-read every frame.
             */
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/18 bg-white/6 px-4 py-3 text-[15px] font-medium text-white/90 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white sm:py-2.5 sm:text-[14px]"
           >
@@ -476,51 +363,27 @@ export function Hero() {
       </div>
 
       {/*
-        A tall track with the panel pinned inside it. Without the pin the panel
-        has the height of one screen to be looked at in, and the tour needs
-        rather more than that: five screens at five to seven seconds each is
-        half a minute of product, and a panel that has scrolled away after four
-        of them has shown the reader a dashboard and a list.
+        A tall track with the panel pinned inside it, so the scroll buys time
+        rather than distance: the tour is five screens at five to seven seconds
+        each, and unpinned the panel scrolls away a third of the way through.
 
-        Pinned, the scroll buys time instead of distance. 138vh is a little over
-        a third of a screen of extra scrolling, which is enough to hold the panel
-        through several stops without the page feeling stuck.
-
-        None of which applies below `lg`, where there is no tour to wait for. A
-        pin with nothing happening during it is just a section that will not
-        scroll. So the track has no extra height there and the panel does not
-        stick — it arrives, it is read, it leaves, and the section is only as
-        tall as the thing in it.
+        None of which applies below `lg`, where there is no tour to wait for and
+        a pin with nothing happening during it is just a section that will not
+        scroll — so there the track has no extra height and nothing sticks.
       */}
-      <div ref={track} className="relative mt-14 sm:mt-20 lg:h-[138vh]">
+      <div className="relative mt-14 sm:mt-20 lg:h-[138vh]">
         <div className="px-3 sm:px-6 lg:sticky lg:top-[13vh] lg:px-10">
           {/*
-            The panel's arrival.
+            The panel's arrival, nested inside the track rather than applied to
+            it: a transform on the track would be an ancestor transform over its
+            own `sticky` child, which changes what the child sticks to.
 
-            It lives here rather than on the track, and that placement is the
-            fix: a transform on the track would have been an ancestor transform
-            over its own `sticky` child, which changes what the child sticks to.
-            Nested inside, the entrance and the pin never touch.
-
-            Held until the painting behind it has finished resolving — the
-            reveal runs about 2.75s, and this used to land at 1.25, straight
-            through the middle of the one moment the background is doing
-            something.
-
-            It was also just a fade with 18px of travel, which is why it
-            appeared rather than arrived. Now it rises further and from further
-            back, over nearly two seconds: the same move a camera makes settling
-            onto a subject.
-
-            That move used to include a 9px blur, on the theory that blur is
-            affordable if it is one element. It is not, when the element has
-            five hundred descendants: the whole panel had to be rasterised to a
-            buffer and gaussian-blurred on every frame for 1.9 seconds, while
-            simultaneously scaling — and it landed at the two second mark, on
-            top of the headline setting itself and the background resolving.
-            Pulling the scale back further (0.92 rather than 0.94) buys the same
-            sense of a subject being approached, out of two properties the
-            compositor animates for free.
+            Delayed until the painting behind it has finished resolving, which
+            takes about 2.75s. Opacity and scale only — a blur here reads well
+            and costs badly, since an element with five hundred descendants has
+            to be rasterised to a buffer and gaussian-blurred every frame for
+            the whole 1.9s. A deeper scale buys the same sense of a subject
+            being approached out of properties the compositor animates for free.
           */}
           <motion.div
             initial={reduced ? undefined : { opacity: 0, y: 72, scale: 0.92 }}
@@ -536,15 +399,10 @@ export function Hero() {
             >
               {held ? (
                 /*
-                  The product using itself: a pointer comes up from outside the
-                  window, clicks through five screens, and each one plays its
-                  own entrance and then lives for as long as it is up. See
-                  `app-mock/tour.tsx`.
-
-                  This is the first thing anybody sees of Rustrak, and a single
-                  dashboard held still was answering the wrong question. A
-                  reader looking at one overview learns that there is an
-                  overview. A reader watching the issue list open into a stack
+                  The product using itself: a pointer clicks through five
+                  screens, each playing its own entrance (`app-mock/tour.tsx`).
+                  A reader looking at one held dashboard learns that there is a
+                  dashboard; a reader watching the issue list open into a stack
                   trace, then a log stream, then an agent waterfall, learns the
                   shape of the whole product before scrolling once.
 
@@ -559,26 +417,17 @@ export function Hero() {
               ) : (
                 /*
                   Below `lg`: the overview alone, played once on entry rather
-                  than scrubbed on scroll, because it is already on the page at
+                  than scrubbed on scroll, since it is already on the page at
                   first paint and scrubbing would mean an empty dashboard until
                   the visitor scrolled.
 
-                  ── Why the fill-in is delayed ──────────────────────────────
-
-                  `armed` answers "is there a client alive to run this", which
-                  turned out not to be the question. Armed at mount, the fill-in
-                  ran from 0 to 1.9s — and the panel wrapping it is at
-                  `opacity: 0` until 2s. Every mark on the dashboard animated
-                  where nobody could see it, and finished at the exact moment
-                  the panel began to appear.
-
-                  It also cost. Measured over the opening, those sixty-odd
-                  motion values were landing on the same frames as the
-                  background painting's reveal, and that overlap is where the
-                  page fell from 120fps to 64.
-
-                  So it starts at 2.3s: three tenths of a second behind the
-                  panel's own arrival, trailing it the whole way.
+                  The fill-in trails the panel by three tenths of a second
+                  rather than starting at mount. `armed` answers "is there a
+                  client alive to run this", not "is there anything to see": the
+                  panel is at `opacity: 0` until 2s, so an unheld fill-in
+                  animated sixty-odd motion values where nobody could watch them
+                  — on the same frames as the painting's reveal, which is where
+                  the opening fell from 120fps to 64.
                 */
                 <AppFrame>
                   <MockOverview mode="enter" armed={started} enterDelay={2.3} />

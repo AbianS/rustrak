@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useTransform } from 'motion/react';
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import type { SessionBucket, VolumeBucket } from './fixtures';
 import {
   Breath,
@@ -115,6 +115,55 @@ const VOLUME_SERIES = [
   { key: 'info', label: 'Info', color: 'var(--sev-info)' },
 ] as const;
 
+/**
+ * The chrome every fixed-size plot in this file shares: a viewBox in the
+ * design's own units, a fluid width, and a label, since these are `role="img"`
+ * and have nothing else to announce themselves with.
+ */
+function ChartSvg({
+  width,
+  height,
+  label,
+  children,
+}: {
+  width: number;
+  height: number;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full"
+      style={{ height }}
+      role="img"
+      aria-label={label}
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** Left gutter for the value axis, and the strip below for the time labels. */
+const GUTTER = 40;
+const AXIS_H = 20;
+
+/**
+ * The plot box and index scale a bucketed time series is drawn in.
+ *
+ * Shared by the two session charts, which are the same picture at two sizes:
+ * same gutter, same axis strip, same evenly spaced buckets. Only the value
+ * domain differs, so `y` stays with each caller.
+ */
+function timePlot(width: number, height: number, count: number) {
+  const plotW = width - GUTTER;
+  return {
+    gutter: GUTTER,
+    plotH: height - AXIS_H,
+    x: (index: number) => GUTTER + (index / (count - 1)) * plotW,
+  };
+}
+
 /** 2px of surface between touching segments, per the app's chart mark spec. */
 const SEGMENT_GAP = 2;
 const CAP_RADIUS = 4;
@@ -143,6 +192,17 @@ function roundedTop(
 }
 
 /**
+ * How much the current bucket grows per event that lands on it, and the ceiling
+ * it may not pass.
+ *
+ * The cap is not tuning, it is honesty: the loop runs for as long as the hero is
+ * on screen, and an uncapped step would eventually push the bar through the top
+ * of its own plot and past the mean line that is supposed to measure it.
+ */
+const STEP_PER_EVENT = 0.05;
+const STEP_CEILING = 0.3;
+
+/**
  * `ErrorVolumeChart` — the lead tile of the project overview.
  *
  * Errors sit on the baseline so the segment that matters most reads straight
@@ -152,18 +212,6 @@ function roundedTop(
  * The bars grow from the baseline in time order, which is not decoration —
  * left-to-right on a time axis is the buckets filling as the day happened.
  */
-/**
- * How much the current bucket grows per event that lands on it, and the ceiling
- * it may not pass.
- *
- * The cap is not tuning, it is honesty: the loop runs for as long as the hero is
- * on screen, and an uncapped step would eventually push the bar through the top
- * of its own plot and past the mean line that is supposed to measure it. Six
- * arrivals of visible growth is more than any reader watches.
- */
-const STEP_PER_EVENT = 0.05;
-const STEP_CEILING = 0.3;
-
 export function ErrorVolumeChart({
   data,
   boost = 0,
@@ -198,12 +246,10 @@ export function ErrorVolumeChart({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height }}
-        role="img"
-        aria-label="Error volume by severity over the last 24 hours"
+      <ChartSvg
+        width={width}
+        height={height}
+        label="Error volume by severity over the last 24 hours"
       >
         {ticks.map((t) => (
           <Tick key={t} x={gutter - 8} y={plotH - scale(t)} anchor="end">
@@ -285,7 +331,7 @@ export function ErrorVolumeChart({
             {index === 23 ? 'now' : `${23 - index}h ago`}
           </Tick>
         ))}
-      </svg>
+      </ChartSvg>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ChartLegend items={VOLUME_SERIES} />
@@ -354,14 +400,11 @@ export function CrashFreeTrend({
   width?: number;
   height?: number;
 }) {
-  const gutter = 40;
-  const plotW = width - gutter;
-  const plotH = height - 20;
+  const { gutter, plotH, x } = timePlot(width, height, data.length);
 
   const rates = data.map((d) => (d.total - d.crashed) / d.total);
   const floor = Math.min(DEFAULT_FLOOR, ...rates);
   const y = (rate: number) => plotH - ((rate - floor) / (1 - floor)) * plotH;
-  const x = (index: number) => gutter + (index / (data.length - 1)) * plotW;
 
   const path = rates
     .map((rate, i) => `${i === 0 ? 'M' : 'L'}${x(i)},${y(rate)}`)
@@ -397,12 +440,10 @@ export function CrashFreeTrend({
       </div>
 
       <div className="min-w-0 flex-1">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          className="w-full"
-          style={{ height }}
-          role="img"
-          aria-label="Crash-free session rate over the last 24 hours"
+        <ChartSvg
+          width={width}
+          height={height}
+          label="Crash-free session rate over the last 24 hours"
         >
           {[floor, (floor + 1) / 2, 1].map((rate) => (
             <Tick key={rate} x={gutter - 8} y={y(rate)} anchor="end">
@@ -450,7 +491,7 @@ export function CrashFreeTrend({
             cy={y(rates[rates.length - 1])}
             color={color}
           />
-        </svg>
+        </ChartSvg>
       </div>
     </div>
   );
@@ -482,12 +523,9 @@ export function SessionHealthArea({
   width?: number;
   height?: number;
 }) {
-  const gutter = 40;
-  const plotW = width - gutter;
-  const plotH = height - 20;
+  const { gutter, plotH, x } = timePlot(width, height, data.length);
 
   const max = Math.max(...data.map((d) => d.total));
-  const x = (i: number) => gutter + (i / (data.length - 1)) * plotW;
   const y = (v: number) => plotH - (v / max) * plotH;
 
   const crashed = data.map((d) => d.crashed);
@@ -507,12 +545,10 @@ export function SessionHealthArea({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="w-full"
-        style={{ height }}
-        role="img"
-        aria-label="Healthy and crashed sessions over time"
+      <ChartSvg
+        width={width}
+        height={height}
+        label="Healthy and crashed sessions over time"
       >
         {[0, 0.5, 1].map((f) => (
           <Tick key={f} x={gutter - 8} y={y(f * max)} anchor="end">
@@ -555,7 +591,7 @@ export function SessionHealthArea({
             {i === 23 ? 'now' : `${23 - i}h ago`}
           </Tick>
         ))}
-      </svg>
+      </ChartSvg>
       <ChartLegend items={SESSION_SERIES} />
     </div>
   );

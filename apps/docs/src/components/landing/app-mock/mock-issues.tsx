@@ -2,8 +2,8 @@
 
 import { Bookmark, Check, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
 import { TrendSparkline } from './charts';
+import { useCompact } from './design';
 import { ISSUES } from './fixtures';
 import {
   MockLevel,

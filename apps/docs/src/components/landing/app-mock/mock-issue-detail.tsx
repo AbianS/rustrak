@@ -10,7 +10,7 @@ import {
   MoreHorizontal,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
+import { useCompact } from './design';
 import { MockButton, MockPill, MockShell, usePad } from './mock-shell';
 import { Enter, MockStage, Settle, Ticker, Wipe } from './stage';
 

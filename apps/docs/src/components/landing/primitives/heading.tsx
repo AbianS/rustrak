@@ -7,9 +7,10 @@ import {
   useScroll,
   useTransform,
 } from 'motion/react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { DUR, EASE } from '../motion';
+import { useRevealed } from '../use-on-screen';
 
 /**
  * A pill label. Small, tinted, sitting above its heading — the marker that
@@ -49,27 +50,17 @@ function Word({
   return (
     <span className="relative mr-[0.25em] inline-block">
       {/*
-        Every word is painted twice: once dim and in flow to hold the space, and
-        once lit and absolutely positioned on top, so the line never reflows as
-        it fills in. Both copies are real text in the DOM, so exactly one of them
-        has to be the authoritative one and the other has to be invisible to
-        everything that reads the page.
+        Every word is painted twice: dim and in flow to hold the space, lit and
+        absolutely positioned on top, so the line never reflows as it fills in.
 
-        The in-flow copy is the one that counts. It is what a screen reader
-        announces and what a selection picks up, which is why the lit copy above
-        it carries both `aria-hidden` and `select-none`.
-
-        It used to be the other way round, and selection was the half nobody had
-        checked: `aria-hidden` kept the heading from being announced as "Small
-        Small enough enough", but it does nothing to the clipboard. Dragging
-        across any scrubbed heading and copying gave every word twice
-        ("ThankThankyou.you."). Marking the overlay `select-none` makes the
-        browser skip it and take the text underneath instead.
-
-        Authority sits on the in-flow copy rather than the overlay because an
-        absolutely positioned element is an unreliable selection target: it is
-        out of flow, so a drag across the line is not guaranteed to pick it up.
-        The dim copy is an ordinary inline box and always is.
+        The in-flow copy is the authoritative one — it is what a screen reader
+        announces and what a selection picks up, which is why the overlay above
+        it carries both `aria-hidden` and `select-none`. `aria-hidden` alone
+        does nothing to the clipboard: copying a scrubbed heading gave every
+        word twice ("ThankThankyou.you.") until the overlay was excluded from
+        selection too. Authority sits on the in-flow copy rather than the
+        overlay because an out-of-flow element is an unreliable selection
+        target, and an ordinary inline box always is.
       */}
       <span className="text-foreground/12">{children}</span>
       <motion.span
@@ -176,7 +167,6 @@ export function Heading({
   scrub = false,
 }: HeadingProps) {
   const reduced = useReducedMotion();
-  const controlled = active !== undefined;
 
   // Under reduced motion the scrubbed variant is skipped entirely: tying
   // legibility to scroll position is exactly what that setting asks us not to
@@ -184,31 +174,11 @@ export function Heading({
   const scrubbable =
     scrub &&
     !reduced &&
-    !controlled &&
+    active === undefined &&
     typeof lead === 'string' &&
     (rest === undefined || typeof rest === 'string');
   const ref = useRef<HTMLHeadingElement>(null);
-  const [seen, setSeen] = useState(false);
-
-  useEffect(() => {
-    if (controlled) return;
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setSeen(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.2 },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [controlled]);
-
-  const shown = controlled ? active : seen;
+  const shown = useRevealed(ref, active, { threshold: 0.2 });
 
   if (scrubbable) {
     return (

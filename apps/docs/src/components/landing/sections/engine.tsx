@@ -19,53 +19,27 @@ import { EngineScene, PARTS } from './engine-scene';
 /**
  * How the server stays small, told by opening it.
  *
- * ── The band is a stage, not a grid ─────────────────────────────────────────
+ * One viewport, pinned, with a long scroll track behind it. Everything happens
+ * inside that single held frame: the cube arrives shut, it opens, the drawing
+ * slides left as the reading panel comes in from the right, five claims are
+ * made one per component, and then the panel leaves and the box shuts again.
  *
- * One viewport, pinned, with a long scroll track behind it. Everything that
- * happens in this section happens inside that single held frame:
+ * Measuring on a pinned track is what makes that reliable. The previous version
+ * was a two-column layout with the drawing sticky beside scrolling claims, and
+ * the reader always arrived to find the box already open — progress was
+ * measured on the claims column from `start end` to `start center`, a range
+ * spent entirely *before* the column has properly entered the screen, so by the
+ * time the sticky drawing was centred its progress had long since reached 1.
+ * Here the element being measured is the element being held, so the two cannot
+ * disagree.
  *
- *   1. The cube arrives shut and alone, using the whole width.
- *   2. It opens. The lid lifts, the near walls swing away, the components
- *      inside stand up one after another.
- *   3. The drawing slides left to make room, the leader lines draw, and the
- *      reading panel comes in from the right. They are one gesture.
- *   4. Five claims, one per component, the drawing lighting the part being
- *      described.
- *   5. The panel leaves, the leaders retract, and the box shuts again.
- *
- * ── Why it had to stop being a grid ─────────────────────────────────────────
- *
- * The previous version was a two-column layout with the drawing sticky in the
- * left cell and the claims scrolling in the right, and it had a bug that no
- * amount of tuning was going to fix: the reader always arrived to find the box
- * already open.
- *
- * The cause is worth writing down because it is the standard trap with
- * `useScroll` on a sibling. Progress was measured on the claims column with
- * `['start end', 'start center']` — from the column's top touching the bottom
- * of the viewport to it touching the middle. That whole range is spent *before*
- * the column has properly entered the screen, and the drawing beside it is
- * sticky, so by the time the drawing was centred and worth looking at, the
- * progress driving it had long since reached 1. The animation ran, correctly,
- * off screen.
- *
- * Measuring on a pinned track removes the class of bug rather than the
- * instance. The element being measured is the element being held, `start start`
- * to `end end` is exactly the distance it is held for, and there is no longer
- * any way for the two to disagree.
- *
- * ── Two stages, one sequence ────────────────────────────────────────────────
- *
- * The five acts are told twice, at two aspect ratios. `Stage` puts the panel
- * beside the drawing and lets the drawing label itself out to a gutter;
- * `PhoneStage` puts the panel under the drawing and moves the names into it,
- * because the gutter's type is authored in viewBox units and comes out at about
- * 5px on a phone.
- *
- * They share `useActs`, which owns the track, the two clocks and the claim
- * index. That is deliberate and it is the part to protect: the difference
- * between the two is meant to be geometry and nothing else, so any change to
- * the pacing lands on both or on neither.
+ * The five acts are told twice, at two aspect ratios: `Stage` puts the panel
+ * beside the drawing and lets the drawing label itself out to a gutter, and
+ * `PhoneStage` puts the panel underneath and moves the names into it, because
+ * the gutter's type is authored in viewBox units and comes out at about 5px on
+ * a phone. They share `useActs`, and that is the part to protect — the
+ * difference between them is meant to be geometry and nothing else, so a change
+ * to the pacing lands on both or on neither.
  */
 
 /**
@@ -236,6 +210,49 @@ function Ticks({ active, className }: { active: number; className?: string }) {
   );
 }
 
+/**
+ * How a claim arrives, in both stages.
+ *
+ * Applied to an element keyed on the claim index, which remounts rather than
+ * using `AnimatePresence`. `mode="wait"` queues exit before enter, so a reader
+ * crossing three claims in one flick of a trackpad leaves the panel playing
+ * catch-up several claims behind; without it the two overlap in the layout,
+ * which on a block of prose is a jump. Remounting sidesteps both — the outgoing
+ * claim is simply gone and the panel never shows anything but the current one.
+ */
+const CLAIM_ENTER = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: DUR.fast, ease: EASE },
+} as const;
+
+/** A claim's header: its number and the part it belongs to. */
+function ClaimHeading({
+  index,
+  note = false,
+}: {
+  index: number;
+  note?: boolean;
+}) {
+  const part = PARTS[index];
+
+  return (
+    <div className="flex items-baseline gap-3">
+      <span className="font-mono text-[11px] tabular-nums text-primary">
+        {String(index + 1).padStart(2, '0')}
+      </span>
+      <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
+        {part.label}
+      </span>
+      {note ? (
+        <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
+          {part.note}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* The pinned stage                                                            */
 /* -------------------------------------------------------------------------- */
@@ -245,19 +262,17 @@ function Stage() {
   const { open, label, active } = useActs(track);
 
   /*
-    The drawing moves aside rather than shrinking into a column. Percentages of
-    its own box, so it lands correctly at any width, and both of these are
-    transforms — the compositor animates them for free, which matters on a
-    pinned section where something is moving on every frame for five screens.
-  */
-  /*
+    The drawing moves aside rather than shrinking into a column: percentages of
+    its own box, and both are transforms the compositor animates for free, which
+    matters on a pinned section where something moves every frame for five
+    screens.
+
     Sized against the narrowest desktop rather than the widest, which is the
-    only way a pair of transform numbers can serve every viewport. At 1024 the
-    stage is about 1000px of usable width, the panel takes 320 of it, and the
-    drawing letterboxed into the remaining height comes out ~820 wide — so it
-    has to come down to 0.82 and move a seventh of the frame left to clear the
-    panel with a margin. On a wide monitor the same numbers simply leave more
-    air on the left, which is the harmless direction to be wrong in.
+    only way one pair of numbers serves every viewport. At 1024 the stage has
+    about 1000px of usable width, the panel takes 320, and the drawing
+    letterboxed into the rest comes out ~820 wide — so 0.82 and a seventh of the
+    frame left clears the panel with a margin. A wide monitor just gets more air
+    on the left, which is the harmless direction to be wrong in.
   */
   const sceneX = useTransform(label, [0, 1], ['0%', '-15%']);
   const sceneScale = useTransform(label, [0, 1], [1, 0.82]);
@@ -268,18 +283,12 @@ function Stage() {
   return (
     <div ref={track} style={{ height: TRACK }} className="relative">
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden">
-        {/* The drawing. Centred in the whole frame to begin with, and pushed
-            left only when there is something to make room for. */}
-        {/* The drawing fills the held frame and letterboxes inside it. It used
-            to be capped at `max-w-[46rem]` and centred, which on a tall stage
-            left a third of the height empty and rendered the cube at about half
-            the size the section had room for. */}
-        {/* Vertical padding well beyond the horizontal, because the two are
-            bounded by different things. Sideways there is the whole frame to
-            play with; downward the stage starts immediately under a fixed nav
-            and the drawing was landing hard against it. This is the air that
-            keeps the cube sitting *in* the frame rather than wedged at the top
-            of it, and it costs about 8% of the drawing's size to buy. */}
+        {/* The drawing fills the held frame and letterboxes inside it, pushed
+            left only when there is something to make room for. Vertical padding
+            runs well beyond the horizontal because the two are bounded by
+            different things: sideways there is the whole frame, downward the
+            stage starts immediately under a fixed nav and the drawing lands
+            hard against it. */}
         <motion.div
           className="absolute inset-0 px-6 py-10 lg:px-8 lg:py-14"
           style={{ x: sceneX, scale: sceneScale }}
@@ -301,39 +310,9 @@ function Stage() {
           style={{ x: panelX, opacity: label }}
         >
           <div className="min-w-0">
-            {/*
-              Keyed and remounted, with no exit animation, and that is a
-              deliberate choice against `AnimatePresence`.
-
-              `mode="wait"` holds the incoming claim until the outgoing one has
-              finished leaving, so a change costs exit plus enter back to back.
-              That is fine when a human clicks a tab and wrong here: this panel
-              is driven by a scrub, a reader can cross three claims in one flick
-              of a trackpad, and the queue means the panel is still playing
-              catch-up several claims after they stopped. Without `mode="wait"`
-              the two animate together and overlap in the layout instead, which
-              on a block of prose is a jump.
-
-              Remounting on `key` sidesteps both: the outgoing claim is simply
-              gone, the incoming one fades up from nothing, and however fast the
-              reader scrolls the panel is never showing anything but the current
-              claim.
-            */}
             {claim ? (
-              <motion.div
-                key={active}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: DUR.fast, ease: EASE }}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-[11px] tabular-nums text-primary">
-                    {String(active + 1).padStart(2, '0')}
-                  </span>
-                  <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
-                    {PARTS[active].label}
-                  </span>
-                </div>
+              <motion.div key={active} {...CLAIM_ENTER}>
+                <ClaimHeading index={active} />
 
                 <p className="mt-4 text-[19px] font-medium leading-snug tracking-[-0.015em] text-foreground">
                   {claim.question}
@@ -540,29 +519,15 @@ function PhoneStage() {
             <Legend open={open} />
           </motion.div>
 
-          {/* Remounted on `key` with no exit animation, for the reason set out
-              on the desktop panel: this is a scrub, and a thumb crosses three
-              claims in one flick. */}
           {claim ? (
             <motion.div
               className="absolute inset-x-5 top-5 sm:inset-x-8"
               key={active}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: DUR.fast, ease: EASE }}
+              {...CLAIM_ENTER}
             >
-              <div className="flex items-baseline gap-3">
-                <span className="font-mono text-[11px] tabular-nums text-primary">
-                  {String(active + 1).padStart(2, '0')}
-                </span>
-                <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {PARTS[active].label}
-                </span>
-                {/* The gutter's note, which has nowhere else to be now. */}
-                <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
-                  {PARTS[active].note}
-                </span>
-              </div>
+              {/* The note comes along here because the gutter that carried it
+                  on the desktop stage has nowhere to be on a phone. */}
+              <ClaimHeading index={active} note />
 
               <p className="mt-3.5 text-[17px] font-medium leading-snug tracking-[-0.015em] text-foreground">
                 {claim.question}
@@ -633,14 +598,7 @@ function Stacked() {
               index < CLAIMS.length - 1 ? 'border-b border-rule' : ''
             }`}
           >
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[11px] tabular-nums text-primary">
-                {String(index + 1).padStart(2, '0')}
-              </span>
-              <span className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-muted-foreground">
-                {PARTS[index].label}
-              </span>
-            </div>
+            <ClaimHeading index={index} />
             <p className="mt-3 max-w-[30ch] text-[17px] font-medium leading-snug tracking-[-0.015em] text-foreground">
               {claim.question}
             </p>

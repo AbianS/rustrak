@@ -86,24 +86,6 @@ export function useStageProgress(): MotionValue<number> {
 export function useIdle(): boolean {
   return useContext(IdleContext);
 }
-
-/**
- * Publishes an idle window to descendants.
- *
- * `LayeredPanel` uses this for the cards hanging off a panel: they sit outside
- * the screen's own stage, so without it they would read the default `false` and
- * never come alive.
- */
-export function IdleProvider({
-  value,
-  children,
-}: {
-  value: boolean;
-  children: ReactNode;
-}) {
-  return <IdleContext.Provider value={value}>{children}</IdleContext.Provider>;
-}
-
 /**
  * Derives the idle window: arrived, and still near enough to centre to watch.
  *
@@ -168,26 +150,21 @@ export function useSlot(start: number, span = SPAN): MotionValue<number> {
 }
 
 /**
- * ── Why there is no spring on the scroll input ──────────────────────────────
+ * There is deliberately no spring on the scroll input.
  *
- * There used to be one, overdamped, on the theory that it turned Lenis'
- * already-smoothed scroll into motion that keeps gliding for a beat after the
- * wheel stops. It did. It also cost about half a second of settling time, on
- * top of the three hundred milliseconds Lenis was already spending, and the two
- * were in series: nearly a second between the wheel stopping and the page
- * finishing its response. That does not read as momentum, it reads as lag. A
- * page can hold 120fps and still feel heavy, and this is how.
+ * Smoothing something that arrives already smoothed is the mistake: Lenis
+ * exists to give the scroll a deceleration curve, and a spring in series with
+ * it added about half a second of settling on top of Lenis' three hundred
+ * milliseconds. Nearly a second between the wheel stopping and the page
+ * finishing its response does not read as momentum, it reads as lag — a page
+ * can hold 120fps and still feel heavy, and this is how.
  *
- * Smoothing something that arrives already smoothed is the whole mistake. Lenis
- * exists to give the scroll a deceleration curve; asking a spring to give it a
- * second one buys no visual quality and spends the reader's patience.
- *
- * There is a second reason, which would matter even if the feel were free.
- * Motion runs scroll-linked animations on the browser's native `ScrollTimeline`
- * — fully hardware-accelerated, no scroll measurement on the main thread — but
- * only when the scroll value reaches an accelerable style directly or through a
- * single `useTransform`. A spring in the middle is a JavaScript animation, and
- * it takes everything downstream off that path with it.
+ * It would matter even if the feel were free. Motion runs scroll-linked
+ * animations on the browser's native `ScrollTimeline`, fully accelerated with
+ * no scroll measurement on the main thread, but only when the scroll value
+ * reaches an accelerable style directly or through a single `useTransform`. A
+ * spring in the middle is a JavaScript animation and takes everything
+ * downstream off that path with it.
  */
 
 export type StageMode = 'scroll' | 'enter';
@@ -243,17 +220,12 @@ export function MockStage({
   /**
    * Holds a `mode="enter"` fill-in back by this many seconds.
    *
-   * Needed because `armed` answers "is there a client alive to run this", which
-   * is not the same question as "is there anything to see". The hero arms this
-   * screen at mount but does not reveal the panel around it until two seconds
-   * later, so the fill-in used to play out in full behind an element at
-   * `opacity: 0` — every mark on the dashboard animating where nobody could
-   * watch it, and finishing just as the panel began to appear.
-   *
-   * It cost twice. The animation was thrown away, and it was thrown away during
-   * the single busiest stretch of the opening: measured, the fill-in's sixty-odd
-   * motion values were landing on the same frames as the background painting's
-   * reveal, which is where the page dropped from 120fps to 64.
+   * `armed` answers "is there a client alive to run this", which is not "is
+   * there anything to see". The hero arms this screen at mount but does not
+   * reveal the panel around it for two seconds, so an unheld fill-in plays out
+   * behind an element at `opacity: 0` — and its sixty-odd motion values land on
+   * the same frames as the background painting's reveal, which is where the
+   * opening drops from 120fps to 64.
    */
   delay?: number;
   /**
@@ -267,18 +239,12 @@ export function MockStage({
    * The whole clock, supplied from outside, replacing the measured one.
    *
    * `gate` fixes the *idle* window for a surface that does not travel; this
-   * fixes the entrance for a surface that does not travel *either*, which is a
-   * different failure and used to go unnoticed because it happens off screen.
-   *
-   * The hero's satellites are the case. Each one measured its own box crossing
-   * the viewport, and each one is pinned — so their fill-in reached 1 at around
-   * 300px of scroll, while the card carrying it was still at 14% opacity and
-   * halfway through flying in. Every bar swept, every counter counted up, and
-   * all of it was over before the card was legible: they arrived already
-   * finished, which is exactly what a screenshot looks like.
-   *
-   * Handed the same progress value that flies the card in, the two can no
-   * longer disagree: the surface fills in *as* it arrives.
+   * fixes the entrance for the same case, which used to go unnoticed because it
+   * happens off screen. A pinned surface measuring its own box reaches progress
+   * 1 within a few hundred pixels of scroll, while the card carrying it is
+   * still at 14% opacity and halfway through flying in — so it arrives already
+   * finished, which is exactly what a screenshot looks like. Handed the same
+   * progress that flies the card in, the two cannot disagree.
    */
   progress?: MotionValue<number>;
 }) {
@@ -325,19 +291,12 @@ export function MockStage({
     <StageContext.Provider value={clock}>
       <IdleContext.Provider value={idle}>
         {/*
-          `select-none` on every surface, because these are pictures of the
-          product rather than the product.
-
-          They are built out of real elements, so a drag across one selects it
-          like a document: rows highlight, labels come away as text, and a copy
-          returns a column of issue titles and timestamps that came from a
-          fixture file. That is the moment the illusion goes, and it takes the
-          rest of the page's credibility with it, since the reader has just
-          learned that what looked like a screenshot of an application is a
-          mock-up they can pull apart.
-
-          One place covers all of it: every screen and every thumbnail on the
-          page is rendered inside a `MockStage`.
+          `select-none`, because these are pictures of the product rather than
+          the product. They are built out of real elements, so a drag across one
+          selects it like a document and a copy returns a column of issue titles
+          that came from a fixture file — which is the moment the illusion goes.
+          One place covers all of it: every screen and thumbnail on the page is
+          rendered inside a `MockStage`.
         */}
         <div ref={ref} className={cn('h-full w-full select-none', className)}>
           {children}
@@ -713,74 +672,6 @@ export function Flash({ run }: { run: number }) {
     />
   );
 }
-
-/**
- * A playhead crossing a timeline: the run being replayed.
- *
- * The wrapper spans the track and carries the line at its own leading edge, so
- * the travel is a percentage translate of the wrapper — one composited
- * transform, rather than animating `left` and relaying out the track each frame.
- */
-export function Playhead({
-  color = 'rgba(255,255,255,0.55)',
-  duration = 5.5,
-  gap = 2.5,
-}: {
-  color?: string;
-  duration?: number;
-  /** Pause between passes. Without one it reads as a barber pole. */
-  gap?: number;
-}) {
-  const idle = useIdle();
-  const reduced = useReducedMotion();
-
-  if (reduced || !idle) {
-    return null;
-  }
-
-  return (
-    <motion.span
-      aria-hidden
-      className="pointer-events-none absolute inset-y-0 left-0 w-full"
-      animate={{ x: ['0%', '100%'] }}
-      transition={{
-        duration,
-        repeat: Number.POSITIVE_INFINITY,
-        repeatDelay: gap,
-        ease: 'linear',
-      }}
-    >
-      {/* Zero-width anchor at the head, so the wake can hang off its trailing
-          side rather than being laid out inside the track. */}
-      <motion.span
-        className="absolute inset-y-0 left-0 w-0"
-        animate={{ opacity: [0, 1, 1, 0] }}
-        transition={{
-          duration,
-          times: [0, 0.05, 0.88, 1],
-          repeat: Number.POSITIVE_INFINITY,
-          repeatDelay: gap,
-          ease: 'linear',
-        }}
-      >
-        {/* A head with a wake behind it, not a bare rule: the trail is what
-            gives the pass a direction you can read at a glance. */}
-        <span
-          className="absolute inset-y-0 right-0 w-16"
-          style={{
-            background: `linear-gradient(90deg, transparent, ${color})`,
-            opacity: 0.3,
-          }}
-        />
-        <span
-          className="absolute inset-y-0 left-0 w-px"
-          style={{ background: color }}
-        />
-      </motion.span>
-    </motion.span>
-  );
-}
-
 /**
  * A specular sweep across a surface: light moving over a screen.
  *
@@ -880,56 +771,6 @@ export function Pulse({
     </motion.g>
   );
 }
-
-/**
- * A very slow float. Depth, not decoration.
- *
- * For the cards hanging off a panel: a few pixels over several seconds, out of
- * phase with each other, is what stops a composition of stacked planes from
- * looking pasted together. Big enough to register, small enough that nobody can
- * point at it.
- */
-export function Drift({
-  distance = 6,
-  duration = 9,
-  phase = 0,
-  className,
-  children,
-}: {
-  distance?: number;
-  duration?: number;
-  /** Offsets this element's cycle so neighbours never move in lockstep. */
-  phase?: number;
-  className?: string;
-  children: ReactNode;
-}) {
-  const idle = useIdle();
-  const reduced = useReducedMotion();
-
-  if (reduced) {
-    return <div className={className}>{children}</div>;
-  }
-
-  return (
-    <motion.div
-      className={className}
-      animate={idle ? { y: [0, -distance, 0] } : { y: 0 }}
-      transition={
-        idle
-          ? {
-              duration,
-              repeat: Number.POSITIVE_INFINITY,
-              ease: 'easeInOut',
-              delay: phase,
-            }
-          : { duration: 0.6, ease: EASE }
-      }
-    >
-      {children}
-    </motion.div>
-  );
-}
-
 /**
  * The slow breath on a live indicator.
  *

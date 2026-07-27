@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
-import { useCompact } from './app-frame';
+import { useCompact } from './design';
 import type { LogLevel, MockLog } from './fixtures';
 import { LOGS, logAge } from './fixtures';
 import {

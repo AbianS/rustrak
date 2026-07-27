@@ -3,7 +3,6 @@
 import { ArrowUpRight, Users } from 'lucide-react';
 import type { MotionValue } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
 import {
   CrashFreeTrend,
   compact,
@@ -12,6 +11,7 @@ import {
   TransactionP95Bars,
   TrendSparkline,
 } from './charts';
+import { useCompact } from './design';
 import { useScene } from './event-scene';
 import { ISSUES, SESSIONS, TRANSACTIONS, VOLUME } from './fixtures';
 import { MockCard, MockLevel, MockShell, usePad } from './mock-shell';

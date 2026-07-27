@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import { cn } from '@/lib/utils';
+import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../app-mock/design';
 import {
   AlertRoutesMini,
   AttributesMini,
@@ -29,23 +30,18 @@ import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 
 /**
- * The recreated screens, split out of the initial bundle.
+ * The recreated screens, split out of the initial bundle — between them the
+ * single largest thing the landing ships, for dashboards three, four and five
+ * scrolls below the fold.
  *
- * Between them they are the single largest thing the landing ships. Every one
- * is a few hundred nodes of real product UI, and they were all being
- * downloaded, parsed, hydrated *and* serialised into the exported HTML on first
- * paint, for dashboards that live three, four and five scrolls below the fold.
+ * `ssr: false` removes them from the HTML as well as the bundle, and is safe
+ * here for a specific reason rather than as a general habit: these are
+ * `aria-hidden` decorations carrying no copy a reader needs and nothing a
+ * search engine should index. The claim each chapter makes is in its heading,
+ * which is server-rendered as it always was.
  *
- * `ssr: false` is what removes them from the HTML as well as the bundle, and it
- * is safe here for a specific reason rather than as a general habit: these are
- * `aria-hidden` decorations. They carry no copy a reader needs, nothing a
- * search engine should index, and nothing a visitor without JavaScript loses by
- * their absence. The claim each chapter makes is in its heading, which is
- * server-rendered as it always was.
- *
- * The hero's own screen is deliberately *not* in this list. It is the first
- * impression and it is above the fold, so deferring it would be trading the
- * metric for the thing the metric exists to protect.
+ * The hero's own screen is deliberately not in this list. It is above the fold,
+ * so deferring it would trade the metric for the thing the metric protects.
  */
 const MockIssues = dynamic(
   () => import('../app-mock/mock-issues').then((mod) => mod.MockIssues),
@@ -76,101 +72,35 @@ interface Half {
   visual: ReactNode;
 }
 
-/**
- * How a chapter is laid out.
- *
- * ── Why this exists ─────────────────────────────────────────────────────────
- *
- * Every chapter used to be the same three modules in the same order: statement,
- * showcase, two-up. Individually each one was fine and together they were a
- * list. By the third the reader has learned the shape and stops looking, which
- * is the worst thing a section full of product screens can do to itself. The
- * screens were being skipped not because they were weak but because the reader
- * already knew where each one would be.
- *
- * So the modules stay and their arrangement changes. The variants are not
- * decoration; each is chosen for what its chapter has to say:
- *
- * `stacked`  Statement, screen, two-up. The plain form.
- *
- * `wide`     Screen, then a strip of four short facts and no two-up. The
- *            quietest chapter, for the ones whose argument is a list of
- *            properties rather than a mechanism.
- *
- * `inverted` Two-up first, screen last. The detail earns the context, instead
- *            of the context introducing the detail, and the chapter ends on its
- *            largest image rather than on small print.
- *
- * There used to be a fourth, `aside`, which put the statement in a 20rem column
- * beside the screen. It is gone, and the reason is worth keeping: a surface
- * drawn at 1:1 needs every pixel of the cell. In that layout the window was
- * 734px onto a 1240px screen, so almost half the product was outside the page
- * before the fade even started, and the chapter read as a fragment of something
- * rather than a view of it. Vertical arrangement varies the rhythm just as
- * well and costs the screens nothing.
- */
-type Variant = 'stacked' | 'wide' | 'inverted';
-
-/**
- * The size every screen is authored against, and the reason `width` and
- * `height` are not per-chapter knobs.
- *
- * These mocks are laid out as pages: a column with `flex-1` and `min-h-0` in
- * the middle, sized to fill an application viewport. Hand one of them a
- * different height and nothing crops, everything *stretches*: the table grows
- * padding it does not have in the product, or the toolbar and the pagination
- * row drift apart until the screen is a recreation of nothing. An earlier pass
- * gave each chapter its own 640 or 780 and every one of them was subtly wrong
- * in a way that was hard to name and easy to feel.
- *
- * So the surface is always drawn at the app's own viewport, and the framing is
- * done entirely by the window in front of it: `offsetY` picks where the window
- * starts and `view` how tall it is. Crop, never resize.
- */
-const DESIGN_WIDTH = 1240;
-const DESIGN_HEIGHT = 840;
+interface Fact {
+  label: string;
+  value: string;
+}
 
 /**
  * How far the two open edges dissolve. One constant rather than four literals,
- * because the whole point of the effect is that the chapters agree: four
- * near-identical numbers is four places to edit and four chances to drift, and
- * a page where one surface fades over a third of its width and the next over a
- * tenth does not read as a treatment, it reads as a bug.
+ * because the whole point is that the chapters agree — one surface fading over
+ * a third of its width next to one fading over a tenth reads as a bug.
  *
- * These are deliberately deep. The first pass ran at 0.12 to 0.16 and was
- * technically present and visually absent: at that depth the gradient is over
- * before the eye registers it started, so the surface still terminated in what
- * looked like a straight cut and the whole device was doing nothing. A third of
- * the width is enough that the UI visibly *thins* into the band rather than
- * stopping in it.
- *
- * `right` is capped short of where it would eat the data. Both waterfalls put
- * their duration column at the far right of the design, so a deeper fade takes
- * the numbers before it takes anything expendable.
+ * Deliberately deep. At the 0.12 to 0.16 of the first pass the gradient is over
+ * before the eye registers it started, so the surface still terminates in what
+ * looks like a straight cut. A third of the width is enough that the UI visibly
+ * *thins* into the band rather than stopping in it. `right` is capped short of
+ * the duration column, which both waterfalls put at the far right.
  */
 const DISSOLVE: Fade = { right: 0.34, bottom: 0.26 };
 
 /**
- * How a chapter's screen is drawn. There is one answer, and there used to be
- * two.
+ * How a chapter's screen is drawn: one part of the product at 1:1, cropped by
+ * the band and dissolved into it at the open edges (see `primitives/bleed.tsx`).
  *
- * Every chapter is now a surface: one part of the product at 1:1, cropped by
- * the band and dissolved into it at the open edges (see
- * `primitives/bleed.tsx`).
- *
- * The first chapter was the exception for a while. It showed the whole
- * application inside `AppFrame`, authored at 1240x840 and scaled to fit an
- * 800px cell, on the argument that the reader should meet the shape of the
- * product before meeting parts of it. Two things were wrong with it. The scale
- * put the app's 14px label on screen at 9px, so the screen that was supposed to
- * establish the product was the least legible one on the page. And it sat in
- * the middle of its band with air on both sides while every chapter below it
- * was a window cut into the page, so it matched none of the things it was
- * introducing.
- *
- * Nothing was lost by dropping it. The rail and the header still appear in the
- * first chapter, which sets `chrome`; they are part of what that surface
- * contains rather than a separate presentation mode with its own geometry.
+ * Every screen is authored at the app's own viewport (`DESIGN_WIDTH` by
+ * `DESIGN_HEIGHT`) and never resized, because these mocks are laid out as pages
+ * — a column with `flex-1` and `min-h-0` sized to fill an application viewport.
+ * Hand one a different height and nothing crops, everything *stretches*: the
+ * table grows padding it does not have in the product, or the toolbar and the
+ * pagination row drift apart. So framing is done entirely by the window in
+ * front: `offsetY` picks where it starts and `view` how tall it is.
  */
 interface Screen {
   node: ReactNode;
@@ -185,67 +115,82 @@ interface Screen {
   /**
    * Keeps the application chrome: the global header and the project rail.
    *
-   * True for exactly one chapter, the first, and false for the rest. The claim
-   * "this is a real application and not four screenshots" has to be made once,
-   * while the reader still has reason to doubt it, and the rail is what makes
-   * it. After that the chrome is 256px of navigation the reader has already
-   * understood, and every chapter that keeps it pays for it out of the surface
-   * it is actually there to show.
-   *
-   * The difference is now only what the surface contains. It used to also be a
-   * different geometry, and that was the mistake: see the note above.
+   * True for exactly one chapter, the first. "This is a real application and
+   * not four screenshots" has to be made once, while the reader still has
+   * reason to doubt it, and the rail is what makes it; after that the chrome is
+   * 256px of navigation paid for out of the surface it is there to show.
    */
   chrome?: boolean;
   /** Overrides `DISSOLVE` for a chapter that needs its own edges. */
   fade?: Fade;
 }
 
-interface Chapter {
+interface ChapterBase {
   /** The label in the rail. Short enough to scan as a list. */
   label: string;
   lead: string;
   rest: string;
-  variant: Variant;
   /** The surface this chapter shows, at 1:1, cropped by the band. */
   screen: Screen;
-  /** Absent on `wide`, which closes with `facts` instead. */
-  split?: [Half, Half];
-  /** Only on `wide`. Four properties, stated and not argued. */
-  facts?: { label: string; value: string }[];
 }
+
+/**
+ * How a chapter is laid out.
+ *
+ * Every chapter used to be the same three modules in the same order: statement,
+ * showcase, two-up. Individually each was fine and together they were a list —
+ * by the third the reader has learned the shape and stops looking, which is the
+ * worst thing a section full of product screens can do to itself. So the
+ * modules stay and their arrangement changes, and each variant carries exactly
+ * the pieces it uses rather than a bag of optional ones.
+ *
+ * There used to be a fourth, `aside`, which put the statement in a 20rem column
+ * beside the screen. A surface drawn at 1:1 needs every pixel of the cell, and
+ * in that layout the window was 734px onto a 1240px screen — almost half the
+ * product outside the page before the fade even started.
+ */
+
+/** Statement, screen, two-up. The plain form. */
+interface StackedChapter extends ChapterBase {
+  variant: 'stacked';
+  split: [Half, Half];
+}
+
+/**
+ * Screen, then a strip of four short facts and no two-up. The quietest form,
+ * for chapters whose argument is a list of properties rather than a mechanism.
+ */
+interface WideChapter extends ChapterBase {
+  variant: 'wide';
+  facts: [Fact, Fact, Fact, Fact];
+}
+
+/**
+ * Two-up first, screen last. The detail earns the context instead of the
+ * context introducing the detail, and the chapter ends on its largest image
+ * rather than on small print.
+ */
+interface InvertedChapter extends ChapterBase {
+  variant: 'inverted';
+  split: [Half, Half];
+}
+
+type Chapter = StackedChapter | WideChapter | InvertedChapter;
 
 const CHAPTERS: Chapter[] = [
   {
     label: 'Issues',
     variant: 'stacked',
-    /*
-      The statement describes the list, not the grouping.
-
-      All three pieces of copy in this chapter used to explain fingerprinting:
-      the lead, the paragraph under it, and the first half of the two-up below,
-      which is sitting next to a diagram that draws raw events folding onto one
-      issue. The diagram cannot say anything else, so the paragraph gives up the
-      mechanism and describes what the screen above it actually shows, which is
-      a triage list with a status, a priority and a trend on every row.
-    */
+    // The statement describes the list, not the grouping: the two-up below
+    // sits next to a diagram of events folding onto one issue, and can say
+    // nothing else, so the mechanism belongs there.
     lead: 'Start with a list, not a stream.',
     rest: 'Every row carries a status, a priority and a 24-hour trend, so new issues, regressions and escalations are visible before you open anything.',
     screen: {
       node: <MockIssues />,
       chrome: true,
-      /*
-        Opens at the top, like the performance and agent trace chapters: the
-        screen's own page header is the margin and nothing is sliced.
-
-        This chapter used to be the exception. It showed the whole application
-        inside `AppFrame`, scaled to 0.65 to fit an 800px cell and floating in
-        the middle of the band with air on both sides, on the theory that the
-        reader should be shown the shape of the product once before being shown
-        parts of it. The theory was fine and the result was not: it read as a
-        panel sitting on the page while every chapter under it read as a window
-        cut into it, so the one screen meant to establish the others was the one
-        that matched none of them.
-      */
+      // Opens at the top, like the performance and agent trace chapters: the
+      // screen's own page header is the margin and nothing is sliced.
       view: 660,
     },
     split: [
@@ -255,14 +200,9 @@ const CHAPTERS: Chapter[] = [
         visual: <GroupingMini />,
       },
       {
-        /*
-          Deliberately short of everything it could say. The `Alerts` band, four
-          sections down, is a full-width diagram of triggers, conditions,
-          channels and escalation. This half used to name the same triggers and
-          list all five destinations, so by the time the reader arrived at the
-          band built to explain routing, routing had already been explained in
-          two lines beside a thumbnail.
-        */
+        // Deliberately short of everything it could say: the `Alerts` band is
+        // a full-width diagram of the same routing, and explaining it here
+        // leaves that band with nothing left to announce.
         lead: 'Alerts where you already work.',
         rest: 'A rule decides which issues are worth an interruption and which channel they arrive on.',
         visual: <AlertRoutesMini />,
@@ -272,50 +212,25 @@ const CHAPTERS: Chapter[] = [
   {
     label: 'Stack traces',
     variant: 'stacked',
-    /*
-      Same division as `Issues`: the statement describes the page, the two-up
-      below keeps the mechanism.
-
-      The paragraph here used to explain server-side source maps, and the half
-      underneath it explained server-side source maps again, down to repeating
-      "against the release that produced them" word for word. The screen above
-      is an event detail with the resolved frame, the breadcrumbs, the tags and
-      the context all on it, so that is what the statement names.
-    */
+    // Same division as `Issues`: the statement describes the page, the two-up
+    // below keeps the mechanism. Both used to explain source maps, in nearly
+    // the same words.
     lead: 'Open an event and land on your own source.',
     rest: 'The failing frame, the breadcrumbs before it, the tags and the context are on one page, with the next event one click away.',
     screen: {
       node: <MockIssueDetail />,
       /*
-        The page, not the panel.
+        The page, not the panel. Cropped tight onto the Stack Trace card it
+        stops being a screen and becomes a diagram of one; what sells this
+        chapter is recognising the *page* the trace lives on and then finding
+        the resolved frame inside all of it.
 
-        A tighter window sat at 478 and framed the Stack Trace card on its own,
-        which is a defensible reading of a chapter called "stack traces" and was
-        the wrong call: cropped that hard it stops being a screen and becomes a
-        diagram of one. What sells this chapter is recognising the *page* the
-        trace lives on, with the tabs above it and the panels around it, and
-        then finding the resolved frame inside all of that.
-
-        It opens at the top, and that is the conclusion of three attempts that
-        each cut something. This screen has no clear horizontal gap to open on.
-        Measured, the title runs 34 to 74, the action buttons 138 to 187, and
-        the "Events in this issue" card starts at 188 with no space between it
-        and the buttons at all. So every offset picked to sit "just above" one
-        element lands inside the one before it: 180 left an 8px sliver that read
-        as a misalignment against the framed hairline, and 164, chosen as 24px
-        above the card, went straight through the middle of the buttons.
-
-        There is nowhere in the upper half of this page to make a clean cut, so
-        the answer is not to cut there. Opening at 0 means the screen's own top
-        padding is the margin, exactly as in the performance and agent trace
-        chapters, and nothing anywhere in frame is sliced.
-
-        It also happens to be the better composition. This chapter is the one
-        that has to be recognisable as a *page* rather than a panel, so having
-        the title, the actions, the event chart and the tab strip all present,
-        with the stack trace opening underneath them and running out of the
-        bottom of the band, is the argument. The trade is that the trace itself
-        gets the lower third rather than the whole frame.
+        Opens at 0 because this screen has no clear horizontal gap to cut on:
+        the title runs 34 to 74, the action buttons 138 to 187, and the "Events
+        in this issue" card starts at 188 with no space between it and the
+        buttons at all, so every offset picked to sit just above one element
+        lands inside the one before it. The screen's own top padding is the
+        margin instead, and nothing in frame is sliced.
       */
       view: 700,
     },
@@ -326,12 +241,9 @@ const CHAPTERS: Chapter[] = [
         visual: <StackFrameMini />,
       },
       {
-        /*
-          Every heading in this chapter names the feature rather than narrating
-          it. This half was "The seconds before the throw", which was also the
-          `Logs` chapter's heading with a different clock on it, and neither one
-          told a reader scanning the page what the thing under it was.
-        */
+        // Headings here name the feature rather than narrating it: "The
+        // seconds before the throw" was also the `Logs` chapter's heading, and
+        // neither told a reader scanning the page what sat under it.
         lead: 'Breadcrumbs with every event.',
         rest: 'The route, the request and the click that led into the frame that failed.',
         visual: <BreadcrumbsMini />,
@@ -346,18 +258,6 @@ const CHAPTERS: Chapter[] = [
     screen: {
       node: <MockPerformance />,
       view: 560,
-      /*
-        Left, not centred, and that is a judgement about what may be lost.
-
-        A centred surface crops evenly, which sounds fair and is not: it takes
-        the first characters of every label at the same time as the last. The
-        transaction name lost its verb and the section header read "WATERFALL"
-        with the word "SPAN" outside the page. Pinned left, everything that
-        starts a line is safe and the crop falls entirely on the duration
-        column, which is the right thing to spend: the *shape* of this picture
-        is its argument, and `903ms` only confirms what the long green bar has
-        already said.
-      */
     },
     facts: [
       { label: 'Spans', value: 'the full tree' },
@@ -398,17 +298,9 @@ const CHAPTERS: Chapter[] = [
     rest: 'Model calls, tool calls and handoffs between agents arrive as spans, on the same waterfall as your HTTP and database work.',
     screen: {
       node: <MockAgents />,
-      /*
-        No offset at all, and this one is worth stating because it changed for
-        a reason rather than by taste. The window used to open at 36, which
-        clipped the "← Agents" back link the real page carries above the title.
-        Removing the link (see mock-agents.tsx) moved everything under it up by
-        that same amount, so the offset that had been hiding a stray row was
-        suddenly eating the title instead.
-        At 0 the screen's own 24px of top padding does the work, and the run's
-        header (name, duration, token count) sits complete in frame, which for
-        this chapter is half the claim.
-      */
+      // No offset: the screen's own 24px of top padding does the work, and the
+      // run's header (name, duration, token count) sits complete in frame,
+      // which for this chapter is half the claim.
       view: 620,
     },
     facts: [
@@ -489,33 +381,11 @@ function Surface({
       style={{ background: surface }}
     >
       {/*
-        Pinned left, always, and that is a judgement about what may be lost.
-
-        A centred surface crops evenly, which sounds fair and is not: it takes
-        the first characters of every label at the same time as the last. The
-        transaction name lost its verb and a section header read "WATERFALL"
-        with the word "SPAN" outside the page. Pinned left, everything that
-        starts a line is safe and the crop falls entirely on the right-hand
-        columns, which is the right thing to spend. Those columns are durations
-        and timestamps: worth having, never the argument.
-      */}
-      {/*
-        No `Lift` here, and its absence is the entire reason these chapters
-        assemble instead of appearing.
-
-        `Lift` fades a surface in as one block over the first 42% of its
-        approach. That is right for the issues chapter, where the panel is a
-        discrete object that should arrive whole. It is actively wrong here,
-        because the pieces inside are already animating against the *same*
-        scroll window: the toolbar settling, the rows cascading, the bars
-        sweeping out from their own start times. All of that was happening
-        underneath a container that was itself still fading up, so the most
-        interesting half of the build played out at partial opacity and what
-        reached the reader was a smudge resolving into a screen.
-
-        Removed, the container is simply there from the first frame and every
-        piece is visible for the whole of its own move. Nothing was added to
-        make this spectacular; something was taken away that was hiding it.
+        Nothing fades the surface in as a block. The pieces inside are already
+        animating against the same scroll window — the toolbar settling, rows
+        cascading, bars sweeping out from their start times — and a container
+        fading up underneath all of that turned the most interesting half of the
+        build into a smudge resolving into a screen.
       */}
       <div className="lg:pl-8">
         <Bleed
@@ -523,6 +393,13 @@ function Surface({
           height={DESIGN_HEIGHT}
           view={screen.view}
           offsetY={screen.offsetY}
+          /* Left, not centred, which is a judgement about what may be lost. A
+             centred surface crops evenly, which takes the first characters of
+             every label at the same time as the last — a transaction name loses
+             its verb and a header reads "WATERFALL" with "SPAN" off the page.
+             Pinned left, everything that starts a line is safe and the crop
+             falls entirely on the duration and timestamp columns: worth having,
+             never the argument. */
           align="left"
           fade={screen.fade ?? DISSOLVE}
           framed
@@ -586,7 +463,7 @@ function Statement({
 }
 
 /** The strip of short properties that closes a `wide` chapter. */
-function Facts({ facts }: { facts: { label: string; value: string }[] }) {
+function Facts({ facts }: { facts: readonly Fact[] }) {
   return (
     <ul className="grid grid-cols-2 border-t border-rule lg:grid-cols-4">
       {facts.map((fact, index) => (
@@ -627,39 +504,22 @@ const JUMP_OFFSET = 96;
 /**
  * The chapter index, as navigation rather than as a caption.
  *
- * ── Why these are links ─────────────────────────────────────────────────────
+ * Real anchors rather than `<span>`s: a list of chapter titles beside a long
+ * section is the element a visitor is most likely to use for getting around, so
+ * one that looks clickable and is not is a table of contents drawn but not
+ * wired. As a real `<ol>` of hrefs it also works from the keyboard, survives
+ * JavaScript failing, and gets `aria-current` for free.
  *
- * They used to be `<span>`s. The rail named the chapter you were in and could
- * do nothing else, which is a table of contents that has been drawn but not
- * wired: it looks exactly like something you can click, so a reader tries, and
- * nothing happens. A list of chapter titles beside a long section is the one
- * element on a page a visitor is most likely to use for getting around.
+ * Lenis has to be asked, though. It drives the real scroll position from a
+ * frame loop, so a native anchor jump fights it — the browser sets `scrollTop`
+ * in one frame and Lenis writes over it in the next. When it is mounted the
+ * default is prevented and `scrollTo` used instead; `useLenis` returns
+ * `undefined` when it is not (on a phone, under reduced motion) and the click
+ * is left alone to honour `scroll-mt`.
  *
- * As anchors they also cost nothing to make accessible — the list is a real
- * `<ol>` of real hrefs, so it works from the keyboard, it survives JavaScript
- * failing, and `aria-current` says which one you are on without a second
- * mechanism.
- *
- * ── Lenis has to be asked ───────────────────────────────────────────────────
- *
- * The landing runs Lenis at the root, which drives the real scroll position
- * from a frame loop. A native anchor jump fights that: the browser sets
- * `scrollTop` in one frame and Lenis writes over it in the next, so the page
- * either snaps and springs back or lands somewhere near the target. So when
- * Lenis is mounted the default is prevented and `scrollTo` is asked instead.
- *
- * `useLenis` returns `undefined` when it is not mounted — on a phone, and
- * under reduced motion — and in that case the click is left alone entirely and
- * the browser does its own instant jump, honouring `scroll-mt` as it should.
- *
- * ── Why the column is full height ───────────────────────────────────────────
- *
- * It reads as a column rather than as a floating list. Sticky at the top of
- * the viewport and as tall as the viewport, the rule down its right edge runs
- * the whole screen and the index sits at the top of it with its own header and
- * footer. Before, the list was five short labels vertically centred in a very
- * tall cell, with the result that most of the column was empty and the labels
- * had nothing to belong to.
+ * The column is full height so it reads as a column rather than a floating
+ * list: the rule down its right edge runs the whole screen, with the index at
+ * the top of it.
  */
 function ChapterRail({ active }: { active: number }) {
   const lenis = useLenis();
@@ -788,13 +648,6 @@ function ChapterRail({ active }: { active: number }) {
 
 function ChapterBody({ chapter }: { chapter: Chapter }) {
   switch (chapter.variant) {
-    /*
-      The widest and quietest chapter. No two-up and no gutter: the surface is
-      given the whole width and then four short properties close it off. Used by
-      the two chapters whose argument is a list of facts rather than a
-      mechanism, and whose screens are pictures of time rather than lists, so
-      the extra width buys something specific.
-    */
     case 'wide':
       return (
         <>
@@ -804,20 +657,15 @@ function ChapterBody({ chapter }: { chapter: Chapter }) {
             surface="var(--surface-soft)"
             className="border-t border-rule"
           />
-          {chapter.facts ? <Facts facts={chapter.facts} /> : null}
+          <Facts facts={chapter.facts} />
         </>
       );
 
-    /*
-      Detail first, then the screen it came out of. Closing the section on its
-      largest image rather than on two columns of small print is also what
-      hands the reader off to the next band with some momentum.
-    */
     case 'inverted':
       return (
         <>
           <Statement chapter={chapter} />
-          {chapter.split ? <Split split={chapter.split} /> : null}
+          <Split split={chapter.split} />
           <Surface screen={chapter.screen} className="border-t border-rule" />
         </>
       );
@@ -827,7 +675,7 @@ function ChapterBody({ chapter }: { chapter: Chapter }) {
         <>
           <Statement chapter={chapter} />
           <Surface screen={chapter.screen} className="border-t border-rule" />
-          {chapter.split ? <Split split={chapter.split} /> : null}
+          <Split split={chapter.split} />
         </>
       );
   }

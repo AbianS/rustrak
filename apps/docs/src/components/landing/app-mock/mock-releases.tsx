@@ -2,7 +2,7 @@
 
 import { Rocket } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
+import { useCompact } from './design';
 import { RELEASES } from './fixtures';
 import {
   MockBadge,

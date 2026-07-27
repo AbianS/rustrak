@@ -2,7 +2,7 @@
 
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
+import { useCompact } from './design';
 import type { MockSpan, OperationType } from './fixtures';
 import { SPANS } from './fixtures';
 import { MockBadge, MockShell, usePad } from './mock-shell';

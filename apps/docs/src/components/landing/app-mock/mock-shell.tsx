@@ -15,7 +15,7 @@ import {
 import { createContext, type ReactNode, useContext } from 'react';
 import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import { cn } from '@/lib/utils';
-import { useCompact } from './app-frame';
+import { useCompact } from './design';
 import { Sheen } from './stage';
 
 /**

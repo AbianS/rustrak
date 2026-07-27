@@ -5,91 +5,47 @@ import { useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * The hero's background: The Last Supper, as ASCII, condensing out of noise.
+ * A painting, as ASCII, condensing out of noise.
  *
- * ── Pre-rendered, not live ──────────────────────────────────────────────────
+ * Pre-rendered, not live. Converting in the browser every frame capped both the
+ * resolution (the grid had to be small enough to re-derive 24 times a second)
+ * and the algorithm, and coarse is fatal here — a painting needs cells to be
+ * recognisable in. The conversion happens once, offline, and what ships is the
+ * finished text. Being free of a frame budget is what lets the offline pass use
+ * clip-limited local contrast and a 3× supersample from a 3840px scan.
  *
- * Earlier versions converted the painting to ASCII in the browser, every frame.
- * That was the wrong trade twice over: it capped the resolution (the grid had
- * to be small enough to re-derive 24 times a second) and it capped the
- * algorithm (no room for anything expensive). The result was coarse, and coarse
- * is fatal here — a painting needs cells to be recognisable in.
+ * Two things learned the hard way, for whoever regenerates these: short ramps
+ * beat long ones (the canonical 70-character ramp is not ordered by ink
+ * coverage in any real font, so it renders as noise), and tone or edges, never
+ * both.
  *
- * So the conversion happens once, offline, and what ships is the finished text:
- * 470 × 123 characters, 57KB raw and about 17KB over the wire. Being free of a
- * frame budget is what let the offline pass use clip-limited local contrast (a
- * fresco this dim has nothing left after a global stretch — the bright windows
- * eat the whole range and every figure lands in the bottom two levels) and a 3×
- * supersample, from a 3840px scan rather than a 1000px one.
+ * The grids are cropped short of their full row count, which is a repair rather
+ * than a framing preference. A painting in one-point perspective puts a
+ * near-perfect horizontal across the picture — in The Last Supper the front
+ * edge of the table, where mean ink drops 2.4 levels in a single row — and as a
+ * background that reads as a seam, a hard rule across the viewport with a
+ * darker half beneath it. No mask can remove a step, only dim one, so the crop
+ * puts the step where the mask has already all but faded. The ratio is the
+ * durable part, not the row numbers: `scripts/ascii-painting.mjs` prints a
+ * "sharpest horizontal steps" line for exactly this.
  *
- * Two things learned the hard way: **short ramps beat long ones** (the
- * canonical 70-character ramp is not ordered by ink coverage in any real font,
- * so it renders as noise), and **tone or edges, never both**.
+ * The reveal condenses rather than fades: every cell begins as a random glyph
+ * flickering at the faintest tone, then settles onto the character that belongs
+ * there, spreading outward from the centre with per-cell jitter so the front
+ * does not read as a clean expanding ring. Fading finished glyphs in says "an
+ * image is arriving"; glyphs locking into place says "this is being resolved".
  *
- * ── Why it stops at the tablecloth ──────────────────────────────────────────
+ * That scramble is the only expensive thing here, so it is bounded: the loop
+ * repaints at 30fps for about three seconds, paints the final state once, and
+ * stops for good. After that there is no per-frame JavaScript at all.
  *
- * The full scan runs to 141 rows at this width and is cropped to 123, and that
- * is not a framing preference — it is a repair.
- *
- * The Last Supper is drawn in one-point perspective, so the front edge of the
- * table is a near-perfect horizontal running the full width of the picture.
- * Measured in the ASCII it lands between rows 117 and 118, where mean ink drops
- * by 2.4 levels in the space of a single row. Rendered as a background it did
- * not read as a table, it read as a seam — a hard rule across the whole
- * viewport with a darker half beneath it, which on a page made of ruled lines
- * looks exactly like a layout bug.
- *
- * No mask can remove a step, only dim one. So the fix is to put the step where
- * the mask has already all but faded: uncropped it falls at about 83% of the
- * band, with most of the fade still to come, and at 123 rows it falls at 96%,
- * where almost nothing remains. The handful of rows kept past it are the dark
- * front of the table, and they fill the last of the fade so the picture still
- * reaches the bottom rather than ending early.
- *
- * The ratio is the durable part, not the row numbers. The step sits at ~83% of
- * whatever height the scan is rendered at, so a regenerated grid is cropped to
- * ~87% of its full row count — which is what `scripts/ascii-painting.mjs`
- * prints its "sharpest horizontal steps" line for.
- *
- * ── The reveal ──────────────────────────────────────────────────────────────
- *
- * The picture does not fade in. It *condenses*: every cell begins as a random
- * glyph flickering at the faintest tone, then settles onto the character that
- * belongs there. The settling spreads outward from the centre of the painting,
- * so the room resolves from Christ's head to the walls, and per-cell jitter
- * stops the front reading as a clean expanding ring.
- *
- * The scramble is the whole effect. Fading finished glyphs in says "an image is
- * arriving"; flickering glyphs that lock into place says "this is being
- * *resolved*", which is the same thing the product does to a stack trace.
- *
- * It is also the only expensive thing here, so it is bounded: the loop repaints
- * the grid at 30fps for about three seconds, then paints the final state once
- * and stops for good. After that there is no per-frame JavaScript at all — the
- * drift is a CSS transform on a finished bitmap, which is compositor-only.
- *
- * ── Only the part that is on screen ─────────────────────────────────────────
- *
- * "The grid", above, used to mean all 470 × 123 of it, and on a phone that was
- * about five times too much work.
- *
- * The canvas is a 2.3:1 strip shown with `object-fit: cover`, so a portrait box
- * scales it to fit the *height* and crops the width hard. Measured on a 390 ×
- * 844 screen the cover scale is 0.86 and 20.5% of the columns are inside the
- * frame — every one of the other 79.5% was being scrambled, joined into a
- * string, and painted, thirty times a second, outside the element.
- *
- * So the loop now solves the crop first and works in columns rather than in the
- * whole row. It is not a mobile special case: a 1440 × 1200 monitor shows about
- * half the columns and saves the other half. It is simply the amount of picture
- * that is actually being displayed, which is what should have been driving this
- * from the start.
- *
- * The reveal is unchanged by it. The front spreads from the centre of the
- * painting and `object-position` is `center`, so the part that is cropped away
- * is the part that resolves last anyway — and every cell's delay is still
- * computed against the full grid, so scrolling or rotating into a wider frame
- * shows exactly the picture it would have shown.
+ * It also only works on the part that is on screen. The canvas is a 2.3:1 strip
+ * shown with `object-fit: cover`, so a portrait box crops the width hard — on a
+ * 390 × 844 screen only 20.5% of the columns are inside the frame. The loop
+ * solves the crop first and works in columns. Not a mobile special case: a
+ * 1440 × 1200 monitor saves about half. Every cell's delay is still computed
+ * against the full grid, so rotating into a wider frame shows exactly the
+ * picture it would have shown.
  */
 
 const SOURCE = '/last-supper.txt';
@@ -265,31 +221,21 @@ export function AsciiField({
          * One trimmed run per row per lane, or `null` for a row that lane does
          * not touch. Indices stay aligned with `y`.
          *
-         * ── Why trim, and why it is the whole optimisation ──────────────────
+         * Holding the joined lane verbatim meant four strings of `cols`
+         * characters per row every frame, with `fillText` advancing the pen
+         * across hundreds of positions that were almost all spaces. The lanes
+         * are sparse by construction — a cell is in lane 0 or 1 only while
+         * flickering and 1, 2 or 3 only once settled — so most hold a handful
+         * of glyphs scattered through several hundred spaces.
          *
-         * This used to hold the joined lane verbatim: four strings of `cols`
-         * characters per row, so 532 strings of 400 characters every frame at
-         * 30fps. `fillText` then advanced the pen across all 400 positions of
-         * each one, and almost every position was a space.
+         * Trimming to the painted extent is pixel-for-pixel identical: the font
+         * is monospace and `cellW` is its measured advance, so starting at
+         * `first * cellW` puts every glyph where the leading spaces would have.
          *
-         * The lanes are sparse by construction and it is worth being precise
-         * about why, because it is what makes this safe. A cell lands in lane 0
-         * or 1 only while it is flickering, and in 1, 2 or 3 only once it has
-         * settled — so at any moment in the reveal most lanes hold a handful of
-         * glyphs scattered through several hundred spaces, and plenty of rows
-         * have lanes that are entirely empty.
-         *
-         * Trimming to the painted extent and skipping empty rows outright is
-         * pixel-for-pixel identical output. The font is monospace and `cellW` is
-         * its measured advance, so starting the run at `first * cellW` puts
-         * every glyph exactly where the leading spaces would have.
-         *
-         * The band-limiting this replaced would not have worked. The reveal's
-         * per-cell jitter spreads the delays across 0.616s while the settle
-         * window is 0.55s wide, which leaves cells in flux across roughly three
-         * quarters of the radius at any instant — a min/max span per row would
-         * have covered nearly the whole row. The smeared front is the effect;
-         * it is also what defeats the obvious optimisation.
+         * Band-limiting per row would not have worked here. The reveal's jitter
+         * spreads delays across 0.616s against a 0.55s settle window, leaving
+         * cells in flux across roughly three quarters of the radius at any
+         * instant, so a min/max span would cover nearly the whole row.
          */
         const out: Array<Array<{ x: number; text: string } | null>> = [
           [],
@@ -454,12 +400,10 @@ export function AsciiField({
         /**
          * A disturbance: an ellipse of grid that dissolves and reforms.
          *
-         * The whole idle effect has to be local, and that is not a stylistic
-         * choice. Repainting all 53,000 cells forever is fine for a three
-         * second reveal and ruinous as a permanent loop, so instead a handful
-         * of small regions are disturbed at a time and only their own pixels
-         * are cleared and redrawn. A few hundred characters a frame rather
-         * than fifty thousand.
+         * The idle effect has to be local. Repainting all 53,000 cells forever
+         * is fine for a three second reveal and ruinous as a permanent loop, so
+         * a handful of small regions are disturbed at a time and only their own
+         * pixels are cleared and redrawn.
          */
         interface Patch {
           cx: number;
@@ -499,21 +443,13 @@ export function AsciiField({
 
         /**
          * Redraws one patch, row by row, following the ellipse rather than its
-         * bounding box.
+         * bounding box. A box costs its full width on every row, including the
+         * ones where the ellipse is only a few cells across, and at a third of
+         * the picture three of them came to most of the grid.
          *
-         * The box would be the easy version and it is what this used to do,
-         * back when the patches were small. Once they grew to a third of the
-         * picture the difference stopped being academic: a box costs its full
-         * width on every row, including the ones where the ellipse is only a
-         * few cells across, and three of them together came to most of the
-         * grid. Solving each row's span from the ellipse cuts the work to the
-         * shape actually being disturbed, and skips the rows outside it
-         * entirely.
-         *
-         * The clear is padded horizontally but not vertically. Rows are eight
-         * pixels tall, so vertical padding would reach into the neighbours —
-         * and none of the ramp's characters have descenders, so there is
-         * nothing below the baseline to protect.
+         * The clear is padded horizontally but not vertically: rows are eight
+         * pixels tall so vertical padding would reach into the neighbours, and
+         * no character in the ramp has a descender to protect.
          */
         const spans: {
           y: number;

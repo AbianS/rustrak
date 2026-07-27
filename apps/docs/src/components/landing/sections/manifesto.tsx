@@ -17,48 +17,25 @@ import { Pinned } from '../primitives/pinned';
  * the chapters climb over it, so a hairline across the bottom would be drawing
  * a lid on the one element that is meant to have no bottom.
  *
- * ── The painting ────────────────────────────────────────────────────────────
- *
  * Raphael's School of Athens: everybody who ever worked something out, gathered
  * somewhere of their own choosing rather than summoned. The register the claim
  * underneath wants, which is about where a thing lives.
  *
- * ── The claim is about Rustrak, not about anyone else ────────────────────────
+ * What this band owns is the one thing no other band says: the server is yours
+ * and it lives where you put it. `Platform` owns the surface, `Scale` the size,
+ * `Migrate` the cost of moving — so the claim here must not be a list of
+ * features (that is `Platform`, immediately below) or a note about how cheap it
+ * is to switch (that is `Migrate`). Either spends the one full screen the page
+ * gives to a single sentence on a band that argues it better.
  *
- * It used to read "You already did the hard part. The SDK is in your code..."
- * and it was cut for arguing the wrong thing in the wrong place. The whole of
- * that claim was about how little it costs to switch, which is a question the
- * `Migrate` band exists to answer and answers better. Spent here, on the one
- * full screen the page gives to a single sentence with nothing competing, it
- * meant the thesis of the product was a note about somebody else's product.
+ * It also must not imply Rustrak rides along with your application. It keeps
+ * its own database and is deployed wherever the operator wants it; a separate
+ * VPS is an ordinary setup, so "same box, same network, same database" is
+ * describing a deployment choice as if it were a requirement.
  *
- * ── Why it is not a list ─────────────────────────────────────────────────────
- *
- * The replacement drafted first was "Everything your app can tell you, in one
- * process. Errors, logs, traces and releases on one timeline." It is a fine
- * sentence and it belongs to `Platform`, which sits immediately below and
- * spends five chapters on exactly that list. Two consecutive bands naming the
- * same five things means the second one has nothing left to announce.
- *
- * What this band owns instead is the one thing no other band says: the server
- * is yours and it lives where you put it. `Platform` owns the surface, `Scale`
- * owns the size, `Migrate` owns the cost of moving.
- *
- * ── It does not share anything with your app ─────────────────────────────────
- *
- * An earlier draft said "same box, same network, same database", which is
- * wrong on the last count and needlessly narrow on the first two. Rustrak keeps
- * its own database and is deployed wherever the operator wants it: a separate
- * VPS is an ordinary, expected setup. Copy anywhere on this page that implies
- * it rides along with the application is describing a deployment choice as if
- * it were a requirement.
- *
- * The examples that made that concrete ("a VPS, a Kubernetes cluster or a
- * machine in your office") were cut for length, not for accuracy. This band
- * sets one sentence at `display-lg` in a 20ch column over a full screen, and
- * scrubs it a word at a time, so every word costs both height and scroll
- * distance. At 160 characters the block ran about half again the height it is
- * drawn for.
+ * Keep it short. One sentence at `display-lg` in a 20ch column, scrubbed a word
+ * at a time, means every word costs both height and scroll distance — at 160
+ * characters the block runs about half again the height it is drawn for.
  */
 export function Manifesto() {
   return (

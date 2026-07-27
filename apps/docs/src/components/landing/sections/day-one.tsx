@@ -22,31 +22,19 @@ const MockReleases = dynamic(
 /**
  * The centred claim with a screen running off the bottom of the band.
  *
- * ── Why the screen is cut off ───────────────────────────────────────────────
+ * The screen is cut off because it is a window, not a screenshot: a panel that
+ * fits neatly inside its section reads as a picture somebody placed there, and
+ * one that leaves through the bottom edge reads as the product continuing past
+ * what there is room to show. It also matters structurally — the band below is
+ * the pinned painting, and a section ending on a hard rule announces the seam
+ * where one ending mid-table has no seam to announce.
  *
- * Because it is not a screenshot, it is a window. A panel that fits neatly
- * inside its section reads as a picture of the product that somebody placed
- * there; one that leaves through the bottom edge reads as the product
- * continuing past what there is room to show. The crop is the difference
- * between "here is an image of a table" and "here is a table, and there is more
- * of it".
- *
- * It also does something specific for this page. The band below is the pinned
- * painting, and a pinned band is uncovered by whatever sits on top of it
- * sliding away. A section that ends on a hard horizontal rule announces the
- * seam; one that ends mid-table has no seam to announce, so the painting is
- * revealed out from behind a screen that appears to carry on underneath it.
- *
- * ── Why it goes here ────────────────────────────────────────────────────────
- *
- * The page ran from "these SDKs reach it" straight to "you already did the hard
- * part", which skipped the obvious question in between: fine, but what do I
- * actually have to do? This answers it before the claim is made, so the claim
- * lands as a summary rather than as an assertion.
- *
- * It is also, mechanically, the lid. The SDK strip alone was a couple of
- * hundred pixels of content covering a full screen of painting, so the reveal
- * had almost nothing to slide off. This gives it a body.
+ * It sits here because the page ran from "these SDKs reach it" straight to the
+ * manifesto's claim, skipping the question in between: fine, but what do I
+ * actually have to do? Answering first makes the claim land as a summary rather
+ * than an assertion. Mechanically it is also the lid — the SDK strip alone was
+ * a couple of hundred pixels covering a full screen of painting, so the reveal
+ * had almost nothing to slide off.
  */
 export function DayOne() {
   return (

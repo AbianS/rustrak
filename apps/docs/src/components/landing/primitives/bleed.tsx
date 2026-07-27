@@ -1,78 +1,42 @@
 'use client';
 
 import { motion, useScroll, useTransform } from 'motion/react';
-import {
-  type ReactNode,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type ReactNode, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { CompactContext } from '../app-mock/app-frame';
+import {
+  COMPACT_WIDTH,
+  CompactContext,
+  useDesignScale,
+} from '../app-mock/design';
 import { WindowProgressContext } from '../app-mock/window-progress';
 
 /**
  * A window onto a piece of the product, drawn at its own size and cropped.
  *
- * ── What this replaces ──────────────────────────────────────────────────────
+ * Where `AppFrame` shows a whole application scaled down to fit its cell, this
+ * draws one part of it at 1:1 and lets the rest run off the page. Cropping
+ * shows less and communicates more: the columns that leave through the right
+ * edge are the ones the reader was not going to read anyway, and what remains
+ * is the real thing at the real size rather than a photograph of it taken from
+ * across the room.
  *
- * `AppFrame` shows a whole application: it authors the screen at 1240x840,
- * measures its container and scales the result down to fit. In an 800px cell
- * that lands at 0.65, which renders the app's 14px label at 9px and its 12px
- * mono at 7.8px. The panel stops being the product and becomes a photograph of
- * the product taken from across the room, and no amount of care spent on the
- * contents survives that division.
+ * There is deliberately no border, radius or shadow. A rounded rectangle with a
+ * hairline says "screenshot pasted onto a page"; the same pixels bled off the
+ * edge of the band say "this page has a hole in it and the product is behind
+ * it", and a frame breaks that illusion because a frame has an outside.
  *
- * The fix is not a bigger cell. It is to stop showing the whole application.
- * A surface drawn at 1:1 and allowed to run off the edge of the page reads as
- * the real thing at the real size, and the reader loses nothing by it: the
- * columns that leave through the right edge are the ones they were not going
- * to read anyway. Cropping shows less and communicates more.
+ * The fade is the whole trick, and it is a mask rather than an overlay. An
+ * overlaid gradient in the band's colour looks identical on the page colour and
+ * is wrong everywhere else: it has to be repainted per surface tint, it paints
+ * over anything sharing the cell, and it fails outright on the tinted showcase
+ * cells. A mask removes the pixels, so whatever is behind is simply behind.
+ * Edges compose with `mask-composite: intersect`, which is why each is its own
+ * gradient rather than one clever radial.
  *
- * So `AppFrame` stays for exactly one chapter, where the point *is* the shape
- * of the whole application, and every other chapter gets one of these.
- *
- * ── Why there is no frame ───────────────────────────────────────────────────
- *
- * No border, no radius, no shadow. A rounded rectangle with a hairline and a
- * drop shadow says "screenshot pasted onto a page"; the same pixels bled off
- * the edge of the band say "this page has a hole in it and the product is
- * behind it". The second is the illusion worth having, and a frame is the one
- * thing guaranteed to break it, because a frame has an outside.
- *
- * ── The fade is the whole trick ─────────────────────────────────────────────
- *
- * Cropping with `overflow: hidden` alone gives a hard cut, and a hard cut is
- * just a smaller screenshot with a straight edge. The surface has to *dissolve*
- * into the band instead, which is a mask rather than an overlay:
- *
- *     mask-image: linear-gradient(to right, #000 62%, transparent 100%)
- *
- * An overlaid gradient in the band's colour would look identical here and be
- * wrong everywhere else: it has to be repainted for every surface tint, it
- * paints over anything sharing the cell, and it fails outright on the tinted
- * showcase cells where the band colour is not the page colour. A mask removes
- * the pixels, so whatever is behind is simply behind.
- *
- * Multiple edges compose with `mask-composite: intersect`, which is why each
- * entry is its own gradient rather than one clever radial.
- *
- * ── Phones do not crop ──────────────────────────────────────────────────────
- *
- * Cropping trades width for size, and a phone has no width to trade. Below
- * `sm` the surface switches to the narrow design the mocks already carry (see
- * `useCompact` in `app-mock/app-frame.tsx`) and is scaled to fit, because at
- * that width a legible fragment of one column is worth less than a small view
- * of the whole thing.
+ * Phones do not crop: cropping trades width for size and a phone has none to
+ * trade, so below `sm` the surface switches to the narrow design the mocks
+ * already carry and is scaled to fit.
  */
-
-/** Design width of the narrow layout the mocks fall back to. */
-const COMPACT_WIDTH = 600;
-const COMPACT_QUERY = '(max-width: 639px)';
-
-const useIsomorphicLayoutEffect =
-  typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
 export type Edge = 'top' | 'right' | 'bottom' | 'left';
 
@@ -161,36 +125,9 @@ export function Bleed({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [box, setBox] = useState({ scale: 1, compact: false });
-
-  useIsomorphicLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-
-    const phone = window.matchMedia(COMPACT_QUERY);
-
-    const measure = () => {
-      const compact = phone.matches;
-      setBox((current) => {
-        // Only the narrow design scales. On a desktop the surface is drawn at
-        // 1:1 and whatever does not fit is cropped, which is the entire point.
-        const scale = compact ? element.clientWidth / COMPACT_WIDTH : 1;
-        return current.compact === compact &&
-          Math.abs(current.scale - scale) < 0.0005
-          ? current
-          : { scale, compact };
-      });
-    };
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    phone.addEventListener('change', measure);
-    return () => {
-      observer.disconnect();
-      phone.removeEventListener('change', measure);
-    };
-  }, []);
+  // `null`: only the narrow design scales. On a desktop the surface is drawn at
+  // 1:1 and whatever does not fit is cropped, which is the entire point.
+  const box = useDesignScale(ref, null);
 
   const visible = view ?? height;
   const mask = box.compact ? undefined : maskFor(fade ?? {});

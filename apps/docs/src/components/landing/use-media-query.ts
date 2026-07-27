@@ -8,12 +8,11 @@ import { useEffect, useState } from 'react';
  * Reserved for the handful of places where a breakpoint has to be known to
  * *JavaScript* rather than to CSS — a scroll transform that should not run at
  * all on a phone, a library that should not be mounted on a touch device.
- * Anything that can be said in a `lg:` variant is said there instead: this hook
- * costs a re-render and a frame of the wrong answer, and CSS costs neither.
+ * Anything sayable in a `lg:` variant is said there instead: this costs a
+ * re-render and a frame of the wrong answer, and CSS costs neither.
  *
- * It always starts `false`, so the server and the first client render agree.
- * Every caller therefore has to read `false` as "the plain, unenhanced case",
- * which is the right default anyway: the enhancement is what arrives late.
+ * Always starts `false`, so the server and the first client render agree, and
+ * every caller reads `false` as "the plain, unenhanced case".
  */
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -34,23 +33,16 @@ export function useMediaQuery(query: string): boolean {
 export const DESKTOP = '(min-width: 1024px)';
 
 /**
- * Below `lg`: a portrait stage rather than a narrow landscape one.
- *
- * Deliberately the exact complement of `DESKTOP` rather than a second opinion
- * about where a phone starts. A section that offers one layout above the
- * breakpoint and another below it has to agree with itself on where the
- * breakpoint is, and two independently authored queries is how a width appears
- * that gets neither.
+ * Below `lg`: a portrait stage rather than a narrow landscape one. Deliberately
+ * the exact complement of `DESKTOP` — two independently authored queries is how
+ * a width appears that gets neither layout.
  */
 export const COMPACT = '(max-width: 1023px)';
 
 /**
- * A bar-sized screen: where the nav is already down to a wordmark and a menu
- * button, and where a fixed bar is a real fraction of the page.
- *
- * `md`, not `lg`, and not the same line as `COMPACT`. This one is about the
- * nav's own layout rather than about the width available to a section, and the
- * nav collapses a breakpoint earlier than the sections do.
+ * A bar-sized screen: where the nav is down to a wordmark and a menu button.
+ * `md` rather than `lg` because this is about the nav's own layout, and the nav
+ * collapses a breakpoint earlier than the sections do.
  */
 export const HANDHELD = '(max-width: 767px)';
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { motion, useReducedMotion } from 'motion/react';
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { DUR, EASE } from '../motion';
+import { useRevealed } from '../use-on-screen';
 
 interface LinesProps {
   /** One entry per visual line; each is masked and rises independently. */
@@ -42,29 +43,11 @@ export function Lines({
   active,
 }: LinesProps) {
   const reduced = useReducedMotion();
-  const controlled = active !== undefined;
   const ref = useRef<HTMLHeadingElement>(null);
-  const [inViewShown, setInViewShown] = useState(false);
-
-  useEffect(() => {
-    if (controlled) return;
-    const element = ref.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setInViewShown(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.2, rootMargin: '0px 0px -8% 0px' },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [controlled]);
-
-  const shown = controlled ? active : inViewShown;
+  const shown = useRevealed(ref, active, {
+    threshold: 0.2,
+    rootMargin: '0px 0px -8% 0px',
+  });
 
   if (reduced) {
     return (
