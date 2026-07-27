@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { Kbd, KbdGroup } from "./ui/kbd";
 
 interface CommandItem {
   label: string;
@@ -58,9 +59,6 @@ const COMMANDS: CommandItem[] = [
     icon: SunMoonIcon,
   },
 ];
-
-const KBD =
-  "flex h-5 min-w-5 items-center justify-center rounded border border-border bg-muted px-1 font-sans";
 
 interface CommandBarDialogProps {
   open: boolean;
@@ -204,16 +202,18 @@ export default function CommandBarDialog({
 
         <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <kbd className={KBD}>↑</kbd>
-            <kbd className={KBD}>↓</kbd>
+            <KbdGroup>
+              <Kbd>↑</Kbd>
+              <Kbd>↓</Kbd>
+            </KbdGroup>
             to navigate
           </span>
           <span className="flex items-center gap-1.5">
-            <kbd className={KBD}>↵</kbd>
+            <Kbd>↵</Kbd>
             to select
           </span>
           <span className="flex items-center gap-1.5">
-            <kbd className={KBD}>esc</kbd>
+            <Kbd>esc</Kbd>
             to close
           </span>
         </div>
