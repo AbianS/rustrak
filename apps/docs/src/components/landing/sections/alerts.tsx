@@ -311,6 +311,7 @@ const MATCH = ['First seen', 'Regression', 'Spike', 'Level', 'Project'];
 const SEND = ['Slack', 'Discord', 'PagerDuty', 'Email', 'Webhook'];
 
 export function Alerts() {
+  const reduced = useReducedMotion();
   const track = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: track,
@@ -411,7 +412,13 @@ export function Alerts() {
                 style={{
                   left: `${((wire.lx ?? 0) / DESIGN_W) * 100}%`,
                   top: `${((wire.ly ?? 0) / DESIGN_H) * 100}%`,
-                  opacity: labelOpacity,
+                  /* Reduced motion resolves the cards and the wires to their
+                     finished state, and these have to resolve with them. Left
+                     on the scrubbed value they were the one part of a diagram
+                     drawn complete that stayed blank until the reader scrolled
+                     far enough — and they are the part that turns connected
+                     boxes into a rule you can read. */
+                  opacity: reduced ? 1 : labelOpacity,
                 }}
               >
                 {wire.label}

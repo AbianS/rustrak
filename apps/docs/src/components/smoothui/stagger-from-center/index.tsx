@@ -54,7 +54,18 @@ export default function StaggerFromCenter({
   const center = (characters.length - 1) / 2;
 
   return (
-    <span aria-label={children} className={className} ref={ref}>
+    <span className={className} ref={ref}>
+      {/*
+        The text, once, for anything that is not looking at it.
+
+        This was an `aria-label` on the span, which ARIA prohibits naming: a
+        bare `span` has the `generic` role, and several screen reader and
+        browser pairs drop the label outright. With every character below it
+        `aria-hidden`, that left nothing at all — and the hero sets its whole
+        headline through this component, so the page's `h1` could be announced
+        empty. A real text node cannot be dropped by anybody.
+      */}
+      <span className="sr-only">{children}</span>
       {characters.map((char, index) => {
         const distance = Math.abs(index - center);
         return (

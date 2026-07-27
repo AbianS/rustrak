@@ -316,9 +316,18 @@ export function Tour({
         </EventScene>
       </AppFrame>
 
-      {/* Mounted from the frame it leaves the headline and never unmounted: its
-          birth is an `initial`, and an `initial` only happens once. */}
-      {running && leg >= 0 ? (
+      {/*
+        Mounted from the frame it leaves the headline and never unmounted: its
+        birth is an `initial`, and an `initial` only happens once.
+
+        Which is why the gate is `leg`, not `running`. `running` follows the
+        panel's visibility, so it had been unmounting the pointer whenever the
+        reader scrolled the hero away — and scrolling back mounted a fresh one,
+        which ran the morph again and started the descent again from a caret in
+        a headline it had left minutes earlier. The timers above are already
+        held by `running`; the pointer only has to stay where it was.
+      */}
+      {leg >= 0 ? (
         <Cursor
           at={STOPS[ROUTE[leg]].target}
           pressed={pressed}

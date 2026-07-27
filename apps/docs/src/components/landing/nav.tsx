@@ -97,6 +97,38 @@ export function LandingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   /*
+    The overlay is still painted for the length of its fade after `menuOpen`
+    has gone false, and two things have to be held against *that* rather than
+    against the flag: the scroll lock, and nothing else.
+
+    Released on the click instead, a swipe during the fade scrolls the landing
+    behind a menu that is still covering it, and the reader is put somewhere
+    they never chose to be by a surface they had just dismissed.
+  */
+  const [menuShowing, setMenuShowing] = useState(false);
+
+  /* The two ends of the keyboard's journey through the menu: the control it is
+     opened from, which is where focus has to come back to, and the panel it
+     must not leave while that panel is up. */
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const menuPanel = useRef<HTMLDivElement>(null);
+
+  const openMenu = () => {
+    setMenuOpen(true);
+    setMenuShowing(true);
+  };
+
+  const closeMenu = () => {
+    setMenuOpen(false);
+    /* Whatever had focus inside the overlay is about to unmount, and focus
+       follows an unmounted element to `document.body` — which is no position
+       at all, and leaves the next Tab starting again from the top of the page.
+       Put back on the control the menu was opened from, closing returns the
+       keyboard exactly where opening took it from. */
+    menuButton.current?.focus();
+  };
+
+  /*
     Distance travelled since the last change of direction, and the position it
     was last measured at.
 
@@ -143,30 +175,76 @@ export function LandingNav() {
 
   const away = handheld && tucked && !menuOpen;
 
+  /*
+    The overlay is `position: fixed`, which stops it moving but does nothing
+    to stop the page *under* it — a swipe anywhere on the menu scrolled the
+    landing behind it, and closing put you somewhere you had never chosen to
+    be. Locked on the root element rather than on `body` so it holds on iOS
+    Safari, which honours `overflow: hidden` on one and not reliably on the
+    other.
+
+    Held for as long as the overlay is on the screen, fade included.
+  */
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !menuShowing) return;
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false);
-    };
-
-    /*
-      The overlay is `position: fixed`, which stops it moving but does nothing
-      to stop the page *under* it — a swipe anywhere on the menu scrolled the
-      landing behind it, and closing put you somewhere you had never chosen to
-      be. Locked on the root element rather than on `body` so it holds on iOS
-      Safari, which honours `overflow: hidden` on one and not reliably on the
-      other.
-    */
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = 'hidden';
 
-    document.addEventListener('keydown', onKeyDown);
     return () => {
       root.style.overflow = previous;
-      document.removeEventListener('keydown', onKeyDown);
     };
+  }, [menuOpen, menuShowing]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closeMenu();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+
+      /*
+        The trap.
+
+        The bar underneath stays mounted and focusable while the overlay covers
+        it, and so does every link on the page below — `position: fixed` and a
+        `z-50` are a claim about paint order, not about the tab order. Without
+        this, a fourth Tab off the last link walks the keyboard into content
+        hidden behind an opaque surface, and the reader loses sight of where
+        they are while apparently still looking at a menu.
+
+        Queried on the keystroke rather than cached on open: it is five
+        elements once every few seconds, and a list cached across an animation
+        is a list that can go stale.
+      */
+      const focusable = menuPanel.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled])',
+      );
+      if (!focusable?.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (!menuPanel.current?.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
   }, [menuOpen]);
 
   return (
@@ -256,9 +334,10 @@ export function LandingNav() {
               {/* Pulled out into its own margin so the 44px hit area a thumb needs
               does not push the bar's contents apart to get it. */}
               <motion.button
+                ref={menuButton}
                 variants={ITEM_VARIANTS}
                 type="button"
-                onClick={() => setMenuOpen(true)}
+                onClick={openMenu}
                 aria-label="Open menu"
                 aria-expanded={menuOpen}
                 className="-mr-3 flex flex-col items-center gap-[5px] p-3 md:hidden"
@@ -276,9 +355,17 @@ export function LandingNav() {
           than as it going away. `h-dvh` rather than `inset-0` so the panel is
           the height the browser is actually showing, mid-toolbar-collapse
           included — otherwise the button at the bottom sits under the chrome. */}
-      <AnimatePresence>
+      <AnimatePresence onExitComplete={() => setMenuShowing(false)}>
         {menuOpen ? (
           <motion.div
+            ref={menuPanel}
+            /* Named as what it is. A full-screen surface that takes the
+               keyboard and holds it is a dialog whatever it is drawn as, and
+               saying so is what tells a screen reader the page behind it is
+               not currently the subject. */
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -291,12 +378,13 @@ export function LandingNav() {
               </span>
               <button
                 type="button"
-                onClick={() => setMenuOpen(false)}
+                onClick={closeMenu}
                 aria-label="Close menu"
                 className="-mr-3 p-3"
-                // The overlay is short-lived and has no other interactive
-                // content, so moving focus here is enough to keep the keyboard
-                // inside it.
+                // Where the keyboard is put on open. The trap above is what
+                // keeps it here; this is only what starts it in the right
+                // place, and being first in the panel it is also what Tab
+                // wraps back around to.
                 // biome-ignore lint/a11y/noAutofocus: modal entry point
                 autoFocus
               >

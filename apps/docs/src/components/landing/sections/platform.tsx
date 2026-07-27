@@ -28,6 +28,7 @@ import { Bleed, type Fade } from '../primitives/bleed';
 import { Deferred } from '../primitives/deferred';
 import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
+import { useSmoothScrolling } from '../smooth-scroll';
 
 /**
  * The recreated screens, split out of the initial bundle — between them the
@@ -430,7 +431,16 @@ function Split({ split }: { split: [Half, Half] }) {
             lead={half.lead}
             rest={half.rest}
           />
-          <div className="mt-6 sm:mt-8">{half.visual}</div>
+          {/* Decoration, like every other recreated surface on the page. The
+              claim is in the heading above; what is under it is a picture of
+              an issue row or a log tail built out of real elements, so left
+              exposed a screen reader reads out a fixture — invented titles,
+              invented counts, invented channel names — as though it were the
+              argument. The big screens are `aria-hidden` in `AppFrame` for the
+              same reason; these had been missed. */}
+          <div aria-hidden className="mt-6 sm:mt-8">
+            {half.visual}
+          </div>
         </div>
       ))}
     </div>
@@ -512,10 +522,14 @@ const JUMP_OFFSET = 96;
  *
  * Lenis has to be asked, though. It drives the real scroll position from a
  * frame loop, so a native anchor jump fights it — the browser sets `scrollTop`
- * in one frame and Lenis writes over it in the next. When it is mounted the
- * default is prevented and `scrollTo` used instead; `useLenis` returns
- * `undefined` when it is not (on a phone, under reduced motion) and the click
- * is left alone to honour `scroll-mt`.
+ * in one frame and Lenis writes over it in the next. When it is running the
+ * default is prevented and `scrollTo` used instead; when it is not (on a
+ * phone, under reduced motion) the click is left alone to honour `scroll-mt`.
+ *
+ * "Running" rather than "mounted", and the distinction is load-bearing: Lenis
+ * is mounted on every device so the landing is not rebuilt when the pointer
+ * type resolves, so `useLenis()` alone can no longer answer this. See
+ * `useSmoothScrolling` in `../smooth-scroll.tsx`.
  *
  * The column is full height so it reads as a column rather than a floating
  * list: the rule down its right edge runs the whole screen, with the index at
@@ -523,6 +537,7 @@ const JUMP_OFFSET = 96;
  */
 function ChapterRail({ active }: { active: number }) {
   const lenis = useLenis();
+  const smooth = useSmoothScrolling();
   const items = useRef<(HTMLLIElement | null)[]>([]);
   const [marker, setMarker] = useState({ y: 0, height: 0 });
 
@@ -545,8 +560,12 @@ function ChapterRail({ active }: { active: number }) {
   }, [active]);
 
   const jump = (event: MouseEvent<HTMLAnchorElement>, label: string) => {
-    // No Lenis, no interference: let the browser jump and honour `scroll-mt`.
-    if (!lenis) return;
+    /* Nothing driving the scroll, no interference: let the browser jump and
+       honour `scroll-mt`. The test is whether Lenis is *running*, not whether
+       it exists — it is mounted everywhere now, and a `scrollTo` on an idle
+       instance sets a target that no frame loop will ever walk towards, which
+       is a chapter link that swallows the click and stays put. */
+    if (!lenis || !smooth) return;
     const id = slug(label);
     const target = document.getElementById(id);
     if (!target) return;

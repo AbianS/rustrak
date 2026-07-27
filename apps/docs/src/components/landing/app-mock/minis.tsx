@@ -18,7 +18,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
 import { TrendSparkline } from './charts';
-import type { LogLevel } from './fixtures';
+import type { LogLevel, Priority } from './fixtures';
 import { ISSUES, LOGS } from './fixtures';
 import { MockLevel, MockPill } from './mock-shell';
 import {
@@ -110,9 +110,15 @@ function PanelLabel({ children }: { children: ReactNode }) {
 /* Issues                                                                      */
 /* -------------------------------------------------------------------------- */
 
-/** `statusDisplay` / `priorityDisplay` from lib/issue-status.ts. */
+/**
+ * `statusDisplay` / `priorityDisplay` from lib/issue-status.ts.
+ *
+ * Keyed on the fixture's own union rather than on `string`. Widened, a renamed
+ * priority still compiles and resolves to `undefined` at runtime, which for a
+ * class name is a dot that silently loses its colour.
+ */
 const STATUS_DOT = 'bg-muted-foreground';
-const PRIORITY_DOT: Record<string, string> = {
+const PRIORITY_DOT: Record<Priority, string> = {
   high: 'bg-red-500',
   medium: 'bg-amber-500',
   low: 'bg-sky-500',
@@ -202,14 +208,24 @@ export function GroupingMini() {
   );
 }
 
-/** `ProviderIcon` from the alerts settings, for the providers this rule uses. */
-const PROVIDER_ICON: Record<string, LucideIcon> = {
+/**
+ * `ProviderIcon` from the alerts settings, for the providers this rule uses.
+ *
+ * The map is the authority and `ROUTES` is checked against it, rather than the
+ * other way round: this is the app's whole set, and a route naming something
+ * outside it is the error. Widened to `Record<string, LucideIcon>` that error
+ * compiles and lands as `<Icon />` on `undefined`, which is not a missing dot
+ * but a thrown render.
+ */
+const PROVIDER_ICON = {
   slack: Hash,
   discord: MessageSquare,
   pagerduty: Bell,
   email: Mail,
   webhook: Webhook,
-};
+} as const satisfies Record<string, LucideIcon>;
+
+type Provider = keyof typeof PROVIDER_ICON;
 
 /**
  * `Switch` at `size="sm"` — h-14px, w-24px, a size-3 thumb, `bg-primary` when
@@ -240,7 +256,11 @@ const ROUTES = [
   { name: 'Platform escalation', provider: 'pagerduty', on: true },
   { name: 'oncall@acme.dev', provider: 'email', on: false },
   { name: 'Ops runbook', provider: 'webhook', on: false },
-] as const;
+] as const satisfies readonly {
+  name: string;
+  provider: Provider;
+  on: boolean;
+}[];
 
 /**
  * Where an alert lands once a rule fires — the integration toggle from

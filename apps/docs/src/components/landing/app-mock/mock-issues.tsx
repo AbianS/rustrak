@@ -4,6 +4,7 @@ import { Bookmark, Check, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TrendSparkline } from './charts';
 import { useCompact } from './design';
+import type { Priority } from './fixtures';
 import { ISSUES } from './fixtures';
 import {
   MockLevel,
@@ -29,14 +30,20 @@ import { Enter, MockStage, Settle, Ticker } from './stage';
 
 const FILTERS = ['Open', 'Resolved', 'Muted', 'All'] as const;
 
-/** `statusDisplay` / `priorityDisplay` from lib/issue-status.ts. */
-const STATUS_DOT: Record<string, string> = {
-  Escalating: 'bg-muted-foreground',
-  Ongoing: 'bg-muted-foreground',
-  New: 'bg-muted-foreground',
-  Regressed: 'bg-muted-foreground',
-};
-const PRIORITY_DOT: Record<string, string> = {
+/**
+ * `statusDisplay` / `priorityDisplay` from lib/issue-status.ts.
+ *
+ * Status is one constant rather than a map, because the app gives every
+ * substatus the same muted dot — written out per substatus it read as four
+ * decisions that happen to agree, and the next substatus added would have
+ * looked like it needed one.
+ *
+ * Priority is keyed on the fixture's own union: widened to `string` a renamed
+ * priority still compiles and resolves to `undefined`, which is a dot that
+ * quietly loses its colour.
+ */
+const STATUS_DOT = 'bg-muted-foreground';
+const PRIORITY_DOT: Record<Priority, string> = {
   high: 'bg-red-500',
   medium: 'bg-amber-500',
   low: 'bg-sky-500',
@@ -155,10 +162,7 @@ export function MockIssues() {
                       {issue.culprit}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <MockPill
-                        dot={STATUS_DOT[issue.substatus]}
-                        label={issue.substatus}
-                      />
+                      <MockPill dot={STATUS_DOT} label={issue.substatus} />
                       {issue.priority ? (
                         <MockPill
                           dot={PRIORITY_DOT[issue.priority]}

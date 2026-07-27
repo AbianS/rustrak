@@ -79,23 +79,58 @@ const STRENGTH = 0.7;
 /** Below 1 lifts the midtones, which the ramp needs to use its middle. */
 const GAMMA = 0.85;
 
+/**
+ * Everything is checked here, before a frame is decoded.
+ *
+ * The conversion is the better part of a minute of ffmpeg, and every one of
+ * these mistakes used to be found afterwards: a missing destination surfaced as
+ * `writeFileSync(undefined)` at the very end, and `--cols` given last, or
+ * followed by another flag, passed `NaN` down to ffmpeg and came back as a
+ * filter error naming nothing the caller had typed.
+ */
 function parseArgs(argv) {
   const [source, out] = argv.filter((a) => !a.startsWith('--'));
-  if (!source) {
-    console.error('usage: ascii-painting.mjs <source> <out.txt> [--cols n]');
+
+  const die = (message) => {
+    console.error(message);
     process.exit(1);
-  }
+  };
+
   const flag = (name) => {
     const at = argv.indexOf(`--${name}`);
-    return at === -1 ? undefined : argv[at + 1];
+    if (at === -1) return undefined;
+    const value = argv[at + 1];
+    // A flag's value is the next token, so the next token being another flag
+    // means the value is missing rather than being `--preview`.
+    if (value === undefined || value.startsWith('--')) {
+      die(`--${name} takes a value`);
+    }
+    return value;
   };
+
+  const number = (name, fallback) => {
+    const raw = flag(name);
+    if (raw === undefined) return fallback;
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value <= 0) {
+      die(`--${name} takes a positive number, got ${raw}`);
+    }
+    return value;
+  };
+
+  const preview = argv.includes('--preview');
+  // `--preview` writes to stdout, so it is the one mode with no destination.
+  if (!source || (!out && !preview)) {
+    die('usage: ascii-painting.mjs <source> <out.txt> [--cols n]');
+  }
+
   return {
     source,
     out,
-    cols: Number(flag('cols') ?? 400),
-    rows: flag('rows') ? Number(flag('rows')) : undefined,
+    cols: number('cols', 400),
+    rows: number('rows', undefined),
     crop: flag('crop'),
-    preview: argv.includes('--preview'),
+    preview,
   };
 }
 

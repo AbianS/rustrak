@@ -124,11 +124,15 @@ export async function Sponsors() {
             ))}
 
             {Array.from({ length: fillers }, (_, index) => (
-              // Purely structural: keeps the backing from showing as a block.
+              /* Purely structural: keeps the backing from showing as a block.
+                 Only at the two-column breakpoint, because in one column there
+                 is no half-row left to complete — the filler is a whole extra
+                 row there, and with the grid stretching its auto rows it shows
+                 up as a full empty cell with a rule above it. */
               <li
                 key={`filler-${index}`}
                 aria-hidden
-                className="bg-[var(--surface)]"
+                className="hidden bg-[var(--surface)] sm:block"
               />
             ))}
           </ul>

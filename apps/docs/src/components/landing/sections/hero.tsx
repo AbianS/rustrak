@@ -309,7 +309,13 @@ export function Hero() {
                 phrases={TAILS}
                 active={started}
                 caretClassName="bg-primary"
-                handedOver={caretAway}
+                /* Only while there is a pointer holding it. `Tour` hands the
+                   caret over and gives it back a few seconds later, but it is
+                   mounted on `held` — so a window dragged under 1024px, or
+                   reduced motion switched on, unmounts it mid-loan and the
+                   caret is never returned. Reading the loan through the same
+                   condition that grants it, there is nothing to reset. */
+                handedOver={held && caretAway}
               />
             </motion.span>
             <span

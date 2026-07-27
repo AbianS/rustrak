@@ -58,10 +58,25 @@ export function OneCommand() {
   const [variant, setVariant] = useState<Variant>('SQLite');
   const [copied, setCopied] = useState(false);
 
+  /*
+    `navigator.clipboard` is not there at all outside a secure context, and
+    `writeText` rejects on a denied permission. Unguarded, the click threw an
+    unhandled rejection and the button sat unchanged, which reads to the reader
+    as a button that does nothing rather than as a copy that failed — so the
+    command is left selectable and the state is simply not claimed.
+  */
   const copy = async () => {
-    await navigator.clipboard.writeText(VARIANTS[variant]);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+    try {
+      /* Not `navigator.clipboard?.`: optional chaining on a missing clipboard
+         resolves rather than throwing, and the button would then claim a copy
+         that never happened. Reaching straight through means the absent case
+         and the rejected case arrive at the same place. */
+      await navigator.clipboard.writeText(VARIANTS[variant]);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
   };
 
   const command = VARIANTS[variant];
