@@ -79,6 +79,26 @@ export function getPost(slug: string): { post: Post; content: string } | null {
   return { post, content };
 }
 
+/**
+ * The two posts either side of this one, named by time rather than by
+ * position. `getPosts()` is newest first, so "previous" and "next" mean
+ * opposite things depending on whether you are thinking about the array or
+ * about the calendar — which is exactly the kind of label that ends up
+ * pointing the wrong way at the foot of a post.
+ */
+export function getNeighbourPosts(slug: string): {
+  older: Post | null;
+  newer: Post | null;
+} {
+  const posts = getPosts();
+  const index = posts.findIndex((post) => post.slug === slug);
+  if (index === -1) return { older: null, newer: null };
+  return {
+    older: posts[index + 1] ?? null,
+    newer: posts[index - 1] ?? null,
+  };
+}
+
 export function formatDate(dateStr: string): string {
   const d = safeDate(dateStr);
   if (!d) return dateStr;
@@ -88,4 +108,21 @@ export function formatDate(dateStr: string): string {
     day: 'numeric',
     timeZone: 'UTC',
   });
+}
+
+/** `May 22` — for the list, where the year is carried by its own marker. */
+export function formatDateShort(dateStr: string): string {
+  const d = safeDate(dateStr);
+  if (!d) return dateStr;
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** `8 min` — `reading-time` says "8 min read", which is a word too many next
+ * to a date in a mono meta strip. */
+export function shortReadingTime(value: string): string {
+  return value.replace(/\s*read$/i, '');
 }

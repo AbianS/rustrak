@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { BlogLayoutClient } from './blog-layout-client';
 
 export const metadata: Metadata = {
   title: {
@@ -15,10 +14,5 @@ export default function BlogLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <>
-      <BlogLayoutClient />
-      <div className="blog-section min-h-screen w-full">{children}</div>
-    </>
-  );
+  return <div className="min-h-screen w-full">{children}</div>;
 }
