@@ -198,15 +198,33 @@ export function LandingNav() {
   }, [menuOpen, menuShowing]);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !menuShowing) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        closeMenu();
+        if (menuOpen) closeMenu();
         return;
       }
 
       if (event.key !== 'Tab') return;
+
+      /*
+        Dismissed, but still covering the page.
+
+        The overlay is painted for the length of its fade after the flag has
+        gone, and everything underneath it stays focusable for that whole
+        second, so this is the same 0.6s the scroll lock is held against. Tab
+        is simply refused and the focus stays on the trigger, which is where
+        `closeMenu` has just put it.
+
+        Deliberately not the trap below. Run here, it would read `activeElement`
+        as outside the panel and pull the keyboard back *into* a menu that is on
+        its way out, which is a worse answer than the one this is fixing.
+      */
+      if (!menuOpen) {
+        event.preventDefault();
+        return;
+      }
 
       /*
         The trap.
@@ -245,7 +263,7 @@ export function LandingNav() {
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [menuOpen]);
+  }, [menuOpen, menuShowing]);
 
   return (
     <>
