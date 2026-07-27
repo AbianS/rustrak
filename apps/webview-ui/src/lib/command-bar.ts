@@ -1,4 +1,15 @@
-import { FolderIcon, KeyIcon, PlusIcon, SettingsIcon, SunMoonIcon } from "lucide-react";
+import {
+  DatabaseIcon,
+  FolderIcon,
+  InfoIcon,
+  KeyIcon,
+  PaletteIcon,
+  PlugIcon,
+  PlusIcon,
+  SettingsIcon,
+  UserIcon,
+  UsersIcon,
+} from "lucide-react";
 
 export type CommandItem = {
   label: string;
@@ -27,15 +38,39 @@ export const COMMANDS: CommandItem[] = [
     icon: KeyIcon,
   },
   {
+    label: "Integrations",
+    href: "/settings/integrations",
+    category: "Settings",
+    icon: PlugIcon,
+  },
+  {
+    label: "Team",
+    href: "/settings/team",
+    category: "Settings",
+    icon: UsersIcon,
+  },
+  {
+    label: "Storage",
+    href: "/settings/storage",
+    category: "Settings",
+    icon: DatabaseIcon,
+  },
+  {
     label: "Account",
     href: "/settings/account",
     category: "Settings",
-    icon: SettingsIcon,
+    icon: UserIcon,
   },
   {
     label: "Appearance",
     href: "/settings/appearance",
     category: "Settings",
-    icon: SunMoonIcon,
+    icon: PaletteIcon,
+  },
+  {
+    label: "About",
+    href: "/settings/about",
+    category: "Settings",
+    icon: InfoIcon,
   },
 ];
