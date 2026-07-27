@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
-import { ServiceUnavailable } from '@/components/service-unavailable';
+import { OutageScreen } from '@/components/outage-screen';
 import { UpdateBannerSlot } from '@/components/update-banner-slot';
 import { Header } from './header';
 
@@ -20,14 +20,10 @@ export default async function MainLayout({
     redirect('/auth/login');
   }
 
+  // Returned bare, with no wrapper: this is the one branch that renders no
+  // `Header`, so the screen owns the whole viewport and brings its own brand.
   if (session.state === 'unavailable') {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex-1">
-          <ServiceUnavailable error={session.error} />
-        </main>
-      </div>
-    );
+    return <OutageScreen error={session.error} />;
   }
 
   return (

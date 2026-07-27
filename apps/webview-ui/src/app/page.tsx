@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
-import { ServiceUnavailable } from '@/components/service-unavailable';
+import { OutageScreen } from '@/components/outage-screen';
 
 export default async function Home() {
   const session = await getCurrentUser();
@@ -12,7 +12,7 @@ export default async function Home() {
   }
 
   if (session.state === 'unavailable') {
-    return <ServiceUnavailable error={session.error} />;
+    return <OutageScreen error={session.error} />;
   }
 
   redirect('/projects');

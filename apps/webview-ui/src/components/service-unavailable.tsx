@@ -4,13 +4,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { describeError, errorGuidance, errorHeadline } from '@/lib/error-copy';
 
 /**
- * What the user is told when a page could not finish a read, and the reason was
- * **not** "you are signed out".
+ * A failed read reported **in place**, inside a page that otherwise rendered.
  *
- * The whole point of this surface is that it is not `/auth/login`. A page that
- * redirects on a network failure sends a signed-in user to a login form that
- * cannot help: logging in issues the same request, which fails the same way,
- * and the user is bounced again.
+ * Its whole-viewport sibling is `OutageScreen`, which the root auth gate uses
+ * because it has no header to sit under. The split is the point: a page that
+ * loaded its header, its nav and three of its four panels must not be replaced
+ * by the fourth panel's failure, and a screen with no chrome at all must not
+ * render a small dashed card floating in an empty viewport.
+ *
+ * The surface is still not `/auth/login`. A page that redirects on a network
+ * failure sends a signed-in user to a login form that cannot help: logging in
+ * issues the same request, which fails the same way, and they bounce again.
  *
  * Every line comes from `kind`. It used to assert an outage unconditionally --
  * heading "Rustrak is not responding", footer "reload once the API is back" --
@@ -30,16 +34,23 @@ export function ServiceUnavailable({
   const guidance = errorGuidance(error);
 
   return (
-    <div className="p-8">
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <PlugZap className="size-12 text-muted-foreground/50 mb-4" />
-          <p className="font-semibold">{title ?? errorHeadline(error)}</p>
-          <p className="text-muted-foreground mt-1 text-sm max-w-sm">
+    <div className="p-6 md:p-8">
+      <Card className="border-dashed bg-transparent shadow-none">
+        <CardContent className="flex flex-col items-center justify-center px-6 py-14 text-center">
+          <div className="mb-5 flex size-12 items-center justify-center rounded-full bg-muted">
+            <PlugZap
+              className="size-5 text-muted-foreground"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="text-base font-bold tracking-tight">
+            {title ?? errorHeadline(error)}
+          </p>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed max-w-sm">
             {describeError(error)}
           </p>
           {guidance ? (
-            <p className="text-muted-foreground/70 mt-4 text-xs max-w-sm">
+            <p className="text-muted-foreground/70 mt-4 text-xs leading-relaxed max-w-sm">
               {guidance}
             </p>
           ) : null}
