@@ -163,7 +163,7 @@ openssl rand -hex 32
 
 ### Versioning
 
-Rustrak uses **lockstep versioning**. `@rustrak/server`, `webview-ui`, `@rustrak/client`, `@rustrak/mcp` and `docs` form a `fixed` group in `.changeset/config.json`: they always share one version number and bump together, even when a package has no changes.
+Rustrak uses **lockstep versioning for the shipped artifacts**. `@rustrak/server`, `webview-ui`, `@rustrak/client` and `@rustrak/mcp` form a `fixed` group in `.changeset/config.json`: they always share one version number and bump together, even when a package has no changes.
 
 The number identifies the **Rustrak release**, not the semver of one artifact. This is what lets a user answer "which version of Rustrak am I running?" and lets `@rustrak/client@X.Y.Z` be known-compatible with server `X.Y.Z` without a compatibility matrix.
 
@@ -172,6 +172,10 @@ The number identifies the **Rustrak release**, not the semver of one artifact. T
 - **While on `0.x`, never write a `major` changeset.** Use `minor` for breaking changes, per the 0.x convention. A `major` would push the product to 1.0.0 as a side effect.
 - `@rustrak/test-sentry` and `@rustrak/benchmarks` are internal and excluded via `ignore`.
 - `scripts/sync-version.sh` propagates the version from `apps/server/package.json` to `Cargo.toml` after `changeset version`.
+
+**`docs` is versioned independently.** It sits outside the `fixed` group and only bumps when a changeset names `docs` explicitly. It is `private`, never published, and nothing reads its version: the docs site builds its version switcher from the frontmatter of `apps/docs/content/changelog/*.mdx`, not from `package.json`. Its number will therefore fall behind the product version, and that is expected: `release.yml` deliberately excludes `apps/docs` from the fixed-group alignment check.
+
+The deploy follows the version. `deploy-docs.yml` publishes the site when the version in `apps/docs/package.json` changes on `main`, which is exactly when a version PR carrying a `docs` changeset merges. It also runs on `release: published`, so a new changelog entry reaches the site with a product release, and on `workflow_dispatch`. It deliberately does not deploy on every push to `main`: publishing is tied to a version someone chose to cut. And the changelog MDX files remain **product** changelogs (`v0.14.0`, ...), since `release.yml` matches them by product version to build the GitHub release body.
 
 Post-1.0 the management API should get its own `api_version` in `/health/version`, which would allow decoupling the client from the product version if needed.
 
