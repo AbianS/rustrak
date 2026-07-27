@@ -58,19 +58,32 @@ export function ChangelogFeed({
   const [status, setStatus] = useState<Status>('idle');
   const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
 
-  // Mirrors of the two values the async loop reads between awaits. State would
-  // be stale inside the loop and would also make `loadThrough` a new function
-  // on every render, which the hash listener below depends on it not being.
+  // Mirrors of the values the async loop reads between awaits. State would be
+  // stale inside the loop and would also make `loadThrough` a new function on
+  // every render, which the hash listener below depends on it not being.
   const loadedRef = useRef(1);
   const busyRef = useRef(false);
+  // How far the loop has been asked to go. A ref rather than an argument
+  // because a second caller has to be able to raise it while the first is
+  // still running — see the note in `loadThrough`.
+  const targetRef = useRef(1);
 
   const loadThrough = useCallback(async (target: number) => {
-    if (busyRef.current || target <= loadedRef.current) return;
+    // Raised before the busy check, and never lowered. A request that arrives
+    // mid-flight used to be dropped on the floor: it returned here because the
+    // loop was busy, and the loop it returned to was bounded by the target of
+    // whoever started it. So a deep link into chunk four landing while chunk
+    // two was in the air left `pendingAnchor` set on a release that would
+    // never be fetched, and the page simply never scrolled. Now the running
+    // loop reads this on every pass and carries on to the further target.
+    targetRef.current = Math.max(targetRef.current, target);
+    if (busyRef.current || targetRef.current <= loadedRef.current) return;
     busyRef.current = true;
     setStatus('loading');
 
     try {
-      for (let chunk = loadedRef.current + 1; chunk <= target; chunk += 1) {
+      while (loadedRef.current < targetRef.current) {
+        const chunk = loadedRef.current + 1;
         const response = await fetch(
           `${BASE_PATH}/changelog/releases/${chunk}`,
         );
