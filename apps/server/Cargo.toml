@@ -111,7 +111,7 @@ utoipa-scalar = { version = "0.3.0", features = ["actix-web"], optional = true }
 # The crate depends on itself so the integration tests, which are separate
 # crates, get `test-seams` enabled. Gating the seams on `debug_assertions`
 # instead made `cargo test --release` fail to compile.
-rustrak = { path = ".", features = ["test-seams"] }
+rustrak = { path = ".", default-features = false, features = ["test-seams"] }
 
 # Test framework & fixtures
 rstest = "0.26.1"
