@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import Fuse from "fuse.js";
-import { SearchIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { PlatformIcon } from "platformicons";
-import { useEffect, useMemo, useState } from "react";
+import Fuse from 'fuse.js';
+import { SearchIcon } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { PlatformIcon } from 'platformicons';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
-import { Kbd, KbdGroup } from "./ui/kbd";
-import { CommandItem, COMMANDS, getProjectCommands } from "@/lib/command-bar";
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import { Kbd, KbdGroup } from './ui/kbd';
+import { CommandItem, COMMANDS, getProjectCommands } from '@/lib/command-bar';
 
 /** "New project" -> "np", so acronym-style queries match. */
 function initials(label: string) {
@@ -21,7 +21,7 @@ function initials(label: string) {
     .split(/[^a-z0-9]+/i)
     .filter(Boolean)
     .map((word) => word[0])
-    .join("")
+    .join('')
     .toLowerCase();
 }
 
@@ -35,7 +35,7 @@ export default function CommandBarDialog({
   onOpenChange,
 }: CommandBarDialogProps) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [projectCommands, setProjectCommands] = useState<CommandItem[]>([]);
 
@@ -61,13 +61,13 @@ export default function CommandBarDialog({
     () =>
       new Fuse(commands, {
         keys: [
-          { name: "label", weight: 2 },
+          { name: 'label', weight: 2 },
           {
-            name: "initials",
+            name: 'initials',
             weight: 1,
             getFn: (command) => initials(command.label),
           },
-          { name: "category", weight: 0.5 },
+          { name: 'category', weight: 0.5 },
         ],
         threshold: 0.4,
         ignoreLocation: true,
@@ -89,7 +89,7 @@ export default function CommandBarDialog({
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
     if (!nextOpen) {
-      setQuery("");
+      setQuery('');
       setActiveIndex(0);
     }
   };
@@ -102,13 +102,13 @@ export default function CommandBarDialog({
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (results.length === 0) return;
 
-    if (event.key === "ArrowDown") {
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveIndex((active + 1) % results.length);
-    } else if (event.key === "ArrowUp") {
+    } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       setActiveIndex((active - 1 + results.length) % results.length);
-    } else if (event.key === "Enter") {
+    } else if (event.key === 'Enter') {
       event.preventDefault();
       const command = results[active];
       if (command) select(command);
@@ -155,9 +155,9 @@ export default function CommandBarDialog({
                 onClick={() => select(command)}
                 onMouseMove={() => setActiveIndex(index)}
                 className={cn(
-                  "flex p-2 gap-1.5 rounded-md w-full justify-between hover:bg-transparent hover:text-inherit dark:hover:bg-transparent",
+                  'flex p-2 gap-1.5 rounded-md w-full justify-between hover:bg-transparent hover:text-inherit dark:hover:bg-transparent',
                   active === index &&
-                    "bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/10",
+                    'bg-primary/10 text-primary hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/10',
                 )}
               >
                 <span className="flex items-center gap-1.5">
@@ -165,7 +165,7 @@ export default function CommandBarDialog({
                     <command.icon className="size-4 opacity-70" />
                   ) : (
                     <PlatformIcon
-                      platform={command.platform ?? "other"}
+                      platform={command.platform ?? 'other'}
                       size={16}
                       format="lg"
                       className="shrink-0 rounded-xs"

@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { SearchIcon } from "lucide-react";
-import { useEffect, useState } from "react";
-import CommandBarDialog from "./command-bar-dialog";
-import { Button } from "./ui/button";
+import { SearchIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import CommandBarDialog from './command-bar-dialog';
+import { Button } from './ui/button';
 
 export default function CommandBar() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
+      if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         setOpen((prev) => !prev);
       }
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
   return (
