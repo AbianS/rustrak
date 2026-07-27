@@ -166,8 +166,11 @@ export function AppFrame({
     <div
       ref={ref}
       aria-hidden
+      /* Not selectable, for the reason set out in `MockStage`. Repeated on the
+         frame as well as on the stage inside it because this element also holds
+         the pointer and the spotlight, which are chrome the stage never sees. */
       className={cn(
-        'relative w-full overflow-hidden rounded-xl border border-white/10',
+        'relative w-full select-none overflow-hidden rounded-xl border border-white/10',
         'bg-[oklch(0.155_0_0)] shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)]',
         className,
       )}

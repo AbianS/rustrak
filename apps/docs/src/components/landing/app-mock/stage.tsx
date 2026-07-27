@@ -324,7 +324,22 @@ export function MockStage({
   return (
     <StageContext.Provider value={clock}>
       <IdleContext.Provider value={idle}>
-        <div ref={ref} className={cn('h-full w-full', className)}>
+        {/*
+          `select-none` on every surface, because these are pictures of the
+          product rather than the product.
+
+          They are built out of real elements, so a drag across one selects it
+          like a document: rows highlight, labels come away as text, and a copy
+          returns a column of issue titles and timestamps that came from a
+          fixture file. That is the moment the illusion goes, and it takes the
+          rest of the page's credibility with it, since the reader has just
+          learned that what looked like a screenshot of an application is a
+          mock-up they can pull apart.
+
+          One place covers all of it: every screen and every thumbnail on the
+          page is rendered inside a `MockStage`.
+        */}
+        <div ref={ref} className={cn('h-full w-full select-none', className)}>
           {children}
         </div>
       </IdleContext.Provider>
