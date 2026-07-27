@@ -73,7 +73,35 @@ describe('toMcpError', () => {
       message: 'Invalid input',
     });
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toBe('API error: Invalid input');
+    // The determinism hint is part of the contract, not decoration: a model
+    // that cannot tell a permanent failure from a transient one retries, and
+    // two of these tools delete data.
+    expect(result.content[0]?.text).toBe(
+      'API error: Invalid input Retrying will not help.',
+    );
+  });
+
+  it('warns that an indeterminate failure may already have been applied', () => {
+    const result = toMcpError({
+      kind: 'network',
+      message: 'The request timed out.',
+      reason: 'timeout',
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain('may or may not have been applied');
+    // And it must not be described as safe to repeat.
+    expect(result.content[0]?.text).not.toContain('Retrying will not help.');
+  });
+
+  it('tells the model a forbidden call will never succeed', () => {
+    const result = toMcpError({
+      kind: 'forbidden',
+      status: 403,
+      message: 'Admin access required.',
+    });
+    expect(result.content[0]?.text).toBe(
+      'Not permitted: Admin access required. Retrying will not help.',
+    );
   });
 
   it('renders a 5xx as the redacted message, never the server body', () => {

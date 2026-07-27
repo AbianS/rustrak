@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getProjects } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { ProjectsHeader } from './projects-header';
 import { ProjectsList } from './projects-list';
 
@@ -35,6 +36,16 @@ export default async function ProjectsPage({
     stats_period: STATS_PERIOD,
   });
 
+  if (!projectsResponse.success) {
+    return (
+      <LoadFailure
+        error={projectsResponse.error}
+        title="Could not load projects"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Header section - fixed */}
@@ -45,7 +56,7 @@ export default async function ProjectsPage({
       {/* Content section - grows and handles overflow */}
       <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6">
         <ProjectsList
-          initialProjects={projectsResponse}
+          initialProjects={projectsResponse.data}
           currentPage={currentPage}
         />
       </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { GeneralSettingsForm } from './general-settings-form';
 
 interface GeneralSettingsPageProps {
@@ -17,8 +17,8 @@ export default async function GeneralSettingsPage({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
-    notFound();
+  if (!project.success) {
+    return <LoadFailure error={project.error} title="Could not load project" />;
   }
 
   return (
@@ -32,7 +32,7 @@ export default async function GeneralSettingsPage({
         </p>
       </div>
 
-      <GeneralSettingsForm project={project} />
+      <GeneralSettingsForm project={project.data} />
     </>
   );
 }

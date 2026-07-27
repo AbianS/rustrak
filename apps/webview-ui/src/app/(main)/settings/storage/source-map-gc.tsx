@@ -37,26 +37,35 @@ export function SourceMapGc() {
 
   const handlePreview = () => {
     startTransition(async () => {
-      try {
-        setPreview(await previewStorageSourceMapGc());
-      } catch {
-        toast.error('Could not preview source-map cleanup');
+      const result = await previewStorageSourceMapGc();
+
+      if (!result.success) {
+        toast.error('Could not preview source-map cleanup', {
+          description: result.error.message,
+        });
+        return;
       }
+
+      setPreview(result.data);
     });
   };
 
   const handleGc = () => {
     startTransition(async () => {
-      try {
-        const result = await gcStorageSourceMaps();
-        toast.success(
-          `Removed ${result.files_removed.toLocaleString()} orphaned source maps (${formatBytes(result.bytes_freed)} freed)`,
-        );
-        setPreview(null);
-        router.refresh();
-      } catch {
-        toast.error('Source-map cleanup failed');
+      const result = await gcStorageSourceMaps();
+
+      if (!result.success) {
+        toast.error('Source-map cleanup failed', {
+          description: result.error.message,
+        });
+        return;
       }
+
+      toast.success(
+        `Removed ${result.data.files_removed.toLocaleString()} orphaned source maps (${formatBytes(result.data.bytes_freed)} freed)`,
+      );
+      setPreview(null);
+      router.refresh();
     });
   };
 

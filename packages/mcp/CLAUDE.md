@@ -170,9 +170,19 @@ switch (error.kind) {
   case 'not_found':        return mcpError(error.message);  // already reads `Resource not found: X`
   case 'rate_limited':     return mcpError(`Rate limited. Retry after: ${error.retryAfter ?? '?'}s`);
   case 'unauthenticated':  return mcpError('Authentication failed. Check RUSTRAK_API_TOKEN.');
-  default:                 return mcpError(`API error: ${error.message}`);
+  case 'network':
+  case 'server_error':     return mcpError(`API error: ${error.message} The request may or may not have been applied; check the current state before retrying.`);
+  case 'forbidden':        return mcpError(`Not permitted: ${error.message} Retrying will not help.`);
+  default:                 return mcpError(`API error: ${error.message} Retrying will not help.`);
 }
 ```
+
+The retry wording is contract, not decoration. `network` and `server_error`
+are the **indeterminate** failures: the request may have reached the server and
+been applied before the answer was lost. Everything else is deterministic and
+says so, because a model that cannot tell the two apart retries — and
+`create_ky_instance` already retries writes, while two of these tools delete
+data.
 
 **Rules:**
 - Never expose stack traces or internal paths in error text
@@ -180,6 +190,8 @@ switch (error.kind) {
 - `default:` is the catch-all, and it is exhaustive because the union is closed
 - A `Result<void>` failure is a *value*: always go through `mcpDone`, never
   ignore it, or the tool reports `removed successfully` after a 403
+- Say whether retrying can help. The model is the consumer of this text, and it
+  will act on it
 
 ### 4. Destructive Tool Annotations
 

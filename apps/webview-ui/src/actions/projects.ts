@@ -5,6 +5,8 @@ import type {
   ListProjectsOptions,
   OffsetPaginatedResponse,
   Project,
+  Result,
+  RustrakError,
   UpdateProject,
 } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
@@ -13,12 +15,11 @@ import { createClient } from '@/lib/rustrak';
  * Get projects with pagination.
  *
  * @param options - Optional pagination options
- * @returns Paginated list of projects
- * @throws AuthenticationError if not authenticated
+ * @returns Paginated list of projects, or the failure that stopped it
  */
 export async function getProjects(
   options?: ListProjectsOptions,
-): Promise<OffsetPaginatedResponse<Project>> {
+): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
   const client = await createClient();
   return client.projects.list(options);
 }
@@ -28,10 +29,10 @@ export async function getProjects(
  *
  * @param id - Project ID
  * @returns The project
- * @throws NotFoundError if project doesn't exist
- * @throws AuthenticationError if not authenticated
  */
-export async function getProject(id: number): Promise<Project> {
+export async function getProject(
+  id: number,
+): Promise<Result<Project, RustrakError>> {
   const client = await createClient();
   return client.projects.get(id);
 }
@@ -41,10 +42,10 @@ export async function getProject(id: number): Promise<Project> {
  *
  * @param input - Project data (name, optional slug)
  * @returns The created project
- * @throws BadRequestError if validation fails
- * @throws AuthenticationError if not authenticated
  */
-export async function createProject(input: CreateProject): Promise<Project> {
+export async function createProject(
+  input: CreateProject,
+): Promise<Result<Project, RustrakError>> {
   const client = await createClient();
   return client.projects.create(input);
 }
@@ -55,14 +56,11 @@ export async function createProject(input: CreateProject): Promise<Project> {
  * @param id - Project ID
  * @param input - Fields to update (name)
  * @returns The updated project
- * @throws NotFoundError if project doesn't exist
- * @throws BadRequestError if validation fails
- * @throws AuthenticationError if not authenticated
  */
 export async function updateProject(
   id: number,
   input: UpdateProject,
-): Promise<Project> {
+): Promise<Result<Project, RustrakError>> {
   const client = await createClient();
   return client.projects.update(id, input);
 }
@@ -71,10 +69,10 @@ export async function updateProject(
  * Delete a project.
  *
  * @param id - Project ID
- * @throws NotFoundError if project doesn't exist
- * @throws AuthenticationError if not authenticated
  */
-export async function deleteProject(id: number): Promise<void> {
+export async function deleteProject(
+  id: number,
+): Promise<Result<void, RustrakError>> {
   const client = await createClient();
   return client.projects.delete(id);
 }

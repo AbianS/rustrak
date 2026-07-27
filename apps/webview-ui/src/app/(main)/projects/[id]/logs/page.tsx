@@ -1,8 +1,8 @@
 import { ScrollText } from 'lucide-react';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { listLogs } from '@/actions/logs';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { LogsList } from './logs-list';
 
 interface LogsPageProps {
@@ -16,13 +16,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `Logs | ${project.name} | Rustrak`,
-    description: `Structured logs for ${project.name}`,
+    title: `Logs | ${project.data.name} | Rustrak`,
+    description: `Structured logs for ${project.data.name}`,
   };
 }
 
@@ -35,19 +35,35 @@ export default async function LogsPage({
   const projectId = parseInt(id, 10);
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
-  const project = await getProject(projectId);
+  const projectResult = await getProject(projectId);
 
-  if (!project) {
-    notFound();
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
 
-  // No catch: a fetch/auth failure must surface to the error boundary, not be
-  // disguised as the "no logs yet" onboarding state.
-  const logs = await listLogs(projectId, {
+  const project = projectResult.data;
+
+  // Nothing is swallowed: a fetch/auth failure renders an outage surface rather
+  // than the "no logs yet" onboarding state.
+  const logsResult = await listLogs(projectId, {
     page: currentPage,
     per_page: 50,
     level: level || undefined,
   });
+
+  if (!logsResult.success) {
+    return (
+      <LoadFailure
+        error={logsResult.error}
+        title="Could not load logs"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const logs = logsResult.data;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">

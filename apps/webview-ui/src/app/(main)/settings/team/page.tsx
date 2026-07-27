@@ -1,9 +1,13 @@
 import { ShieldX } from 'lucide-react';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
 import { listInvitations } from '@/actions/invitations';
 import { listTeam } from '@/actions/team';
+import { LoadFailure } from '@/components/load-failure';
+import { ServiceUnavailable } from '@/components/service-unavailable';
 import { Card, CardContent } from '@/components/ui/card';
+import { loadAll } from '@/lib/results';
 import { InviteForm } from './components/invite-form';
 import { PendingInvitations } from './components/pending-invitations';
 import { TeamMembersList } from './components/team-members-list';
@@ -14,10 +18,32 @@ export const metadata: Metadata = {
 };
 
 export default async function TeamPage() {
-  const user = await getCurrentUser();
+  const session = await getCurrentUser();
+
+  if (session.state === 'anonymous') {
+    redirect('/auth/login');
+  }
+
+  // Checked before the admin guard: an outage is not a permission verdict, and
+  // the old `user?.role !== 'admin'` reported one as the other.
+  if (session.state === 'unavailable') {
+    return (
+      <>
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
+            Team
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your team members and invitations
+          </p>
+        </div>
+        <ServiceUnavailable error={session.error} />
+      </>
+    );
+  }
 
   // Guard: only instance admins may manage the team.
-  if (user?.role !== 'admin') {
+  if (session.user.role !== 'admin') {
     return (
       <>
         <div className="mb-6 md:mb-8">
@@ -42,10 +68,19 @@ export default async function TeamPage() {
     );
   }
 
-  const [members, invitations] = await Promise.all([
-    listTeam(),
-    listInvitations(),
-  ]);
+  const loaded = await loadAll([listTeam(), listInvitations()]);
+
+  if (!loaded.success) {
+    return (
+      <LoadFailure
+        error={loaded.error}
+        title="Could not load the team"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const [members, invitations] = loaded.data;
 
   const pendingInvitations = invitations.filter(
     (invitation) => invitation.status === 'pending',
@@ -64,7 +99,7 @@ export default async function TeamPage() {
 
       <div className="space-y-6">
         <InviteForm />
-        <TeamMembersList members={members} currentUserId={user.id} />
+        <TeamMembersList members={members} currentUserId={session.user.id} />
         <PendingInvitations invitations={pendingInvitations} />
       </div>
     </>

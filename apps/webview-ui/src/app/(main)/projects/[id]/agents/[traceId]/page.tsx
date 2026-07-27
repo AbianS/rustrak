@@ -1,11 +1,19 @@
-import type { OffsetPaginatedResponse, Span } from '@rustrak/client';
+import type {
+  OffsetPaginatedResponse,
+  Result,
+  RustrakError,
+  Span,
+} from '@rustrak/client';
+import { Ok } from '@rustrak/client';
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { listSpans } from '@/actions/agents';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { Badge } from '@/components/ui/badge';
+import { loadAll } from '@/lib/results';
 import { AgentTraceWaterfall } from './agent-trace-waterfall';
 
 interface AgentTraceDetailPageProps {
@@ -29,9 +37,9 @@ async function collectAllSpans(
   projectId: number,
   traceId: string,
   firstPage: OffsetPaginatedResponse<Span>,
-): Promise<Span[]> {
+): Promise<Result<Span[], RustrakError>> {
   if (firstPage.total_pages <= 1) {
-    return firstPage.items;
+    return Ok(firstPage.items);
   }
 
   const rest = await Promise.all(
@@ -44,7 +52,19 @@ async function collectAllSpans(
     ),
   );
 
-  return [firstPage, ...rest].flatMap((r) => r.items);
+  const spans = [...firstPage.items];
+
+  for (const page of rest) {
+    // A missing page is not an empty page: the waterfall's timings are only
+    // correct over the whole trace, so a partial set would draw a plausible
+    // and wrong picture.
+    if (!page.success) {
+      return page;
+    }
+    spans.push(...page.data.items);
+  }
+
+  return Ok(spans);
 }
 
 function formatDuration(ms: number | null): string {
@@ -59,16 +79,23 @@ export default async function AgentTraceDetailPage({
   const { id, traceId } = await params;
   const projectId = parseInt(id, 10);
 
-  const [project, spansResponse] = await Promise.all([
+  const loaded = await loadAll([
     getProject(projectId),
     listSpans(projectId, { trace_id: traceId, per_page: PER_PAGE }),
   ]);
 
-  if (!project) {
-    notFound();
+  if (!loaded.success) {
+    return <LoadFailure error={loaded.error} title="Could not load trace" />;
   }
 
-  const spans = await collectAllSpans(projectId, traceId, spansResponse);
+  const [, spansResponse] = loaded.data;
+  const collected = await collectAllSpans(projectId, traceId, spansResponse);
+
+  if (!collected.success) {
+    return <LoadFailure error={collected.error} title="Could not load trace" />;
+  }
+
+  const spans = collected.data;
 
   if (spans.length === 0) {
     notFound();

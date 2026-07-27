@@ -36,8 +36,28 @@ export function toMcpError(error: RustrakError): McpToolResult {
     }
     case 'unauthenticated':
       return mcpError('Authentication failed. Check RUSTRAK_API_TOKEN.');
+    case 'network':
+    case 'server_error':
+      // The one distinction a model acting on this actually needs, and the one
+      // a flat "API error:" destroyed. These two are the *indeterminate*
+      // failures: the request may have reached the server and been applied
+      // before the answer was lost. Two of these tools delete data, and the
+      // client's ky instance already retries writes, so a model told only
+      // "API error: The request timed out." will cheerfully run a destructive
+      // call a second time.
+      return mcpError(
+        `API error: ${error.message} The request may or may not have been applied; check the current state before retrying.`,
+      );
+    case 'forbidden':
+      // Deterministic, and worth naming so it is not mistaken for a transient
+      // fault worth retrying: this token will never be allowed to do this.
+      return mcpError(`Not permitted: ${error.message} Retrying will not help.`);
     default:
-      return mcpError(`API error: ${error.message}`);
+      // validation, conflict, gone, payload_too_large, client_error,
+      // invalid_request, invalid_response: all deterministic. The same call
+      // will fail the same way, so say so once rather than let the model
+      // discover it by repetition.
+      return mcpError(`API error: ${error.message} Retrying will not help.`);
   }
 }
 
@@ -62,9 +82,20 @@ export function mcpJson<T>(result: Result<T, RustrakError>): McpToolResult {
   if (!result.success) {
     return toMcpError(result.error);
   }
-  return {
-    content: [{ type: 'text', text: JSON.stringify(result.data, null, 2) }],
-  };
+
+  const text = JSON.stringify(result.data, null, 2);
+
+  // `JSON.stringify(undefined)` returns the *value* `undefined`, not a string,
+  // which would put `text: undefined` on the wire and fail the MCP SDK's
+  // content schema at the transport boundary rather than here. No tool hits
+  // this today -- every `Result<void>` call goes through `mcpDone` -- but this
+  // is the helper the next tool will reach for, and `T` accepts `void` without
+  // complaint.
+  if (text === undefined) {
+    return { content: [{ type: 'text', text: 'OK' }] };
+  }
+
+  return { content: [{ type: 'text', text }] };
 }
 
 /**

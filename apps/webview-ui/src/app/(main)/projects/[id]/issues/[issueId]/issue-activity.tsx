@@ -5,6 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import { addIssueComment } from '@/actions/issues';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -76,7 +77,17 @@ export function IssueActivity({
       return;
     }
     startTransition(async () => {
-      await addIssueComment(projectId, issueId, body);
+      const result = await addIssueComment(projectId, issueId, body);
+
+      if (!result.success) {
+        // Keep the text in the box: clearing it on a failure destroys what the
+        // user wrote and leaves no trace that anything went wrong.
+        toast.error('Failed to add comment', {
+          description: result.error.message,
+        });
+        return;
+      }
+
       setText('');
       router.refresh();
     });

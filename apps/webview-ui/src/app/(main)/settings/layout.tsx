@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
+import { ServiceUnavailable } from '@/components/service-unavailable';
 import { SettingsMobileNav } from './settings-mobile-nav';
 import { SettingsNav } from './settings-nav';
 
@@ -13,8 +15,20 @@ export default async function SettingsLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getCurrentUser();
-  const isAdmin = user?.role === 'admin';
+  const session = await getCurrentUser();
+
+  if (session.state === 'anonymous') {
+    redirect('/auth/login');
+  }
+
+  // Not a silent `isAdmin = false`. The old `user?.role === 'admin'` meant an
+  // API outage rendered the settings nav with every admin entry missing, which
+  // reads as "you were demoted" rather than "we could not ask".
+  if (session.state === 'unavailable') {
+    return <ServiceUnavailable error={session.error} />;
+  }
+
+  const isAdmin = session.user.role === 'admin';
 
   return (
     <div className="w-full">

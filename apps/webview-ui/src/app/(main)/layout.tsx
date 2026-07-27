@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
-import { getUpdateInfo } from '@/actions/version-check';
-import { UpdateBanner } from '@/components/update-banner';
+import { ServiceUnavailable } from '@/components/service-unavailable';
+import { UpdateBannerSlot } from '@/components/update-banner-slot';
 import { Header } from './header';
 
 export default async function MainLayout({
@@ -10,26 +10,35 @@ export default async function MainLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await getCurrentUser();
+  const session = await getCurrentUser();
 
-  if (!user) {
+  // The root gate for the whole authenticated app, so this is the branch a
+  // wrong conversion turns into a login loop. `anonymous` is the only state
+  // that redirects; `unavailable` renders instead, and deliberately does not
+  // render `children`, because every page below assumes it has a user.
+  if (session.state === 'anonymous') {
     redirect('/auth/login');
+  }
+
+  if (session.state === 'unavailable') {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-1">
+          <ServiceUnavailable error={session.error} />
+        </main>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header user={user} />
+      <Header user={session.user} />
       <main className="flex-1">{children}</main>
+      {/* Streamed separately so the feed fetch never holds up the page: the
+          banner is fixed-positioned, so arriving late shifts nothing. */}
       <Suspense fallback={null}>
         <UpdateBannerSlot />
       </Suspense>
     </div>
   );
-}
-
-// Streamed separately so the feed fetch never holds up the page: the banner is
-// decorative and fixed-positioned, so arriving late shifts nothing.
-async function UpdateBannerSlot() {
-  const updateInfo = await getUpdateInfo();
-  return updateInfo ? <UpdateBanner info={updateInfo} /> : null;
 }

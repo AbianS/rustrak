@@ -7,10 +7,13 @@ import {
   ShieldX,
 } from 'lucide-react';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 import { getCurrentUser } from '@/actions/auth';
 import { getProjects } from '@/actions/projects';
 import { getStorageProjects, getStorageSummary } from '@/actions/storage';
+import { LoadFailure } from '@/components/load-failure';
+import { ServiceUnavailable } from '@/components/service-unavailable';
 import {
   Card,
   CardContent,
@@ -58,7 +61,19 @@ function PageHeader() {
  * a skeleton without blocking the rest of the page.
  */
 async function SummaryCards() {
-  const summary = await getStorageSummary();
+  const result = await getStorageSummary();
+
+  if (!result.success) {
+    return (
+      <LoadFailure
+        error={result.error}
+        title="Could not read storage usage"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const summary = result.data;
 
   const cards = [
     {
@@ -123,7 +138,19 @@ async function SummaryCards() {
  * streams in independently of the cards above.
  */
 async function ProjectsTable() {
-  const projects = await getStorageProjects();
+  const result = await getStorageProjects();
+
+  if (!result.success) {
+    return (
+      <LoadFailure
+        error={result.error}
+        title="Could not read the per-project breakdown"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const projects = result.data;
 
   return (
     <Card className="mb-6">
@@ -243,18 +270,46 @@ async function ProjectsTable() {
 async function CleanupPanel() {
   // Fetch every project in one shot (the API applies no hard page-size cap) so
   // the scope selector never silently drops projects.
-  const { items } = await getProjects({ per_page: 10000 });
+  const result = await getProjects({ per_page: 10000 });
+
+  if (!result.success) {
+    return (
+      <LoadFailure
+        error={result.error}
+        title="Could not load projects"
+        notFoundOnMissing={false}
+      />
+    );
+  }
 
   return (
-    <StorageCleanup projects={items.map((p) => ({ id: p.id, name: p.name }))} />
+    <StorageCleanup
+      projects={result.data.items.map((p) => ({ id: p.id, name: p.name }))}
+    />
   );
 }
 
 export default async function StoragePage() {
-  const user = await getCurrentUser();
+  const session = await getCurrentUser();
+
+  if (session.state === 'anonymous') {
+    redirect('/auth/login');
+  }
+
+  // Before the admin guard, and separate from it: the old `user?.role !==
+  // 'admin'` told a visitor "Not authorized" when the truth was "we could not
+  // reach the API to find out", which is a lie about their permissions.
+  if (session.state === 'unavailable') {
+    return (
+      <>
+        <PageHeader />
+        <ServiceUnavailable error={session.error} />
+      </>
+    );
+  }
 
   // Guard: storage usage and cleanup are instance-admin only.
-  if (user?.role !== 'admin') {
+  if (session.user.role !== 'admin') {
     return (
       <>
         <PageHeader />

@@ -6,7 +6,7 @@
  * carries every breadcrumb the SDK sent (Relay doesn't truncate by count),
  * this is purely about not dumping the whole timeline inline.
  */
-export const BREADCRUMB_SUMMARY_COUNT = 5;
+const BREADCRUMB_SUMMARY_COUNT = 5;
 
 /**
  * Return the most recent `count` breadcrumbs for the inline summary view.

@@ -4,18 +4,24 @@ import type {
   AcceptInvitation,
   InvitationInfo,
   LoginRequest,
+  RustrakError,
   User,
 } from '@rustrak/client';
-import { RustrakError } from '@rustrak/client';
 import {
   applySetCookies,
   clearSessionCookies,
   createClient,
+  dropSessionCookie,
 } from '@/lib/rustrak';
 
 export type LoginResult =
   | { success: true; user: User }
-  | { success: false; error: 'invalid_credentials' | 'unknown' };
+  | {
+      success: false;
+      error: 'invalid_credentials' | 'unreachable' | 'rate_limited' | 'unknown';
+      /** Seconds the caller should wait, when the server or a proxy said so. */
+      retryAfter?: number;
+    };
 
 /**
  * Login with email and password.
@@ -25,21 +31,48 @@ export type LoginResult =
  * @returns Result object with success status and user or error type
  */
 export async function login(credentials: LoginRequest): Promise<LoginResult> {
-  try {
-    const client = await createClient();
-    const result = await client.auth.login(credentials);
+  const client = await createClient();
+  const result = await client.auth.login(credentials);
 
-    // Apply session cookies from backend response
-    await applySetCookies(result.cookies);
-
-    return { success: true, user: result.user };
-  } catch (err) {
-    // Check for authentication error (401)
-    if (err instanceof RustrakError && err.statusCode === 401) {
-      return { success: false, error: 'invalid_credentials' };
+  if (!result.success) {
+    switch (result.error.kind) {
+      case 'unauthenticated':
+        // Deliberately vague, and deliberately identical whether the email is
+        // unknown, the password is wrong, or the account is disabled. Naming
+        // which one it was is user enumeration: the server checks `is_active`
+        // *before* it verifies the password, so a distinct "account disabled"
+        // answer would confirm an address exists to anyone who typed it.
+        //
+        // It is also not currently distinguishable. All three are
+        // `Unauthorized` with only the prose differing, and matching on prose
+        // is the string-matching this refactor exists to delete. Telling them
+        // apart needs a discriminator on the wire from `apps/server`.
+        return { success: false, error: 'invalid_credentials' };
+      case 'network':
+        // Split out from `unknown`: "we could not reach the server" is a
+        // different instruction to the user than "your details were rejected",
+        // and collapsing the two is what makes a login page feel broken.
+        return { success: false, error: 'unreachable' };
+      case 'rate_limited':
+        // Also split out, and for a sharper reason than the others: the
+        // generic copy ends "Please try again", which is the one instruction
+        // that extends a lockout. Self-hosted instances commonly sit behind an
+        // nginx or Cloudflare rule on `/auth/login`, so this is the failure a
+        // user retrying by hand is most likely to meet.
+        return {
+          success: false,
+          error: 'rate_limited',
+          retryAfter: result.error.retryAfter,
+        };
+      default:
+        return { success: false, error: 'unknown' };
     }
-    return { success: false, error: 'unknown' };
   }
+
+  // Apply session cookies from backend response
+  await applySetCookies(result.data.cookies);
+
+  return { success: true, user: result.data.user };
 }
 
 /**
@@ -48,32 +81,53 @@ export async function login(credentials: LoginRequest): Promise<LoginResult> {
  */
 export async function logout(): Promise<void> {
   const client = await createClient();
-  const cookies = await client.auth.logout();
+  const result = await client.auth.logout();
 
-  // Clear session cookies
-  await clearSessionCookies(cookies);
+  if (!result.success) {
+    // The server did not acknowledge, so there are no `Set-Cookie` headers to
+    // replay. Drop the cookie anyway: a logout that leaves the session cookie
+    // in place is a session the user believes has ended and has not, which is
+    // the worse of the two failures on a shared machine.
+    await dropSessionCookie();
+    return;
+  }
+
+  await clearSessionCookies(result.data);
 }
 
 /**
- * Get the currently authenticated user.
- * Returns null if not authenticated (instead of throwing).
+ * Whether there is a session, and if not, why not.
  *
- * @returns The current user or null if not authenticated
+ * Three states, not a nullable user. `anonymous` is the *only* one that may
+ * send the visitor to `/auth/login`: an unreachable API or a 5xx is
+ * `unavailable`, and redirecting on those turns a flaky connection into a
+ * login loop that logging in cannot fix, because the next request fails the
+ * same way. A 403 is `unavailable` too, since it means "signed in, not
+ * allowed", which login also does not fix.
  */
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const client = await createClient();
-    return await client.auth.getCurrentUser();
-  } catch (err) {
-    // Return null only for authentication errors (401)
-    if (err instanceof RustrakError && err.statusCode === 401) {
-      return null;
-    }
-    // Log other errors for debugging but still return null
-    // to avoid breaking the app on transient errors
-    console.error('Failed to get current user:', err);
-    return null;
+export type CurrentUser =
+  | { state: 'authenticated'; user: User }
+  | { state: 'anonymous' }
+  | { state: 'unavailable'; error: RustrakError };
+
+/**
+ * Get the currently authenticated user.
+ *
+ * @returns Which of the three states the session is in
+ */
+export async function getCurrentUser(): Promise<CurrentUser> {
+  const client = await createClient();
+  const result = await client.auth.getCurrentUser();
+
+  if (result.success) {
+    return { state: 'authenticated', user: result.data };
   }
+
+  if (result.error.kind === 'unauthenticated') {
+    return { state: 'anonymous' };
+  }
+
+  return { state: 'unavailable', error: result.error };
 }
 
 export type GetInvitationResult =
@@ -90,20 +144,22 @@ export type GetInvitationResult =
 export async function getInvitation(
   token: string,
 ): Promise<GetInvitationResult> {
-  try {
-    const client = await createClient();
-    const invitation = await client.auth.getInvitation(token);
-    return { success: true, invitation };
-  } catch (err) {
-    if (
-      err instanceof RustrakError &&
-      (err.statusCode === 404 ||
-        err.statusCode === 400 ||
-        err.statusCode === 410)
-    ) {
+  const client = await createClient();
+  const result = await client.auth.getInvitation(token);
+
+  if (result.success) {
+    return { success: true, invitation: result.data };
+  }
+
+  switch (result.error.kind) {
+    // The three ways the server says "this token buys you nothing": never
+    // issued, malformed, or expired/already used.
+    case 'not_found':
+    case 'validation':
+    case 'gone':
       return { success: false, error: 'invalid' };
-    }
-    return { success: false, error: 'unknown' };
+    default:
+      return { success: false, error: 'unknown' };
   }
 }
 
@@ -121,18 +177,15 @@ export type AcceptInvitationResult =
 export async function acceptInvitation(
   input: AcceptInvitation,
 ): Promise<AcceptInvitationResult> {
-  try {
-    const client = await createClient();
-    const result = await client.auth.acceptInvitation(input);
+  const client = await createClient();
+  const result = await client.auth.acceptInvitation(input);
 
-    // Apply session cookies so the user is logged in immediately
-    await applySetCookies(result.cookies);
-
-    return { success: true, user: result.user };
-  } catch (err) {
-    if (err instanceof RustrakError) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Failed to accept invitation' };
+  if (!result.success) {
+    return { success: false, error: result.error.message };
   }
+
+  // Apply session cookies so the user is logged in immediately
+  await applySetCookies(result.data.cookies);
+
+  return { success: true, user: result.data.user };
 }

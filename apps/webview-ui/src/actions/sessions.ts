@@ -4,16 +4,19 @@ import type {
   OffsetPaginatedResponse,
   ReleaseHealthRow,
   ReleaseHealthStatsOptions,
+  Result,
+  RustrakError,
   SessionSummary,
   SessionTimeseries,
 } from '@rustrak/client';
+import { Ok } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
 
 /**
  * Get one page of per-release health stats for a project.
  *
- * No catch: a fetch/auth failure must surface to the error boundary rather
- * than be disguised as an empty page.
+ * The failure is returned, not swallowed: an empty page and an unreachable API
+ * must not render the same way.
  *
  * @param projectId - The project ID
  * @param options - Time window, release scoping and pagination.
@@ -21,13 +24,17 @@ import { createClient } from '@/lib/rustrak';
 export async function getReleaseHealth(
   projectId: number,
   options?: ReleaseHealthStatsOptions,
-): Promise<OffsetPaginatedResponse<ReleaseHealthRow>> {
+): Promise<Result<OffsetPaginatedResponse<ReleaseHealthRow>, RustrakError>> {
   const client = await createClient();
   return client.sessions.stats(projectId, options);
 }
 
 /** Page size used when walking every row of a single release. */
 const RELEASE_ROWS_PER_PAGE = 100;
+
+// Backstop on a bound the server supplies. At 100 rows a page this still
+// allows 2000 release/environment rows, which is far past any real project.
+const MAX_RELEASE_PAGES = 20;
 
 /**
  * Get every health row for one release, across all its environments.
@@ -37,6 +44,14 @@ const RELEASE_ROWS_PER_PAGE = 100;
  * to it. One page holds every realistic environment count, so the loop
  * normally runs once, but it keeps going when a project has more.
  *
+ * A page that fails ends the call as a failure. Returning the rows gathered so
+ * far would be the same silent truncation the complete set exists to avoid.
+ *
+ * `total_pages` comes from the response body, so the loop is bounded by
+ * something the server controls. `MAX_RELEASE_PAGES` is the backstop: a server
+ * bug reporting an inflated count would otherwise hold a Server Component
+ * render open for as many sequential round-trips as it cared to name.
+ *
  * @param projectId - The project ID
  * @param release - The release version to scope to
  * @param period - Time window (e.g. '24h', '7d'). Omit for all time.
@@ -45,7 +60,7 @@ export async function getAllReleaseHealthRows(
   projectId: number,
   release: string,
   period?: string,
-): Promise<ReleaseHealthRow[]> {
+): Promise<Result<ReleaseHealthRow[], RustrakError>> {
   const client = await createClient();
 
   const rows: ReleaseHealthRow[] = [];
@@ -59,68 +74,55 @@ export async function getAllReleaseHealthRows(
       page,
       per_page: RELEASE_ROWS_PER_PAGE,
     });
-    rows.push(...response.items);
-    totalPages = response.total_pages;
+    if (!response.success) {
+      return response;
+    }
+    rows.push(...response.data.items);
+    totalPages = Math.min(response.data.total_pages, MAX_RELEASE_PAGES);
     page += 1;
   } while (page <= totalPages);
 
-  return rows;
+  return Ok(rows);
 }
-
-const EMPTY_SESSION_SUMMARY: SessionSummary = {
-  total: 0,
-  errored: 0,
-  crashed: 0,
-  abnormal: 0,
-  crash_free_sessions_rate: null,
-  crash_free_users_rate: null,
-  active_releases: 0,
-};
 
 /**
  * Get project-wide session health, aggregated across all releases and environments.
  *
+ * The failure is returned, not swallowed. This used to fall back to a zeroed
+ * `SessionSummary`, which is the one fallback shape that cannot be spotted by
+ * reading a render: zero sessions, zero crashed, zero abnormal is a real window
+ * a healthy project can have, so an outage rendered as a confident "nothing is
+ * wrong". Nothing in the type system, the compiler or `next build` can see the
+ * difference, which is exactly why the difference has to live in the `Result`.
+ *
  * @param projectId - The project ID
  * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
- * @returns The summary, or a zeroed-out summary on error.
  */
 export async function getSessionSummary(
   projectId: number,
   period?: string,
-): Promise<SessionSummary> {
-  try {
-    const client = await createClient();
-    return await client.sessions.summary(projectId, period);
-  } catch (error) {
-    console.error('getSessionSummary failed', { projectId, period, error });
-    return EMPTY_SESSION_SUMMARY;
-  }
+): Promise<Result<SessionSummary, RustrakError>> {
+  const client = await createClient();
+  return client.sessions.summary(projectId, period);
 }
 
 /**
  * Get a time-bucketed session trend for a project, aggregated across all
  * releases and environments.
  *
+ * Returns the failure for the same reason as {@link getSessionSummary}: an
+ * empty series draws a chart that says "no sessions in this window", which an
+ * unreachable API is in no position to say.
+ *
  * @param projectId - The project ID
  * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
  * @param interval - Bucket width in hours (default: 1, max: 24).
- * @returns Array of trend points, or empty array on error.
  */
 export async function getSessionTimeseries(
   projectId: number,
   period?: string,
   interval?: number,
-): Promise<SessionTimeseries> {
-  try {
-    const client = await createClient();
-    return await client.sessions.timeseries(projectId, period, interval);
-  } catch (error) {
-    console.error('getSessionTimeseries failed', {
-      projectId,
-      period,
-      interval,
-      error,
-    });
-    return [];
-  }
+): Promise<Result<SessionTimeseries, RustrakError>> {
+  const client = await createClient();
+  return client.sessions.timeseries(projectId, period, interval);
 }

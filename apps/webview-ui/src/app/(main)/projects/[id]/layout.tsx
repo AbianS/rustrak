@@ -21,16 +21,22 @@ export default async function ProjectLayout({
 
   const [project, projectsResponse, cookieStore] = await Promise.all([
     getProject(projectId),
-    getProjects({ per_page: 100 }).catch(() => ({ items: [] })),
+    getProjects({ per_page: 100 }),
     cookies(),
   ]);
 
-  const projects = projectsResponse.items.map((p) => ({
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    platform: p.platform,
-  }));
+  // The layout renders the chrome around whatever the page does with its own
+  // failure, so neither fetch is fatal here. An empty switcher and a blank
+  // mobile title are honest degradations; the page below this one is where the
+  // same failure gets a surface with words on it.
+  const projects = projectsResponse.success
+    ? projectsResponse.data.items.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        platform: p.platform,
+      }))
+    : [];
   const defaultOpen = cookieStore.get('sidebar_state')?.value !== 'false';
 
   return (
@@ -47,7 +53,7 @@ export default async function ProjectLayout({
         <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur-md md:hidden">
           <SidebarTrigger className="text-muted-foreground" />
           <span className="truncate text-sm font-medium text-muted-foreground">
-            {project?.name ?? ''}
+            {project.success ? project.data.name : ''}
           </span>
         </div>
         {children}

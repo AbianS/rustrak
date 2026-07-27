@@ -184,7 +184,3 @@ export function normalizeThreads(
   if (Array.isArray(threads)) return threads;
   return threads.values ?? [];
 }
-
-export type ParsedThread = z.infer<typeof threadSchema>;
-export type ParsedStackFrame = z.infer<typeof stackFrameSchema>;
-export type ParsedExceptionValue = z.infer<typeof exceptionValueSchema>;
