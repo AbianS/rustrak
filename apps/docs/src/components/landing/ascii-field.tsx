@@ -50,6 +50,17 @@ import { cn } from '@/lib/utils';
 
 const SOURCE = '/last-supper.txt';
 
+/**
+ * `basePath` rewrites `<Link>`, `next/image` and imported assets, but not a
+ * string handed to `fetch`. On GitHub Pages the site is served from
+ * `/rustrak/`, so an absolute `/last-supper.txt` resolves against the domain
+ * root and 404s, leaving the painting blank with no error on the page.
+ */
+const asset = (path: string) => {
+  const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
+  return path.startsWith('/') ? `${base}${path}` : path;
+};
+
 /** The ramp the offline pass used. Index here means ink, and drives colour. */
 const RAMP = ' .`:;+*oOX#%@';
 
@@ -155,7 +166,7 @@ export function AsciiField({
        out here purely to be disconnectable from the teardown below. */
     let sizer: ResizeObserver | null = null;
 
-    fetch(source)
+    fetch(asset(source))
       .then((response) => (response.ok ? response.text() : null))
       .then((text) => {
         if (cancelled || !text) return;
