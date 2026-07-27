@@ -97,13 +97,13 @@ export function LandingNav() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   /*
-    The overlay is still painted for the length of its fade after `menuOpen`
-    has gone false, and two things have to be held against *that* rather than
-    against the flag: the scroll lock, and nothing else.
+    Whether the overlay is on the screen, which `menuOpen` does not answer.
 
-    Released on the click instead, a swipe during the fade scrolls the landing
-    behind a menu that is still covering it, and the reader is put somewhere
-    they never chose to be by a surface they had just dismissed.
+    Closing is a fade, so the panel goes on being painted, and covering the
+    page, for `DUR.fast` after the flag has gone. Everything that is really
+    about "is this surface in the way" hangs off this rather than off the flag:
+    the scroll lock, or a swipe during the fade scrolls the landing behind a
+    menu still covering it; and the keyboard, for the reason below.
   */
   const [menuShowing, setMenuShowing] = useState(false);
 
@@ -118,13 +118,27 @@ export function LandingNav() {
     setMenuShowing(true);
   };
 
-  const closeMenu = () => {
-    setMenuOpen(false);
-    /* Whatever had focus inside the overlay is about to unmount, and focus
-       follows an unmounted element to `document.body` — which is no position
-       at all, and leaves the next Tab starting again from the top of the page.
-       Put back on the control the menu was opened from, closing returns the
-       keyboard exactly where opening took it from. */
+  const closeMenu = () => setMenuOpen(false);
+
+  /*
+    Focus goes home when the panel is actually gone, not when it is dismissed.
+
+    Both halves of this were got wrong once. Left alone, focus follows the
+    unmounting close button to `document.body`, which is no position at all and
+    starts the next Tab from the top of the page. Handed straight back on the
+    click instead, it lands on a trigger that is still underneath an opaque
+    overlay for the rest of the fade — a focus ring nobody can see, on the one
+    layer the reader is not looking at.
+
+    Waiting for the exit resolves both. Through the fade the keyboard stays on
+    the close button, which is inside the panel and still visible while it
+    dissolves, and the trap below goes on doing its ordinary job. The moment
+    the overlay is gone the trigger is uncovered, and that is when it is worth
+    focusing. Reopening mid-fade cancels the exit and never fires this, which
+    is the correct answer to that too.
+  */
+  const onMenuGone = () => {
+    setMenuShowing(false);
     menuButton.current?.focus();
   };
 
@@ -209,24 +223,6 @@ export function LandingNav() {
       if (event.key !== 'Tab') return;
 
       /*
-        Dismissed, but still covering the page.
-
-        The overlay is painted for the length of its fade after the flag has
-        gone, and everything underneath it stays focusable for that whole
-        second, so this is the same 0.6s the scroll lock is held against. Tab
-        is simply refused and the focus stays on the trigger, which is where
-        `closeMenu` has just put it.
-
-        Deliberately not the trap below. Run here, it would read `activeElement`
-        as outside the panel and pull the keyboard back *into* a menu that is on
-        its way out, which is a worse answer than the one this is fixing.
-      */
-      if (!menuOpen) {
-        event.preventDefault();
-        return;
-      }
-
-      /*
         The trap.
 
         The bar underneath stays mounted and focusable while the overlay covers
@@ -235,6 +231,11 @@ export function LandingNav() {
         this, a fourth Tab off the last link walks the keyboard into content
         hidden behind an opaque surface, and the reader loses sight of where
         they are while apparently still looking at a menu.
+
+        Held for as long as the panel is *visible*, dismissed or not, which is
+        why it is `menuShowing` above and not `menuOpen`: the fade is exactly
+        the window in which the page is still covered and nothing was stopping
+        Tab from walking underneath it.
 
         Queried on the keystroke rather than cached on open: it is five
         elements once every few seconds, and a list cached across an animation
@@ -373,7 +374,7 @@ export function LandingNav() {
           than as it going away. `h-dvh` rather than `inset-0` so the panel is
           the height the browser is actually showing, mid-toolbar-collapse
           included — otherwise the button at the bottom sits under the chrome. */}
-      <AnimatePresence onExitComplete={() => setMenuShowing(false)}>
+      <AnimatePresence onExitComplete={onMenuGone}>
         {menuOpen ? (
           <motion.div
             ref={menuPanel}
