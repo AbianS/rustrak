@@ -43,8 +43,10 @@ export function PendingInvitations({ invitations }: PendingInvitationsProps) {
         toast.success('Invitation revoked');
         router.refresh();
       } else {
+        // No form here, so there is no input to attach a `fields` entry to;
+        // the message is what the row can show.
         toast.error('Failed to revoke invitation', {
-          description: result.error,
+          description: result.error.message,
         });
       }
     });

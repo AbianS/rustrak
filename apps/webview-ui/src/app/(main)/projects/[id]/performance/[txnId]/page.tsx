@@ -1,10 +1,11 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getTransaction } from '@/actions/transactions';
+import { LoadFailure } from '@/components/load-failure';
 import { Badge } from '@/components/ui/badge';
+import { loadAll } from '@/lib/results';
 import { MeasurementsCard } from './measurements-card';
 import type { Span, TraceContext } from './span-waterfall';
 import { SpanWaterfall } from './span-waterfall';
@@ -17,10 +18,10 @@ export async function generateMetadata({
   params,
 }: TransactionDetailPageProps): Promise<Metadata> {
   const { id, txnId } = await params;
-  const txn = await getTransaction(parseInt(id, 10), txnId).catch(() => null);
+  const txn = await getTransaction(parseInt(id, 10), txnId);
   return {
-    title: txn
-      ? `${txn.transaction_name} | Performance | Rustrak`
+    title: txn.success
+      ? `${txn.data.transaction_name} | Performance | Rustrak`
       : 'Transaction | Rustrak',
   };
 }
@@ -82,14 +83,18 @@ export default async function TransactionDetailPage({
   const { id, txnId } = await params;
   const projectId = parseInt(id, 10);
 
-  const [project, txn] = await Promise.all([
+  const loaded = await loadAll([
     getProject(projectId),
-    getTransaction(projectId, txnId).catch(() => null),
+    getTransaction(projectId, txnId),
   ]);
 
-  if (!project || !txn) {
-    notFound();
+  if (!loaded.success) {
+    return (
+      <LoadFailure error={loaded.error} title="Could not load transaction" />
+    );
   }
+
+  const [, txn] = loaded.data;
 
   const data = txn.data ?? {};
   const trace = asObject(data.contexts)?.trace as

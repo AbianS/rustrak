@@ -2,8 +2,7 @@
 
 import { z } from 'zod';
 import { getServerVersion } from '@/actions/server';
-import { APP_VERSION } from '@/lib/constants';
-import { compareVersions, type UpdateInfo } from '@/lib/version';
+import { compareVersions, type UpdateCheck } from '@/lib/version';
 
 const VERSIONS_URL = 'https://rustrak.github.io/rustrak/versions.json';
 const REVALIDATE_SECONDS = 3600;
@@ -23,20 +22,46 @@ function isEnabled(): boolean {
   return process.env.RUSTRAK_VERSION_CHECK_ENABLED !== 'false';
 }
 
-export async function getUpdateInfo(): Promise<UpdateInfo | null> {
-  if (!isEnabled()) return null;
+/**
+ * Compare the running server against the published release feed.
+ *
+ * The version being compared is the **server's**, and only the server's. This
+ * used to fall back to `APP_VERSION`, the frontend's own bundled version, when
+ * the server could not be reached. In a deployment where the two differ (the
+ * whole point of shipping the dashboard separately from the API) that answered
+ * a question nobody asked, with a banner, on every page, with full confidence:
+ * "an update is available" computed from a number belonging to the wrong
+ * process. Same defect as a zeroed session summary. A plausible value standing
+ * in for an unknown one, indistinguishable from a measured one at the point it
+ * is rendered.
+ *
+ * So an unreadable server version ends the check. No banner is worse than a
+ * wrong banner, and there is no substitute version to reach for.
+ */
+export async function checkForUpdate(): Promise<UpdateCheck> {
+  if (!isEnabled()) return { state: 'disabled' };
 
+  // Read outside the `try` on purpose. `@rustrak/client` failures are values,
+  // not throws, and this branch is the one that has to be seen; putting the
+  // read inside the block below would let a future refactor drop it into the
+  // catch and quietly restore the bug this function exists to fix.
+  const version = await getServerVersion();
+  if (!version.success) return { state: 'unknown', reason: 'server-version' };
+
+  const current = version.data.version;
+
+  // The `try` is for this fetch alone. It is a direct call to GitHub Pages that
+  // does not go through `@rustrak/client`, so DNS failures, aborts and a body
+  // that is not JSON all arrive as exceptions and genuinely have to be caught.
   try {
-    const current = (await getServerVersion())?.version ?? APP_VERSION;
-
     const response = await fetch(VERSIONS_URL, {
       next: { revalidate: REVALIDATE_SECONDS },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!response.ok) return null;
+    if (!response.ok) return { state: 'unknown', reason: 'feed' };
 
     const feed = feedSchema.safeParse(await response.json());
-    if (!feed.success) return null;
+    if (!feed.success) return { state: 'unknown', reason: 'feed' };
 
     // Picks the max explicitly instead of trusting feed order: versions.json is
     // sorted by date then slug, so a backported patch released after a later
@@ -49,15 +74,18 @@ export async function getUpdateInfo(): Promise<UpdateInfo | null> {
         return entry;
       return newest;
     }, undefined);
-    if (!latest) return null;
+    if (!latest) return { state: 'up-to-date' };
 
     return {
-      current,
-      latest: latest.version,
-      description: latest.description ?? '',
-      url: latest.url,
+      state: 'update-available',
+      info: {
+        current,
+        latest: latest.version,
+        description: latest.description ?? '',
+        url: latest.url,
+      },
     };
   } catch {
-    return null;
+    return { state: 'unknown', reason: 'feed' };
   }
 }

@@ -58,8 +58,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
 
       # If there are NO changesets, we just merged a version PR - cut the release.
-      # All packages are a `fixed` group in .changeset/config.json, so they share
-      # one version and ship together: one tag, one GitHub release.
+      # The shipped artifacts (server, ui, client, mcp) are a `fixed` group in
+      # .changeset/config.json, so they share one version and ship together: one
+      # tag, one GitHub release. `docs` is deliberately outside that group and
+      # carries its own version - it is private, never published, and nothing
+      # reads its version, so it must not gate the release.
       - name: Create release
         if: steps.check.outputs.has_changesets == 'false'
         run: |
@@ -75,7 +78,9 @@ jobs:
 
           # Sanity check: the fixed group must be aligned. If it drifted, the
           # single tag would be a lie about what the other images contain.
-          for pkg in apps/webview-ui apps/docs packages/client packages/mcp; do
+          # `apps/docs` is not in the group and is expected to drift - do not
+          # add it back here.
+          for pkg in apps/webview-ui packages/client packages/mcp; do
             PKG_VERSION=$(node -p "require('./$pkg/package.json').version")
             if [[ "$PKG_VERSION" != "$VERSION" ]]; then
               echo "::error::$pkg is at $PKG_VERSION but the release is $VERSION."

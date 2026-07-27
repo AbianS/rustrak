@@ -1,6 +1,7 @@
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { getLastEvent } from '@/actions/events';
 import { getIssue } from '@/actions/issues';
+import { LoadFailure } from '@/components/load-failure';
 
 interface IssuePageProps {
   params: Promise<{ id: string; issueId: string }>;
@@ -16,15 +17,28 @@ export default async function IssuePage({ params }: IssuePageProps) {
 
   // Verify issue exists
   const issue = await getIssue(projectId, issueId);
-  if (!issue) {
-    notFound();
+  if (!issue.success) {
+    return <LoadFailure error={issue.error} title="Could not load issue" />;
   }
 
-  // Get the last event and redirect to it
+  // Get the last event and redirect to it. A failure must not fall through to
+  // the empty-state route: "this issue has no events" is a very different
+  // claim from "we could not ask".
   const lastEvent = await getLastEvent(projectId, issueId);
 
-  if (lastEvent) {
-    redirect(`/projects/${projectId}/issues/${issueId}/events/${lastEvent.id}`);
+  if (!lastEvent.success) {
+    return (
+      <LoadFailure
+        error={lastEvent.error}
+        title="Could not load the latest event"
+      />
+    );
+  }
+
+  if (lastEvent.data) {
+    redirect(
+      `/projects/${projectId}/issues/${issueId}/events/${lastEvent.data.id}`,
+    );
   }
 
   // If no events, show empty state

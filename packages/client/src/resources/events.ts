@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   eventDetailSchema,
   eventSchema,
@@ -22,7 +24,7 @@ export class EventsResource extends BaseResource {
     projectId: number,
     issueId: string,
     options?: ListEventsOptions,
-  ): Promise<PaginatedResponse<Event>> {
+  ): Promise<Result<PaginatedResponse<Event>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.order) {
@@ -32,13 +34,13 @@ export class EventsResource extends BaseResource {
       searchParams.cursor = options.cursor;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/events`, {
-        searchParams,
-      })
-      .json();
-
-    return this.validate(data, paginatedResponseSchema(eventSchema));
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/issues/${issueId}/events`, {
+          searchParams,
+        }),
+      paginatedResponseSchema(eventSchema),
+    );
   }
 
   /**
@@ -48,11 +50,13 @@ export class EventsResource extends BaseResource {
     projectId: number,
     issueId: string,
     eventId: string,
-  ): Promise<EventDetail> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/events/${eventId}`)
-      .json();
-
-    return this.validate(data, eventDetailSchema);
+  ): Promise<Result<EventDetail, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/issues/${issueId}/events/${eventId}`,
+        ),
+      eventDetailSchema,
+    );
   }
 }

@@ -1,8 +1,5 @@
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
 import { Head } from 'nextra/components';
-import { getPageMap } from 'nextra/page-map';
-import { Footer, Layout, Navbar } from 'nextra-theme-docs';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import './globals.css';
 
 const geistSans = Geist({
@@ -15,6 +12,16 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+// Display accent, used only on the landing: one or two words per headline set
+// in italic serif at the same size as the surrounding sans. The texture change
+// is what keeps the big type from reading as another dev-tool template.
+const instrumentSerif = Instrument_Serif({
+  variable: '--font-instrument-serif',
+  subsets: ['latin'],
+  weight: '400',
+  style: ['normal', 'italic'],
+});
+
 export const metadata = {
   title: {
     default: 'Rustrak Documentation',
@@ -23,39 +30,31 @@ export const metadata = {
   description: 'Self-hosted error tracking compatible with Sentry SDKs',
 };
 
-const logo = (
-  <span className="flex items-center gap-2 font-bold">
-    <RustrakLogoIcon className="size-6" />
-    <span className="text-sm font-extrabold tracking-tight uppercase">
-      Rustrak
-    </span>
-  </span>
-);
-
-export default async function RootLayout({
+/**
+ * The document, and nothing else.
+ *
+ * This used to also be the documentation shell — `getPageMap()`, the theme's
+ * `<Layout>`, the navbar and the footer all lived here, which meant every route
+ * got them whether it wanted them or not. They have moved to `(docs)/layout`,
+ * so the landing no longer carries a documentation theme it does not render.
+ *
+ * Nextra's `<Head>` stays. It has to be a direct child of `<html>` because it
+ * renders a literal `<head>`, and unlike the theme it is genuinely shared: a
+ * `<style>` block defining the `--nextra-*` custom properties, the two
+ * `theme-color` metas and the favicon. Both halves of the site want all four.
+ */
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pageMap = await getPageMap();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <Head faviconGlyph="R" />
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
-        <Layout
-          pageMap={pageMap}
-          docsRepositoryBase="https://github.com/AbianS/rustrak/tree/main/apps/docs"
-          navbar={
-            <Navbar
-              logo={logo}
-              projectLink="https://github.com/AbianS/rustrak"
-            />
-          }
-          footer={<Footer>GPL-3.0 {new Date().getFullYear()} Rustrak</Footer>}
-        >
-          {children}
-        </Layout>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} font-sans`}
+      >
+        {children}
       </body>
     </html>
   );

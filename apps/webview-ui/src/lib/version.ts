@@ -5,6 +5,31 @@ export interface UpdateInfo {
   url: string;
 }
 
+/**
+ * The outcome of one update check.
+ *
+ * Four outcomes rather than `UpdateInfo | null`, because that `null` was
+ * carrying three unrelated meanings at once: the operator switched the check
+ * off, the check ran and you are on the newest release, and the check could not
+ * run at all. A caller could not tell them apart, so it could not treat them
+ * differently, and the only reason that was survivable is that the single
+ * caller rendered nothing for all three.
+ *
+ * `unknown` is the one that has to exist. Its `reason` says which half of the
+ * check failed: `server-version` means the running version could not be read
+ * (there is nothing to compare against), `feed` means the published release list
+ * could not be read (there is nothing to compare with). Neither is "you are up
+ * to date", and neither may be rendered as one.
+ *
+ * This type lives here rather than beside the action because `version-check.ts`
+ * is a `'use server'` module, and client components need to name the type.
+ */
+export type UpdateCheck =
+  | { state: 'update-available'; info: UpdateInfo }
+  | { state: 'up-to-date' }
+  | { state: 'disabled' }
+  | { state: 'unknown'; reason: 'server-version' | 'feed' };
+
 export function normalizeVersion(version: string): string {
   return version.trim().replace(/^v/i, '');
 }

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   agentDurationPointSchema,
   agentTimeseriesPointSchema,
@@ -56,14 +58,14 @@ export class AgentsResource extends BaseResource {
   async getRuns(
     projectId: number,
     options?: AgentTimeseriesOptions,
-  ): Promise<AgentTimeseriesPoint[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/runs`, {
-        searchParams: timeseriesSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(agentTimeseriesPointSchema));
+  ): Promise<Result<AgentTimeseriesPoint[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/runs`, {
+          searchParams: timeseriesSearchParams(options),
+        }),
+      z.array(agentTimeseriesPointSchema),
+    );
   }
 
   /**
@@ -72,14 +74,14 @@ export class AgentsResource extends BaseResource {
   async getDuration(
     projectId: number,
     options?: AgentTimeseriesOptions,
-  ): Promise<AgentDurationPoint[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/duration`, {
-        searchParams: timeseriesSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(agentDurationPointSchema));
+  ): Promise<Result<AgentDurationPoint[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/duration`, {
+          searchParams: timeseriesSearchParams(options),
+        }),
+      z.array(agentDurationPointSchema),
+    );
   }
 
   /**
@@ -88,14 +90,14 @@ export class AgentsResource extends BaseResource {
   async getModelsByCalls(
     projectId: number,
     options?: AgentBreakdownOptions,
-  ): Promise<GenAiBreakdownRow[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/models/calls`, {
-        searchParams: breakdownSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(genAiBreakdownRowSchema));
+  ): Promise<Result<GenAiBreakdownRow[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/models/calls`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      z.array(genAiBreakdownRowSchema),
+    );
   }
 
   /**
@@ -104,14 +106,14 @@ export class AgentsResource extends BaseResource {
   async getModelsByTokens(
     projectId: number,
     options?: AgentBreakdownOptions,
-  ): Promise<GenAiBreakdownRow[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/models/tokens`, {
-        searchParams: breakdownSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(genAiBreakdownRowSchema));
+  ): Promise<Result<GenAiBreakdownRow[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/models/tokens`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      z.array(genAiBreakdownRowSchema),
+    );
   }
 
   /**
@@ -120,14 +122,14 @@ export class AgentsResource extends BaseResource {
   async getTools(
     projectId: number,
     options?: AgentBreakdownOptions,
-  ): Promise<GenAiBreakdownRow[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/tools`, {
-        searchParams: breakdownSearchParams(options),
-      })
-      .json();
-
-    return this.validate(data, z.array(genAiBreakdownRowSchema));
+  ): Promise<Result<GenAiBreakdownRow[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/tools`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      z.array(genAiBreakdownRowSchema),
+    );
   }
 
   /**
@@ -137,7 +139,7 @@ export class AgentsResource extends BaseResource {
   async getTraces(
     projectId: number,
     options?: AgentTracesOptions,
-  ): Promise<OffsetPaginatedResponse<AgentTraceSummary>> {
+  ): Promise<Result<OffsetPaginatedResponse<AgentTraceSummary>, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (options?.page) {
       searchParams.page = String(options.page);
@@ -146,12 +148,11 @@ export class AgentsResource extends BaseResource {
       searchParams.per_page = String(options.per_page);
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/agents/traces`, { searchParams })
-      .json();
-
-    return this.validate(
-      data,
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/traces`, {
+          searchParams,
+        }),
       offsetPaginatedResponseSchema(agentTraceSummarySchema),
     );
   }

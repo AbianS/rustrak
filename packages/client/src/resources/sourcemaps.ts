@@ -1,4 +1,7 @@
+import type { RustrakError } from '../errors.js';
+import { Err, Ok, type Result } from '../result.js';
 import {
+  assembleInputSchema,
   assembleResponseSchema,
   chunkUploadCapabilitySchema,
   listSourceMapsResponseSchema,
@@ -24,11 +27,11 @@ export class SourceMapsResource extends BaseResource {
    */
   async getChunkUploadCapability(
     orgSlug: string,
-  ): Promise<ChunkUploadCapability> {
-    const data = await this.http
-      .get(`api/0/organizations/${orgSlug}/chunk-upload/`)
-      .json();
-    return this.validate(data, chunkUploadCapabilitySchema);
+  ): Promise<Result<ChunkUploadCapability, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/0/organizations/${orgSlug}/chunk-upload/`),
+      chunkUploadCapabilitySchema,
+    );
   }
 
   /**
@@ -40,20 +43,37 @@ export class SourceMapsResource extends BaseResource {
     orgSlug: string,
     chunks: { hash: string; data: Blob }[],
     chunksPerRequest = 64,
-  ): Promise<void> {
+  ): Promise<Result<void, RustrakError>> {
+    // A caller-supplied batch size, checked before anything is sent: the
+    // matrix's `invalid_request` row, not a thrown programming error.
     if (!Number.isInteger(chunksPerRequest) || chunksPerRequest <= 0) {
-      throw new Error('chunksPerRequest must be a positive integer');
+      return Err({
+        kind: 'invalid_request',
+        message: 'chunksPerRequest must be a positive integer.',
+      });
     }
+
     for (let i = 0; i < chunks.length; i += chunksPerRequest) {
       const batch = chunks.slice(i, i + chunksPerRequest);
       const form = new FormData();
       for (const chunk of batch) {
         form.append(chunk.hash, chunk.data);
       }
-      await this.http.post(`api/0/organizations/${orgSlug}/chunk-upload/`, {
-        body: form,
-      });
+
+      const uploaded = await this.requestVoid(() =>
+        this.http.post(`api/0/organizations/${orgSlug}/chunk-upload/`, {
+          body: form,
+        }),
+      );
+
+      // Stop at the first failed batch: continuing would keep pushing bytes at
+      // a server that has already refused, and the caller has to retry anyway.
+      if (!uploaded.success) {
+        return uploaded;
+      }
     }
+
+    return Ok(undefined);
   }
 
   /**
@@ -66,13 +86,20 @@ export class SourceMapsResource extends BaseResource {
   async assembleBundle(
     orgSlug: string,
     input: AssembleInput,
-  ): Promise<AssembleResponse> {
-    const data = await this.http
-      .post(`api/0/organizations/${orgSlug}/artifactbundle/assemble/`, {
-        json: input,
-      })
-      .json();
-    return this.validate(data, assembleResponseSchema);
+  ): Promise<Result<AssembleResponse, RustrakError>> {
+    const validatedInput = this.validateInput(input, assembleInputSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.request(
+      () =>
+        this.http.post(
+          `api/0/organizations/${orgSlug}/artifactbundle/assemble/`,
+          { json: validatedInput.data },
+        ),
+      assembleResponseSchema,
+    );
   }
 
   /**
@@ -81,10 +108,13 @@ export class SourceMapsResource extends BaseResource {
   async list(
     orgSlug: string,
     projectSlug: string,
-  ): Promise<ListSourceMapsResponse> {
-    const data = await this.http
-      .get(`api/0/projects/${orgSlug}/${projectSlug}/files/source-maps/`)
-      .json();
-    return this.validate(data, listSourceMapsResponseSchema);
+  ): Promise<Result<ListSourceMapsResponse, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/0/projects/${orgSlug}/${projectSlug}/files/source-maps/`,
+        ),
+      listSourceMapsResponseSchema,
+    );
   }
 }

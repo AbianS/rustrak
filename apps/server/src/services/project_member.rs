@@ -1,5 +1,5 @@
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{ProjectMember, ProjectMemberResponse, ProjectRole};
 
 pub struct ProjectMemberService;
@@ -77,9 +77,13 @@ impl ProjectMemberService {
         if role != ProjectRole::Admin {
             if let Some(ProjectRole::Admin) = Self::get_role(pool, project_id, user_id).await? {
                 if Self::admin_count(pool, project_id).await? <= 1 {
+                    // Blames `role` (the `UpsertProjectMember` body key), the
+                    // input the caller can actually change. `remove` below
+                    // stays field-less: a DELETE has no body to blame.
                     return Err(AppError::Conflict(
                         "Cannot downgrade the last project admin".to_string(),
-                    ));
+                    )
+                    .with_field("role", FieldErrorCode::Invalid));
                 }
             }
         }

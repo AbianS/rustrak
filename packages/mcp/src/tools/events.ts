@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerEventTools(
   server: McpServer,
@@ -23,17 +23,11 @@ export function registerEventTools(
       },
     },
     async ({ project_id, issue_id, cursor, order }) => {
-      try {
-        const result = await client.events.list(project_id, issue_id, {
-          cursor,
-          order,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.events.list(project_id, issue_id, {
+        cursor,
+        order,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -49,14 +43,8 @@ export function registerEventTools(
       },
     },
     async ({ project_id, issue_id, event_id }) => {
-      try {
-        const result = await client.events.get(project_id, issue_id, event_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.events.get(project_id, issue_id, event_id);
+      return mcpJson(result);
     },
   );
 }

@@ -1,6 +1,7 @@
 'use server';
 
-import type { Event, EventDetail } from '@rustrak/client';
+import type { Event, EventDetail, Result, RustrakError } from '@rustrak/client';
+import { Ok } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
 
 /**
@@ -15,7 +16,7 @@ export async function getEventDetail(
   projectId: number,
   issueId: string,
   eventId: string,
-): Promise<EventDetail> {
+): Promise<Result<EventDetail, RustrakError>> {
   const client = await createClient();
   return client.events.get(projectId, issueId, eventId);
 }
@@ -37,18 +38,23 @@ export interface EventNavigation {
  *
  * @param projectId - The project ID
  * @param issueId - The issue UUID
- * @returns The last event or null if no events
+ * @returns The last event, or `null` when the issue has no events
  */
 export async function getLastEvent(
   projectId: number,
   issueId: string,
-): Promise<Event | null> {
+): Promise<Result<Event | null, RustrakError>> {
   const client = await createClient();
   // Get events ordered by desc (most recent first), limit to 1
   const response = await client.events.list(projectId, issueId, {
     order: 'desc',
   });
-  return response.items[0] ?? null;
+
+  if (!response.success) {
+    return response;
+  }
+
+  return Ok(response.data.items[0] ?? null);
 }
 
 // Caps sequential page fetches in getEventNavigation to bound worst-case
@@ -61,6 +67,20 @@ const MAX_NAV_PAGES = 50;
  * which works for issues with reasonable event counts. For very large
  * issues, navigation is best-effort within the fetched window.
  *
+ * A page that *fails* ends the call as a failure rather than truncating the
+ * window, because nothing downstream could tell a truncated window apart from
+ * a genuinely short issue.
+ *
+ * A page that merely *runs out of budget* still truncates, and that path is a
+ * known defect rather than a design: on hitting `MAX_NAV_PAGES` this returns
+ * `Ok` with a partial `totalCount` and no signal. Because the issue page lands
+ * the reader on the newest event while this walks ascending, the current event
+ * usually falls outside a truncated window, `findIndex` returns `-1`, and the
+ * result reads "0 of N" with "next" pointing at the oldest event in the issue.
+ * Pre-existing, unchanged by the `Result` conversion, and recorded as D-31 in
+ * deferred-work.md; the fix is a different navigation design (ask the server
+ * for neighbours) rather than a bigger cap, which only moves the threshold.
+ *
  * @param projectId - The project ID
  * @param issueId - The issue UUID
  * @param currentEventId - The current event UUID
@@ -70,7 +90,7 @@ export async function getEventNavigation(
   projectId: number,
   issueId: string,
   currentEventId: string,
-): Promise<EventNavigation> {
+): Promise<Result<EventNavigation, RustrakError>> {
   const client = await createClient();
 
   // Fetch events in ascending order (oldest first), following the cursor
@@ -83,28 +103,31 @@ export async function getEventNavigation(
       order: 'asc',
       cursor,
     });
-    events.push(...response.items);
-    cursor = response.has_more ? response.next_cursor : undefined;
+    if (!response.success) {
+      return response;
+    }
+    events.push(...response.data.items);
+    cursor = response.data.has_more ? response.data.next_cursor : undefined;
     pageCount++;
   } while (cursor && pageCount < MAX_NAV_PAGES);
 
   const totalCount = events.length;
 
   if (totalCount === 0) {
-    return {
+    return Ok({
       currentIndex: 0,
       totalCount: 0,
       firstEventId: null,
       lastEventId: null,
       prevEventId: null,
       nextEventId: null,
-    };
+    });
   }
 
   // Find current event index
   const currentIndex = events.findIndex((event) => event.id === currentEventId);
 
-  return {
+  return Ok({
     currentIndex: currentIndex + 1, // 1-based for display
     totalCount,
     firstEventId: events[0]?.id ?? null,
@@ -115,5 +138,5 @@ export async function getEventNavigation(
       currentIndex < totalCount - 1
         ? (events[currentIndex + 1]?.id ?? null)
         : null,
-  };
+  });
 }

@@ -90,37 +90,43 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
 
   const handlePreview = () => {
     startTransition(async () => {
-      try {
-        const counts = await previewStorageCleanup({
-          older_than_days: olderThanDays,
-          project_id: projectId,
-          include_events: selected.events,
-          include_transactions: selected.transactions,
-          include_logs: selected.logs,
+      const counts = await previewStorageCleanup({
+        older_than_days: olderThanDays,
+        project_id: projectId,
+        include_events: selected.events,
+        include_transactions: selected.transactions,
+        include_logs: selected.logs,
+      });
+
+      if (!counts.success) {
+        toast.error('Could not preview cleanup', {
+          description: counts.error.message,
         });
-        setPreview(counts);
-      } catch {
-        toast.error('Could not preview cleanup');
+        return;
       }
+
+      setPreview(counts.data);
     });
   };
 
   const handleExecute = () => {
     startTransition(async () => {
-      try {
-        const counts = await executeStorageCleanup({
-          older_than_days: olderThanDays,
-          project_id: projectId,
-          include_events: selected.events,
-          include_transactions: selected.transactions,
-          include_logs: selected.logs,
-        });
-        toast.success(summarizeRemoved(counts));
-        setPreview(null);
-        router.refresh();
-      } catch {
-        toast.error('Cleanup failed');
+      const counts = await executeStorageCleanup({
+        older_than_days: olderThanDays,
+        project_id: projectId,
+        include_events: selected.events,
+        include_transactions: selected.transactions,
+        include_logs: selected.logs,
+      });
+
+      if (!counts.success) {
+        toast.error('Cleanup failed', { description: counts.error.message });
+        return;
       }
+
+      toast.success(summarizeRemoved(counts.data));
+      setPreview(null);
+      router.refresh();
     });
   };
 

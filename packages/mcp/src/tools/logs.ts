@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerLogTools(
   server: McpServer,
@@ -38,19 +38,13 @@ export function registerLogTools(
       },
     },
     async ({ project_id, page, per_page, level, trace_id }) => {
-      try {
-        const result = await client.logs.list(project_id, {
-          page,
-          per_page,
-          level,
-          trace_id,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.logs.list(project_id, {
+        page,
+        per_page,
+        level,
+        trace_id,
+      });
+      return mcpJson(result);
     },
   );
 }

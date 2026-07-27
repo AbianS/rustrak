@@ -250,6 +250,9 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
 
             return (
               <div key={span.span_id ?? `span-${i}`}>
+                {/* biome-ignore lint/a11y/useSemanticElements: the row contains
+                    its own collapse <button>, and a <button> nested inside a
+                    <button> is invalid HTML. */}
                 <div
                   role="button"
                   tabIndex={0}

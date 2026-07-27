@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   activityEntrySchema,
   bulkDeleteIssuesSchema,
@@ -43,7 +45,7 @@ export class IssuesResource extends BaseResource {
   async list(
     projectId: number,
     options?: ListIssuesOptions,
-  ): Promise<OffsetPaginatedResponse<Issue>> {
+  ): Promise<Result<OffsetPaginatedResponse<Issue>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.page !== undefined) {
@@ -65,22 +67,23 @@ export class IssuesResource extends BaseResource {
       searchParams.q = options.q;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues`, { searchParams })
-      .json();
-
-    return this.validate(data, offsetPaginatedResponseSchema(issueSchema));
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/issues`, { searchParams }),
+      offsetPaginatedResponseSchema(issueSchema),
+    );
   }
 
   /**
    * Get a single issue by ID
    */
-  async get(projectId: number, issueId: string): Promise<Issue> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}`)
-      .json();
-
-    return this.validate(data, issueSchema);
+  async get(
+    projectId: number,
+    issueId: string,
+  ): Promise<Result<Issue, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/issues/${issueId}`),
+      issueSchema,
+    );
   }
 
   /**
@@ -90,16 +93,19 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     input: UpdateIssueState,
-  ): Promise<Issue> {
-    const validatedInput = this.validate(input, updateIssueStateSchema);
+  ): Promise<Result<Issue, RustrakError>> {
+    const validatedInput = this.validateInput(input, updateIssueStateSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .patch(`api/projects/${projectId}/issues/${issueId}`, {
-        json: validatedInput,
-      })
-      .json();
-
-    return this.validate(data, issueSchema);
+    return this.request(
+      () =>
+        this.http.patch(`api/projects/${projectId}/issues/${issueId}`, {
+          json: validatedInput.data,
+        }),
+      issueSchema,
+    );
   }
 
   /**
@@ -108,7 +114,7 @@ export class IssuesResource extends BaseResource {
   async resolveInNextRelease(
     projectId: number,
     issueId: string,
-  ): Promise<Issue> {
+  ): Promise<Result<Issue, RustrakError>> {
     return this.updateState(projectId, issueId, {
       status: 'resolvedInNextRelease',
     });
@@ -117,8 +123,13 @@ export class IssuesResource extends BaseResource {
   /**
    * Delete an issue
    */
-  async delete(projectId: number, issueId: string): Promise<void> {
-    await this.http.delete(`api/projects/${projectId}/issues/${issueId}`);
+  async delete(
+    projectId: number,
+    issueId: string,
+  ): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() =>
+      this.http.delete(`api/projects/${projectId}/issues/${issueId}`),
+    );
   }
 
   /**
@@ -127,12 +138,19 @@ export class IssuesResource extends BaseResource {
   async bulkUpdate(
     projectId: number,
     input: BulkUpdateIssues,
-  ): Promise<{ updated: number }> {
-    const validatedInput = this.validate(input, bulkUpdateIssuesSchema);
-    const data = await this.http
-      .put(`api/projects/${projectId}/issues`, { json: validatedInput })
-      .json();
-    return this.validate(data, z.object({ updated: z.number().int() }));
+  ): Promise<Result<{ updated: number }, RustrakError>> {
+    const validatedInput = this.validateInput(input, bulkUpdateIssuesSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.request(
+      () =>
+        this.http.put(`api/projects/${projectId}/issues`, {
+          json: validatedInput.data,
+        }),
+      z.object({ updated: z.number().int() }),
+    );
   }
 
   /**
@@ -141,22 +159,32 @@ export class IssuesResource extends BaseResource {
   async bulkDelete(
     projectId: number,
     input: BulkDeleteIssues,
-  ): Promise<{ deleted: number }> {
-    const validatedInput = this.validate(input, bulkDeleteIssuesSchema);
-    const data = await this.http
-      .delete(`api/projects/${projectId}/issues`, { json: validatedInput })
-      .json();
-    return this.validate(data, z.object({ deleted: z.number().int() }));
+  ): Promise<Result<{ deleted: number }, RustrakError>> {
+    const validatedInput = this.validateInput(input, bulkDeleteIssuesSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.request(
+      () =>
+        this.http.delete(`api/projects/${projectId}/issues`, {
+          json: validatedInput.data,
+        }),
+      z.object({ deleted: z.number().int() }),
+    );
   }
 
   /**
    * List the grouping hashes that map to an issue.
    */
-  async getHashes(projectId: number, issueId: string): Promise<IssueHash[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/hashes`)
-      .json();
-    return this.validate(data, z.array(issueHashSchema));
+  async getHashes(
+    projectId: number,
+    issueId: string,
+  ): Promise<Result<IssueHash[], RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/issues/${issueId}/hashes`),
+      z.array(issueHashSchema),
+    );
   }
 
   /**
@@ -167,13 +195,14 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     key: string,
-  ): Promise<IssueTagValue[]> {
-    const data = await this.http
-      .get(
-        `api/projects/${projectId}/issues/${issueId}/tags/${encodeURIComponent(key)}`,
-      )
-      .json();
-    return this.validate(data, z.array(issueTagValueSchema));
+  ): Promise<Result<IssueTagValue[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/issues/${issueId}/tags/${encodeURIComponent(key)}`,
+        ),
+      z.array(issueTagValueSchema),
+    );
   }
 
   /**
@@ -182,11 +211,12 @@ export class IssuesResource extends BaseResource {
   async getAggregates(
     projectId: number,
     issueId: string,
-  ): Promise<IssueAggregates> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/aggregates`)
-      .json();
-    return this.validate(data, issueAggregatesSchema);
+  ): Promise<Result<IssueAggregates, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/issues/${issueId}/aggregates`),
+      issueAggregatesSchema,
+    );
   }
 
   /**
@@ -196,13 +226,14 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     window: IssueStatsWindow = '24h',
-  ): Promise<IssueStats> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/stats`, {
-        searchParams: { window },
-      })
-      .json();
-    return this.validate(data, issueStatsSchema);
+  ): Promise<Result<IssueStats, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/issues/${issueId}/stats`, {
+          searchParams: { window },
+        }),
+      issueStatsSchema,
+    );
   }
 
   /**
@@ -211,11 +242,12 @@ export class IssuesResource extends BaseResource {
   async getActivity(
     projectId: number,
     issueId: string,
-  ): Promise<ActivityEntry[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/activity`)
-      .json();
-    return this.validate(data, z.array(activityEntrySchema));
+  ): Promise<Result<ActivityEntry[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/issues/${issueId}/activity`),
+      z.array(activityEntrySchema),
+    );
   }
 
   /**
@@ -225,14 +257,19 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     input: CreateComment,
-  ): Promise<ActivityEntry> {
-    const validatedInput = this.validate(input, createCommentSchema);
-    const data = await this.http
-      .post(`api/projects/${projectId}/issues/${issueId}/comments`, {
-        json: validatedInput,
-      })
-      .json();
-    return this.validate(data, activityEntrySchema);
+  ): Promise<Result<ActivityEntry, RustrakError>> {
+    const validatedInput = this.validateInput(input, createCommentSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.request(
+      () =>
+        this.http.post(`api/projects/${projectId}/issues/${issueId}/comments`, {
+          json: validatedInput.data,
+        }),
+      activityEntrySchema,
+    );
   }
 
   /**
@@ -242,13 +279,14 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     enabled: boolean,
-  ): Promise<{ is_bookmarked: boolean }> {
-    const data = await this.http
-      .put(`api/projects/${projectId}/issues/${issueId}/bookmark`, {
-        json: { enabled },
-      })
-      .json();
-    return this.validate(data, z.object({ is_bookmarked: z.boolean() }));
+  ): Promise<Result<{ is_bookmarked: boolean }, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.put(`api/projects/${projectId}/issues/${issueId}/bookmark`, {
+          json: { enabled },
+        }),
+      z.object({ is_bookmarked: z.boolean() }),
+    );
   }
 
   /**
@@ -258,13 +296,15 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     enabled: boolean,
-  ): Promise<{ is_subscribed: boolean }> {
-    const data = await this.http
-      .put(`api/projects/${projectId}/issues/${issueId}/subscription`, {
-        json: { enabled },
-      })
-      .json();
-    return this.validate(data, z.object({ is_subscribed: z.boolean() }));
+  ): Promise<Result<{ is_subscribed: boolean }, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.put(
+          `api/projects/${projectId}/issues/${issueId}/subscription`,
+          { json: { enabled } },
+        ),
+      z.object({ is_subscribed: z.boolean() }),
+    );
   }
 
   /**
@@ -273,11 +313,11 @@ export class IssuesResource extends BaseResource {
   async markSeen(
     projectId: number,
     issueId: string,
-  ): Promise<{ has_seen: boolean }> {
-    const data = await this.http
-      .post(`api/projects/${projectId}/issues/${issueId}/seen`)
-      .json();
-    return this.validate(data, z.object({ has_seen: z.boolean() }));
+  ): Promise<Result<{ has_seen: boolean }, RustrakError>> {
+    return this.request(
+      () => this.http.post(`api/projects/${projectId}/issues/${issueId}/seen`),
+      z.object({ has_seen: z.boolean() }),
+    );
   }
 
   /**
@@ -286,11 +326,14 @@ export class IssuesResource extends BaseResource {
   async listUserReports(
     projectId: number,
     issueId: string,
-  ): Promise<UserReport[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/issues/${issueId}/user-reports`)
-      .json();
-    return this.validate(data, z.array(userReportSchema));
+  ): Promise<Result<UserReport[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/issues/${issueId}/user-reports`,
+        ),
+      z.array(userReportSchema),
+    );
   }
 
   /**
@@ -300,13 +343,19 @@ export class IssuesResource extends BaseResource {
     projectId: number,
     issueId: string,
     input: CreateUserReport,
-  ): Promise<UserReport> {
-    const validatedInput = this.validate(input, createUserReportSchema);
-    const data = await this.http
-      .post(`api/projects/${projectId}/issues/${issueId}/user-reports`, {
-        json: validatedInput,
-      })
-      .json();
-    return this.validate(data, userReportSchema);
+  ): Promise<Result<UserReport, RustrakError>> {
+    const validatedInput = this.validateInput(input, createUserReportSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
+
+    return this.request(
+      () =>
+        this.http.post(
+          `api/projects/${projectId}/issues/${issueId}/user-reports`,
+          { json: validatedInput.data },
+        ),
+      userReportSchema,
+    );
   }
 }

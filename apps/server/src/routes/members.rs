@@ -10,7 +10,7 @@ use actix_web::{web, HttpResponse};
 
 use crate::auth::ApiActor;
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{ProjectRole, UpsertProjectMember};
 use crate::services::access::{self, Action};
 use crate::services::ProjectMemberService;
@@ -90,8 +90,14 @@ pub async fn upsert_member(
     .await?;
 
     let body = body.into_inner();
-    let role = ProjectRole::parse(&body.role)
-        .ok_or_else(|| AppError::Validation(format!("Invalid project role: {}", body.role)))?;
+    // `(role, invalid)` on a 400, the sibling of the 409 raised by
+    // `ProjectMemberService::upsert` when the role is real but would orphan
+    // the last project admin. Same field, same code, different status; see the
+    // `FieldErrorCode::Invalid` docs.
+    let role = ProjectRole::parse(&body.role).ok_or_else(|| {
+        AppError::Validation(format!("Invalid project role: {}", body.role))
+            .with_field("role", FieldErrorCode::Invalid)
+    })?;
 
     let member =
         ProjectMemberService::upsert(pool.get_ref(), project_id, body.user_id, role).await?;

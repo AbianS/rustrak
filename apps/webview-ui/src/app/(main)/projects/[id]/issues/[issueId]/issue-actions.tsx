@@ -1,6 +1,11 @@
 'use client';
 
-import type { Issue, IssuePriority } from '@rustrak/client';
+import type {
+  Issue,
+  IssuePriority,
+  Result,
+  RustrakError,
+} from '@rustrak/client';
 import {
   Archive,
   ArchiveRestore,
@@ -18,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import {
   deleteIssue,
   resolveIssueInNextRelease,
@@ -64,28 +70,50 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
   const isArchived = issue.status === 'ignored';
   const priorityMeta = priorityDisplay(issue.priority);
 
-  const run = (action: string, fn: () => Promise<unknown>) => {
+  /**
+   * Run one toolbar action and report whether it worked.
+   *
+   * The `try`/`finally` this replaces had no `catch`, which used to be fine
+   * because a throw propagated. Now that the actions return their failure, an
+   * ignored `Result` means a resolve or a mute that silently did nothing: the
+   * button stops spinning, the refresh puts the old state back, and nothing
+   * says why.
+   */
+  const run = (
+    action: string,
+    label: string,
+    fn: () => Promise<Result<unknown, RustrakError>>,
+  ) => {
     setPending(action);
     startTransition(async () => {
-      try {
-        await fn();
+      const result = await fn();
+
+      if (!result.success) {
+        toast.error(label, { description: result.error.message });
+      } else {
         router.refresh();
-      } finally {
-        setPending(null);
       }
+
+      setPending(null);
     });
   };
 
   const handleConfirmDelete = () => {
     setPending('delete');
     startTransition(async () => {
-      try {
-        await deleteIssue(projectId, issue.id);
-        setDeleteDialogOpen(false);
-        router.push(`/projects/${projectId}`);
-      } finally {
+      const result = await deleteIssue(projectId, issue.id);
+
+      if (!result.success) {
+        toast.error('Failed to delete issue', {
+          description: result.error.message,
+        });
         setPending(null);
+        return;
       }
+
+      setDeleteDialogOpen(false);
+      router.push(`/projects/${projectId}`);
+      setPending(null);
     });
   };
 
@@ -101,7 +129,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             variant={isResolved ? 'outline' : 'default'}
             disabled={busy}
             onClick={() =>
-              run('resolve', () =>
+              run('resolve', 'Failed to update issue', () =>
                 updateIssueState(projectId, issue.id, {
                   status: isResolved ? 'unresolved' : 'resolved',
                 }),
@@ -132,7 +160,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                 <DropdownMenuItem
                   disabled={busy}
                   onClick={() =>
-                    run('next-release', () =>
+                    run('next-release', 'Failed to update issue', () =>
                       resolveIssueInNextRelease(projectId, issue.id),
                     )
                   }
@@ -151,7 +179,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
           size="sm"
           disabled={busy}
           onClick={() =>
-            run('archive', () =>
+            run('archive', 'Failed to update issue', () =>
               updateIssueState(projectId, issue.id, {
                 status: isArchived ? 'unresolved' : 'ignored',
               }),
@@ -184,7 +212,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             <DropdownMenuItem
               disabled={busy}
               onClick={() =>
-                run('bookmark', () =>
+                run('bookmark', 'Failed to update bookmark', () =>
                   setIssueBookmark(projectId, issue.id, !issue.is_bookmarked),
                 )
               }
@@ -199,7 +227,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             <DropdownMenuItem
               disabled={busy}
               onClick={() =>
-                run('subscribe', () =>
+                run('subscribe', 'Failed to update subscription', () =>
                   setIssueSubscription(
                     projectId,
                     issue.id,
@@ -255,7 +283,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                   key={priority}
                   disabled={busy}
                   onClick={() =>
-                    run('priority', () =>
+                    run('priority', 'Failed to update priority', () =>
                       updateIssueState(projectId, issue.id, { priority }),
                     )
                   }

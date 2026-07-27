@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 
 use crate::auth::generate_token;
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{CreateInvitation, CreateUserRequest, Invitation, User, UserRole};
 use crate::services::UsersService;
 
@@ -30,15 +30,17 @@ impl InvitationService {
             .await?
             .is_some()
         {
-            return Err(AppError::Conflict(
-                "A user with that email already exists".to_string(),
-            ));
+            return Err(
+                AppError::Conflict("A user with that email already exists".to_string())
+                    .with_field("email", FieldErrorCode::AlreadyExists),
+            );
         }
 
         if Self::pending_for_email(pool, &input.email).await?.is_some() {
             return Err(AppError::Conflict(
                 "A pending invitation for that email already exists".to_string(),
-            ));
+            )
+            .with_field("email", FieldErrorCode::AlreadyExists));
         }
 
         let token = generate_token();

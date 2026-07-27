@@ -4,6 +4,8 @@ import type {
   AuthToken,
   AuthTokenCreated,
   CreateAuthToken,
+  Result,
+  RustrakError,
 } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
 
@@ -13,7 +15,7 @@ import { createClient } from '@/lib/rustrak';
  *
  * @returns List of auth tokens with masked token values
  */
-export async function listTokens(): Promise<AuthToken[]> {
+export async function listTokens(): Promise<Result<AuthToken[], RustrakError>> {
   const client = await createClient();
   return client.tokens.list();
 }
@@ -27,7 +29,7 @@ export async function listTokens(): Promise<AuthToken[]> {
  */
 export async function createToken(
   input: CreateAuthToken,
-): Promise<AuthTokenCreated> {
+): Promise<Result<AuthTokenCreated, RustrakError>> {
   const client = await createClient();
   return client.tokens.create(input);
 }
@@ -37,9 +39,11 @@ export async function createToken(
  *
  * @param id - The token ID to delete
  */
-export async function deleteToken(id: number): Promise<void> {
+export async function deleteToken(
+  id: number,
+): Promise<Result<void, RustrakError>> {
   const client = await createClient();
-  await client.tokens.delete(id);
+  return client.tokens.delete(id);
 }
 
 /**
@@ -48,7 +52,9 @@ export async function deleteToken(id: number): Promise<void> {
  * @param id - The token ID to retrieve
  * @returns The full token value (40-char hex string)
  */
-export async function getToken(id: number): Promise<AuthTokenCreated> {
+export async function getToken(
+  id: number,
+): Promise<Result<AuthTokenCreated, RustrakError>> {
   const client = await createClient();
   return client.tokens.get(id);
 }

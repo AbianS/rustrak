@@ -37,7 +37,7 @@ export interface PlatformSnippet {
 }
 
 export const PLATFORM_SNIPPETS: Record<string, PlatformSnippet> = {
-  'android': {
+  android: {
     configure: `import io.sentry.android.core.SentryAndroid;
 import android.app.Application;
 
@@ -76,7 +76,7 @@ func applicationDidFinishLaunching(_ aNotification: Notification) {
 }`,
     language: 'swift',
   },
-  'bun': {
+  bun: {
     install: `bun add @sentry/bun`,
     configure: `import * as Sentry from "@sentry/bun";
 
@@ -85,7 +85,7 @@ Sentry.init({
 });`,
     language: 'javascript',
   },
-  'capacitor': {
+  capacitor: {
     install: `npm install --save @sentry/capacitor @sentry/angular@^7`,
     configure: `import * as Sentry from '@sentry/capacitor';
 import * as SentryAngular from '@sentry/angular';
@@ -98,7 +98,7 @@ SentryAngular.init
 );`,
     language: 'javascript',
   },
-  'cordova': {
+  cordova: {
     install: `cordova plugin add sentry-cordova`,
     configure: `onDeviceReady: function() {
   var Sentry = cordova.require('sentry-cordova.Sentry');
@@ -106,7 +106,7 @@ SentryAngular.init
 }`,
     language: 'javascript',
   },
-  'dart': {
+  dart: {
     install: `sentry: ^9.6.0`,
     configure: `import 'package:sentry/sentry.dart';
 
@@ -120,7 +120,7 @@ Future<void> main() async {
 }`,
     language: 'dart',
   },
-  'deno': {
+  deno: {
     install: `import * as Sentry from "npm:@sentry/deno";`,
     configure: `import * as Sentry from "npm:@sentry/deno";
 
@@ -129,7 +129,7 @@ Sentry.init({
 });`,
     language: 'javascript',
   },
-  'dotnet': {
+  dotnet: {
     install: `dotnet add package Sentry`,
     configure: `using Sentry;
 
@@ -297,7 +297,7 @@ public partial class App : Application
 }`,
     language: 'csharp',
   },
-  'electron': {
+  electron: {
     install: `npm install --save @sentry/electron`,
     configure: `import * as Sentry from "@sentry/electron";
 
@@ -306,7 +306,7 @@ Sentry.init({
 });`,
     language: 'javascript',
   },
-  'elixir': {
+  elixir: {
     install: `{:sentry, "~> 10.2.0"}`,
     configure: `config :sentry,
   dsn: "__DSN__",
@@ -319,7 +319,7 @@ Sentry.init({
   // snippet to extract. Both fields below come from `flutter/sessionReplay.tsx`
   // instead (install at its `getManualInstallSnippet`, the `appRunner` shape at
   // its replay snippet), with the replay-specific options dropped.
-  'flutter': {
+  flutter: {
     install: `sentry_flutter: ^9.6.0`,
     configure: `import 'package:flutter/widgets.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -338,7 +338,7 @@ Future<void> main() async {
 }`,
     language: 'dart',
   },
-  'go': {
+  go: {
     install: `go get github.com/getsentry/sentry-go`,
     configure: `package main
 
@@ -488,7 +488,7 @@ if err := sentry.Init(sentry.ClientOptions{
 }`,
     language: 'go',
   },
-  'java': {
+  java: {
     install: `id "io.sentry.jvm.gradle" version "3.12.0"`,
     configure: `import io.sentry.Sentry;
 
@@ -564,7 +564,7 @@ class SentryConfiguration {
 sentry.send-default-pii=true`,
     language: 'bash',
   },
-  'javascript': {
+  javascript: {
     install: `npm install --save @sentry/browser`,
     configure: `import * as Sentry from "@sentry/browser";
 
@@ -722,7 +722,7 @@ Sentry.init({
 app.mount("#app");`,
     language: 'javascript',
   },
-  'kotlin': {
+  kotlin: {
     install: `id "io.sentry.jvm.gradle" version "3.12.0"`,
     configure: `import io.sentry.Sentry
 
@@ -733,7 +733,7 @@ Sentry.init { options ->
 }`,
     language: 'kotlin',
   },
-  'node': {
+  node: {
     install: `npm install @sentry/node --save`,
     configure: `// Import with \`import * as Sentry from "@sentry/node"\` if you are using ESM
 const Sentry = require("@sentry/node");
@@ -879,7 +879,7 @@ Sentry.init({
 });`,
     language: 'javascript',
   },
-  'php': {
+  php: {
     install: `composer require sentry/sentry`,
     configure: `\\Sentry\\init([
   'dsn' => '__DSN__',
@@ -898,7 +898,7 @@ SENTRY_DSN="__DSN__"
 ###< sentry/sentry-symfony ###`,
     language: 'bash',
   },
-  'powershell': {
+  powershell: {
     install: `Install-Module -Name Sentry -Repository PSGallery -RequiredVersion 0.0.2 -Force`,
     configure: `# You need to import the module once in a script.
 Import-Module Sentry
@@ -908,7 +908,7 @@ Start-Sentry {
 }`,
     language: 'bash',
   },
-  'python': {
+  python: {
     install: `pip install "sentry-sdk"`,
     configure: `import sentry_sdk
 
@@ -1209,7 +1209,7 @@ Sentry.init({
 });`,
     language: 'javascript',
   },
-  'ruby': {
+  ruby: {
     install: `gem "sentry-ruby"`,
     configure: `require 'sentry-ruby'
 
@@ -1247,7 +1247,7 @@ end`,
 end`,
     language: 'ruby',
   },
-  'rust': {
+  rust: {
     install: `sentry = "0.42.0"`,
     configure: `let _guard = sentry::init(("__DSN__", sentry::ClientOptions {
   release: sentry::release_name!(),
@@ -1262,78 +1262,101 @@ end`,
 
 /** Official Sentry documentation URL per platform, from Sentry's own platforms.tsx. */
 export const PLATFORM_DOCS: Record<string, string> = {
-  'android': 'https://docs.sentry.io/platforms/android/',
-  'apple': 'https://docs.sentry.io/platforms/apple/',
+  android: 'https://docs.sentry.io/platforms/android/',
+  apple: 'https://docs.sentry.io/platforms/apple/',
   'apple-ios': 'https://docs.sentry.io/platforms/apple/',
   'apple-macos': 'https://docs.sentry.io/platforms/apple/',
-  'bun': 'https://docs.sentry.io/platforms/javascript/guides/bun/',
-  'capacitor': 'https://docs.sentry.io/platforms/javascript/guides/capacitor/',
-  'cordova': 'https://docs.sentry.io/platforms/javascript/guides/cordova/',
-  'dart': 'https://docs.sentry.io/platforms/dart/',
-  'deno': 'https://docs.sentry.io/platforms/javascript/guides/deno/',
-  'dotnet': 'https://docs.sentry.io/platforms/dotnet/',
+  bun: 'https://docs.sentry.io/platforms/javascript/guides/bun/',
+  capacitor: 'https://docs.sentry.io/platforms/javascript/guides/capacitor/',
+  cordova: 'https://docs.sentry.io/platforms/javascript/guides/cordova/',
+  dart: 'https://docs.sentry.io/platforms/dart/',
+  deno: 'https://docs.sentry.io/platforms/javascript/guides/deno/',
+  dotnet: 'https://docs.sentry.io/platforms/dotnet/',
   'dotnet-aspnet': 'https://docs.sentry.io/platforms/dotnet/guides/aspnet/',
-  'dotnet-aspnetcore': 'https://docs.sentry.io/platforms/dotnet/guides/aspnetcore/',
-  'dotnet-awslambda': 'https://docs.sentry.io/platforms/dotnet/guides/aws-lambda/',
-  'dotnet-gcpfunctions': 'https://docs.sentry.io/platforms/dotnet/guides/google-cloud-functions/',
+  'dotnet-aspnetcore':
+    'https://docs.sentry.io/platforms/dotnet/guides/aspnetcore/',
+  'dotnet-awslambda':
+    'https://docs.sentry.io/platforms/dotnet/guides/aws-lambda/',
+  'dotnet-gcpfunctions':
+    'https://docs.sentry.io/platforms/dotnet/guides/google-cloud-functions/',
   'dotnet-maui': 'https://docs.sentry.io/platforms/dotnet/guides/maui/',
   'dotnet-uwp': 'https://docs.sentry.io/platforms/dotnet/guides/uwp/',
   'dotnet-winforms': 'https://docs.sentry.io/platforms/dotnet/guides/winforms/',
   'dotnet-wpf': 'https://docs.sentry.io/platforms/dotnet/guides/wpf/',
   'dotnet-xamarin': 'https://docs.sentry.io/platforms/dotnet/guides/xamarin/',
-  'electron': 'https://docs.sentry.io/platforms/javascript/guides/electron/',
-  'elixir': 'https://docs.sentry.io/platforms/elixir/',
-  'flutter': 'https://docs.sentry.io/platforms/flutter/',
-  'ionic': 'https://docs.sentry.io/platforms/javascript/guides/capacitor/',
-  'java': 'https://docs.sentry.io/platforms/java/',
+  electron: 'https://docs.sentry.io/platforms/javascript/guides/electron/',
+  elixir: 'https://docs.sentry.io/platforms/elixir/',
+  flutter: 'https://docs.sentry.io/platforms/flutter/',
+  ionic: 'https://docs.sentry.io/platforms/javascript/guides/capacitor/',
+  java: 'https://docs.sentry.io/platforms/java/',
   'java-log4j2': 'https://docs.sentry.io/platforms/java/guides/log4j2/',
   'java-logback': 'https://docs.sentry.io/platforms/java/guides/logback/',
   'java-spring': 'https://docs.sentry.io/platforms/java/guides/spring/',
-  'java-spring-boot': 'https://docs.sentry.io/platforms/java/guides/spring-boot/',
-  'javascript': 'https://docs.sentry.io/platforms/javascript/',
-  'javascript-angular': 'https://docs.sentry.io/platforms/javascript/guides/angular/',
-  'javascript-astro': 'https://docs.sentry.io/platforms/javascript/guides/astro/',
-  'javascript-ember': 'https://docs.sentry.io/platforms/javascript/guides/ember/',
-  'javascript-gatsby': 'https://docs.sentry.io/platforms/javascript/guides/gatsby/',
-  'javascript-nextjs': 'https://docs.sentry.io/platforms/javascript/guides/nextjs/',
+  'java-spring-boot':
+    'https://docs.sentry.io/platforms/java/guides/spring-boot/',
+  javascript: 'https://docs.sentry.io/platforms/javascript/',
+  'javascript-angular':
+    'https://docs.sentry.io/platforms/javascript/guides/angular/',
+  'javascript-astro':
+    'https://docs.sentry.io/platforms/javascript/guides/astro/',
+  'javascript-ember':
+    'https://docs.sentry.io/platforms/javascript/guides/ember/',
+  'javascript-gatsby':
+    'https://docs.sentry.io/platforms/javascript/guides/gatsby/',
+  'javascript-nextjs':
+    'https://docs.sentry.io/platforms/javascript/guides/nextjs/',
   'javascript-nuxt': 'https://docs.sentry.io/platforms/javascript/guides/nuxt/',
-  'javascript-react': 'https://docs.sentry.io/platforms/javascript/guides/react/',
-  'javascript-react-router': 'https://docs.sentry.io/platforms/javascript/guides/react-router/',
-  'javascript-remix': 'https://docs.sentry.io/platforms/javascript/guides/remix/',
-  'javascript-solid': 'https://docs.sentry.io/platforms/javascript/guides/solid/',
-  'javascript-solidstart': 'https://docs.sentry.io/platforms/javascript/guides/solidstart/',
-  'javascript-svelte': 'https://docs.sentry.io/platforms/javascript/guides/svelte/',
-  'javascript-sveltekit': 'https://docs.sentry.io/platforms/javascript/guides/sveltekit/',
-  'javascript-tanstackstart-react': 'https://docs.sentry.io/platforms/javascript/guides/tanstackstart-react/',
+  'javascript-react':
+    'https://docs.sentry.io/platforms/javascript/guides/react/',
+  'javascript-react-router':
+    'https://docs.sentry.io/platforms/javascript/guides/react-router/',
+  'javascript-remix':
+    'https://docs.sentry.io/platforms/javascript/guides/remix/',
+  'javascript-solid':
+    'https://docs.sentry.io/platforms/javascript/guides/solid/',
+  'javascript-solidstart':
+    'https://docs.sentry.io/platforms/javascript/guides/solidstart/',
+  'javascript-svelte':
+    'https://docs.sentry.io/platforms/javascript/guides/svelte/',
+  'javascript-sveltekit':
+    'https://docs.sentry.io/platforms/javascript/guides/sveltekit/',
+  'javascript-tanstackstart-react':
+    'https://docs.sentry.io/platforms/javascript/guides/tanstackstart-react/',
   'javascript-vue': 'https://docs.sentry.io/platforms/javascript/guides/vue/',
-  'kotlin': 'https://docs.sentry.io/platforms/kotlin/',
-  'minidump': 'https://docs.sentry.io/platforms/native/minidump/',
-  'native': 'https://docs.sentry.io/platforms/native/',
+  kotlin: 'https://docs.sentry.io/platforms/kotlin/',
+  minidump: 'https://docs.sentry.io/platforms/native/minidump/',
+  native: 'https://docs.sentry.io/platforms/native/',
   'native-qt': 'https://docs.sentry.io/platforms/native/guides/qt/',
   'nintendo-switch': 'https://docs.sentry.io/platforms/nintendo-switch/',
-  'node': 'https://docs.sentry.io/platforms/javascript/guides/node',
-  'node-awslambda': 'https://docs.sentry.io/platforms/javascript/guides/aws-lambda/',
-  'node-azurefunctions': 'https://docs.sentry.io/platforms/javascript/guides/azure-functions/',
-  'node-cloudflare-pages': 'https://docs.sentry.io/platforms/javascript/guides/cloudflare/',
-  'node-cloudflare-workers': 'https://docs.sentry.io/platforms/javascript/guides/cloudflare/',
+  node: 'https://docs.sentry.io/platforms/javascript/guides/node',
+  'node-awslambda':
+    'https://docs.sentry.io/platforms/javascript/guides/aws-lambda/',
+  'node-azurefunctions':
+    'https://docs.sentry.io/platforms/javascript/guides/azure-functions/',
+  'node-cloudflare-pages':
+    'https://docs.sentry.io/platforms/javascript/guides/cloudflare/',
+  'node-cloudflare-workers':
+    'https://docs.sentry.io/platforms/javascript/guides/cloudflare/',
   'node-connect': 'https://docs.sentry.io/platforms/javascript/guides/connect/',
   'node-express': 'https://docs.sentry.io/platforms/javascript/guides/express/',
   'node-fastify': 'https://docs.sentry.io/platforms/javascript/guides/fastify/',
-  'node-gcpfunctions': 'https://docs.sentry.io/platforms/javascript/guides/gcp-functions/',
+  'node-gcpfunctions':
+    'https://docs.sentry.io/platforms/javascript/guides/gcp-functions/',
   'node-hapi': 'https://docs.sentry.io/platforms/javascript/guides/hapi/',
   'node-hono': 'https://docs.sentry.io/platforms/javascript/guides/hono/',
   'node-koa': 'https://docs.sentry.io/platforms/javascript/guides/koa/',
   'node-nestjs': 'https://docs.sentry.io/platforms/javascript/guides/nestjs/',
-  'other': 'https://docs.sentry.io/platforms/',
-  'php': 'https://docs.sentry.io/platforms/php/',
+  other: 'https://docs.sentry.io/platforms/',
+  php: 'https://docs.sentry.io/platforms/php/',
   'php-laravel': 'https://docs.sentry.io/platforms/php/guides/laravel/',
   'php-symfony': 'https://docs.sentry.io/platforms/php/guides/symfony/',
-  'playstation': 'https://docs.sentry.io/platforms/playstation/',
-  'powershell': 'https://docs.sentry.io/platforms/powershell/',
-  'python': 'https://docs.sentry.io/platforms/python/',
+  playstation: 'https://docs.sentry.io/platforms/playstation/',
+  powershell: 'https://docs.sentry.io/platforms/powershell/',
+  python: 'https://docs.sentry.io/platforms/python/',
   'python-aiohttp': 'https://docs.sentry.io/platforms/python/guides/aiohttp/',
   'python-asgi': 'https://docs.sentry.io/platforms/python/guides/asgi/',
-  'python-awslambda': 'https://docs.sentry.io/platforms/python/guides/aws-lambda/',
+  'python-awslambda':
+    'https://docs.sentry.io/platforms/python/guides/aws-lambda/',
   'python-bottle': 'https://docs.sentry.io/platforms/python/guides/bottle/',
   'python-celery': 'https://docs.sentry.io/platforms/python/guides/celery/',
   'python-chalice': 'https://docs.sentry.io/platforms/python/guides/chalice/',
@@ -1341,27 +1364,32 @@ export const PLATFORM_DOCS: Record<string, string> = {
   'python-falcon': 'https://docs.sentry.io/platforms/python/guides/falcon/',
   'python-fastapi': 'https://docs.sentry.io/platforms/python/guides/fastapi/',
   'python-flask': 'https://docs.sentry.io/platforms/python/guides/flask/',
-  'python-gcpfunctions': 'https://docs.sentry.io/platforms/python/guides/gcp-functions/',
-  'python-litestar': 'https://docs.sentry.io/platforms/python/integrations/litestar/',
-  'python-pylons': 'https://docs.sentry.io/platforms/python/legacy-sdk/integrations/pylons/',
+  'python-gcpfunctions':
+    'https://docs.sentry.io/platforms/python/guides/gcp-functions/',
+  'python-litestar':
+    'https://docs.sentry.io/platforms/python/integrations/litestar/',
+  'python-pylons':
+    'https://docs.sentry.io/platforms/python/legacy-sdk/integrations/pylons/',
   'python-pymongo': 'https://docs.sentry.io/platforms/python/guides/pymongo/',
   'python-pyramid': 'https://docs.sentry.io/platforms/python/pyramid/',
   'python-quart': 'https://docs.sentry.io/platforms/python/guides/quart/',
   'python-rq': 'https://docs.sentry.io/platforms/python/guides/rq/',
   'python-sanic': 'https://docs.sentry.io/platforms/python/guides/sanic/',
-  'python-serverless': 'https://docs.sentry.io/platforms/python/guides/serverless/',
-  'python-starlette': 'https://docs.sentry.io/platforms/python/guides/starlette/',
+  'python-serverless':
+    'https://docs.sentry.io/platforms/python/guides/serverless/',
+  'python-starlette':
+    'https://docs.sentry.io/platforms/python/guides/starlette/',
   'python-tornado': 'https://docs.sentry.io/platforms/python/guides/tornado/',
   'python-tryton': 'https://docs.sentry.io/platforms/python/guides/tryton/',
   'python-wsgi': 'https://docs.sentry.io/platforms/python/guides/wsgi/',
   'react-native': 'https://docs.sentry.io/platforms/react-native/',
-  'ruby': 'https://docs.sentry.io/platforms/ruby/',
+  ruby: 'https://docs.sentry.io/platforms/ruby/',
   'ruby-rack': 'https://docs.sentry.io/platforms/ruby/guides/rack/',
   'ruby-rails': 'https://docs.sentry.io/platforms/ruby/guides/rails/',
-  'rust': 'https://docs.sentry.io/platforms/rust/',
-  'unity': 'https://docs.sentry.io/platforms/unity/',
-  'unreal': 'https://docs.sentry.io/platforms/unreal/',
-  'xbox': 'https://docs.sentry.io/platforms/xbox/',
+  rust: 'https://docs.sentry.io/platforms/rust/',
+  unity: 'https://docs.sentry.io/platforms/unity/',
+  unreal: 'https://docs.sentry.io/platforms/unreal/',
+  xbox: 'https://docs.sentry.io/platforms/xbox/',
 };
 
 /** Substitutes the project's DSN into a snippet. */

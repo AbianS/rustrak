@@ -223,7 +223,7 @@ pnpm --filter @rustrak/mcp build
 pnpm --filter @rustrak/mcp test
 
 # Type check
-pnpm --filter @rustrak/mcp typecheck
+pnpm --filter @rustrak/mcp check-types
 
 # Watch mode
 pnpm --filter @rustrak/mcp dev

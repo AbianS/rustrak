@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import {
   bulkDeleteIssues,
   bulkUpdateIssues,
@@ -121,7 +122,20 @@ export function IssuesList({
           ? 'ignored'
           : 'unresolved';
     startTransition(async () => {
-      await bulkUpdateIssues(projectId, { ids: Array.from(ids), status });
+      // The failure is a returned value now, so an unchecked call would clear
+      // the selection and refresh back to the old state with nothing said.
+      const result = await bulkUpdateIssues(projectId, {
+        ids: Array.from(ids),
+        status,
+      });
+
+      if (!result.success) {
+        toast.error('Failed to update issues', {
+          description: result.error.message,
+        });
+        return;
+      }
+
       setSelectedIds(new Set());
       router.refresh();
     });
@@ -142,10 +156,24 @@ export function IssuesList({
   const handleConfirmDelete = async () => {
     startTransition(async () => {
       if (isBatchDelete) {
-        await bulkDeleteIssues(projectId, { ids: Array.from(selectedIds) });
+        const result = await bulkDeleteIssues(projectId, {
+          ids: Array.from(selectedIds),
+        });
+        if (!result.success) {
+          toast.error('Failed to delete issues', {
+            description: result.error.message,
+          });
+          return;
+        }
         setSelectedIds(new Set());
       } else if (issueToDelete) {
-        await deleteIssue(projectId, issueToDelete.id);
+        const result = await deleteIssue(projectId, issueToDelete.id);
+        if (!result.success) {
+          toast.error('Failed to delete issue', {
+            description: result.error.message,
+          });
+          return;
+        }
       }
       setDeleteDialogOpen(false);
       setIssueToDelete(null);

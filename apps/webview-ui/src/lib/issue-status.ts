@@ -40,9 +40,15 @@ export function statusDisplay(
     case 'resolved':
       return { label: 'Resolved', dot: 'bg-emerald-500' };
     case 'ignored':
-      return { label: substatusLabel ?? 'Ignored', dot: 'bg-muted-foreground/40' };
+      return {
+        label: substatusLabel ?? 'Ignored',
+        dot: 'bg-muted-foreground/40',
+      };
     default:
-      return { label: substatusLabel ?? 'Unresolved', dot: 'bg-muted-foreground' };
+      return {
+        label: substatusLabel ?? 'Unresolved',
+        dot: 'bg-muted-foreground',
+      };
   }
 }
 

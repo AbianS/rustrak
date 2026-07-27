@@ -1,0 +1,113 @@
+name: Deploy Docs
+
+# The docs site is versioned independently of the shipped artifacts: `docs` sits
+# outside the `fixed` group in .changeset/config.json, so it moves only when a
+# changeset names it. Its deploy has to follow the same rule, otherwise a cycle
+# that only touched the docs site produces no release, no tag, and no deploy,
+# and the work sits on main unpublished.
+on:
+  # A docs version was just cut. `apps/docs/package.json` is rewritten by
+  # `changeset version` when a `docs` changeset lands, so merging the version PR
+  # is the signal. The guard below rejects any other reason that file changed.
+  push:
+    branches: [main]
+    paths: ["apps/docs/package.json"]
+
+  # A product release carries a new changelog entry under
+  # apps/docs/content/changelog/, which the site renders and feeds to its
+  # version switcher. Those have to reach the site even when `docs` itself did
+  # not move.
+  release:
+    types: [published]
+
+  # Escape hatch: republish the current main without inventing a commit.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race for the Pages environment. Not cancel-in-progress:
+# a half-finished deploy would leave the site serving a partial build.
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: false
+
+jobs:
+  # `paths` fires on any write to apps/docs/package.json, including a dependency
+  # bump. Only a changed version field means a docs release, so confirm it here
+  # rather than deploying on every edit to that file.
+  changed:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.check.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 2
+
+      - name: Check whether the docs version moved
+        id: check
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" != "push" ]]; then
+            echo "Event is ${{ github.event_name }}, deploying without a version check."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT=$(node -p "require('./apps/docs/package.json').version")
+
+          # A first commit or a squashed history leaves no parent to compare
+          # against. Deploy rather than silently skipping: a missed deploy is
+          # harder to notice than a redundant one.
+          if ! PREVIOUS=$(git show HEAD~1:apps/docs/package.json 2>/dev/null \
+            | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version"); then
+            echo "No parent revision to compare against, deploying."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$CURRENT" == "$PREVIOUS" ]]; then
+            echo "docs is still at $CURRENT, nothing was released. Skipping."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs moved $PREVIOUS -> $CURRENT, deploying."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: changed
+    if: needs.changed.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "latest"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The API reference renders this at build time from apps/docs/public/.
+      - name: Copy OpenAPI spec into docs
+        run: cp apps/server/openapi.json apps/docs/public/openapi.json
+
+      - name: Build docs
+        run: pnpm build:docs
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: apps/docs/out
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

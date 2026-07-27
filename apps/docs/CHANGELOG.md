@@ -1,5 +1,17 @@
 # docs
 
+## 0.14.1
+
+### Patch Changes
+
+- [`4b1a2be`](https://github.com/rustrak/rustrak/commit/4b1a2bed8c7e3f73ddfbccf82155c92f2cf2a362) Thanks [@AbianS](https://github.com/AbianS)! - Fix the ASCII paintings not rendering on the published site. `AsciiField` fetched its source with an absolute path, and Next's `basePath` does not rewrite a string handed to `fetch`, so under GitHub Pages the request resolved against the domain root instead of `/rustrak/` and returned a 404. The hero, manifesto and closing sections all went blank with no error on the page.
+
+## 0.14.0
+
+### Minor Changes
+
+- [`c7e40a6`](https://github.com/rustrak/rustrak/commit/c7e40a68d17b658743cc9ece098ddc94b3aeb42a) Thanks [@AbianS](https://github.com/AbianS)! - Rebuild the landing page. The hero is now a driven product tour over an animated app mock, the engine section renders an isometric motherboard scene, and the page gains platform, alerts, migrate, scale and sponsors sections with a redesigned footer. Copy was rewritten in a plainer register, the whole page adapts to handheld screens, and the docs routes moved under a `(docs)` route group so the landing owns the root layout. Menu focus handling now holds the boundary through the exit animation and returns focus once the overlay is actually gone.
+
 ## 0.13.0
 
 ## 0.12.3

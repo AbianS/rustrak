@@ -69,7 +69,7 @@ packages/mcp/
 │   ├── index.ts           # Entry: loadConfig → RustrakClient → server → stdio
 │   ├── server.ts          # createServer(client): McpServer — factory, exported for testing
 │   ├── config.ts          # loadConfig(): validates RUSTRAK_API_URL + RUSTRAK_API_TOKEN
-│   ├── errors.ts          # toMcpError(err): maps client errors → { isError, content }
+│   ├── errors.ts          # mcpJson / mcpDone / mcpRefusal + toMcpError(error)
 │   │
 │   └── tools/
 │       ├── projects.ts    # list_projects, get_project, create_project
@@ -137,12 +137,8 @@ export function registerIssueTools(server: McpServer, client: RustrakClient) {
       },
     },
     async ({ project_id, status }) => {
-      try {
-        const result = await client.issues.list(project_id, { status });
-        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.list(project_id, { status });
+      return mcpJson(result);
     },
   );
 }
@@ -150,27 +146,52 @@ export function registerIssueTools(server: McpServer, client: RustrakClient) {
 
 **CRITICAL**: Always use `server.registerTool()`. All `server.tool()` overloads are deprecated in SDK v1.29.0.
 
-### 3. Error Translation (`toMcpError`)
+### 3. Error Translation (`src/errors.ts`)
 
-Tool handlers never throw. API errors are caught and returned as `isError: true` content so the LLM can see and handle the error.
+Tool handlers never throw and never `catch`. `@rustrak/client` returns
+`Result<T, RustrakError>` rather than throwing, so a failure is a value the
+handler renders, and a `try` around a client call could only hide a
+programming error.
+
+Three renderers, and every one of the 64 call sites goes through one of them:
 
 ```typescript
 // src/errors.ts
-export function toMcpError(err: unknown) {
-  if (err instanceof NotFoundError)
-    return { content: [{ type: 'text' as const, text: `Not found: ${err.message}` }], isError: true };
-  if (err instanceof RateLimitError)
-    return { content: [{ type: 'text' as const, text: `Rate limited. Retry after: ${err.retryAfter ?? '?'}s` }], isError: true };
-  if (err instanceof AuthenticationError)
-    return { content: [{ type: 'text' as const, text: 'Authentication failed. Check RUSTRAK_API_TOKEN.' }], isError: true };
-  return { content: [{ type: 'text' as const, text: `Unexpected error: ${String(err)}` }], isError: true };
+mcpJson(result)              // Result<T>    -> pretty-printed `result.data`, or the failure
+mcpDone(result, 'Deleted.')  // Result<void> -> a fixed confirmation, or the failure
+mcpRefusal('not confirmed')  // no call was made at all (an unconfirmed destructive tool)
+```
+
+`toMcpError(error: RustrakError)` is what the first two delegate to. It
+switches on `kind` over the closed union, so it is total:
+
+```typescript
+switch (error.kind) {
+  case 'not_found':        return mcpError(error.message);  // already reads `Resource not found: X`
+  case 'rate_limited':     return mcpError(`Rate limited. Retry after: ${error.retryAfter ?? '?'}s`);
+  case 'unauthenticated':  return mcpError('Authentication failed. Check RUSTRAK_API_TOKEN.');
+  case 'network':
+  case 'server_error':     return mcpError(`API error: ${error.message} The request may or may not have been applied; check the current state before retrying.`);
+  case 'forbidden':        return mcpError(`Not permitted: ${error.message} Retrying will not help.`);
+  default:                 return mcpError(`API error: ${error.message} Retrying will not help.`);
 }
 ```
 
+The retry wording is contract, not decoration. `network` and `server_error`
+are the **indeterminate** failures: the request may have reached the server and
+been applied before the answer was lost. Everything else is deterministic and
+says so, because a model that cannot tell the two apart retries — and
+`create_ky_instance` already retries writes, while two of these tools delete
+data.
+
 **Rules:**
 - Never expose stack traces or internal paths in error text
-- Map every known `@rustrak/client` error class explicitly
-- Fall through to `String(err)` for unknown errors
+- Switch on `kind`; there are no error classes to `instanceof` any more
+- `default:` is the catch-all, and it is exhaustive because the union is closed
+- A `Result<void>` failure is a *value*: always go through `mcpDone`, never
+  ignore it, or the tool reports `removed successfully` after a 403
+- Say whether retrying can help. The model is the consumer of this text, and it
+  will act on it
 
 ### 4. Destructive Tool Annotations
 
@@ -248,7 +269,8 @@ it('returns issues', async () => {
 - Annotations go in the second argument: `{ description, inputSchema, annotations? }`
 
 **Error handling:**
-- Every tool handler must have a `try/catch` that calls `toMcpError(err)`
+- Never write `try`/`catch` around a client call: the client returns failures, it does not throw them
+- Every handler ends in `mcpJson(result)` or `mcpDone(result, text)`
 - Never `throw` from a tool handler
 
 **Adding a new tool:**
@@ -269,7 +291,7 @@ pnpm test
 pnpm dev
 
 # Type check
-pnpm typecheck
+pnpm check-types
 ```
 
 ### Test Coverage

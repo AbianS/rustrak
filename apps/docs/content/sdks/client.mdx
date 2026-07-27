@@ -1,6 +1,6 @@
 # @rustrak/client
 
-`@rustrak/client` is the official TypeScript client for the Rustrak REST API. It provides full type safety via Zod, automatic retry logic, structured error handling, and cursor-based pagination — all in ~28 KB.
+`@rustrak/client` is the official TypeScript client for the Rustrak REST API. It provides full type safety via Zod, automatic retry logic, cursor-based pagination, and a `Result` return type that never throws for an expected failure, all in ~28 KB.
 
 ```bash
 npm install @rustrak/client
@@ -10,9 +10,11 @@ pnpm add @rustrak/client
 yarn add @rustrak/client
 ```
 
-**Requirements**: Node.js ≥ 18, TypeScript ≥ 5
+**Requirements**: Node.js ≥ 20, TypeScript ≥ 5
 
 ## Quick Start
+
+Every method returns a `Result<T, RustrakError>`: a plain object that is either `{ success: true, data }` or `{ success: false, error }`. Check `success` before reading `data`, and TypeScript narrows the rest.
 
 ```typescript
 import { RustrakClient } from '@rustrak/client';
@@ -23,9 +25,15 @@ const client = new RustrakClient({
 });
 
 const projects = await client.projects.list();
-const { items } = await client.issues.list(1, { sort: 'last_seen', order: 'desc' });
-await client.issues.updateState(1, 'issue-id', { is_resolved: true });
+if (!projects.success) {
+  console.error(projects.error.kind); // 'unauthenticated' | 'network' | ...
+  return;
+}
+
+console.log(projects.data.items);
 ```
+
+The shape deliberately mirrors Zod's `safeParse`, and it is the same shape everywhere: 86 methods, one convention.
 
 ## Configuration
 
@@ -41,109 +49,230 @@ const client = new RustrakClient({
 
 ## Projects
 
+What each method returns:
+
 ```typescript
-const projects = await client.projects.list();
-const project  = await client.projects.get(1);
-const created  = await client.projects.create({ name: 'My App', slug: 'my-app' });
-const updated  = await client.projects.update(1, { name: 'New Name' });
-await client.projects.delete(1);
+client.projects.list()                                  // Result<OffsetPaginatedResponse<Project>>
+client.projects.get(1)                                  // Result<Project>
+client.projects.create({ name: 'My App', slug: 'my-app' }) // Result<Project>
+client.projects.update(1, { name: 'New Name' })         // Result<Project>
+client.projects.delete(1)                               // Result<void>
+```
+
+And how you use one:
+
+```typescript
+const project = await client.projects.get(1);
+if (!project.success) {
+  console.error('Could not load the project:', project.error.message);
+  return;
+}
+
+console.log(project.data.dsn);
+```
+
+A `delete` returns a `Result<void>` too. A failed `Result<void>` is a value, not an exception, so nothing stops you ignoring it. Check `success` on writes as well as reads:
+
+```typescript
+const deleted = await client.projects.delete(1);
+if (!deleted.success) {
+  console.error('The project was not deleted:', deleted.error.message);
+}
 ```
 
 ## Issues
 
 ```typescript
 // List with filters
-const { items, next_cursor, has_more } = await client.issues.list(projectId, {
-  sort: 'last_seen',        // 'digest_order' | 'last_seen'
+const issues = await client.issues.list(projectId, {
+  sort: 'last_seen',        // 'digest_order' | 'last_seen' | 'event_count'
   order: 'desc',            // 'asc' | 'desc'
-  include_resolved: false,
-  cursor: 'eyJzb3J0...',    // from previous response
+  filter: 'open',           // 'open' | 'resolved' | 'muted' | 'all'
+  page: 1,
+  per_page: 20,
 });
 
-// Paginate through all issues
-let cursor: string | undefined;
-do {
-  const { items, next_cursor } = await client.issues.list(projectId, { cursor });
-  // process items...
-  cursor = next_cursor;
-} while (cursor);
+if (issues.success) {
+  for (const issue of issues.data.items) {
+    console.log(issue.short_id, issue.title);
+  }
+}
 
 const issue = await client.issues.get(projectId, issueId);
-await client.issues.updateState(projectId, issueId, { is_resolved: true });
-await client.issues.delete(projectId, issueId);
+if (issue.success) {
+  console.log(issue.data.title);
+}
+
+const resolved = await client.issues.updateState(projectId, issueId, {
+  is_resolved: true,
+});
+if (!resolved.success) {
+  console.error('Could not resolve:', resolved.error.message);
+}
+
+const removed = await client.issues.delete(projectId, issueId);
+if (!removed.success) {
+  console.error('Could not delete:', removed.error.message);
+}
 ```
 
 ## Events
 
 ```typescript
-const { items } = await client.events.list(projectId, issueId, { order: 'desc' });
-const event     = await client.events.get(projectId, issueId, eventId);
-console.log(event.data); // Full Sentry event payload
+const events = await client.events.list(projectId, issueId, { order: 'desc' });
+if (events.success) {
+  console.log(`${events.data.items.length} events`);
+}
+
+const event = await client.events.get(projectId, issueId, eventId);
+if (event.success) {
+  console.log(event.data.data); // Full Sentry event payload
+}
 ```
+
+### Paginating
+
+```typescript
+let cursor: string | undefined;
+do {
+  const page = await client.events.list(projectId, issueId, { cursor });
+  if (!page.success) break; // a failed page is not an empty page
+
+  process(page.data.items);
+  cursor = page.data.next_cursor;
+} while (cursor);
+```
+
+That `break` is the point of the whole API. Stopping on a failure is a decision the caller has to make, and it can no longer be skipped by accident.
 
 ## Auth Tokens
 
 ```typescript
-const tokens  = await client.tokens.list();
+const tokens = await client.tokens.list();
+if (tokens.success) {
+  console.log(`${tokens.data.length} tokens`);
+}
+
 const created = await client.tokens.create({ description: 'CI token' });
-console.log(created.token); // Save this — shown only once
-await client.tokens.delete(1);
+if (created.success) {
+  console.log(created.data.token); // Save this: shown only once
+}
+
+const revoked = await client.tokens.delete(1);
+if (!revoked.success) {
+  console.error('Could not revoke:', revoked.error.message);
+}
 ```
 
 ## Error Handling
 
-The client throws typed error classes instead of generic errors, so you can handle each case precisely:
+There are no error classes. Every failure is one member of a single closed union, discriminated by `kind`:
 
 ```typescript
-import {
-  AuthenticationError,
-  NotFoundError,
-  RateLimitError,
-  NetworkError,
-  ValidationError,
-} from '@rustrak/client';
+import { isRetryable, type RustrakError } from '@rustrak/client';
 
-try {
-  await client.projects.list();
-} catch (error) {
-  if (error instanceof RateLimitError)
-    console.log(`Retry after ${error.retryAfter}s`);
-  else if (error instanceof AuthenticationError)
-    redirect('/login');
-  else if (error instanceof NotFoundError)
-    console.log('Not found');
-  else if (error instanceof NetworkError)
-    console.log('Will retry automatically');
-  else if (error instanceof ValidationError)
-    console.log(error.getValidationDetails());
+const result = await client.projects.list();
+
+if (!result.success) {
+  switch (result.error.kind) {
+    case 'unauthenticated':
+      redirect('/login');           // ONLY this kind means "log in again"
+      break;
+    case 'rate_limited':
+      wait(result.error.retryAfter ?? 30);
+      break;
+    case 'network':
+      // Branch on `reason`, not on `message`: the message is a fixed string by
+      // design, because the underlying one names the host and port.
+      console.log(result.error.reason); // 'timeout' | 'unreachable'
+      break;
+    default:
+      if (isRetryable(result.error)) scheduleRetry();
+  }
 }
 ```
 
-| Error Class | HTTP | Retryable | Description |
+| `kind` | HTTP | Retryable | Description |
 |---|---|---|---|
-| `NetworkError` | — | ✅ | Connection failures, timeouts |
-| `AuthenticationError` | 401 | ❌ | Invalid or expired token |
-| `AuthorizationError` | 403 | ❌ | Insufficient permissions |
-| `NotFoundError` | 404 | ❌ | Resource doesn't exist |
-| `BadRequestError` | 400 | ❌ | Invalid request payload |
-| `RateLimitError` | 429 | ✅ | Rate limit exceeded |
-| `ServerError` | 500+ | ✅ | Server-side errors |
-| `ValidationError` | — | ❌ | API response schema mismatch |
+| `validation` | 400 | ❌ | The server rejected the request |
+| `unauthenticated` | 401 | ❌ | No session, or an invalid/expired token |
+| `forbidden` | 403 | ❌ | Authenticated, but not allowed |
+| `not_found` | 404 | ❌ | The resource does not exist |
+| `conflict` | 409 | ❌ | Uniqueness violation: a taken name or slug |
+| `gone` | 410 | ❌ | The resource was retired |
+| `payload_too_large` | 413 | ❌ | Envelope ingestion only |
+| `rate_limited` | 429 | ✅ | Rate limit exceeded; carries `retryAfter?: number` |
+| `client_error` | other &lt; 500 | ❌ | Any sub-500 status no other member claims |
+| `server_error` | 500+ | ✅ | Any 5xx; the server's own message is discarded |
+| `invalid_request` | n/a | ❌ | Your input failed a pre-flight check; never sent |
+| `network` | n/a | ✅ | DNS, connection refused, TLS, timeout, abort |
+| `invalid_response` | n/a | ❌ | A 2xx arrived with a body the schema rejects |
+
+The union is closed, so a `switch` on `kind` with a `default` covers every case that exists. `status` is a plain `number` rather than a literal union, so a proxy-generated 502 or a future status is a value you can log rather than a type error.
+
+### What the union will not carry
+
+| Dropped | Why |
+|---|---|
+| the server's 5xx message | It can interpolate a pool error, an OS errno, or a filesystem path. Replaced by the fixed `SERVER_ERROR_MESSAGE`. |
+| a `cause` on `network` | `fetch` builds that message by interpolating the request URL, which is your deployment's internal host and port. Read `reason` instead. |
+| Zod issues on `invalid_response` | They embed the offending response body. |
+
+### Field errors
+
+A `4xx` that blamed specific inputs carries `fields`, so a form can mark the input the server rejected instead of showing a toast the user has to translate back into an edit:
+
+```typescript
+const created = await client.projects.create({ name: 'My App' });
+
+if (!created.success && created.error.kind === 'conflict') {
+  for (const field of created.error.fields ?? []) {
+    console.log(field.field, field.code);
+    // e.g. 'slug' 'already_exists'
+  }
+}
+```
+
+`field` is a **dot path into the request body** (`slug`, `credentials.webhook_url`), which is exactly what a form library's `setError` takes. Pick the copy you show from `(field, code)` rather than from `message`; that is what makes it translatable. `message` is populated only for `code: 'custom'`, where the code set genuinely cannot express the reason.
+
+One rule when wiring this to a form: **only call `setError` for names your form actually registers.** A path naming an input the form does not have registers a phantom field that nothing can ever clear, and the form then refuses to submit with nothing on screen explaining why. Route the rest to a form-level error.
+
+### Escape hatches
+
+```typescript
+import { unwrap, unwrapOr, mapResult } from '@rustrak/client';
+```
+
+`unwrap` throws on a failure: the caller explicitly opting back into exceptions. `unwrapOr` substitutes a fallback.
+
+**Do not reach for `unwrapOr` to make a page compile.** `unwrapOr(await client.projects.list(), [])` renders the same empty state for "this account has no projects" and "the server is unreachable", which is exactly the regression this API exists to prevent. It is appropriate only where the fallback is genuinely correct regardless of why the call failed: a cached-count optimisation, a best-effort telemetry read, a script that already logged the error.
 
 ## Next.js Integration
+
+A `Result` is a plain object with no prototype chain, so it survives `structuredClone` and therefore React's server/client boundary. A thrown error class does not: it reaches the browser as an opaque digest, which is why returning the failure is the recommended shape.
 
 ### Server Component
 
 ```typescript
 import { RustrakClient } from '@rustrak/client';
+import { redirect } from 'next/navigation';
 
 export default async function ProjectsPage() {
   const client = new RustrakClient({
     baseUrl: process.env.RUSTRAK_API_URL!,
     token: process.env.RUSTRAK_API_TOKEN!,
   });
+
   const projects = await client.projects.list();
-  return <ProjectsList projects={projects} />;
+
+  if (!projects.success) {
+    // `kind` decides. Redirecting on 'network' or 'server_error' turns a flaky
+    // connection into a login loop that logging in cannot fix.
+    if (projects.error.kind === 'unauthenticated') redirect('/auth/login');
+    return <LoadFailed error={projects.error} />;
+  }
+
+  return <ProjectsList projects={projects.data.items} />;
 }
 ```
 
@@ -158,7 +287,30 @@ export async function resolveIssue(projectId: number, issueId: string) {
     baseUrl: process.env.RUSTRAK_API_URL!,
     token: process.env.RUSTRAK_API_TOKEN!,
   });
+
+  // Returned as-is: the calling component gets the actual failure rather than
+  // an "An error occurred in the Server Components render" digest.
   return client.issues.updateState(projectId, issueId, { is_resolved: true });
+}
+```
+
+### Client Component with SWR
+
+```typescript
+'use client';
+import useSWR from 'swr';
+
+export function IssuesList({ projectId }: { projectId: number }) {
+  // The fetcher never rejects, so SWR's `error` stays empty: the failure is in
+  // `data`. Unwrap it in the fetcher if you want SWR's retry behaviour.
+  const { data } = useSWR(['issues', projectId], () =>
+    client.issues.list(projectId),
+  );
+
+  if (!data) return <Spinner />;
+  if (!data.success) return <LoadFailed error={data.error} />;
+
+  return <List items={data.data.items} />;
 }
 ```
 
@@ -176,8 +328,16 @@ import type {
   PaginatedResponse,
   CreateProject,
   UpdateIssueState,
+  // the Result API
+  Result,
+  RustrakError,
+  RustrakErrorKind,
+  FieldError,
+  FieldErrorCode,
 } from '@rustrak/client';
 ```
+
+Value exports for the same API: `Ok`, `Err`, `unwrap`, `unwrapOr`, `mapResult`, `isRetryable`, `FIELD_ERROR_CODES`, `SERVER_ERROR_MESSAGE`, `NETWORK_ERROR_MESSAGE`, `TIMEOUT_ERROR_MESSAGE`.
 
 ## Related
 

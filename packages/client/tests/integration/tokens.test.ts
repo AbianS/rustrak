@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 
 describe('TokensResource Integration', () => {
   let client: RustrakClient;
@@ -14,7 +14,7 @@ describe('TokensResource Integration', () => {
 
   describe('list()', () => {
     it('should fetch all tokens (masked)', async () => {
-      const tokens = await client.tokens.list();
+      const tokens = expectOk(await client.tokens.list());
 
       expect(tokens).toHaveLength(1);
       expect(tokens[0]?.token_prefix).toBe('abc12345...');
@@ -22,7 +22,7 @@ describe('TokensResource Integration', () => {
     });
 
     it('should validate datetime format', async () => {
-      const tokens = await client.tokens.list();
+      const tokens = expectOk(await client.tokens.list());
       const token = tokens[0];
 
       expect(token).toBeDefined();
@@ -30,7 +30,7 @@ describe('TokensResource Integration', () => {
     });
 
     it('should handle null fields', async () => {
-      const tokens = await client.tokens.list();
+      const tokens = expectOk(await client.tokens.list());
       const token = tokens[0];
 
       expect(token).toBeDefined();
@@ -41,7 +41,7 @@ describe('TokensResource Integration', () => {
 
   describe('get()', () => {
     it('should fetch single token (full value)', async () => {
-      const token = await client.tokens.get(1);
+      const token = expectOk(await client.tokens.get(1));
 
       expect(token.id).toBe(1);
       expect(token.token).toBe('abc123456789def0123456789abcdef01234567');
@@ -49,16 +49,25 @@ describe('TokensResource Integration', () => {
       expect(token.created_at).toBeDefined();
     });
 
-    it('should throw NotFoundError for non-existent token', async () => {
-      await expect(client.tokens.get(999)).rejects.toThrow(NotFoundError);
+    it('should report not_found for a non-existent token', async () => {
+      const result = await client.tokens.get(999);
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe(
+        'Resource not found: Token with id 999 not found',
+      );
     });
   });
 
   describe('create()', () => {
     it('should create token with description', async () => {
-      const created = await client.tokens.create({
-        description: 'New Token',
-      });
+      const created = expectOk(
+        await client.tokens.create({
+          description: 'New Token',
+        }),
+      );
 
       expect(created.id).toBe(2);
       expect(created.token).toBe('abc123456789def');
@@ -67,7 +76,7 @@ describe('TokensResource Integration', () => {
     });
 
     it('should create token without description', async () => {
-      const created = await client.tokens.create({});
+      const created = expectOk(await client.tokens.create({}));
 
       expect(created.id).toBe(2);
       expect(created.token).toBe('abc123456789def');
@@ -75,9 +84,11 @@ describe('TokensResource Integration', () => {
     });
 
     it('should return full token only on creation', async () => {
-      const created = await client.tokens.create({
-        description: 'Test',
-      });
+      const created = expectOk(
+        await client.tokens.create({
+          description: 'Test',
+        }),
+      );
 
       // Full token is returned
       expect(created.token).toBeTruthy();
@@ -90,11 +101,17 @@ describe('TokensResource Integration', () => {
 
   describe('delete()', () => {
     it('should delete token successfully', async () => {
-      await expect(client.tokens.delete(1)).resolves.toBeUndefined();
+      const result = await client.tokens.delete(1);
+
+      expect(result.success).toBe(true);
+      expect(expectOk(result)).toBeUndefined();
     });
 
-    it('should throw NotFoundError for non-existent token', async () => {
-      await expect(client.tokens.delete(999)).rejects.toThrow(NotFoundError);
+    it('should report not_found for a non-existent token', async () => {
+      const result = await client.tokens.delete(999);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 });

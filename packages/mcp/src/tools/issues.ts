@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpDone, mcpJson } from '../errors.js';
 
 export function registerIssueTools(
   server: McpServer,
@@ -29,19 +29,13 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, page, per_page, filter, q }) => {
-      try {
-        const result = await client.issues.list(project_id, {
-          page,
-          per_page,
-          filter,
-          q,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.list(project_id, {
+        page,
+        per_page,
+        filter,
+        q,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -55,14 +49,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.get(project_id, issue_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.get(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -76,16 +64,10 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.updateState(project_id, issue_id, {
-          is_resolved: true,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.updateState(project_id, issue_id, {
+        is_resolved: true,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -99,16 +81,10 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.updateState(project_id, issue_id, {
-          is_resolved: false,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.updateState(project_id, issue_id, {
+        is_resolved: false,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -122,16 +98,10 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.updateState(project_id, issue_id, {
-          is_muted: true,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.updateState(project_id, issue_id, {
+        is_muted: true,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -146,16 +116,8 @@ export function registerIssueTools(
       annotations: { destructiveHint: true },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        await client.issues.delete(project_id, issue_id);
-        return {
-          content: [
-            { type: 'text', text: `Issue ${issue_id} deleted successfully.` },
-          ],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.delete(project_id, issue_id);
+      return mcpDone(result, `Issue ${issue_id} deleted successfully.`);
     },
   );
 
@@ -174,17 +136,11 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, status, priority }) => {
-      try {
-        const result = await client.issues.updateState(project_id, issue_id, {
-          status,
-          priority,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.updateState(project_id, issue_id, {
+        status,
+        priority,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -205,17 +161,11 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, assigned_to, assignee_type }) => {
-      try {
-        const result = await client.issues.updateState(project_id, issue_id, {
-          assigned_to,
-          assignee_type,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.updateState(project_id, issue_id, {
+        assigned_to,
+        assignee_type,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -233,18 +183,12 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, ids, status, priority }) => {
-      try {
-        const result = await client.issues.bulkUpdate(project_id, {
-          ids,
-          status,
-          priority,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.bulkUpdate(project_id, {
+        ids,
+        status,
+        priority,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -259,14 +203,8 @@ export function registerIssueTools(
       annotations: { destructiveHint: true },
     },
     async ({ project_id, ids }) => {
-      try {
-        const result = await client.issues.bulkDelete(project_id, { ids });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.bulkDelete(project_id, { ids });
+      return mcpJson(result);
     },
   );
 
@@ -280,14 +218,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.getHashes(project_id, issue_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.getHashes(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -303,18 +235,12 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, key }) => {
-      try {
-        const result = await client.issues.getTagValues(
-          project_id,
-          issue_id,
-          key,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.getTagValues(
+        project_id,
+        issue_id,
+        key,
+      );
+      return mcpJson(result);
     },
   );
 
@@ -329,14 +255,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.getAggregates(project_id, issue_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.getAggregates(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -351,18 +271,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, window }) => {
-      try {
-        const result = await client.issues.getStats(
-          project_id,
-          issue_id,
-          window,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.getStats(project_id, issue_id, window);
+      return mcpJson(result);
     },
   );
 
@@ -377,14 +287,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.getActivity(project_id, issue_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.getActivity(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -399,16 +303,10 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, text }) => {
-      try {
-        const result = await client.issues.addComment(project_id, issue_id, {
-          text,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.addComment(project_id, issue_id, {
+        text,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -423,18 +321,12 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, enabled }) => {
-      try {
-        const result = await client.issues.setBookmark(
-          project_id,
-          issue_id,
-          enabled,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.setBookmark(
+        project_id,
+        issue_id,
+        enabled,
+      );
+      return mcpJson(result);
     },
   );
 
@@ -451,18 +343,12 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, enabled }) => {
-      try {
-        const result = await client.issues.setSubscription(
-          project_id,
-          issue_id,
-          enabled,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.setSubscription(
+        project_id,
+        issue_id,
+        enabled,
+      );
+      return mcpJson(result);
     },
   );
 
@@ -476,14 +362,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.markSeen(project_id, issue_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.markSeen(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -497,17 +377,8 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id }) => {
-      try {
-        const result = await client.issues.listUserReports(
-          project_id,
-          issue_id,
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.listUserReports(project_id, issue_id);
+      return mcpJson(result);
     },
   );
 
@@ -525,18 +396,12 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, issue_id, name, email, comments, event_id }) => {
-      try {
-        const result = await client.issues.createUserReport(
-          project_id,
-          issue_id,
-          { name, email, comments, event_id },
-        );
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.issues.createUserReport(
+        project_id,
+        issue_id,
+        { name, email, comments, event_id },
+      );
+      return mcpJson(result);
     },
   );
 }

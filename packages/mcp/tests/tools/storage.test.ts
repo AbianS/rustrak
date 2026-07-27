@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, ok } from '../setup.js';
 
 describe('storage tools', () => {
   let mockClient: any;
@@ -59,7 +59,7 @@ describe('storage tools', () => {
 
   describe('get_storage_summary', () => {
     it('returns the instance-wide storage summary', async () => {
-      mockClient.storage.getSummary.mockResolvedValue(mockSummary);
+      mockClient.storage.getSummary.mockResolvedValue(ok(mockSummary));
 
       const result = await callTool({
         name: 'get_storage_summary',
@@ -75,7 +75,7 @@ describe('storage tools', () => {
 
   describe('get_storage_by_project', () => {
     it('returns the per-project breakdown', async () => {
-      mockClient.storage.getProjects.mockResolvedValue(mockProjects);
+      mockClient.storage.getProjects.mockResolvedValue(ok(mockProjects));
 
       const result = await callTool({
         name: 'get_storage_by_project',
@@ -91,7 +91,7 @@ describe('storage tools', () => {
 
   describe('preview_storage_cleanup', () => {
     it('forwards older_than_days and project scope, returns dry-run counts', async () => {
-      mockClient.storage.previewCleanup.mockResolvedValue(mockCounts);
+      mockClient.storage.previewCleanup.mockResolvedValue(ok(mockCounts));
 
       const result = await callTool({
         name: 'preview_storage_cleanup',
@@ -108,7 +108,7 @@ describe('storage tools', () => {
     });
 
     it('forwards the data-type selection flags', async () => {
-      mockClient.storage.previewCleanup.mockResolvedValue(mockCounts);
+      mockClient.storage.previewCleanup.mockResolvedValue(ok(mockCounts));
 
       await callTool({
         name: 'preview_storage_cleanup',
@@ -143,7 +143,7 @@ describe('storage tools', () => {
     });
 
     it('runs the destructive cleanup when confirm is true', async () => {
-      mockClient.storage.executeCleanup.mockResolvedValue(mockCounts);
+      mockClient.storage.executeCleanup.mockResolvedValue(ok(mockCounts));
 
       const result = await callTool({
         name: 'execute_storage_cleanup',
@@ -160,7 +160,7 @@ describe('storage tools', () => {
     });
 
     it('forwards the data-type selection flags when confirmed', async () => {
-      mockClient.storage.executeCleanup.mockResolvedValue(mockCounts);
+      mockClient.storage.executeCleanup.mockResolvedValue(ok(mockCounts));
 
       await callTool({
         name: 'execute_storage_cleanup',
@@ -186,10 +186,12 @@ describe('storage tools', () => {
 
   describe('preview_storage_source_maps_gc', () => {
     it('returns the orphaned files and bytes a GC would reclaim without deleting', async () => {
-      mockClient.storage.previewGcSourceMaps.mockResolvedValue({
-        files_removed: 4,
-        bytes_freed: 81920,
-      });
+      mockClient.storage.previewGcSourceMaps.mockResolvedValue(
+        ok({
+          files_removed: 4,
+          bytes_freed: 81920,
+        }),
+      );
 
       const result = await callTool({
         name: 'preview_storage_source_maps_gc',
@@ -216,10 +218,12 @@ describe('storage tools', () => {
     });
 
     it('returns the orphaned files removed and bytes freed when confirm is true', async () => {
-      mockClient.storage.gcSourceMaps.mockResolvedValue({
-        files_removed: 4,
-        bytes_freed: 81920,
-      });
+      mockClient.storage.gcSourceMaps.mockResolvedValue(
+        ok({
+          files_removed: 4,
+          bytes_freed: 81920,
+        }),
+      );
 
       const result = await callTool({
         name: 'gc_storage_source_maps',

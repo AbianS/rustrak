@@ -1,12 +1,8 @@
 import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import {
-  AuthenticationError,
-  BadRequestError,
-  NotFoundError,
-  ValidationError,
-} from '../../src/errors/index.js';
+import { SERVER_ERROR_MESSAGE } from '../../src/errors.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 describe('AuthResource Integration', () => {
@@ -19,70 +15,57 @@ describe('AuthResource Integration', () => {
     });
   });
 
+  // `POST /auth/register` is invite-only: `routes/auth.rs:106-115` returns
+  // `AppError::Forbidden("Registration is invite-only")` for every input,
+  // regardless of body. There is no success path and no server-side validation
+  // branch, so the only things worth testing are the client-side schema (which
+  // never reaches the network) and that single 403.
   describe('register()', () => {
-    it('should register new user successfully', async () => {
+    it('should always be rejected with 403 Forbidden', async () => {
       const result = await client.auth.register({
         email: 'newuser@example.com',
         password: 'password123',
       });
 
-      expect(result.user.id).toBe(3);
-      expect(result.user.email).toBe('newuser@example.com');
-      expect(result.user.is_admin).toBe(false);
-      expect(result.cookies).toBeDefined();
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('forbidden');
+      expect(error.message).toBe('Forbidden: Registration is invite-only');
+      expect(error).toHaveProperty('status', 403);
     });
 
-    it('should validate email format', async () => {
-      await expect(
-        client.auth.register({
-          email: 'not-an-email',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
-    });
-
-    it('should reject an empty password (required, no length policy)', async () => {
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: '',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
-    });
-
-    it('should reject duplicate email', async () => {
-      await expect(
-        client.auth.register({
-          email: 'existing@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(BadRequestError);
-    });
-
-    it('should create non-admin user by default', async () => {
+    it('should be rejected the same way for an already-registered email', async () => {
       const result = await client.auth.register({
-        email: 'regular@example.com',
+        email: 'existing@example.com',
         password: 'password123',
       });
 
-      expect(result.user.is_admin).toBe(false);
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('forbidden');
     });
 
-    it('should handle very long email addresses', async () => {
-      const longEmail = `${'a'.repeat(240)}@example.com`;
+    it('should validate email format client-side, before any request', async () => {
+      const result = await client.auth.register({
+        email: 'not-an-email',
+        password: 'password123',
+      });
 
-      // Should succeed if under 255 chars total
-      if (longEmail.length < 255) {
-        const result = await client.auth.register({
-          email: longEmail,
-          password: 'password123',
-        });
-
-        expect(result.user.email).toBe(longEmail);
-      }
+      expect(result.success).toBe(false);
+      // `invalid_request`: the caller's input, rejected before the network.
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
-    it('should validate email format strictly', async () => {
+    it('should reject an empty password client-side (required, no length policy)', async () => {
+      const result = await client.auth.register({
+        email: 'test@example.com',
+        password: '',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
+    });
+
+    it('should validate email format strictly, client-side', async () => {
       const invalidEmails = [
         'no-at-sign',
         '@no-local-part.com',
@@ -92,40 +75,25 @@ describe('AuthResource Integration', () => {
       ];
 
       for (const email of invalidEmails) {
-        await expect(
-          client.auth.register({
-            email,
-            password: 'password123',
-          }),
-        ).rejects.toThrow(ValidationError); // Client-side validation
+        const result = await client.auth.register({
+          email,
+          password: 'password123',
+        });
+
+        expect(result.success, `${email} should not validate`).toBe(false);
+        expect(expectErr(result).kind).toBe('invalid_request');
       }
-    });
-
-    it('should accept short (non-empty) passwords (no length policy)', async () => {
-      const result = await client.auth.register({
-        email: 'test8@example.com',
-        password: '1234567', // 7 chars — allowed
-      });
-
-      expect(result.user.email).toBe('test8@example.com');
-    });
-
-    it('should handle special characters in email', async () => {
-      const result = await client.auth.register({
-        email: 'user+tag@example.com',
-        password: 'password123',
-      });
-
-      expect(result.user.email).toBe('user+tag@example.com');
     });
   });
 
   describe('login()', () => {
     it('should login with valid credentials', async () => {
-      const result = await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      const result = expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
 
       expect(result.user.id).toBe(1);
       expect(result.user.email).toBe('test@example.com');
@@ -134,10 +102,12 @@ describe('AuthResource Integration', () => {
     });
 
     it('should login admin user', async () => {
-      const result = await client.auth.login({
-        email: 'admin@example.com',
-        password: 'adminpass123',
-      });
+      const result = expectOk(
+        await client.auth.login({
+          email: 'admin@example.com',
+          password: 'adminpass123',
+        }),
+      );
 
       expect(result.user.id).toBe(2);
       expect(result.user.email).toBe('admin@example.com');
@@ -145,76 +115,86 @@ describe('AuthResource Integration', () => {
     });
 
     it('should reject invalid credentials', async () => {
-      await expect(
-        client.auth.login({
-          email: 'test@example.com',
-          password: 'wrongpassword',
-        }),
-      ).rejects.toThrow(AuthenticationError);
+      const result = await client.auth.login({
+        email: 'test@example.com',
+        password: 'wrongpassword',
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('unauthenticated');
+      expect(error.message).toBe('Unauthorized: Invalid credentials');
     });
 
     it('should reject non-existent user', async () => {
-      await expect(
-        client.auth.login({
-          email: 'nonexistent@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(AuthenticationError);
+      const result = await client.auth.login({
+        email: 'nonexistent@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('unauthenticated');
     });
 
     it('should reject inactive user account', async () => {
-      await expect(
-        client.auth.login({
-          email: 'inactive@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(AuthenticationError);
+      const result = await client.auth.login({
+        email: 'inactive@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('unauthenticated');
+      expect(error.message).toBe('Unauthorized: Account is disabled');
     });
 
     it('should be case-sensitive for email', async () => {
       // Assuming email is case-sensitive
-      await expect(
-        client.auth.login({
-          email: 'TEST@EXAMPLE.COM',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(AuthenticationError);
+      const result = await client.auth.login({
+        email: 'TEST@EXAMPLE.COM',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('unauthenticated');
     });
 
     it('should validate input before sending request', async () => {
       // Invalid email should fail validation
-      await expect(
-        client.auth.login({
-          email: 'not-an-email',
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.login({
+        email: 'not-an-email',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should handle empty password', async () => {
-      await expect(
-        client.auth.login({
-          email: 'test@example.com',
-          password: '',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.login({
+        email: 'test@example.com',
+        password: '',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
   });
 
   describe('logout()', () => {
     it('should logout successfully', async () => {
-      const cookies = await client.auth.logout();
+      const cookies = expectOk(await client.auth.logout());
       expect(Array.isArray(cookies)).toBe(true);
     });
 
     it('should return cookies array on successful logout', async () => {
-      const cookies = await client.auth.logout();
+      const cookies = expectOk(await client.auth.logout());
       expect(Array.isArray(cookies)).toBe(true);
     });
 
     it('should work even without active session', async () => {
       // Logout should succeed even if not logged in
-      const cookies = await client.auth.logout();
+      const cookies = expectOk(await client.auth.logout());
       expect(Array.isArray(cookies)).toBe(true);
     });
   });
@@ -222,13 +202,15 @@ describe('AuthResource Integration', () => {
   describe('getCurrentUser()', () => {
     it('should get current authenticated user', async () => {
       // First login to set session
-      await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
 
       // Then get current user
-      const user = await client.auth.getCurrentUser();
+      const user = expectOk(await client.auth.getCurrentUser());
 
       expect(user.id).toBe(1);
       expect(user.email).toBe('test@example.com');
@@ -242,25 +224,31 @@ describe('AuthResource Integration', () => {
     // 1. E2E tests with a real browser (Playwright/Cypress)
     // 2. Integration tests against a real server
     // The auth flow itself is verified via the login/register tests.
-    it.skip('should reject unauthenticated request', async () => {
+    it.skip('should report unauthenticated for a request with no session', async () => {
       // Create new client without session cookie
       const unauthClient = new RustrakClient({
         baseUrl: 'http://localhost:8080',
       });
 
-      await expect(unauthClient.auth.getCurrentUser()).rejects.toThrow(
-        AuthenticationError,
-      );
+      const result = await unauthClient.auth.getCurrentUser();
+
+      // No session is a failed Result with `unauthenticated`, deliberately not
+      // a successful Result carrying `null`. Consumers redirect to login on
+      // this kind and on this kind only.
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('unauthenticated');
     });
 
     it('should validate response schema', async () => {
       // Login first
-      await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
 
-      const user = await client.auth.getCurrentUser();
+      const user = expectOk(await client.auth.getCurrentUser());
 
       // Validate structure
       expect(user).toHaveProperty('id');
@@ -274,7 +262,9 @@ describe('AuthResource Integration', () => {
 
   describe('getInvitation()', () => {
     it('should fetch invitation details by token', async () => {
-      const info = await client.auth.getInvitation('invite-token-abc123');
+      const info = expectOk(
+        await client.auth.getInvitation('invite-token-abc123'),
+      );
 
       expect(info.email).toBe('invitee@example.com');
       expect(info.role).toBe('member');
@@ -283,14 +273,24 @@ describe('AuthResource Integration', () => {
     });
 
     it('should reject an unknown token (404)', async () => {
-      await expect(client.auth.getInvitation('does-not-exist')).rejects.toThrow(
-        NotFoundError,
-      );
+      const result = await client.auth.getInvitation('does-not-exist');
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe('Resource not found: Invitation not found');
     });
 
     it('should reject an expired/used invitation (400)', async () => {
-      await expect(client.auth.getInvitation('expired-token')).rejects.toThrow(
-        BadRequestError,
+      const result = await client.auth.getInvitation('expired-token');
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      // The server's 400 is `AppError::Validation`, which is `validation` here,
+      // not `invalid_request`: it came back from the network.
+      expect(error.kind).toBe('validation');
+      expect(error.message).toBe(
+        'Validation error: Invitation is expired or already used',
       );
     });
 
@@ -301,18 +301,21 @@ describe('AuthResource Integration', () => {
         }),
       );
 
-      await expect(
-        client.auth.getInvitation('invite-token-abc123'),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.auth.getInvitation('invite-token-abc123');
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
   });
 
   describe('acceptInvitation()', () => {
     it('should accept an invitation and return user + cookies', async () => {
-      const result = await client.auth.acceptInvitation({
-        token: 'invite-token-abc123',
-        password: 'password123',
-      });
+      const result = expectOk(
+        await client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: 'password123',
+        }),
+      );
 
       expect(result.user.email).toBe('invitee@example.com');
       expect(result.user.role).toBe('member');
@@ -321,27 +324,35 @@ describe('AuthResource Integration', () => {
     });
 
     it('should reject an empty password client-side (required)', async () => {
-      await expect(
-        client.auth.acceptInvitation({
-          token: 'invite-token-abc123',
-          password: '',
-        }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.auth.acceptInvitation({
+        token: 'invite-token-abc123',
+        password: '',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should validate token is non-empty client-side', async () => {
-      await expect(
-        client.auth.acceptInvitation({ token: '', password: 'password123' }),
-      ).rejects.toThrow(ValidationError);
+      const result = await client.auth.acceptInvitation({
+        token: '',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should reject an invalid invitation (400)', async () => {
-      await expect(
-        client.auth.acceptInvitation({
-          token: 'invalid-token',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(BadRequestError);
+      const result = await client.auth.acceptInvitation({
+        token: 'invalid-token',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('validation');
+      expect(error.message).toBe('Validation error: Invalid invitation token');
     });
   });
 
@@ -353,12 +364,13 @@ describe('AuthResource Integration', () => {
         }),
       );
 
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
 
     it('should handle malformed response from login', async () => {
@@ -368,12 +380,33 @@ describe('AuthResource Integration', () => {
         }),
       );
 
-      await expect(
-        client.auth.login({
-          email: 'test@example.com',
-          password: 'password123',
+      const result = await client.auth.login({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_response');
+    });
+
+    // The other failure `readLoginResult` has to report: a 2xx whose body is
+    // not JSON at all, rather than JSON of the wrong shape. It reaches the
+    // `readJson` arm, which the two tests above do not.
+    it('should report invalid_response when the login body is not JSON', async () => {
+      server.use(
+        http.post('http://localhost:8080/auth/login', () => {
+          return new HttpResponse('<html>login page</html>', {
+            headers: { 'Content-Type': 'application/json' },
+          });
         }),
-      ).rejects.toThrow();
+      );
+
+      const result = await client.auth.login({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      expect(expectErr(result).kind).toBe('invalid_response');
     });
 
     it('should handle network errors gracefully', async () => {
@@ -383,50 +416,64 @@ describe('AuthResource Integration', () => {
         }),
       );
 
-      await expect(
-        client.auth.login({
-          email: 'test@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.login({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('network');
+      // No `cause`: it embeds the resolved host and port.
+      expect(error).not.toHaveProperty('cause');
     });
 
     it('should handle server errors (500)', async () => {
       server.use(
         http.post('http://localhost:8080/auth/register', () => {
           return HttpResponse.json(
-            { error: 'Internal server error' },
+            { error: 'connection string leaked here' },
             { status: 500 },
           );
         }),
       );
 
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        email: 'test@example.com',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('server_error');
+      // Redacted at construction: nothing from the server body survives.
+      expect(error.message).toBe(SERVER_ERROR_MESSAGE);
+      expect(error.message).not.toContain('connection string');
     });
   });
 
   describe('Session Cookie Handling', () => {
-    it('should return cookies from register', async () => {
-      const result = await client.auth.register({
-        email: 'cookie@example.com',
-        password: 'password123',
-      });
+    // `acceptInvitation`, not `register`, is the endpoint that creates an
+    // account and sets a session cookie (`routes/auth.rs:297-307`).
+    it('should return cookies from acceptInvitation', async () => {
+      const result = expectOk(
+        await client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: 'password123',
+        }),
+      );
 
-      // Register should return cookies
       expect(result.cookies).toBeDefined();
       expect(Array.isArray(result.cookies)).toBe(true);
     });
 
     it('should return cookies from login', async () => {
-      const result = await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      const result = expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
 
       // Login should return cookies
       expect(result.cookies).toBeDefined();
@@ -449,27 +496,31 @@ describe('AuthResource Integration', () => {
 
       const results = await Promise.all(promises);
       expect(results).toHaveLength(2);
-      expect(results[0]?.user.email).toBe('test@example.com');
-      expect(results[1]?.user.email).toBe('admin@example.com');
+      expect(expectOk(results[0]!).user.email).toBe('test@example.com');
+      expect(expectOk(results[1]!).user.email).toBe('admin@example.com');
     });
 
-    it('should handle rapid register/logout/login sequence', async () => {
-      // Register
-      const registered = await client.auth.register({
-        email: 'rapid@example.com',
-        password: 'password123',
-      });
-      expect(registered.user.email).toBe('rapid@example.com');
+    it('should handle rapid accept-invitation/logout/login sequence', async () => {
+      // Accept an invitation (the only account-creating endpoint)
+      const registered = expectOk(
+        await client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: 'password123',
+        }),
+      );
+      expect(registered.user.email).toBe('invitee@example.com');
 
       // Logout
-      await client.auth.logout();
+      expectOk(await client.auth.logout());
 
       // Login again with same credentials would work in real scenario
       // (mocked here as different email since we don't persist state)
-      const loggedIn = await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      const loggedIn = expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
       expect(loggedIn.user.email).toBe('test@example.com');
     });
 
@@ -477,44 +528,50 @@ describe('AuthResource Integration', () => {
       // Zod's email() validator doesn't accept unicode characters by default
       // This is a known limitation - unicode in local part is technically valid
       // but not widely supported. Test that it's rejected.
-      await expect(
-        client.auth.register({
-          email: 'tëst@example.com',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(ValidationError);
-    });
-
-    it('should reject extremely long passwords gracefully', async () => {
-      const veryLongPassword = 'a'.repeat(10000);
-
-      // Should not crash, server should handle it
       const result = await client.auth.register({
-        email: 'longpass@example.com',
-        password: veryLongPassword,
+        email: 'tëst@example.com',
+        password: 'password123',
       });
 
-      expect(result.user.email).toBe('longpass@example.com');
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
+    });
+
+    it('should handle extremely long passwords gracefully', async () => {
+      const veryLongPassword = 'a'.repeat(10000);
+
+      // Should not crash: there is no length policy server-side.
+      const result = expectOk(
+        await client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: veryLongPassword,
+        }),
+      );
+
+      expect(result.user.email).toBe('invitee@example.com');
     });
 
     it('should handle whitespace in credentials', async () => {
       // Email with leading/trailing whitespace is invalid email format
       // Client-side validation should catch this
-      await expect(
-        client.auth.login({
-          email: ' test@example.com ',
-          password: 'password123',
-        }),
-      ).rejects.toThrow(ValidationError); // Client-side validation
+      const result = await client.auth.login({
+        email: ' test@example.com ',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
   });
 
   describe('TypeScript Type Safety', () => {
-    it('should return properly typed LoginResult from register', async () => {
-      const result = await client.auth.register({
-        email: 'typed@example.com',
-        password: 'password123',
-      });
+    it('should return properly typed LoginResult from acceptInvitation', async () => {
+      const result = expectOk(
+        await client.auth.acceptInvitation({
+          token: 'invite-token-abc123',
+          password: 'password123',
+        }),
+      );
 
       // TypeScript should infer these properties
       const _id: number = result.user.id;
@@ -526,10 +583,12 @@ describe('AuthResource Integration', () => {
     });
 
     it('should return properly typed LoginResult from login', async () => {
-      const result = await client.auth.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
+      const result = expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
 
       // TypeScript should infer these properties
       const _id: number = result.user.id;
@@ -557,41 +616,45 @@ describe('AuthResource Integration', () => {
 
   describe('Input Validation (Zod)', () => {
     it('should validate email is string', async () => {
-      await expect(
-        client.auth.register({
-          // @ts-expect-error - testing runtime validation
-          email: 123,
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        // @ts-expect-error - testing runtime validation
+        email: 123,
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should validate password is string', async () => {
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          // @ts-expect-error - testing runtime validation
-          password: 12345678,
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        email: 'test@example.com',
+        // @ts-expect-error - testing runtime validation
+        password: 12345678,
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should validate email format at runtime', async () => {
-      await expect(
-        client.auth.register({
-          email: 'not-an-email',
-          password: 'password123',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        email: 'not-an-email',
+        password: 'password123',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
 
     it('should reject an empty password at runtime (required)', async () => {
-      await expect(
-        client.auth.register({
-          email: 'test@example.com',
-          password: '',
-        }),
-      ).rejects.toThrow();
+      const result = await client.auth.register({
+        email: 'test@example.com',
+        password: '',
+      });
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('invalid_request');
     });
   });
 });

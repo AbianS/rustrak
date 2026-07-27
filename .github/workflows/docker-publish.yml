@@ -7,14 +7,17 @@ on:
 permissions:
   contents: read
   packages: write
-  pages: write
+  # id-token: write is required for npm provenance attestation. The Pages
+  # permissions that used to live here moved to deploy-docs.yml along with the
+  # job that needed them.
   id-token: write
-  # id-token: write is also required for npm provenance attestation
 
 jobs:
-  # All packages are a `fixed` group in .changeset/config.json: one version, one
-  # tag, one release, everything ships together. So there is nothing to detect,
-  # we only need the version off the tag.
+  # The published artifacts (server, ui, client, mcp) are a `fixed` group in
+  # .changeset/config.json: one version, one tag, one release, everything ships
+  # together. So there is nothing to detect, we only need the version off the
+  # tag. `docs` is outside the group, versioned on its own and deployed by
+  # deploy-docs.yml, which listens for the same `release: published` event.
   version:
     runs-on: ubuntu-latest
     outputs:
@@ -285,40 +288,6 @@ jobs:
         run: |
           VERSION="${{ needs.version.outputs.version }}"
           docker buildx imagetools inspect rustrak/rustrak-ui:v${VERSION}
-
-  # ── Docs ──────────────────────────────────────────────────────────────────────
-
-  deploy-docs:
-    needs: version
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "latest"
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Copy OpenAPI spec into docs
-        run: cp apps/server/openapi.json apps/docs/public/openapi.json
-
-      - name: Build docs
-        run: pnpm build:docs
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
-        with:
-          path: apps/docs/out
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   # ── npm publish ───────────────────────────────────────────────────────────────
 

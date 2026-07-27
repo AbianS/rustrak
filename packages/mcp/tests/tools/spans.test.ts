@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('span tools', () => {
   let mockClient: any;
@@ -50,7 +51,7 @@ describe('span tools', () => {
 
   describe('list_spans', () => {
     it('returns a span page for a project', async () => {
-      mockClient.spans.list.mockResolvedValue(mockSpanPage);
+      mockClient.spans.list.mockResolvedValue(ok(mockSpanPage));
 
       const result = await callTool({
         name: 'list_spans',
@@ -65,7 +66,7 @@ describe('span tools', () => {
     });
 
     it('forwards pagination and filters', async () => {
-      mockClient.spans.list.mockResolvedValue(mockSpanPage);
+      mockClient.spans.list.mockResolvedValue(ok(mockSpanPage));
 
       await callTool({
         name: 'list_spans',
@@ -94,7 +95,13 @@ describe('span tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.spans.list.mockRejectedValue(new Error('API error'));
+      mockClient.spans.list.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'list_spans',
@@ -102,7 +109,7 @@ describe('span tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 });

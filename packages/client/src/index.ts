@@ -11,18 +11,27 @@ export { RustrakClient } from './client.js';
 
 // Configuration
 export type { ClientConfig } from './config.js';
-// Errors
+// Errors: one closed union, keyed on `kind`, replacing the nine classes.
 export {
-  AuthenticationError,
-  AuthorizationError,
-  BadRequestError,
-  NetworkError,
-  NotFoundError,
-  RateLimitError,
-  RustrakError,
-  ServerError,
-  ValidationError,
-} from './errors/index.js';
+  FIELD_ERROR_CODES,
+  type FieldError,
+  type FieldErrorCode,
+  isRetryable,
+  NETWORK_ERROR_MESSAGE,
+  type RustrakError,
+  type RustrakErrorKind,
+  SERVER_ERROR_MESSAGE,
+  TIMEOUT_ERROR_MESSAGE,
+} from './errors.js';
+// Result: every resource method returns one of these.
+export {
+  Err,
+  mapResult,
+  Ok,
+  type Result,
+  unwrap,
+  unwrapOr,
+} from './result.js';
 // Types
 export type {
   AcceptInvitation,
@@ -47,8 +56,6 @@ export type {
   AuthTokenCreated,
   BulkDeleteIssues,
   BulkUpdateIssues,
-  /** @deprecated Use ProviderType */
-  ChannelType,
   ChunkUploadCapability,
   CleanupCounts,
   CleanupOptions,
@@ -57,8 +64,6 @@ export type {
   CreateAuthToken,
   CreateComment,
   CreateInvitation,
-  /** @deprecated Use CreateAlertIntegration */
-  CreateNotificationChannel,
   CreateProject,
   CreateUserReport,
   Event,
@@ -91,8 +96,6 @@ export type {
   LoginRequest,
   LoginResult,
   MetricDelta,
-  /** @deprecated Use AlertIntegration */
-  NotificationChannel,
   OffsetPaginatedResponse,
   PaginatedResponse,
   Project,
@@ -127,8 +130,6 @@ export type {
   UpdateAlertIntegration,
   UpdateAlertRule,
   UpdateIssueState,
-  /** @deprecated Use UpdateAlertIntegration */
-  UpdateNotificationChannel,
   UpdateProject,
   UpdateUserRole,
   UpsertProjectMember,

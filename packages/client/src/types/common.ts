@@ -42,7 +42,18 @@ export type IssueSort = z.infer<typeof issueSortSchema>;
 export type IssueFilter = z.infer<typeof issueFilterSchema>;
 
 /**
- * API error response structure
+ * The flat `{error, message?}` error body, as it appears **on the wire**.
+ *
+ * This is not the client's error type and no resource method returns it. A
+ * failed call reports a `RustrakError` inside a `Result`; the two have no
+ * relationship, and `RustrakError` is built by reading a body like this one,
+ * not by exposing it.
+ *
+ * It is kept for code that reads a Rustrak error response outside this client
+ * (a raw `fetch`, a proxy, a log line). Note what it models: the flat body the
+ * ingest rate limiter sends (`routes/ingest.rs`). Every `AppError` from the
+ * management API uses the nested `{error: {type, message}}` shape instead,
+ * which this type does not describe.
  */
 export type ApiError = z.infer<typeof apiErrorSchema>;
 

@@ -171,6 +171,19 @@ impl FromRequest for SentryAuth {
     }
 }
 
+/// Whether a failed Bearer attempt should fall through to session auth.
+///
+/// Reads [`AppError::kind`] rather than matching the error itself. A browser
+/// carrying a stale `Authorization` header alongside a valid session cookie is
+/// the ordinary case this exists for, and the day any Bearer path annotates
+/// its `Unauthorized` with a field (a login form error is the obvious next
+/// one), a bare `matches!(err, AppError::Unauthorized(_))` would stop matching
+/// and turn that request into a 401 that looks exactly like a session bug.
+/// Only a genuine `Internal`/`Database` failure propagates.
+fn falls_through_to_session(error: &AppError) -> bool {
+    matches!(error.kind(), AppError::Unauthorized(_))
+}
+
 /// Composite extractor for management API endpoints.
 ///
 /// Accepts either a Bearer token (`Authorization: Bearer <token>`) or a valid
@@ -188,8 +201,9 @@ impl FromRequest for ApiAuth {
         Box::pin(async move {
             match bearer_future.await {
                 Ok(_) => return Ok(ApiAuth),
-                Err(AppError::Unauthorized(_)) => {} // auth rejected — fall through to session
-                Err(e) => return Err(e),             // Internal/Database — propagate
+                // auth rejected (annotated or not), fall through to session
+                Err(ref e) if falls_through_to_session(e) => {}
+                Err(e) => return Err(e), // Internal/Database, propagate
             }
             session_future.await.map(|_| ApiAuth).map_err(|e| {
                 if e.as_response_error().status_code().is_server_error() {
@@ -271,7 +285,8 @@ impl FromRequest for ApiActor {
                         None => Ok(ApiActor { user: None }),
                     };
                 }
-                Err(AppError::Unauthorized(_)) => {} // fall through to session
+                // fall through to session, annotated or not
+                Err(ref e) if falls_through_to_session(e) => {}
                 Err(e) => return Err(e),
             }
 
@@ -287,5 +302,56 @@ impl FromRequest for ApiActor {
                 user: Some(authed.0),
             })
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::FieldErrorCode;
+
+    /// The invariant the Bearer→session fallthrough rests on. No annotated
+    /// site produces `Unauthorized` today, so this is the only thing standing
+    /// between "someone annotates a login field error" and "a browser with a
+    /// stale Authorization header plus a valid session cookie gets a 401".
+    #[test]
+    fn an_annotated_unauthorized_still_falls_through_to_session() {
+        let annotated = AppError::Unauthorized("Invalid Bearer token".to_string())
+            .with_field("token", FieldErrorCode::Invalid);
+
+        assert!(
+            falls_through_to_session(&annotated),
+            "an annotated Unauthorized must fall through to session auth"
+        );
+
+        // The shape the old code matched on, spelled out so the regression is
+        // named rather than implied: this is exactly what stops matching.
+        assert!(
+            !matches!(annotated, AppError::Unauthorized(_)),
+            "an annotated Unauthorized is AppError::WithFields, not \
+             AppError::Unauthorized, which is why kind() is required here"
+        );
+    }
+
+    #[test]
+    fn a_plain_unauthorized_falls_through_to_session() {
+        assert!(falls_through_to_session(&AppError::Unauthorized(
+            "Missing Authorization header".to_string()
+        )));
+    }
+
+    #[test]
+    fn an_infrastructure_failure_never_falls_through() {
+        for error in [
+            AppError::Internal("pool exhausted".to_string()),
+            AppError::Internal("pool exhausted".to_string())
+                .with_field("x", FieldErrorCode::Custom),
+            AppError::Validation("Missing or invalid project_id in URL".to_string()),
+        ] {
+            assert!(
+                !falls_through_to_session(&error),
+                "{error} must propagate rather than silently degrade to session auth"
+            );
+        }
     }
 }

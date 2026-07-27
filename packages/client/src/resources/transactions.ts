@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   offsetPaginatedResponseSchema,
   spanSchema,
@@ -26,7 +28,7 @@ export class TransactionsResource extends BaseResource {
   async list(
     projectId: number,
     options?: ListTransactionsOptions,
-  ): Promise<OffsetPaginatedResponse<Transaction>> {
+  ): Promise<Result<OffsetPaginatedResponse<Transaction>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.page) {
@@ -51,14 +53,11 @@ export class TransactionsResource extends BaseResource {
       searchParams.release = options.release;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/transactions`, {
-        searchParams,
-      })
-      .json();
-
-    return this.validate(
-      data,
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/transactions`, {
+          searchParams,
+        }),
       offsetPaginatedResponseSchema(transactionSchema),
     );
   }
@@ -66,12 +65,17 @@ export class TransactionsResource extends BaseResource {
   /**
    * Get the indexed spans extracted from a transaction, in waterfall order.
    */
-  async getSpans(projectId: number, transactionId: string): Promise<Span[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/transactions/${transactionId}/spans`)
-      .json();
-
-    return this.validate(data, z.array(spanSchema));
+  async getSpans(
+    projectId: number,
+    transactionId: string,
+  ): Promise<Result<Span[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/transactions/${transactionId}/spans`,
+        ),
+      z.array(spanSchema),
+    );
   }
 
   /**
@@ -82,7 +86,7 @@ export class TransactionsResource extends BaseResource {
   async getStats(
     projectId: number,
     options?: { page?: number; per_page?: number },
-  ): Promise<OffsetPaginatedResponse<TransactionStats>> {
+  ): Promise<Result<OffsetPaginatedResponse<TransactionStats>, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (options?.page) {
       searchParams.page = String(options.page);
@@ -91,38 +95,37 @@ export class TransactionsResource extends BaseResource {
       searchParams.per_page = String(options.per_page);
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/transactions/stats`, { searchParams })
-      .json();
-
-    return this.validate(
-      data,
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/transactions/stats`, {
+          searchParams,
+        }),
       offsetPaginatedResponseSchema(transactionStatsSchema),
     );
   }
 
   /**
    * Get aggregate stats for a single (transaction name, op) group — a direct
-   * lookup that works regardless of how many groups the project has. Throws
-   * NotFoundError when the group has no transactions.
+   * lookup that works regardless of how many groups the project has. Reports
+   * `not_found` when the group has no transactions.
    */
   async getStatForGroup(
     projectId: number,
     name: string,
     op?: string,
-  ): Promise<TransactionStats> {
+  ): Promise<Result<TransactionStats, RustrakError>> {
     const searchParams: Record<string, string> = { name };
     if (op) {
       searchParams.op = op;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/transactions/stats/group`, {
-        searchParams,
-      })
-      .json();
-
-    return this.validate(data, transactionStatsSchema);
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/transactions/stats/group`, {
+          searchParams,
+        }),
+      transactionStatsSchema,
+    );
   }
 
   /**
@@ -132,11 +135,13 @@ export class TransactionsResource extends BaseResource {
   async get(
     projectId: number,
     transactionId: string,
-  ): Promise<TransactionDetail> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/transactions/${transactionId}`)
-      .json();
-
-    return this.validate(data, transactionDetailSchema);
+  ): Promise<Result<TransactionDetail, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(
+          `api/projects/${projectId}/transactions/${transactionId}`,
+        ),
+      transactionDetailSchema,
+    );
   }
 }

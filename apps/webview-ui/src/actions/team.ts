@@ -1,19 +1,19 @@
 'use server';
 
-import type { GlobalRole, TeamMember } from '@rustrak/client';
-import { RustrakError } from '@rustrak/client';
+import type {
+  GlobalRole,
+  Result,
+  RustrakError,
+  TeamMember,
+} from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
-
-export type UpdateRoleResult =
-  | { success: true }
-  | { success: false; error: string };
 
 /**
  * List all team members (instance users).
  *
  * @returns List of team members with their global role and status
  */
-export async function listTeam(): Promise<TeamMember[]> {
+export async function listTeam(): Promise<Result<TeamMember[], RustrakError>> {
   const client = await createClient();
   return client.team.list();
 }
@@ -24,24 +24,20 @@ export async function listTeam(): Promise<TeamMember[]> {
  * The backend guards against removing the last admin and against
  * unauthorized callers (only instance admins may change roles).
  *
+ * The `RustrakError` is returned rather than flattened to a string, because the
+ * server names `role` on the rejections it can attribute and the caller needs
+ * `fields` to put the message on the control the user just changed.
+ *
  * @param userId - The user ID to update
  * @param role - The new global role
- * @returns Result object describing success or a friendly error
+ * @returns `Ok` on success, or the failure the server reported
  */
 export async function updateUserRole(
   userId: number,
   role: GlobalRole,
-): Promise<UpdateRoleResult> {
-  try {
-    const client = await createClient();
-    await client.team.updateRole(userId, role);
-    return { success: true };
-  } catch (err) {
-    if (err instanceof RustrakError) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Failed to update role' };
-  }
+): Promise<Result<void, RustrakError>> {
+  const client = await createClient();
+  return client.team.updateRole(userId, role);
 }
 
 /**
@@ -51,19 +47,11 @@ export async function updateUserRole(
  * last remaining admin.
  *
  * @param userId - The user ID to remove
- * @returns Result object describing success or a friendly error
+ * @returns `Ok` on success, or the failure the server reported
  */
 export async function removeTeamMember(
   userId: number,
-): Promise<UpdateRoleResult> {
-  try {
-    const client = await createClient();
-    await client.team.remove(userId);
-    return { success: true };
-  } catch (err) {
-    if (err instanceof RustrakError) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Failed to remove member' };
-  }
+): Promise<Result<void, RustrakError>> {
+  const client = await createClient();
+  return client.team.remove(userId);
 }

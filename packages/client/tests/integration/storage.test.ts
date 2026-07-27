@@ -1,6 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 import { server } from '../setup.js';
 
 const client = new RustrakClient({
@@ -11,7 +12,7 @@ const client = new RustrakClient({
 describe('StorageResource', () => {
   describe('getSummary()', () => {
     it('returns the instance-wide storage summary', async () => {
-      const summary = await client.storage.getSummary();
+      const summary = expectOk(await client.storage.getSummary());
 
       expect(summary.total_db_size_bytes).toBe(1048576);
       expect(summary.events_count).toBe(120);
@@ -25,7 +26,7 @@ describe('StorageResource', () => {
 
   describe('getProjects()', () => {
     it('returns the per-project storage breakdown', async () => {
-      const rows = await client.storage.getProjects();
+      const rows = expectOk(await client.storage.getProjects());
 
       expect(rows).toHaveLength(2);
       expect(rows[0].project_name).toBe('Test Project');
@@ -38,9 +39,11 @@ describe('StorageResource', () => {
 
   describe('previewCleanup()', () => {
     it('returns the dry-run counts without deleting', async () => {
-      const counts = await client.storage.previewCleanup({
-        older_than_days: 30,
-      });
+      const counts = expectOk(
+        await client.storage.previewCleanup({
+          older_than_days: 30,
+        }),
+      );
 
       expect(counts.events).toBe(20);
       expect(counts.transactions).toBe(10);
@@ -50,28 +53,37 @@ describe('StorageResource', () => {
     });
 
     it('accepts a project scope', async () => {
-      const counts = await client.storage.previewCleanup({
-        older_than_days: 30,
-        project_id: 1,
-      });
+      const counts = expectOk(
+        await client.storage.previewCleanup({
+          older_than_days: 30,
+          project_id: 1,
+        }),
+      );
       expect(counts).toBeDefined();
     });
 
     it('rejects a non-positive retention window before sending a request', async () => {
-      await expect(
-        client.storage.previewCleanup({ older_than_days: 0 }),
-      ).rejects.toThrow();
-      await expect(
-        client.storage.executeCleanup({ older_than_days: -1 }),
-      ).rejects.toThrow();
+      const preview = await client.storage.previewCleanup({
+        older_than_days: 0,
+      });
+      expect(preview.success).toBe(false);
+      expect(expectErr(preview).kind).toBe('invalid_request');
+
+      const executed = await client.storage.executeCleanup({
+        older_than_days: -1,
+      });
+      expect(executed.success).toBe(false);
+      expect(expectErr(executed).kind).toBe('invalid_request');
     });
   });
 
   describe('executeCleanup()', () => {
     it('returns the counts of removed rows', async () => {
-      const counts = await client.storage.executeCleanup({
-        older_than_days: 30,
-      });
+      const counts = expectOk(
+        await client.storage.executeCleanup({
+          older_than_days: 30,
+        }),
+      );
 
       expect(counts.events).toBe(20);
       expect(counts.issues_removed).toBe(3);
@@ -95,12 +107,14 @@ describe('StorageResource', () => {
         ),
       );
 
-      await client.storage.executeCleanup({
-        older_than_days: 30,
-        include_events: false,
-        include_transactions: false,
-        include_logs: true,
-      });
+      expectOk(
+        await client.storage.executeCleanup({
+          older_than_days: 30,
+          include_events: false,
+          include_transactions: false,
+          include_logs: true,
+        }),
+      );
 
       expect(sentBody).toMatchObject({
         older_than_days: 30,
@@ -113,7 +127,7 @@ describe('StorageResource', () => {
 
   describe('previewGcSourceMaps()', () => {
     it('returns the orphaned files a GC would remove', async () => {
-      const result = await client.storage.previewGcSourceMaps();
+      const result = expectOk(await client.storage.previewGcSourceMaps());
 
       expect(result.files_removed).toBe(4);
       expect(result.bytes_freed).toBe(81920);
@@ -122,7 +136,7 @@ describe('StorageResource', () => {
 
   describe('gcSourceMaps()', () => {
     it('returns the orphaned files removed and bytes freed', async () => {
-      const result = await client.storage.gcSourceMaps();
+      const result = expectOk(await client.storage.gcSourceMaps());
 
       expect(result.files_removed).toBe(4);
       expect(result.bytes_freed).toBe(81920);

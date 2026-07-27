@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import {
   alertHistorySchema,
   alertRuleSchema,
@@ -21,34 +23,45 @@ export class AlertRulesResource extends BaseResource {
   /**
    * List all alert rules for a project
    */
-  async list(projectId: number): Promise<AlertRule[]> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/alert-rules`)
-      .json();
-    return this.validate(data, z.array(alertRuleSchema));
+  async list(projectId: number): Promise<Result<AlertRule[], RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/alert-rules`),
+      z.array(alertRuleSchema),
+    );
   }
 
   /**
    * Get a single alert rule by ID
    */
-  async get(projectId: number, ruleId: number): Promise<AlertRule> {
-    const data = await this.http
-      .get(`api/projects/${projectId}/alert-rules/${ruleId}`)
-      .json();
-    return this.validate(data, alertRuleSchema);
+  async get(
+    projectId: number,
+    ruleId: number,
+  ): Promise<Result<AlertRule, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/alert-rules/${ruleId}`),
+      alertRuleSchema,
+    );
   }
 
   /**
    * Create a new alert rule for a project
    */
-  async create(projectId: number, input: CreateAlertRule): Promise<AlertRule> {
-    const validatedInput = this.validate(input, createAlertRuleSchema);
+  async create(
+    projectId: number,
+    input: CreateAlertRule,
+  ): Promise<Result<AlertRule, RustrakError>> {
+    const validatedInput = this.validateInput(input, createAlertRuleSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .post(`api/projects/${projectId}/alert-rules`, { json: validatedInput })
-      .json();
-
-    return this.validate(data, alertRuleSchema);
+    return this.request(
+      () =>
+        this.http.post(`api/projects/${projectId}/alert-rules`, {
+          json: validatedInput.data,
+        }),
+      alertRuleSchema,
+    );
   }
 
   /**
@@ -58,23 +71,31 @@ export class AlertRulesResource extends BaseResource {
     projectId: number,
     ruleId: number,
     input: UpdateAlertRule,
-  ): Promise<AlertRule> {
-    const validatedInput = this.validate(input, updateAlertRuleSchema);
+  ): Promise<Result<AlertRule, RustrakError>> {
+    const validatedInput = this.validateInput(input, updateAlertRuleSchema);
+    if (!validatedInput.success) {
+      return validatedInput;
+    }
 
-    const data = await this.http
-      .patch(`api/projects/${projectId}/alert-rules/${ruleId}`, {
-        json: validatedInput,
-      })
-      .json();
-
-    return this.validate(data, alertRuleSchema);
+    return this.request(
+      () =>
+        this.http.patch(`api/projects/${projectId}/alert-rules/${ruleId}`, {
+          json: validatedInput.data,
+        }),
+      alertRuleSchema,
+    );
   }
 
   /**
    * Delete an alert rule
    */
-  async delete(projectId: number, ruleId: number): Promise<void> {
-    await this.http.delete(`api/projects/${projectId}/alert-rules/${ruleId}`);
+  async delete(
+    projectId: number,
+    ruleId: number,
+  ): Promise<Result<void, RustrakError>> {
+    return this.requestVoid(() =>
+      this.http.delete(`api/projects/${projectId}/alert-rules/${ruleId}`),
+    );
   }
 
   /**
@@ -83,7 +104,7 @@ export class AlertRulesResource extends BaseResource {
   async listHistory(
     projectId: number,
     options?: ListAlertHistoryOptions,
-  ): Promise<AlertHistory[]> {
+  ): Promise<Result<AlertHistory[], RustrakError>> {
     const searchParams = new URLSearchParams();
 
     if (options?.limit !== undefined) {
@@ -95,7 +116,6 @@ export class AlertRulesResource extends BaseResource {
       ? `api/projects/${projectId}/alert-history?${query}`
       : `api/projects/${projectId}/alert-history`;
 
-    const data = await this.http.get(url).json();
-    return this.validate(data, z.array(alertHistorySchema));
+    return this.request(() => this.http.get(url), z.array(alertHistorySchema));
   }
 }

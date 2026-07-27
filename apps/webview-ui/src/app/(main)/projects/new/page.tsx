@@ -19,14 +19,15 @@ export default async function NewProjectPage() {
   // the raw platform id Sentry pre-fills would collide on a second Next.js
   // project. One page is enough for a suggestion; the server still has the
   // final say and returns a 409 on a genuine collision.
-  let existingNames: string[] = [];
-  try {
-    const { items } = await getProjects({ page: 1, per_page: 100 });
-    existingNames = items.map((p) => p.name);
-  } catch {
-    // A failed lookup only costs a less clever default name, so it must not
-    // block project creation.
-  }
+  //
+  // A failed lookup only costs a less clever default name, so it must not block
+  // project creation: this is one of the few places where discarding the
+  // failure is the right answer, and it is written out rather than swallowed by
+  // a `catch`.
+  const existing = await getProjects({ page: 1, per_page: 100 });
+  const existingNames = existing.success
+    ? existing.data.items.map((p) => p.name)
+    : [];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
