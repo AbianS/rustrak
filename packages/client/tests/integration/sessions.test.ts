@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
+import { expectOk } from '../helpers/result.js';
 
 describe('SessionsResource', () => {
   let client: RustrakClient;
@@ -13,7 +14,7 @@ describe('SessionsResource', () => {
 
   describe('stats()', () => {
     it('returns a paginated page of release health rows for a project', async () => {
-      const result = await client.sessions.stats(1);
+      const result = expectOk(await client.sessions.stats(1));
 
       expect(result.items).toHaveLength(2);
       expect(result.total_count).toBe(2);
@@ -29,23 +30,27 @@ describe('SessionsResource', () => {
     });
 
     it('passes period query param without error', async () => {
-      const result = await client.sessions.stats(1, { period: '7d' });
+      const result = expectOk(await client.sessions.stats(1, { period: '7d' }));
       expect(result.items).toHaveLength(2);
     });
 
     it('works without an explicit period', async () => {
-      const result = await client.sessions.stats(1);
+      const result = expectOk(await client.sessions.stats(1));
       expect(result.items).toHaveLength(2);
     });
 
     it('scopes to a single release server-side when release is passed', async () => {
-      const result = await client.sessions.stats(1, { release: '2.0.0' });
+      const result = expectOk(
+        await client.sessions.stats(1, { release: '2.0.0' }),
+      );
       expect(result.items).toHaveLength(1);
       expect(result.items[0].release).toBe('2.0.0');
     });
 
     it('passes pagination params through to the server', async () => {
-      const result = await client.sessions.stats(1, { page: 2, per_page: 1 });
+      const result = expectOk(
+        await client.sessions.stats(1, { page: 2, per_page: 1 }),
+      );
 
       expect(result.page).toBe(2);
       expect(result.per_page).toBe(1);
@@ -76,7 +81,7 @@ describe('SessionsResource', () => {
 
   describe('summary()', () => {
     it('returns project-wide session health summary', async () => {
-      const result = await client.sessions.summary(1);
+      const result = expectOk(await client.sessions.summary(1));
 
       expect(result.total).toBe(300);
       expect(result.errored).toBe(15);
@@ -88,14 +93,14 @@ describe('SessionsResource', () => {
     });
 
     it('passes period query param without error', async () => {
-      const result = await client.sessions.summary(1, '7d');
+      const result = expectOk(await client.sessions.summary(1, '7d'));
       expect(result.total).toBe(300);
     });
   });
 
   describe('timeseries()', () => {
     it('returns time-bucketed session trend points', async () => {
-      const result = await client.sessions.timeseries(1);
+      const result = expectOk(await client.sessions.timeseries(1));
 
       expect(result).toHaveLength(2);
       expect(result[0].total).toBe(100);
@@ -104,7 +109,7 @@ describe('SessionsResource', () => {
     });
 
     it('passes period and interval query params without error', async () => {
-      const result = await client.sessions.timeseries(1, '7d', 24);
+      const result = expectOk(await client.sessions.timeseries(1, '7d', 24));
       expect(result).toHaveLength(2);
     });
   });

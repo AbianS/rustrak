@@ -1,8 +1,8 @@
 import { Zap } from 'lucide-react';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
 import { getTransactionStats } from '@/actions/transactions';
+import { LoadFailure } from '@/components/load-failure';
 import { TransactionStatsTable } from './transaction-stats-table';
 
 interface PerformancePageProps {
@@ -16,13 +16,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `Performance | ${project.name} | Rustrak`,
-    description: `Transaction performance for ${project.name}`,
+    title: `Performance | ${project.data.name} | Rustrak`,
+    description: `Transaction performance for ${project.data.name}`,
   };
 }
 
@@ -35,18 +35,34 @@ export default async function PerformancePage({
   const projectId = parseInt(id, 10);
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
 
-  const project = await getProject(projectId);
+  const projectResult = await getProject(projectId);
 
-  if (!project) {
-    notFound();
+  if (!projectResult.success) {
+    return (
+      <LoadFailure error={projectResult.error} title="Could not load project" />
+    );
   }
 
-  // No catch: a fetch/auth failure must surface to the error boundary, not be
-  // disguised as the "no transactions yet" onboarding state.
-  const stats = await getTransactionStats(projectId, {
+  const project = projectResult.data;
+
+  // Nothing is swallowed: a fetch/auth failure renders an outage surface rather
+  // than the "no transactions yet" onboarding state.
+  const statsResult = await getTransactionStats(projectId, {
     page: currentPage,
     per_page: 20,
   });
+
+  if (!statsResult.success) {
+    return (
+      <LoadFailure
+        error={statsResult.error}
+        title="Could not load transactions"
+        notFoundOnMissing={false}
+      />
+    );
+  }
+
+  const stats = statsResult.data;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">

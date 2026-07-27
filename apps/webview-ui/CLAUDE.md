@@ -283,12 +283,31 @@ pnpm install
 # Development server
 pnpm dev
 
+# Tests (vitest + jsdom)
+pnpm test
+pnpm test:watch
+
 # Type checking
-pnpm tsc --noEmit
+pnpm check-types
+
+# Lint (Biome linter + assist, warnings are errors)
+pnpm lint
+
+# Formatting
+pnpm format         # rewrite
+pnpm format:check   # verify only
 
 # Build
 pnpm build
 ```
+
+### Test file convention
+
+Tests live in a `__tests__/` folder sibling to the file under test
+(`src/lib/version.ts` -> `src/lib/__tests__/version.test.ts`). This differs on
+purpose from `packages/client`, which keeps a top-level `tests/` directory
+because it is a published library and its tests must stay outside the shipped
+`src/`. Nothing here is published, so tests sit next to the code they cover.
 
 ## Docker
 

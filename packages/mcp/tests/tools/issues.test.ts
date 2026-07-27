@@ -1,6 +1,5 @@
-import { NotFoundError, RateLimitError } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('issue tools', () => {
   let mockClient: any;
@@ -62,7 +61,7 @@ describe('issue tools', () => {
         page: 1,
         per_page: 25,
       };
-      mockClient.issues.list.mockResolvedValue(mockData);
+      mockClient.issues.list.mockResolvedValue(ok(mockData));
 
       const result = await callTool({
         name: 'list_issues',
@@ -94,7 +93,7 @@ describe('issue tools', () => {
         last_seen: '2024-01-01T00:00:00Z',
         project_id: 1,
       };
-      mockClient.issues.updateState.mockResolvedValue(mockIssue);
+      mockClient.issues.updateState.mockResolvedValue(ok(mockIssue));
 
       const result = await callTool({
         name: 'resolve_issue',
@@ -112,7 +111,13 @@ describe('issue tools', () => {
 
   describe('error handling', () => {
     it('returns isError: true on 404', async () => {
-      mockClient.issues.get.mockRejectedValue(new NotFoundError('issue-xyz'));
+      mockClient.issues.get.mockResolvedValue(
+        fail({
+          kind: 'not_found',
+          status: 404,
+          message: 'Resource not found: issue-xyz',
+        }),
+      );
 
       const result = await callTool({
         name: 'get_issue',
@@ -124,8 +129,13 @@ describe('issue tools', () => {
     });
 
     it('returns isError: true on 429 rate limit', async () => {
-      mockClient.issues.list.mockRejectedValue(
-        new RateLimitError('Rate limit exceeded', 60),
+      mockClient.issues.list.mockResolvedValue(
+        fail({
+          kind: 'rate_limited',
+          status: 429,
+          message: 'Rate limit exceeded',
+          retryAfter: 60,
+        }),
       );
 
       const result = await callTool({
@@ -138,7 +148,9 @@ describe('issue tools', () => {
     });
 
     it('forwards the q search parameter', async () => {
-      mockClient.issues.list.mockResolvedValue({ items: [], total_count: 0 });
+      mockClient.issues.list.mockResolvedValue(
+        ok({ items: [], total_count: 0 }),
+      );
       await callTool({
         name: 'list_issues',
         arguments: { project_id: 1, q: 'TypeError' },
@@ -154,7 +166,9 @@ describe('issue tools', () => {
 
   describe('issue status & assignment (#165)', () => {
     it('update_issue_status sets canonical status + priority', async () => {
-      mockClient.issues.updateState.mockResolvedValue({ status: 'resolved' });
+      mockClient.issues.updateState.mockResolvedValue(
+        ok({ status: 'resolved' }),
+      );
       const result = await callTool({
         name: 'update_issue_status',
         arguments: {
@@ -172,7 +186,9 @@ describe('issue tools', () => {
     });
 
     it('update_issue_status supports resolvedInNextRelease', async () => {
-      mockClient.issues.updateState.mockResolvedValue({ status: 'resolved' });
+      mockClient.issues.updateState.mockResolvedValue(
+        ok({ status: 'resolved' }),
+      );
       await callTool({
         name: 'update_issue_status',
         arguments: {
@@ -188,7 +204,7 @@ describe('issue tools', () => {
     });
 
     it('assign_issue assigns to a user', async () => {
-      mockClient.issues.updateState.mockResolvedValue({ assigned_to: 7 });
+      mockClient.issues.updateState.mockResolvedValue(ok({ assigned_to: 7 }));
       await callTool({
         name: 'assign_issue',
         arguments: { project_id: 1, issue_id: 'abc', assigned_to: 7 },
@@ -202,7 +218,7 @@ describe('issue tools', () => {
 
   describe('bulk operations (#165)', () => {
     it('bulk_update_issues forwards ids + status', async () => {
-      mockClient.issues.bulkUpdate.mockResolvedValue({ updated: 2 });
+      mockClient.issues.bulkUpdate.mockResolvedValue(ok({ updated: 2 }));
       const result = await callTool({
         name: 'bulk_update_issues',
         arguments: { project_id: 1, ids: ['a', 'b'], status: 'resolved' },
@@ -216,7 +232,7 @@ describe('issue tools', () => {
     });
 
     it('bulk_delete_issues forwards ids', async () => {
-      mockClient.issues.bulkDelete.mockResolvedValue({ deleted: 2 });
+      mockClient.issues.bulkDelete.mockResolvedValue(ok({ deleted: 2 }));
       await callTool({
         name: 'bulk_delete_issues',
         arguments: { project_id: 1, ids: ['a', 'b'] },
@@ -229,7 +245,7 @@ describe('issue tools', () => {
 
   describe('read sub-resources (#165)', () => {
     it('get_issue_hashes', async () => {
-      mockClient.issues.getHashes.mockResolvedValue([{ id: 1 }]);
+      mockClient.issues.getHashes.mockResolvedValue(ok([{ id: 1 }]));
       const result = await callTool({
         name: 'get_issue_hashes',
         arguments: { project_id: 1, issue_id: 'abc' },
@@ -240,7 +256,7 @@ describe('issue tools', () => {
 
     it('get_issue_tag_values forwards key', async () => {
       // Bare list, one entry per value (Sentry-compatible shape).
-      mockClient.issues.getTagValues.mockResolvedValue([]);
+      mockClient.issues.getTagValues.mockResolvedValue(ok([]));
       await callTool({
         name: 'get_issue_tag_values',
         arguments: { project_id: 1, issue_id: 'abc', key: 'browser' },
@@ -253,10 +269,12 @@ describe('issue tools', () => {
     });
 
     it('get_issue_aggregates', async () => {
-      mockClient.issues.getAggregates.mockResolvedValue({
-        user_count: 2,
-        tags: [],
-      });
+      mockClient.issues.getAggregates.mockResolvedValue(
+        ok({
+          user_count: 2,
+          tags: [],
+        }),
+      );
       await callTool({
         name: 'get_issue_aggregates',
         arguments: { project_id: 1, issue_id: 'abc' },
@@ -265,7 +283,7 @@ describe('issue tools', () => {
     });
 
     it('get_issue_stats forwards window', async () => {
-      mockClient.issues.getStats.mockResolvedValue({ data: [] });
+      mockClient.issues.getStats.mockResolvedValue(ok({ data: [] }));
       await callTool({
         name: 'get_issue_stats',
         arguments: { project_id: 1, issue_id: 'abc', window: '30d' },
@@ -274,7 +292,7 @@ describe('issue tools', () => {
     });
 
     it('get_issue_activity', async () => {
-      mockClient.issues.getActivity.mockResolvedValue([]);
+      mockClient.issues.getActivity.mockResolvedValue(ok([]));
       await callTool({
         name: 'get_issue_activity',
         arguments: { project_id: 1, issue_id: 'abc' },
@@ -285,7 +303,7 @@ describe('issue tools', () => {
 
   describe('social tools (#165)', () => {
     it('comment_on_issue', async () => {
-      mockClient.issues.addComment.mockResolvedValue({ type: 'note' });
+      mockClient.issues.addComment.mockResolvedValue(ok({ type: 'note' }));
       await callTool({
         name: 'comment_on_issue',
         arguments: { project_id: 1, issue_id: 'abc', text: 'hi' },
@@ -296,7 +314,9 @@ describe('issue tools', () => {
     });
 
     it('bookmark_issue', async () => {
-      mockClient.issues.setBookmark.mockResolvedValue({ is_bookmarked: true });
+      mockClient.issues.setBookmark.mockResolvedValue(
+        ok({ is_bookmarked: true }),
+      );
       await callTool({
         name: 'bookmark_issue',
         arguments: { project_id: 1, issue_id: 'abc', enabled: true },
@@ -309,9 +329,11 @@ describe('issue tools', () => {
     });
 
     it('subscribe_issue', async () => {
-      mockClient.issues.setSubscription.mockResolvedValue({
-        is_subscribed: false,
-      });
+      mockClient.issues.setSubscription.mockResolvedValue(
+        ok({
+          is_subscribed: false,
+        }),
+      );
       await callTool({
         name: 'subscribe_issue',
         arguments: { project_id: 1, issue_id: 'abc', enabled: false },
@@ -324,7 +346,7 @@ describe('issue tools', () => {
     });
 
     it('mark_issue_seen', async () => {
-      mockClient.issues.markSeen.mockResolvedValue({ has_seen: true });
+      mockClient.issues.markSeen.mockResolvedValue(ok({ has_seen: true }));
       await callTool({
         name: 'mark_issue_seen',
         arguments: { project_id: 1, issue_id: 'abc' },
@@ -333,7 +355,7 @@ describe('issue tools', () => {
     });
 
     it('list_user_reports', async () => {
-      mockClient.issues.listUserReports.mockResolvedValue([]);
+      mockClient.issues.listUserReports.mockResolvedValue(ok([]));
       await callTool({
         name: 'list_user_reports',
         arguments: { project_id: 1, issue_id: 'abc' },
@@ -342,7 +364,7 @@ describe('issue tools', () => {
     });
 
     it('submit_user_report', async () => {
-      mockClient.issues.createUserReport.mockResolvedValue({ id: 'r1' });
+      mockClient.issues.createUserReport.mockResolvedValue(ok({ id: 'r1' }));
       await callTool({
         name: 'submit_user_report',
         arguments: {

@@ -7,7 +7,9 @@ import {
   getTransactionStatForGroup,
   listTransactions,
 } from '@/actions/transactions';
+import { LoadFailure } from '@/components/load-failure';
 import { Badge } from '@/components/ui/badge';
+import { loadAll } from '@/lib/results';
 import { TransactionsList } from '../transactions-list';
 
 interface SummaryPageProps {
@@ -40,29 +42,29 @@ export default async function TransactionSummaryPage({
     notFound();
   }
 
-  const project = await getProject(projectId);
-  if (!project) {
-    notFound();
-  }
-
   const filters = { name, op };
 
   // Direct group lookup — correct regardless of how many groups exist (no
-  // "fetch page 1 and hope the group is on it").
-  const [samples, group] = await Promise.all([
+  // "fetch page 1 and hope the group is on it"). `getTransactionStatForGroup`
+  // already turns "this group has no rows" into a successful `null`, so a
+  // failure here is a real one.
+  const loaded = await loadAll([
+    getProject(projectId),
     listTransactions(projectId, {
       page: currentPage,
       per_page: 20,
       ...filters,
-    }).catch(() => ({
-      items: [],
-      total_count: 0,
-      page: 1,
-      per_page: 20,
-      total_pages: 0,
-    })),
+    }),
     getTransactionStatForGroup(projectId, name, op),
   ]);
+
+  if (!loaded.success) {
+    return (
+      <LoadFailure error={loaded.error} title="Could not load transaction" />
+    );
+  }
+
+  const [, samples, group] = loaded.data;
 
   const metrics: { label: string; value: string }[] = group
     ? [

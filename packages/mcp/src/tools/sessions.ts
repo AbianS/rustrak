@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerSessionTools(
   server: McpServer,
@@ -31,18 +31,12 @@ export function registerSessionTools(
       },
     },
     async ({ project_id, period, page, per_page }) => {
-      try {
-        const result = await client.sessions.stats(project_id, {
-          period,
-          page,
-          per_page,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.sessions.stats(project_id, {
+        period,
+        page,
+        per_page,
+      });
+      return mcpJson(result);
     },
   );
 }

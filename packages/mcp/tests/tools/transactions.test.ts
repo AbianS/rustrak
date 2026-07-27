@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('transaction tools', () => {
   let mockClient: any;
@@ -91,7 +92,7 @@ describe('transaction tools', () => {
 
   describe('list_transactions', () => {
     it('returns a transaction page for a project', async () => {
-      mockClient.transactions.list.mockResolvedValue(mockTransactionPage);
+      mockClient.transactions.list.mockResolvedValue(ok(mockTransactionPage));
 
       const result = await callTool({
         name: 'list_transactions',
@@ -110,7 +111,7 @@ describe('transaction tools', () => {
     });
 
     it('forwards offset pagination and filters', async () => {
-      mockClient.transactions.list.mockResolvedValue(mockTransactionPage);
+      mockClient.transactions.list.mockResolvedValue(ok(mockTransactionPage));
 
       await callTool({
         name: 'list_transactions',
@@ -137,7 +138,13 @@ describe('transaction tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.transactions.list.mockRejectedValue(new Error('API error'));
+      mockClient.transactions.list.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'list_transactions',
@@ -145,13 +152,13 @@ describe('transaction tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 
   describe('get_transaction', () => {
     it('returns full transaction detail', async () => {
-      mockClient.transactions.get.mockResolvedValue(mockTransactionDetail);
+      mockClient.transactions.get.mockResolvedValue(ok(mockTransactionDetail));
 
       const result = await callTool({
         name: 'get_transaction',
@@ -172,7 +179,13 @@ describe('transaction tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.transactions.get.mockRejectedValue(new Error('API error'));
+      mockClient.transactions.get.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_transaction',
@@ -180,13 +193,13 @@ describe('transaction tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 
   describe('get_transaction_stats', () => {
     it('returns aggregate stats per transaction group', async () => {
-      mockClient.transactions.getStats.mockResolvedValue(mockStats);
+      mockClient.transactions.getStats.mockResolvedValue(ok(mockStats));
 
       const result = await callTool({
         name: 'get_transaction_stats',
@@ -205,8 +218,12 @@ describe('transaction tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.transactions.getStats.mockRejectedValue(
-        new Error('API error'),
+      mockClient.transactions.getStats.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
       );
 
       const result = await callTool({
@@ -215,13 +232,13 @@ describe('transaction tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 
   describe('get_transaction_spans', () => {
     it('returns indexed spans for a transaction', async () => {
-      mockClient.transactions.getSpans.mockResolvedValue(mockSpans);
+      mockClient.transactions.getSpans.mockResolvedValue(ok(mockSpans));
 
       const result = await callTool({
         name: 'get_transaction_spans',
@@ -242,8 +259,12 @@ describe('transaction tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.transactions.getSpans.mockRejectedValue(
-        new Error('API error'),
+      mockClient.transactions.getSpans.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
       );
 
       const result = await callTool({
@@ -252,7 +273,7 @@ describe('transaction tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 });

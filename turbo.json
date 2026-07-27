@@ -1,6 +1,7 @@
 {
   "$schema": "https://v2-9-14.turborepo.dev/schema.json",
   "ui": "tui",
+  "globalDependencies": ["biome.json"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -8,6 +9,7 @@
       "outputs": [
         ".next/**",
         "!.next/cache/**",
+        "!.next/dev/**",
         "out/**",
         "target/release/**",
         "!target/release/.fingerprint/**",
@@ -32,7 +34,10 @@
       "dependsOn": ["^lint"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": ["^check-types", "^build"]
+    },
+    "webview-ui#check-types": {
+      "dependsOn": ["^check-types", "^build", "build"]
     },
     "test": {
       "dependsOn": ["^build"],

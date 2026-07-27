@@ -69,7 +69,11 @@ export function AgentTracesTable({
                 {t.agent_names.length > 0 ? (
                   <span className="flex flex-wrap items-center gap-1">
                     {t.agent_names.map((name) => (
-                      <Badge key={name} variant="secondary" className="font-mono font-normal">
+                      <Badge
+                        key={name}
+                        variant="secondary"
+                        className="font-mono font-normal"
+                      >
                         {name}
                       </Badge>
                     ))}

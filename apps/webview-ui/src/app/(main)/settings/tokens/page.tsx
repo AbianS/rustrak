@@ -2,6 +2,7 @@ import { BookOpen, ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listTokens } from '@/actions/tokens';
+import { LoadFailure } from '@/components/load-failure';
 import { TokensList } from './tokens-list';
 
 export const metadata: Metadata = {
@@ -11,6 +12,16 @@ export const metadata: Metadata = {
 
 export default async function TokensPage() {
   const tokens = await listTokens();
+
+  if (!tokens.success) {
+    return (
+      <LoadFailure
+        error={tokens.error}
+        title="Could not load API tokens"
+        notFoundOnMissing={false}
+      />
+    );
+  }
 
   return (
     <>
@@ -42,7 +53,7 @@ export default async function TokensPage() {
         <ExternalLink className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
       </Link>
 
-      <TokensList initialTokens={tokens} />
+      <TokensList initialTokens={tokens.data} />
     </>
   );
 }

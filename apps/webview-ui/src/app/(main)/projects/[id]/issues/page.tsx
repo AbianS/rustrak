@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { listIssues } from '@/actions/issues';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
+import { loadAll } from '@/lib/results';
 import { IssuesList } from './issues-list';
 
 interface IssuesPageProps {
@@ -15,13 +16,13 @@ export async function generateMetadata({
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
-  if (!project) {
+  if (!project.success) {
     return { title: 'Project Not Found | Rustrak' };
   }
 
   return {
-    title: `${project.name} | Rustrak`,
-    description: `Issues for ${project.name}`,
+    title: `${project.data.name} | Rustrak`,
+    description: `Issues for ${project.data.name}`,
   };
 }
 
@@ -34,19 +35,22 @@ export default async function IssuesPage({
   const projectId = parseInt(id, 10);
   const currentPage = parseInt(page, 10) || 1;
 
-  const project = await getProject(projectId);
+  const loaded = await loadAll([
+    getProject(projectId),
+    listIssues(projectId, {
+      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+      page: currentPage,
+      per_page: 20,
+      sort: 'last_seen',
+      order: 'desc',
+    }),
+  ]);
 
-  if (!project) {
-    notFound();
+  if (!loaded.success) {
+    return <LoadFailure error={loaded.error} title="Could not load issues" />;
   }
 
-  const issuesResponse = await listIssues(projectId, {
-    filter: filter as 'open' | 'resolved' | 'muted' | 'all',
-    page: currentPage,
-    per_page: 20,
-    sort: 'last_seen',
-    order: 'desc',
-  });
+  const [project, issuesResponse] = loaded.data;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">

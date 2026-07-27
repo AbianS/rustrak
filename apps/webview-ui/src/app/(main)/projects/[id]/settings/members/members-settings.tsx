@@ -69,6 +69,10 @@ export function MembersSettings({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [team, setTeam] = useState<TeamMember[] | null>(null);
+  // Distinct from `team === null`, which only means "not loaded yet". An empty
+  // dropdown reading "No users available" is a claim about the team; if the
+  // fetch failed we have no basis to make it.
+  const [teamFailed, setTeamFailed] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [removingMember, setRemovingMember] = useState<ProjectMember | null>(
     null,
@@ -89,11 +93,18 @@ export function MembersSettings({
     let cancelled = false;
     listTeam()
       .then((result) => {
-        if (!cancelled) setTeam(result);
+        if (cancelled) return;
+        if (result.success) setTeam(result.data);
+        else setTeamFailed(true);
       })
+      // The client no longer throws, but the Server Action *call* still can:
+      // an offline tab, a 500 from the Next server, or a stale action id after
+      // a redeploy all reject here. This `.then()` runs inside an effect, so
+      // there is no route boundary above it to catch that -- without this
+      // handler it is a bare unhandled rejection and the dropdown silently
+      // stays empty forever.
       .catch(() => {
-        // Leave team as null (not []) so a remount/refresh retries the fetch
-        // instead of being stuck with an empty dropdown.
+        if (!cancelled) setTeamFailed(true);
       });
     return () => {
       cancelled = true;
@@ -113,7 +124,13 @@ export function MembersSettings({
         });
         router.refresh();
       } else {
-        toast.error('Failed to update member', { description: result.error });
+        // `error.message` rather than copy built from `error.fields`: the
+        // server names `role`, but these are table row selects, not a
+        // react-hook-form, and the server's own sentence ("Cannot downgrade
+        // the last project admin") says far more than the generic field copy.
+        toast.error('Failed to update member', {
+          description: result.error.message,
+        });
       }
     });
   };
@@ -130,7 +147,9 @@ export function MembersSettings({
         setRemovingMember(null);
         router.refresh();
       } else {
-        toast.error('Failed to remove member', { description: result.error });
+        toast.error('Failed to remove member', {
+          description: result.error.message,
+        });
       }
     });
   };
@@ -247,6 +266,7 @@ export function MembersSettings({
         onOpenChange={setShowAddDialog}
         projectId={projectId}
         availableUsers={availableUsers}
+        teamFailed={teamFailed}
         onSuccess={() => {
           setShowAddDialog(false);
           router.refresh();
@@ -291,6 +311,8 @@ interface AddMemberDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: number;
   availableUsers: TeamMember[];
+  /** The team list could not be read, so the dropdown is empty for a reason. */
+  teamFailed: boolean;
   onSuccess: () => void;
 }
 
@@ -299,6 +321,7 @@ function AddMemberDialog({
   onOpenChange,
   projectId,
   availableUsers,
+  teamFailed,
   onSuccess,
 }: AddMemberDialogProps) {
   const [isPending, startTransition] = useTransition();
@@ -324,7 +347,9 @@ function AddMemberDialog({
         toast.success('Member added');
         onSuccess();
       } else {
-        toast.error('Failed to add member', { description: result.error });
+        toast.error('Failed to add member', {
+          description: result.error.message,
+        });
       }
     });
   };
@@ -355,9 +380,11 @@ function AddMemberDialog({
               >
                 <SelectValue
                   placeholder={
-                    availableUsers.length === 0
-                      ? 'No users available'
-                      : 'Select a user'
+                    teamFailed
+                      ? 'Could not load the team list'
+                      : availableUsers.length === 0
+                        ? 'No users available'
+                        : 'Select a user'
                   }
                 >
                   {(value) =>

@@ -40,11 +40,15 @@ This architecture allows users to deploy just the server for maximum efficiency,
 - **Background Processing**: Tokio tasks (in-process)
 
 ### Client Package (`packages/client`)
-- **Language**: TypeScript 5.9+ (strict mode)
-- **HTTP Client**: ky 1.14+ (~3KB)
-- **Validation**: Zod 4+ (~10KB, runtime type safety)
+- **Language**: TypeScript (strict mode), Node >= 20
+- **HTTP Client**: ky 2 (~3KB)
+- **Validation**: Zod 4 (~10KB, runtime type safety)
 - **Build**: tsup (esbuild-based)
-- **Testing**: Vitest + MSW (97% coverage)
+- **Testing**: Vitest + MSW (452 tests, 97% statement coverage)
+- **Error handling**: no exceptions. Every method returns
+  `Result<T, RustrakError>`, a plain-object discriminated union keyed on `kind`,
+  which survives `structuredClone` and therefore React's server/client
+  boundary. See `packages/client/CLAUDE.md`.
 
 ### Test Sentry Package (`packages/test-sentry`)
 - **Language**: TypeScript 5.9
@@ -76,7 +80,7 @@ rustrak/
 │   └── client/            # TypeScript API client
 │       ├── CLAUDE.md      # Client-specific context
 │       ├── src/           # Client source code
-│       ├── tests/         # Vitest + MSW tests (133 tests, 97% coverage)
+│       ├── tests/         # Vitest + MSW tests (452 tests, 97% coverage)
 │       └── dist/          # Build output (ESM + CJS + DTS)
 ├── docs/
 │   ├── ingestion-flow.md  # Event ingestion documentation
@@ -209,8 +213,20 @@ docker-compose up --build
 
 ### Testing
 ```bash
-cd apps/server
-cargo test
+# Server (Rust) — subshell, so the commands below still run from the repo root
+(cd apps/server && cargo test)
+
+# Frontend (vitest + jsdom)
+pnpm --filter=webview-ui test
+
+# TypeScript client (vitest + MSW)
+pnpm --filter=@rustrak/client test
+
+# MCP server (vitest + InMemoryTransport)
+pnpm --filter=@rustrak/mcp test
+
+# Everything, the way CI runs it
+pnpm run ci
 ```
 
 ### Building for Production

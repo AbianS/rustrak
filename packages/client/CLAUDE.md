@@ -13,9 +13,10 @@
 - ✅ Full TypeScript support with runtime validation (Zod)
 - ✅ Lightweight (~28KB: ky 3KB + zod 10KB + client 15KB)
 - ✅ Automatic retry logic for transient failures
-- ✅ Structured error handling
-- ✅ Cursor-based pagination support
-- ✅ 97% test coverage (133 tests)
+- ✅ **No exceptions**: every method returns a `Result<T, RustrakError>`
+- ✅ Serializable errors, so a failure crosses React's server/client boundary
+- ✅ Cursor- and offset-based pagination support
+- ✅ 452 tests, 97% statement coverage
 
 ## Architecture
 
@@ -45,11 +46,12 @@
 
 ## Tech Stack
 
-- **HTTP Client**: [ky](https://github.com/sindresorhus/ky) v1.14+ (~3KB, TypeScript-native)
-- **Validation**: [Zod](https://zod.dev) v4+ (~10KB, runtime type safety)
+- **HTTP Client**: [ky](https://github.com/sindresorhus/ky) v2 (~3KB, TypeScript-native)
+- **Validation**: [Zod](https://zod.dev) v4 (~10KB, runtime type safety)
 - **Build Tool**: [tsup](https://tsup.egoist.dev) (esbuild-based, fast)
 - **Testing**: [Vitest](https://vitest.dev) + [MSW](https://mswjs.io) (Mock Service Worker)
-- **TypeScript**: v5.9+ (strict mode)
+- **TypeScript**: strict mode, `noUncheckedIndexedAccess` on
+- **Runtime**: Node >= 20 (the oldest LTS still receiving security patches; Node 18 reached end of life in April 2025)
 
 ## Project Structure
 
@@ -81,36 +83,37 @@ packages/client/
 │   │   ├── event.ts       # eventSchema, eventDetailSchema
 │   │   └── token.ts       # authTokenSchema, createAuthTokenSchema
 │   │
-│   ├── errors/            # Custom error classes
-│   │   ├── base.ts        # RustrakError (base class)
-│   │   ├── http.ts        # HTTP errors (401, 404, 429, 500, etc.)
-│   │   └── validation.ts  # ValidationError (schema mismatch)
+│   ├── errors.ts          # The RustrakError union + isRetryable (no classes)
+│   ├── result.ts          # Result<T, E>, Ok, Err, unwrap, unwrapOr, mapResult
 │   │
-│   ├── resources/         # API resource classes
-│   │   ├── base.ts        # BaseResource (with validate helper)
+│   ├── resources/         # API resource classes (21 of them)
+│   │   ├── base.ts        # BaseResource: the ky -> Result boundary
+│   │   ├── auth.ts        # AuthResource (login/register/logout/me)
 │   │   ├── projects.ts    # ProjectsResource (CRUD)
 │   │   ├── issues.ts      # IssuesResource (list, get, updateState, delete)
 │   │   ├── events.ts      # EventsResource (list, get)
 │   │   └── tokens.ts      # TokensResource (CRUD)
 │   │
 │   └── utils/
-│       └── http.ts        # createKyInstance (ky setup with hooks)
+│       ├── http.ts        # createKyInstance, transformHttpError, the carrier
+│       └── index.ts       # re-exports createKyInstance only
 │
 ├── tests/
 │   ├── setup.ts           # MSW server setup
+│   ├── helpers/
+│   │   └── result.ts      # expectOk / expectErr
 │   ├── mocks/
 │   │   └── handlers.ts    # MSW request handlers
 │   │
-│   ├── unit/              # Unit tests (39 tests)
+│   ├── unit/
 │   │   ├── schemas.test.ts
-│   │   └── errors.test.ts
+│   │   ├── user-schemas.test.ts
+│   │   ├── errors.test.ts          # the union + isRetryable
+│   │   ├── base-resource.test.ts   # the boundary paths MSW cannot reach
+│   │   └── app-error-contract.test.ts  # parses apps/server/src/error.rs
 │   │
-│   └── integration/       # Integration tests (94 tests)
+│   └── integration/       # 22 files, one per resource plus
 │       ├── client.test.ts
-│       ├── projects.test.ts
-│       ├── issues.test.ts
-│       ├── events.test.ts
-│       ├── tokens.test.ts
 │       ├── error-handling.test.ts
 │       └── pagination.test.ts
 │
@@ -152,53 +155,102 @@ Each API resource is a class extending `BaseResource`:
 
 ```typescript
 export class ProjectsResource extends BaseResource {
-  async list(): Promise<Project[]> {
-    const data = await this.http.get('api/projects').json();
-    return this.validate(data, z.array(projectSchema));
+  async list(): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
+    return this.request(
+      () => this.http.get('api/projects'),
+      offsetPaginatedResponseSchema(projectSchema),
+    );
   }
 
-  async get(id: number): Promise<Project> {
-    const data = await this.http.get(`api/projects/${id}`).json();
-    return this.validate(data, projectSchema);
-  }
+  async create(
+    input: CreateProject,
+  ): Promise<Result<Project, RustrakError>> {
+    // Pre-flight: a bad input is `invalid_request` and never leaves the process.
+    const validated = this.validateInput(input, createProjectSchema);
+    if (!validated.success) return validated;
 
-  // create, update, delete...
+    return this.request(
+      () => this.http.post('api/projects', { json: validated.data }),
+      projectSchema,
+    );
+  }
 }
 ```
+
+Note what a resource method does **not** do: no `try`/`catch`, and no `.json()`
+shortcut. It hands `BaseResource` a thunk that returns ky's `ResponsePromise`
+and a schema. `BaseResource` owns the rest.
 
 **Benefits:**
 - Separation of concerns (one resource per API endpoint group)
 - Shared validation logic via `BaseResource`
+- One place decides what counts as an expected failure, for all 86 methods
 - Easy to test in isolation
 
-### 3. Structured Error Handling
+### 3. Errors: one closed union, returned not thrown
 
-Custom error hierarchy for different failure scenarios:
+There are no error classes. Every resource method returns a
+`Result<T, RustrakError>`, and `RustrakError` is a single discriminated union of
+plain objects keyed on `kind`.
 
+```typescript
+type RustrakError =
+  | { kind: 'validation';        status: number; message: string }  // 400
+  | { kind: 'unauthenticated';   status: number; message: string }  // 401
+  | { kind: 'forbidden';         status: number; message: string }  // 403
+  | { kind: 'not_found';         status: number; message: string }  // 404
+  | { kind: 'conflict';          status: number; message: string }  // 409
+  | { kind: 'gone';              status: number; message: string }  // 410
+  | { kind: 'payload_too_large'; status: number; message: string }  // 413
+  | { kind: 'rate_limited';      status: number; message: string; retryAfter?: number }
+  | { kind: 'client_error';      status: number; message: string }  // any other sub-500
+  | { kind: 'server_error';      status: number; message: string; incidentId?: string }
+  | { kind: 'invalid_request';   message: string }   // never sent
+  | { kind: 'network';           message: string; reason: 'timeout' | 'unreachable' }
+  | { kind: 'invalid_response';  message: string };  // 2xx, wrong body
 ```
-RustrakError (base)
-├── NetworkError (retryable: true)
-├── AuthenticationError (401, retryable: false)
-├── AuthorizationError (403, retryable: false)
-├── NotFoundError (404, retryable: false)
-├── BadRequestError (400, retryable: false)
-├── RateLimitError (429, retryable: true, has retryAfter)
-├── ServerError (500+, retryable: true)
-└── ValidationError (schema mismatch, retryable: false)
-```
+
+**Why plain objects and not classes.** React's Flight serializer refuses
+anything whose prototype is not `Object.prototype`. A class instance cannot be
+returned from a Server Component or a Server Action, so a thrown
+`NotFoundError` used to reach the browser as an opaque digest. A `Result`
+survives `structuredClone`, which is what the suite asserts.
 
 **Usage:**
 ```typescript
-try {
-  await client.projects.list();
-} catch (error) {
-  if (error instanceof RateLimitError) {
-    console.log(`Retry after ${error.retryAfter}s`);
-  } else if (error instanceof AuthenticationError) {
-    // Redirect to login
+const projects = await client.projects.list();
+
+if (!projects.success) {
+  switch (projects.error.kind) {
+    case 'unauthenticated':
+      redirect('/auth/login');       // ONLY this kind means "log in again"
+      break;
+    case 'rate_limited':
+      wait(projects.error.retryAfter ?? 30);
+      break;
+    default:
+      return <LoadFailed error={projects.error} />;
   }
 }
+
+projects.data.items; // narrowed, no cast
 ```
+
+Three things the union deliberately refuses to carry, because each embeds
+information that must not cross a serialization boundary:
+
+| Dropped | Why |
+|---|---|
+| the server's 5xx message | `AppError::Internal`/`Database` interpolate a pool error, an OS errno, a filesystem path. Replaced by `SERVER_ERROR_MESSAGE`. |
+| `cause` on `network` | the underlying error's message is `...: GET http://rustrak.internal:8080/...`, the deployment's own host and port. Replaced by `NETWORK_ERROR_MESSAGE` / `TIMEOUT_ERROR_MESSAGE`; branch on `reason`. |
+| Zod issues on `invalid_response` | they embed the offending response data. |
+
+`isRetryable(error)` is the one function over the union; see the deferred-work
+ledger for the known incoherence between it and ky's own retry policy.
+
+`ApiError` is still exported, and it is **not** part of this: it types the flat
+`{error, message?}` body as it appears on the wire, for code reading a Rustrak
+response outside this client. Nothing in the client returns it.
 
 ### 4. HTTP Client Configuration (ky)
 
@@ -209,48 +261,75 @@ try {
 - Hooks for request/response transformation
 - Modern, Promise-based API
 
-**Configuration:**
+**Configuration** (`src/utils/http.ts`):
 ```typescript
-const instance = ky.create({
-  prefixUrl: config.baseUrl,
-  timeout: 30000,
+ky.create({
+  prefix: config.baseUrl,
+  timeout: config.timeout ?? 30000,
+  credentials: 'include',
   retry: {
-    limit: 2,
-    statusCodes: [408, 429, 500, 502, 503, 504],
+    limit: config.maxRetries ?? 2,
+    statusCodes: [408, 500, 502, 503, 504],
+    methods: ['get', 'post', 'put', 'patch', 'delete'],
+  },
+  headers: {
+    // Required: `BaseResource` parses the body itself instead of calling ky's
+    // `.json()` shortcut, and that shortcut was what used to set `Accept`.
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    ...config.headers,
   },
   hooks: {
-    beforeRequest: [(req) => {
-      req.headers.set('Authorization', `Bearer ${token}`);
-    }],
-    beforeError: [async (error) => {
-      // Transform ky errors to RustrakError
-      if (error.response?.status === 429) {
-        throw new RateLimitError(...);
-      }
-    }],
+    beforeError: [
+      ({ error }) => {
+        // ky signals a non-2xx by rejecting, and a rejection has to be caught
+        // somewhere. The union is smuggled out inside `RustrakTransportFailure`
+        // (a real Error subclass) and unwrapped by `BaseResource` into an
+        // `Err`. It is never exported.
+        throw new RustrakTransportFailure(transformHttpError(error));
+      },
+    ],
   },
 });
 ```
 
-### 5. Cursor-Based Pagination
+`transformHttpError` is total: every 5xx redacts, every other unenumerated
+status lands on `client_error`, so no status is unrepresentable.
 
-All list endpoints return paginated responses:
+### 5. Pagination
+
+Two shapes, both wrapped in a `Result`:
 
 ```typescript
+// Cursor-based (events, spans, logs)
 interface PaginatedResponse<T> {
   items: T[];
   next_cursor?: string;
   has_more: boolean;
 }
 
-// Paginate through all issues
+// Offset-based (projects, issues, and most list endpoints)
+interface OffsetPaginatedResponse<T> {
+  items: T[];
+  total_count: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
+}
+
+// Paginate through every event of an issue
 let cursor: string | undefined;
 do {
-  const { items, next_cursor, has_more } = await client.issues.list(projectId, { cursor });
-  // Process items...
-  cursor = next_cursor;
+  const page = await client.events.list(projectId, issueId, { cursor });
+  if (!page.success) break;          // a failed page is not an empty page
+  process(page.data.items);
+  cursor = page.data.next_cursor;
 } while (cursor);
 ```
+
+The `if (!page.success) break` is the point of the whole API: stopping on a
+failure is a decision the caller has to make, and it now cannot be skipped by
+accident.
 
 ## API Reference
 
@@ -270,78 +349,60 @@ const client = new RustrakClient({
 
 ### Projects Resource
 
+Every method returns `Promise<Result<T, RustrakError>>`. `T` is named below.
+
 ```typescript
-// List all projects
-const projects = await client.projects.list();
+await client.projects.list();          // OffsetPaginatedResponse<Project>
+await client.projects.get(1);          // Project
+await client.projects.create({ name: 'My App', slug: 'my-app' }); // Project
+await client.projects.update(1, { name: 'New Name' });            // Project
+await client.projects.delete(1);       // void
 
-// Get single project
+// Reading one:
 const project = await client.projects.get(1);
-
-// Create project
-const newProject = await client.projects.create({
-  name: 'My App',
-  slug: 'my-app',  // Optional
-});
-
-// Update project
-const updated = await client.projects.update(1, { name: 'New Name' });
-
-// Delete project
-await client.projects.delete(1);
+if (project.success) console.log(project.data.dsn);
 ```
 
 ### Issues Resource
 
 ```typescript
-// List issues with pagination and filters
-const response = await client.issues.list(projectId, {
-  sort: 'last_seen',           // 'digest_order' | 'last_seen'
-  order: 'desc',               // 'asc' | 'desc'
-  include_resolved: false,     // Include resolved issues
-  cursor: 'eyJzb3J0...',       // Pagination cursor
-});
+await client.issues.list(projectId, {
+  sort: 'last_seen',        // 'digest_order' | 'last_seen' | 'event_count'
+  order: 'desc',            // 'asc' | 'desc'
+  filter: 'open',           // 'open' | 'resolved' | 'muted' | 'all'
+  page: 1,
+  per_page: 20,
+  q: 'TypeError',           // free-text search
+});                                            // OffsetPaginatedResponse<Issue>
 
-// Get single issue
-const issue = await client.issues.get(projectId, issueId);
-
-// Update issue state (resolve/mute)
+await client.issues.get(projectId, issueId);   // Issue
 await client.issues.updateState(projectId, issueId, {
   is_resolved: true,
   is_muted: false,
-});
-
-// Delete issue
-await client.issues.delete(projectId, issueId);
+});                                            // Issue
+await client.issues.delete(projectId, issueId); // void
 ```
 
 ### Events Resource
 
 ```typescript
-// List events for an issue
-const { items, next_cursor } = await client.events.list(projectId, issueId, {
-  order: 'desc',
-  cursor: 'optional-cursor',
-});
+await client.events.list(projectId, issueId, { order: 'desc', cursor });
+// PaginatedResponse<Event>, cursor-based
 
-// Get event detail with full Sentry data
-const event = await client.events.get(projectId, issueId, eventId);
-console.log(event.data); // Full Sentry event JSON
+const event = await client.events.get(projectId, issueId, eventId); // EventDetail
+if (event.success) console.log(event.data.data); // full Sentry event JSON
 ```
 
 ### Auth Tokens Resource
 
 ```typescript
-// List tokens (masked)
-const tokens = await client.tokens.list();
+await client.tokens.list();     // AuthToken[] (masked)
 
-// Create token (full token shown ONLY once)
-const created = await client.tokens.create({
-  description: 'CI/CD Token',
-});
-console.log(created.token); // SAVE THIS! Won't be shown again
+// Create: the full token is returned ONCE and never again.
+const created = await client.tokens.create({ description: 'CI/CD Token' });
+if (created.success) save(created.data.token);
 
-// Delete token
-await client.tokens.delete(tokenId);
+await client.tokens.delete(tokenId); // void
 ```
 
 ## Usage Examples
@@ -350,6 +411,7 @@ await client.tokens.delete(tokenId);
 
 ```typescript
 import { RustrakClient } from '@rustrak/client';
+import { redirect } from 'next/navigation';
 
 export default async function ProjectsPage() {
   const client = new RustrakClient({
@@ -359,7 +421,26 @@ export default async function ProjectsPage() {
 
   const projects = await client.projects.list();
 
-  return <ProjectsList projects={projects} />;
+  if (!projects.success) {
+    // `kind` decides. Redirecting on 'network' or 'server_error' turns a flaky
+    // connection into a login loop, which is the bug this API exists to expose.
+    if (projects.error.kind === 'unauthenticated') redirect('/auth/login');
+    return <LoadFailed error={projects.error} />;
+  }
+
+  return <ProjectsList projects={projects.data.items} />;
+}
+```
+
+### Server Action
+
+```typescript
+'use server';
+
+export async function resolveIssue(projectId: number, issueId: string) {
+  // Returned as-is. A `Result` is serializable, so the client component gets
+  // the actual failure rather than an opaque "An error occurred" digest.
+  return client.issues.updateState(projectId, issueId, { is_resolved: true });
 }
 ```
 
@@ -368,38 +449,51 @@ export default async function ProjectsPage() {
 ```typescript
 'use client';
 import useSWR from 'swr';
-import { RustrakClient } from '@rustrak/client';
-
-const client = new RustrakClient({ /* ... */ });
 
 export function IssuesList({ projectId }: { projectId: number }) {
-  const { data, error } = useSWR(
-    ['issues', projectId],
-    () => client.issues.list(projectId)
+  // The fetcher never rejects, so SWR's `error` stays empty: the failure is in
+  // `data`. Unwrap it in the fetcher if you want SWR's retry behaviour.
+  const { data } = useSWR(['issues', projectId], () =>
+    client.issues.list(projectId),
   );
 
-  if (error) return <div>Error: {error.message}</div>;
-  if (!data) return <div>Loading...</div>;
+  if (!data) return <Spinner />;
+  if (!data.success) return <LoadFailed error={data.error} />;
 
-  return <div>{/* render issues */}</div>;
+  return <List items={data.data.items} />;
 }
 ```
 
 ### Error Handling
 
 ```typescript
-import { RateLimitError, AuthenticationError } from '@rustrak/client';
+import { isRetryable, type RustrakError } from '@rustrak/client';
 
-try {
-  await client.projects.list();
-} catch (error) {
-  if (error instanceof RateLimitError) {
-    console.log(`Rate limited. Retry after ${error.retryAfter}s`);
-  } else if (error instanceof AuthenticationError) {
-    redirect('/login');
+const result = await client.projects.list();
+
+if (!result.success) {
+  switch (result.error.kind) {
+    case 'unauthenticated':
+      redirect('/auth/login');
+      break;
+    case 'rate_limited':
+      console.log(`Retry after ${result.error.retryAfter ?? 30}s`);
+      break;
+    case 'network':
+      // `reason` is the field to branch on. `message` is a fixed string by
+      // design: the underlying one names the host and port.
+      console.log(result.error.reason); // 'timeout' | 'unreachable'
+      break;
+    default:
+      if (isRetryable(result.error)) scheduleRetry();
   }
 }
 ```
+
+**Do not** reach for `unwrapOr(result, [])` to make a page compile.
+`unwrapOr(await client.projects.list(), [])` renders the same empty state for
+"no projects" and "the server is down", which is exactly the regression this
+API exists to prevent.
 
 ## Testing
 
@@ -416,18 +510,27 @@ pnpm test:watch
 pnpm test:coverage
 ```
 
-### Test Coverage (97.43%)
+### Test Coverage (452 tests, 97% statements)
 
-- **Unit Tests** (39 tests): Schemas, error classes
-- **Integration Tests** (94 tests):
-  - Client initialization
-  - Projects CRUD
-  - Issues pagination
-  - Events listing
-  - Tokens management
-  - Error handling (all HTTP codes)
-  - Retry logic
-  - Edge cases (malformed responses, timeouts, etc.)
+- **Unit tests**: Zod schemas, the `RustrakError` union and `isRetryable`, the
+  `BaseResource` boundary paths no MSW fixture can reach (a body read that
+  rejects, a body that must be cancelled), and `app-error-contract.test.ts`,
+  which parses `apps/server/src/error.rs` and fails if a `#[error(...)]` string
+  or a `StatusCode` drifts away from the fixtures.
+- **Integration tests**: one file per resource, driven through the real client
+  against MSW, plus `error-handling.test.ts` (every status -> `kind`, the
+  redactions, retry, `structuredClone` across the RSC boundary) and
+  `pagination.test.ts`.
+
+Two rules this suite is written to:
+
+1. **Assert on what the client produced, not on a literal you just wrote.** A
+   test that builds an object literal and asserts its shape cannot fail; it is
+   documentation wearing a test's clothes. Use `expectOk` / `expectErr` from
+   `tests/helpers/result.ts` on a real call.
+2. **`expectErr` alone is not an assertion.** It only establishes
+   `success === false`. Every call site must also pin `kind`, because "it failed
+   somehow" is strictly weaker than the `instanceof` check it replaced.
 
 ### MSW (Mock Service Worker)
 
@@ -481,12 +584,37 @@ export type NewResource = z.infer<typeof newResourceSchema>;
 3. **Create resource class** in `src/resources/`:
 ```typescript
 export class NewResourceResource extends BaseResource {
-  async list(): Promise<NewResource[]> {
-    const data = await this.http.get('api/new-resources').json();
-    return this.validate(data, z.array(newResourceSchema));
+  async list(): Promise<Result<NewResource[], RustrakError>> {
+    return this.request(
+      () => this.http.get('api/new-resources'),
+      z.array(newResourceSchema),
+    );
+  }
+
+  async create(
+    input: CreateNewResource,
+  ): Promise<Result<NewResource, RustrakError>> {
+    const validated = this.validateInput(input, createNewResourceSchema);
+    if (!validated.success) return validated;
+
+    return this.request(
+      () => this.http.post('api/new-resources', { json: validated.data }),
+      newResourceSchema,
+    );
+  }
+
+  async delete(id: number): Promise<Result<void, RustrakError>> {
+    // `requestVoid`, not `request`: it also releases the response body, which
+    // otherwise holds its socket out of Node's keep-alive pool.
+    return this.requestVoid(() => this.http.delete(`api/new-resources/${id}`));
   }
 }
 ```
+
+Never write a `try`/`catch` in a resource, and never call ky's `.json()`
+shortcut. Both belong to `BaseResource`: it is the single boundary where a
+rejected ky promise becomes an `Err`, and putting a second one in a resource
+means one of the 86 methods will disagree with the other 85.
 
 4. **Add to client** in `src/client.ts`:
 ```typescript
@@ -509,11 +637,16 @@ export class RustrakClient {
   - zod: 10KB
   - client code: 15KB
 
-- **Retry Strategy**:
-  - 2 retries by default
+- **Retry Strategy** (ky's, configured in `createKyInstance`):
+  - 2 retries by default (`maxRetries`)
   - Exponential backoff
-  - Only retries on: 408, 429, 500, 502, 503, 504
-  - Does NOT retry on: 4xx (except 429)
+  - Retries on: 408, 500, 502, 503, 504
+  - Retries `post`, `patch` and `delete` as well as `get` and `put`, which is
+    **not** ky's default and is a known data-integrity risk on a write that the
+    server committed before the gateway timed out. Recorded in
+    `_bmad-output/implementation-artifacts/deferred-work.md`; read that entry
+    before touching `retry`, together with the note on `isRetryable`
+    disagreeing with this policy.
 
 - **Timeout**: 30 seconds default (configurable)
 

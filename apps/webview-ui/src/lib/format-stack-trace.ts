@@ -61,7 +61,7 @@ export interface FrameContextLine {
  */
 const OLDEST_FRAME_FIRST_PLATFORMS = new Set(['python']);
 
-export function shouldShowNewestFirst(platform?: string): boolean {
+function shouldShowNewestFirst(platform?: string): boolean {
   return !OLDEST_FRAME_FIRST_PLATFORMS.has(platform ?? '');
 }
 

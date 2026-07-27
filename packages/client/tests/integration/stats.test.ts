@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
-import { NotFoundError } from '../../src/errors/index.js';
+import { expectErr, expectOk } from '../helpers/result.js';
 
 describe('StatsResource', () => {
   let client: RustrakClient;
@@ -14,7 +14,7 @@ describe('StatsResource', () => {
 
   describe('timeseries()', () => {
     it('returns error volume split by severity', async () => {
-      const result = await client.stats.timeseries(1);
+      const result = expectOk(await client.stats.timeseries(1));
 
       expect(result).toHaveLength(2);
       expect(result[0].total).toBe(10);
@@ -25,7 +25,7 @@ describe('StatsResource', () => {
     });
 
     it('keeps segments summing to the total', async () => {
-      const result = await client.stats.timeseries(1);
+      const result = expectOk(await client.stats.timeseries(1));
 
       for (const point of result) {
         expect(point.fatal + point.error + point.warning + point.info).toBe(
@@ -35,29 +35,34 @@ describe('StatsResource', () => {
     });
 
     it('keeps zero-filled buckets rather than dropping them', async () => {
-      const result = await client.stats.timeseries(1);
+      const result = expectOk(await client.stats.timeseries(1));
       expect(result[1].total).toBe(0);
     });
 
     it('passes period and interval through to the server', async () => {
-      const result = await client.stats.timeseries(1, '7d', 6);
+      const result = expectOk(await client.stats.timeseries(1, '7d', 6));
       // The handler spaces buckets 6h apart only when interval reached it.
       expect(result[1].bucket).toBe('2026-01-20T16:00:00.000Z');
     });
 
     it('works without a period (all time)', async () => {
-      const result = await client.stats.timeseries(1);
+      const result = expectOk(await client.stats.timeseries(1));
       expect(result).toHaveLength(2);
     });
 
-    it('throws NotFoundError for a missing project', async () => {
-      await expect(client.stats.timeseries(999)).rejects.toThrow(NotFoundError);
+    it('reports not_found for a missing project', async () => {
+      const result = await client.stats.timeseries(999);
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('not_found');
+      expect(error.message).toBe('Resource not found: Project 999 not found');
     });
   });
 
   describe('summary()', () => {
     it('returns counters with their previous-period comparison', async () => {
-      const result = await client.stats.summary(1, '24h');
+      const result = expectOk(await client.stats.summary(1, '24h'));
 
       expect(result.period_hours).toBe(24);
       expect(result.events.current).toBe(1200);
@@ -68,7 +73,7 @@ describe('StatsResource', () => {
     });
 
     it('leaves previous null for an all-time request', async () => {
-      const result = await client.stats.summary(1);
+      const result = expectOk(await client.stats.summary(1));
 
       expect(result.period_hours).toBeNull();
       expect(result.events.current).toBe(5000);
@@ -76,8 +81,11 @@ describe('StatsResource', () => {
       expect(result.new_issues.previous).toBeNull();
     });
 
-    it('throws NotFoundError for a missing project', async () => {
-      await expect(client.stats.summary(999)).rejects.toThrow(NotFoundError);
+    it('reports not_found for a missing project', async () => {
+      const result = await client.stats.summary(999);
+
+      expect(result.success).toBe(false);
+      expect(expectErr(result).kind).toBe('not_found');
     });
   });
 

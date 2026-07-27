@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, ok } from '../setup.js';
 
 describe('token tools', () => {
   let mockClient: any;
@@ -39,7 +39,7 @@ describe('token tools', () => {
           created_at: '2024-01-01T00:00:00Z',
         },
       ];
-      mockClient.tokens.list.mockResolvedValue(mockTokens);
+      mockClient.tokens.list.mockResolvedValue(ok(mockTokens));
 
       const result = await callTool({ name: 'list_tokens', arguments: {} });
 
@@ -58,7 +58,7 @@ describe('token tools', () => {
         description: 'CI token',
         created_at: '2024-01-01T00:00:00Z',
       };
-      mockClient.tokens.get.mockResolvedValue(mockToken);
+      mockClient.tokens.get.mockResolvedValue(ok(mockToken));
 
       const result = await callTool({
         name: 'get_token',
@@ -82,7 +82,7 @@ describe('token tools', () => {
         token_prefix: 'full',
         created_at: '2024-01-01T00:00:00Z',
       };
-      mockClient.tokens.create.mockResolvedValue(mockCreated);
+      mockClient.tokens.create.mockResolvedValue(ok(mockCreated));
 
       const result = await callTool({
         name: 'create_token',
@@ -100,7 +100,7 @@ describe('token tools', () => {
 
   describe('revoke_token', () => {
     it('revokes (deletes) a token by ID', async () => {
-      mockClient.tokens.delete.mockResolvedValue(undefined);
+      mockClient.tokens.delete.mockResolvedValue(ok(undefined));
 
       const result = await callTool({
         name: 'revoke_token',

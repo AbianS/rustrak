@@ -64,7 +64,6 @@ export default function EventLoading() {
               <div className="rounded-lg border bg-card p-4 space-y-3">
                 <Skeleton className="h-2.5 w-10" />
                 {Array.from({ length: 4 }).map((_, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
                   <Skeleton key={i} className="h-2 w-full" />
                 ))}
               </div>
@@ -82,7 +81,6 @@ export default function EventLoading() {
             {/* Sections */}
             <div className="rounded-lg border bg-card p-4 space-y-5">
               {Array.from({ length: 3 }).map((_, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
                 <div key={i} className="space-y-3">
                   <Skeleton className="h-4 w-40" />
                   <Skeleton className="h-24 w-full" />

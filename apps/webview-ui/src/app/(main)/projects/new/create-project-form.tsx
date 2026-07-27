@@ -17,52 +17,25 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { applyServerFieldErrors } from '@/lib/form-errors';
 import { platformLabel } from '@/lib/platforms';
+import {
+  PROJECT_NAME_MAX_LENGTH,
+  projectNameField,
+  projectSlugField,
+  slugifyPreview,
+} from '@/lib/project-fields';
 import { cn } from '@/lib/utils';
 import { PlatformGrid } from './platform-grid';
 
-const PROJECT_NAME_MIN_LENGTH = 2;
-const PROJECT_NAME_MAX_LENGTH = 100;
-
 const createProjectFormSchema = z.object({
   platform: z.string().min(1, 'Choose a platform to continue'),
-  name: z
-    .string()
-    .trim()
-    .min(
-      PROJECT_NAME_MIN_LENGTH,
-      `Name must be at least ${PROJECT_NAME_MIN_LENGTH} characters`,
-    )
-    .max(
-      PROJECT_NAME_MAX_LENGTH,
-      `Name must be at most ${PROJECT_NAME_MAX_LENGTH} characters`,
-    ),
-  slug: z
-    .string()
-    .trim()
-    .min(1, 'Slug cannot be empty')
-    .regex(
-      /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/,
-      'Use lowercase letters, digits and dashes',
-    ),
+  name: projectNameField,
+  slug: projectSlugField,
 });
-
-/**
- * Live preview slugifier, ported from Sentry's `utils/slugify`.
- *
- * Deliberately does NOT trim leading or trailing hyphens: doing so would make
- * it impossible to type "my-app", since the hyphen would vanish the moment it
- * is typed. The server slugifies again and is the real authority.
- */
-function slugifyPreview(value: string): string {
-  return value
-    .normalize('NFKD')
-    .toLowerCase()
-    .replace(/[^a-z0-9_\s-]/g, '')
-    .replace(/[-\s]+/g, '-');
-}
 
 type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
 
@@ -144,41 +117,45 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
 
   const onSubmit = (data: CreateProjectFormData) => {
     startTransition(async () => {
-      try {
-        const project = await createProject({
-          name: data.name,
-          platform: data.platform,
-          // Only sent when the user took the field over. An auto slug is
-          // derived, and the server is allowed to de-duplicate a derived slug
-          // silently. Sending the preview would turn that into a 409.
-          ...(slugMode === 'manual' ? { slug: data.slug } : {}),
-        });
-        // Straight into Client Keys: the DSN and the platform's setup snippet
-        // are the only thing left to do, and that page owns them.
-        router.push(`/projects/${project.id}/settings/client-keys`);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to create project';
+      const result = await createProject({
+        name: data.name,
+        platform: data.platform,
+        // Only sent when the user took the field over. An auto slug is
+        // derived, and the server is allowed to de-duplicate a derived slug
+        // silently. Sending the preview would turn that into a 409.
+        ...(slugMode === 'manual' ? { slug: data.slug } : {}),
+      });
 
+      if (!result.success) {
         // A taken name or slug belongs on its own field, not in a toast the
-        // user has to translate back into an edit. Matched on the message
-        // because a Server Action carries only a string across the boundary,
-        // and in production not even that: #204 replaces this with a real
-        // error code, and this check goes with it.
-        if (message.includes('already exists')) {
-          if (message.includes("slug '")) {
-            setSlugMode('manual'); // so the field they must fix is editable
-            form.setError('slug', { type: 'server', message });
-            return;
-          }
-          if (message.includes("name '")) {
-            form.setError('name', { type: 'server', message });
-            return;
-          }
+        // user has to translate back into an edit. The server names the
+        // offending input as data now (`fields: [{field: 'slug', code:
+        // 'already_exists'}]`), so nothing here reads the message prose. The
+        // helper only marks a field this form registers, so a name the form
+        // does not have cannot strand it.
+        const applied = applyServerFieldErrors(form, result.error, {
+          labels: { name: 'Project name', slug: 'Slug' },
+        });
+
+        // The slug input is read-only while it mirrors the name, so a slug the
+        // server rejected would be marked and unfixable. Hand the field over.
+        if (applied.marked.includes('slug')) {
+          setSlugMode('manual');
         }
 
-        toast.error('Failed to create project', { description: message });
+        // Only when nothing landed on an input: a toast next to a red field is
+        // the same sentence twice, and it outlives the fix.
+        if (applied.formLevel) {
+          toast.error('Failed to create project', {
+            description: applied.formLevel,
+          });
+        }
+        return;
       }
+
+      // Straight into Client Keys: the DSN and the platform's setup snippet
+      // are the only thing left to do, and that page owns them.
+      router.push(`/projects/${result.data.id}/settings/client-keys`);
     });
   };
 
@@ -357,6 +334,9 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
               )}
             />
           </div>
+
+          {/* Where a server failure that named no field of this form lands. */}
+          <FormRootError className="mt-4" />
 
           {/* Hidden on mobile: the fixed bar below owns the action there, and
               two live submit buttons would be one too many. */}

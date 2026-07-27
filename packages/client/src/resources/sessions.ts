@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import { offsetPaginatedResponseSchema } from '../schemas/common.js';
 import {
   releaseHealthRowSchema,
@@ -28,7 +30,7 @@ export class SessionsResource extends BaseResource {
   async stats(
     projectId: number,
     options?: ReleaseHealthStatsOptions,
-  ): Promise<OffsetPaginatedResponse<ReleaseHealthRow>> {
+  ): Promise<Result<OffsetPaginatedResponse<ReleaseHealthRow>, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (options?.period) {
       searchParams.period = options.period;
@@ -43,12 +45,11 @@ export class SessionsResource extends BaseResource {
       searchParams.per_page = String(options.per_page);
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/sessions/stats`, { searchParams })
-      .json();
-
-    return this.validate(
-      data,
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/sessions/stats`, {
+          searchParams,
+        }),
       offsetPaginatedResponseSchema(releaseHealthRowSchema),
     );
   }
@@ -58,17 +59,22 @@ export class SessionsResource extends BaseResource {
    * @param projectId - Project ID
    * @param period - Time window (e.g. '24h', '7d'). Defaults to '24h'.
    */
-  async summary(projectId: number, period?: string): Promise<SessionSummary> {
+  async summary(
+    projectId: number,
+    period?: string,
+  ): Promise<Result<SessionSummary, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (period) {
       searchParams.period = period;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/sessions/summary`, { searchParams })
-      .json();
-
-    return this.validate(data, sessionSummarySchema);
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/sessions/summary`, {
+          searchParams,
+        }),
+      sessionSummarySchema,
+    );
   }
 
   /**
@@ -82,7 +88,7 @@ export class SessionsResource extends BaseResource {
     projectId: number,
     period?: string,
     interval?: number,
-  ): Promise<SessionTimeseries> {
+  ): Promise<Result<SessionTimeseries, RustrakError>> {
     const searchParams: Record<string, string> = {};
     if (period) {
       searchParams.period = period;
@@ -91,10 +97,12 @@ export class SessionsResource extends BaseResource {
       searchParams.interval = interval.toString();
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/sessions/timeseries`, { searchParams })
-      .json();
-
-    return this.validate(data, sessionTimeseriesSchema);
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/sessions/timeseries`, {
+          searchParams,
+        }),
+      sessionTimeseriesSchema,
+    );
   }
 }

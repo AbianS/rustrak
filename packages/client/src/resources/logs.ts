@@ -1,3 +1,5 @@
+import type { RustrakError } from '../errors.js';
+import type { Result } from '../result.js';
 import { logSchema, offsetPaginatedResponseSchema } from '../schemas/index.js';
 import type {
   ListLogsOptions,
@@ -17,7 +19,7 @@ export class LogsResource extends BaseResource {
   async list(
     projectId: number,
     options?: ListLogsOptions,
-  ): Promise<OffsetPaginatedResponse<Log>> {
+  ): Promise<Result<OffsetPaginatedResponse<Log>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.page) {
@@ -33,10 +35,9 @@ export class LogsResource extends BaseResource {
       searchParams.trace_id = options.trace_id;
     }
 
-    const data = await this.http
-      .get(`api/projects/${projectId}/logs`, { searchParams })
-      .json();
-
-    return this.validate(data, offsetPaginatedResponseSchema(logSchema));
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/logs`, { searchParams }),
+      offsetPaginatedResponseSchema(logSchema),
+    );
   }
 }

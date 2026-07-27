@@ -1,11 +1,12 @@
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getIssue } from '@/actions/issues';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { loadAll } from '@/lib/results';
 
 interface EmptyEventsPageProps {
   params: Promise<{ id: string; issueId: string }>;
@@ -22,12 +23,12 @@ export async function generateMetadata({
     getIssue(projectId, issueId),
   ]);
 
-  if (!project || !issue) {
+  if (!project.success || !issue.success) {
     return { title: 'Issue Not Found | Rustrak' };
   }
 
   return {
-    title: `No Events | ${issue.title} | Rustrak`,
+    title: `No Events | ${issue.data.title} | Rustrak`,
   };
 }
 
@@ -37,14 +38,16 @@ export default async function EmptyEventsPage({
   const { id, issueId } = await params;
   const projectId = parseInt(id, 10);
 
-  const [project, issue] = await Promise.all([
+  const loaded = await loadAll([
     getProject(projectId),
     getIssue(projectId, issueId),
   ]);
 
-  if (!project || !issue) {
-    notFound();
+  if (!loaded.success) {
+    return <LoadFailure error={loaded.error} title="Could not load issue" />;
   }
+
+  const [project, issue] = loaded.data;
 
   return (
     <div className="w-full px-8 py-10">

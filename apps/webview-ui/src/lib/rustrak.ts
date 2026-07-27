@@ -11,10 +11,16 @@ const SESSION_COOKIE_NAME = 'rustrak_session';
  * Create a RustrakClient instance with the current user's session cookie.
  * Use this in Server Actions and Server Components to make authenticated requests.
  *
+ * Every client method returns a `Result`, never throws for an expected
+ * failure, and a `Result` is plain data, so an action can hand it straight back
+ * across the server/client boundary instead of losing it to an RSC digest.
+ *
  * @example
  * ```typescript
  * // In a Server Action
- * export async function getProjects() {
+ * export async function getProjects(): Promise<
+ *   Result<OffsetPaginatedResponse<Project>, RustrakError>
+ * > {
  *   const client = await createClient();
  *   return client.projects.list();
  * }
@@ -96,8 +102,9 @@ function parseSetCookie(setCookieHeader: string): {
  * export async function login(credentials: LoginRequest) {
  *   const client = await createClient();
  *   const result = await client.auth.login(credentials);
- *   await applySetCookies(result.cookies);
- *   return result.user;
+ *   if (!result.success) return result;
+ *   await applySetCookies(result.data.cookies);
+ *   return result.data.user;
  * }
  * ```
  */
@@ -123,6 +130,20 @@ export async function applySetCookies(
       sameSite: parsed.sameSite,
     });
   }
+}
+
+/**
+ * Drop the session cookie held by this process, with no server response to
+ * replay.
+ *
+ * The fallback for a logout the server never acknowledged: `clearSessionCookies`
+ * works off the `Set-Cookie` headers the response carried, and a failed request
+ * carries none, so without this a failed logout silently leaves the visitor
+ * signed in.
+ */
+export async function dropSessionCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE_NAME);
 }
 
 /**

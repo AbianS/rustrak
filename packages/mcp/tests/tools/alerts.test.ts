@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, ok } from '../setup.js';
 
 describe('alert tools', () => {
   let mockClient: any;
@@ -35,7 +35,7 @@ describe('alert tools', () => {
           updated_at: '2024-01-01T00:00:00Z',
         },
       ];
-      mockClient.alertIntegrations.list.mockResolvedValue(mockChannels);
+      mockClient.alertIntegrations.list.mockResolvedValue(ok(mockChannels));
 
       const result = await callTool({
         name: 'list_alert_channels',
@@ -52,7 +52,7 @@ describe('alert tools', () => {
   describe('test_alert_channel', () => {
     it('sends a test notification to the channel', async () => {
       const mockResponse = { success: true, message: 'Test notification sent' };
-      mockClient.alertIntegrations.test.mockResolvedValue(mockResponse);
+      mockClient.alertIntegrations.test.mockResolvedValue(ok(mockResponse));
 
       const result = await callTool({
         name: 'test_alert_channel',
@@ -79,7 +79,7 @@ describe('alert tools', () => {
           updated_at: '2024-01-01T00:00:00Z',
         },
       ];
-      mockClient.alertRules.list.mockResolvedValue(mockRules);
+      mockClient.alertRules.list.mockResolvedValue(ok(mockRules));
 
       const result = await callTool({
         name: 'list_alert_rules',

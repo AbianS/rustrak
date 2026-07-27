@@ -41,7 +41,12 @@ export function StatusIndicator({
 }) {
   const { dot, label } = statusDisplay(issue);
   return (
-    <Pill dot={dot} label={label} title={`Status: ${label}`} className={className} />
+    <Pill
+      dot={dot}
+      label={label}
+      title={`Status: ${label}`}
+      className={className}
+    />
   );
 }
 
@@ -88,7 +93,8 @@ export function LevelBadge({
   if (!level) {
     return null;
   }
-  const style = LEVEL_STYLES[level.toLowerCase()] ?? 'bg-muted text-muted-foreground';
+  const style =
+    LEVEL_STYLES[level.toLowerCase()] ?? 'bg-muted text-muted-foreground';
   return (
     <span
       title={`Level: ${level}`}

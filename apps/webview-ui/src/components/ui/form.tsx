@@ -149,6 +149,37 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
   );
 }
 
+/**
+ * The form-level slot `applyServerFieldErrors` writes to.
+ *
+ * Renders `root.serverError`, which is where a server failure lands when it
+ * named no input, or named one this form does not register. Without this
+ * component that branch of the helper would be invisible and the form would
+ * simply appear to do nothing.
+ *
+ * `role="alert"` because it appears after a submit the user already committed
+ * to, so a screen reader has to be told without being asked.
+ */
+function FormRootError({ className, ...props }: React.ComponentProps<'p'>) {
+  const { errors } = useFormState();
+  const message = errors.root?.serverError?.message;
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <p
+      data-slot="form-root-error"
+      role="alert"
+      className={cn('text-destructive text-sm', className)}
+      {...props}
+    >
+      {String(message)}
+    </p>
+  );
+}
+
 export {
   Form,
   FormControl,
@@ -157,5 +188,6 @@ export {
   FormItem,
   FormLabel,
   FormMessage,
+  FormRootError,
   useFormField,
 };

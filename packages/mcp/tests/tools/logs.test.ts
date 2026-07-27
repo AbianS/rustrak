@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('log tools', () => {
   let mockClient: any;
@@ -42,7 +43,7 @@ describe('log tools', () => {
 
   describe('list_logs', () => {
     it('returns a log page for a project', async () => {
-      mockClient.logs.list.mockResolvedValue(mockLogPage);
+      mockClient.logs.list.mockResolvedValue(ok(mockLogPage));
 
       const result = await callTool({
         name: 'list_logs',
@@ -58,7 +59,7 @@ describe('log tools', () => {
     });
 
     it('forwards offset pagination and filters', async () => {
-      mockClient.logs.list.mockResolvedValue(mockLogPage);
+      mockClient.logs.list.mockResolvedValue(ok(mockLogPage));
 
       await callTool({
         name: 'list_logs',
@@ -83,7 +84,13 @@ describe('log tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.logs.list.mockRejectedValue(new Error('API error'));
+      mockClient.logs.list.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'list_logs',
@@ -91,7 +98,7 @@ describe('log tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 });

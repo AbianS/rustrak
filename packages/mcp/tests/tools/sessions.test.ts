@@ -1,5 +1,6 @@
+import { SERVER_ERROR_MESSAGE } from '@rustrak/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTestEnv } from '../setup.js';
+import { createTestEnv, fail, ok } from '../setup.js';
 
 describe('session tools', () => {
   let mockClient: any;
@@ -42,7 +43,7 @@ describe('session tools', () => {
 
   describe('get_release_health', () => {
     it('returns release health for a project', async () => {
-      mockClient.sessions.stats.mockResolvedValue(mockReleaseHealth);
+      mockClient.sessions.stats.mockResolvedValue(ok(mockReleaseHealth));
 
       const result = await callTool({
         name: 'get_release_health',
@@ -63,7 +64,7 @@ describe('session tools', () => {
     });
 
     it('passes period when provided', async () => {
-      mockClient.sessions.stats.mockResolvedValue(mockReleaseHealth);
+      mockClient.sessions.stats.mockResolvedValue(ok(mockReleaseHealth));
 
       await callTool({
         name: 'get_release_health',
@@ -78,7 +79,7 @@ describe('session tools', () => {
     });
 
     it('passes pagination params when provided', async () => {
-      mockClient.sessions.stats.mockResolvedValue(mockReleaseHealth);
+      mockClient.sessions.stats.mockResolvedValue(ok(mockReleaseHealth));
 
       await callTool({
         name: 'get_release_health',
@@ -93,7 +94,13 @@ describe('session tools', () => {
     });
 
     it('returns error content on API failure', async () => {
-      mockClient.sessions.stats.mockRejectedValue(new Error('API error'));
+      mockClient.sessions.stats.mockResolvedValue(
+        fail({
+          kind: 'server_error',
+          status: 500,
+          message: SERVER_ERROR_MESSAGE,
+        }),
+      );
 
       const result = await callTool({
         name: 'get_release_health',
@@ -101,7 +108,7 @@ describe('session tools', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Unexpected error');
+      expect(result.content[0].text).toContain(SERVER_ERROR_MESSAGE);
     });
   });
 });

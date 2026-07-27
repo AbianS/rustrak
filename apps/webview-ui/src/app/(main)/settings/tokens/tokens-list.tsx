@@ -72,20 +72,22 @@ export function TokensList({ initialTokens }: TokensListProps) {
     if (!isDescriptionValid) return;
 
     startTransition(async () => {
-      try {
-        const result = await createToken({
-          description: trimmedDescription || undefined,
+      const result = await createToken({
+        description: trimmedDescription || undefined,
+      });
+
+      if (!result.success) {
+        toast.error('Failed to create token', {
+          description: result.error.message,
         });
-        setNewToken(result.token);
-        setDescription('');
-        toast.success('Token created', {
-          description: 'Make sure to copy your token now.',
-        });
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to create token';
-        toast.error('Failed to create token', { description: message });
+        return;
       }
+
+      setNewToken(result.data.token);
+      setDescription('');
+      toast.success('Token created', {
+        description: 'Make sure to copy your token now.',
+      });
     });
   };
 
@@ -100,39 +102,42 @@ export function TokensList({ initialTokens }: TokensListProps) {
     setDeletingId(tokenToDeleteId);
     setDeleteDialogOpen(false);
     startTransition(async () => {
-      try {
-        await deleteToken(tokenToDeleteId);
+      const result = await deleteToken(tokenToDeleteId);
+
+      if (result.success) {
         toast.success('Token deleted');
         router.refresh();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to delete token';
-        toast.error('Failed to delete token', { description: message });
-      } finally {
-        setDeletingId(null);
-        setTokenToDeleteId(null);
+      } else {
+        toast.error('Failed to delete token', {
+          description: result.error.message,
+        });
       }
+
+      setDeletingId(null);
+      setTokenToDeleteId(null);
     });
   };
 
   const handleCopy = (token: AuthToken) => {
     setCopyingId(token.id);
     startTransition(async () => {
-      try {
-        const result = await getToken(token.id);
-        const copied = await copyToClipboard(result.token);
-        if (copied) {
-          toast.success('Token copied to clipboard');
-        } else {
-          toast.info('Copy the token', { description: result.token });
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Failed to get token';
-        toast.error('Failed to get token', { description: message });
-      } finally {
+      const result = await getToken(token.id);
+
+      if (!result.success) {
+        toast.error('Failed to get token', {
+          description: result.error.message,
+        });
         setCopyingId(null);
+        return;
       }
+
+      const copied = await copyToClipboard(result.data.token);
+      if (copied) {
+        toast.success('Token copied to clipboard');
+      } else {
+        toast.info('Copy the token', { description: result.data.token });
+      }
+      setCopyingId(null);
     });
   };
 

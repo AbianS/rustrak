@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson } from '../errors.js';
 
 export function registerAlertTools(
   server: McpServer,
@@ -15,14 +15,8 @@ export function registerAlertTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.alertIntegrations.list();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.alertIntegrations.list();
+      return mcpJson(result);
     },
   );
 
@@ -36,14 +30,8 @@ export function registerAlertTools(
       },
     },
     async ({ channel_id }) => {
-      try {
-        const result = await client.alertIntegrations.test(channel_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.alertIntegrations.test(channel_id);
+      return mcpJson(result);
     },
   );
 
@@ -56,14 +44,8 @@ export function registerAlertTools(
       },
     },
     async ({ project_id }) => {
-      try {
-        const result = await client.alertRules.list(project_id);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.alertRules.list(project_id);
+      return mcpJson(result);
     },
   );
 }

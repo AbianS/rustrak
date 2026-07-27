@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { z } from 'zod';
-import { toMcpError } from '../errors.js';
+import { mcpJson, mcpRefusal } from '../errors.js';
 
 export function registerStorageTools(
   server: McpServer,
@@ -15,14 +15,8 @@ export function registerStorageTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.storage.getSummary();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.getSummary();
+      return mcpJson(result);
     },
   );
 
@@ -34,14 +28,8 @@ export function registerStorageTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.storage.getProjects();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.getProjects();
+      return mcpJson(result);
     },
   );
 
@@ -86,20 +74,14 @@ export function registerStorageTools(
       include_transactions,
       include_logs,
     }) => {
-      try {
-        const result = await client.storage.previewCleanup({
-          older_than_days,
-          project_id,
-          include_events,
-          include_transactions,
-          include_logs,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.previewCleanup({
+        older_than_days,
+        project_id,
+        include_events,
+        include_transactions,
+        include_logs,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -151,26 +133,18 @@ export function registerStorageTools(
       confirm,
     }) => {
       if (confirm !== true) {
-        return toMcpError(
-          new Error(
-            'execute_storage_cleanup is destructive and was not confirmed. Run preview_storage_cleanup first, then call again with confirm=true to proceed.',
-          ),
+        return mcpRefusal(
+          'execute_storage_cleanup is destructive and was not confirmed. Run preview_storage_cleanup first, then call again with confirm=true to proceed.',
         );
       }
-      try {
-        const result = await client.storage.executeCleanup({
-          older_than_days,
-          project_id,
-          include_events,
-          include_transactions,
-          include_logs,
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.executeCleanup({
+        older_than_days,
+        project_id,
+        include_events,
+        include_transactions,
+        include_logs,
+      });
+      return mcpJson(result);
     },
   );
 
@@ -182,14 +156,8 @@ export function registerStorageTools(
       inputSchema: {},
     },
     async () => {
-      try {
-        const result = await client.storage.previewGcSourceMaps();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.previewGcSourceMaps();
+      return mcpJson(result);
     },
   );
 
@@ -208,20 +176,12 @@ export function registerStorageTools(
     },
     async ({ confirm }) => {
       if (confirm !== true) {
-        return toMcpError(
-          new Error(
-            'gc_storage_source_maps is destructive and was not confirmed. Run preview_storage_source_maps_gc first, then call again with confirm=true to proceed.',
-          ),
+        return mcpRefusal(
+          'gc_storage_source_maps is destructive and was not confirmed. Run preview_storage_source_maps_gc first, then call again with confirm=true to proceed.',
         );
       }
-      try {
-        const result = await client.storage.gcSourceMaps();
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (err) {
-        return toMcpError(err);
-      }
+      const result = await client.storage.gcSourceMaps();
+      return mcpJson(result);
     },
   );
 }

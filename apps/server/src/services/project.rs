@@ -1,9 +1,22 @@
 use slug::slugify;
 
 use crate::db::DbPool;
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{CreateProject, Project, UpdateProject, SELECTABLE_PLATFORMS, VALID_PLATFORMS};
 use crate::pagination::SortOrder;
+
+/// Whether [`ProjectService::update_inner`] runs the slug availability
+/// pre-check before the UPDATE.
+///
+/// `Skip` is only ever constructed by the debug-only test seam
+/// [`ProjectService::update_with_raced_slug`], so a release build has no way
+/// to reach it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
+enum SlugPrecheck {
+    Run,
+    Skip,
+}
 
 pub struct ProjectService;
 
@@ -206,7 +219,8 @@ impl ProjectService {
                     return Err(AppError::Conflict(format!(
                         "Project with slug '{}' already exists",
                         slugified
-                    )));
+                    ))
+                    .with_field("slug", FieldErrorCode::AlreadyExists));
                 }
                 (slugified, true)
             }
@@ -253,6 +267,41 @@ impl ProjectService {
 
     /// Updates an existing project
     pub async fn update(pool: &DbPool, id: i32, input: UpdateProject) -> AppResult<Project> {
+        Self::update_inner(pool, id, input, SlugPrecheck::Run).await
+    }
+
+    /// [`Self::update`] with the slug availability pre-check skipped, which is
+    /// the only way a test can reach the unique-violation mapping below:
+    /// production reaches it only by losing a TOCTOU race. Mirrors
+    /// [`Self::create_with_stale_slug`] on the update path.
+    ///
+    /// **Test seam**, and not merely `#[doc(hidden)]`: hiding it from rustdoc
+    /// left it in the binary and callable, and this one reads like a
+    /// legitimate variant of `update` while silently skipping the slug
+    /// pre-check. It does not exist in the shipped binary.
+    ///
+    /// The gate is `debug_assertions` **or** the `test-seams` feature, not
+    /// `debug_assertions` alone. Integration tests are separate crates that
+    /// call this unconditionally, so gating on `debug_assertions` only made
+    /// `cargo test --release` fail to compile. `Cargo.toml` enables the
+    /// feature through a self dev-dependency, which reaches test targets and
+    /// never `cargo build --release`.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
+    #[doc(hidden)]
+    pub async fn update_with_raced_slug(
+        pool: &DbPool,
+        id: i32,
+        input: UpdateProject,
+    ) -> AppResult<Project> {
+        Self::update_inner(pool, id, input, SlugPrecheck::Skip).await
+    }
+
+    async fn update_inner(
+        pool: &DbPool,
+        id: i32,
+        input: UpdateProject,
+        slug_precheck: SlugPrecheck,
+    ) -> AppResult<Project> {
         // Verify it exists
         Self::get_by_id(pool, id).await?;
 
@@ -286,17 +335,22 @@ impl ProjectService {
                 // clear Conflict rather than a raw unique violation. This is
                 // TOCTOU-racy on its own, so the unique-violation mapping
                 // below still has to cover the slug case.
-                let taken: Option<i32> =
-                    sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1 AND id != $2")
-                        .bind(&slugified)
-                        .bind(id)
-                        .fetch_optional(pool)
-                        .await?;
+                let taken: Option<i32> = match slug_precheck {
+                    SlugPrecheck::Run => {
+                        sqlx::query_scalar("SELECT id FROM projects WHERE slug = $1 AND id != $2")
+                            .bind(&slugified)
+                            .bind(id)
+                            .fetch_optional(pool)
+                            .await?
+                    }
+                    SlugPrecheck::Skip => None,
+                };
                 if taken.is_some() {
                     return Err(AppError::Conflict(format!(
                         "Project with slug '{}' already exists",
                         slugified
-                    )));
+                    ))
+                    .with_field("slug", FieldErrorCode::AlreadyExists));
                 }
                 Some(slugified)
             }
@@ -344,14 +398,16 @@ impl ProjectService {
                             return AppError::Conflict(format!(
                                 "Project with slug '{}' already exists",
                                 slug
-                            ));
+                            ))
+                            .with_field("slug", FieldErrorCode::AlreadyExists);
                         }
                     }
                     if let Some(name) = name {
                         return AppError::Conflict(format!(
                             "Project with name '{}' already exists",
                             name
-                        ));
+                        ))
+                        .with_field("name", FieldErrorCode::AlreadyExists);
                     }
                 }
             }
@@ -443,6 +499,10 @@ impl ProjectService {
 
     /// Bypass slug generation and directly try INSERT with a pre-computed
     /// (possibly stale) slug. Used in integration tests to simulate TOCTOU.
+    ///
+    /// **Test seam**, gated like [`Self::update_with_raced_slug`]: it is absent
+    /// from the shipped binary but present for tests in either profile.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
     #[doc(hidden)]
     pub async fn create_with_stale_slug(
         pool: &DbPool,
@@ -453,6 +513,27 @@ impl ProjectService {
         let sentry_key = uuid::Uuid::new_v4();
         // `false`: this helper exists to exercise the derived-slug retry path.
         Self::try_insert_with_retry(pool, name, stale_slug, sentry_key, platform, false).await
+    }
+
+    /// The user-chosen half of [`Self::create_with_stale_slug`]: skips the
+    /// availability pre-check in [`Self::create`] and goes straight to the
+    /// INSERT with a slug the caller typed.
+    ///
+    /// Exists because the branch it reaches is otherwise reachable only by
+    /// losing a real TOCTOU race, which no test can lose on purpose.
+    ///
+    /// **Test seam**, gated like [`Self::update_with_raced_slug`]: it is absent
+    /// from the shipped binary but present for tests in either profile.
+    #[cfg(any(debug_assertions, feature = "test-seams"))]
+    #[doc(hidden)]
+    pub async fn create_with_raced_user_slug(
+        pool: &DbPool,
+        name: &str,
+        slug: &str,
+        platform: Option<&str>,
+    ) -> AppResult<Project> {
+        let sentry_key = uuid::Uuid::new_v4();
+        Self::try_insert_with_retry(pool, name, slug, sentry_key, platform, true).await
     }
 
     async fn try_insert_with_retry(
@@ -491,11 +572,16 @@ impl ProjectService {
                             .bind(slug)
                             .fetch_optional(pool)
                             .await?;
-                    return Err(AppError::Conflict(if slug_taken.is_some() {
-                        format!("Project with slug '{}' already exists", slug)
+                    // The field annotation belongs inside the branch, not on
+                    // the `return`: the two arms blame two different inputs,
+                    // so one annotation for both would mislabel one of them.
+                    return Err(if slug_taken.is_some() {
+                        AppError::Conflict(format!("Project with slug '{}' already exists", slug))
+                            .with_field("slug", FieldErrorCode::AlreadyExists)
                     } else {
-                        format!("Project with name '{}' already exists", name)
-                    }));
+                        AppError::Conflict(format!("Project with name '{}' already exists", name))
+                            .with_field("name", FieldErrorCode::AlreadyExists)
+                    });
                 }
 
                 // The slug may have been taken by a concurrent request (TOCTOU).
@@ -506,7 +592,8 @@ impl ProjectService {
                     return Err(AppError::Conflict(format!(
                         "Project with name '{}' already exists",
                         name
-                    )));
+                    ))
+                    .with_field("name", FieldErrorCode::AlreadyExists));
                 }
                 sqlx::query_as::<_, Project>(INSERT_SQL)
                     .bind(name)
@@ -521,7 +608,8 @@ impl ProjectService {
                                 return AppError::Conflict(format!(
                                     "Project with name '{}' already exists",
                                     name
-                                ));
+                                ))
+                                .with_field("name", FieldErrorCode::AlreadyExists);
                             }
                         }
                         AppError::Database(e)

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/actions/auth';
+import { ServiceUnavailable } from '@/components/service-unavailable';
 import {
   Card,
   CardContent,
@@ -16,11 +17,19 @@ export const metadata: Metadata = {
 };
 
 export default async function AccountPage() {
-  const user = await getCurrentUser();
+  const session = await getCurrentUser();
 
-  if (!user) {
+  // Only `anonymous`. The page is nothing but a read of the current user, so
+  // on `unavailable` there is nothing to render and nothing login would fix.
+  if (session.state === 'anonymous') {
     redirect('/auth/login');
   }
+
+  if (session.state === 'unavailable') {
+    return <ServiceUnavailable error={session.error} />;
+  }
+
+  const user = session.user;
 
   return (
     <>

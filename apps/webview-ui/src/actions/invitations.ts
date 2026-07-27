@@ -1,23 +1,21 @@
 'use server';
 
-import type { CreateInvitation, Invitation } from '@rustrak/client';
-import { RustrakError } from '@rustrak/client';
+import type {
+  CreateInvitation,
+  Invitation,
+  Result,
+  RustrakError,
+} from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
-
-export type CreateInvitationResult =
-  | { success: true; invitation: Invitation }
-  | { success: false; error: string };
-
-export type RevokeInvitationResult =
-  | { success: true }
-  | { success: false; error: string };
 
 /**
  * List all pending/expired invitations.
  *
  * @returns List of invitations
  */
-export async function listInvitations(): Promise<Invitation[]> {
+export async function listInvitations(): Promise<
+  Result<Invitation[], RustrakError>
+> {
   const client = await createClient();
   return client.invitations.list();
 }
@@ -28,41 +26,30 @@ export async function listInvitations(): Promise<Invitation[]> {
  * v1 does not send email, so the returned invitation token must be
  * shared manually by the admin (used to build the invite link).
  *
+ * The `RustrakError` is returned rather than flattened to a string: an address
+ * that already has an account or a pending invite comes back as a `conflict`
+ * naming `email`, and the form puts that on the email input instead of in a
+ * toast the user has to translate back into an edit.
+ *
  * @param input - Email and role for the invitee
- * @returns Result object with the created invitation or a friendly error
+ * @returns The created invitation, or the failure the server reported
  */
 export async function createInvitation(
   input: CreateInvitation,
-): Promise<CreateInvitationResult> {
-  try {
-    const client = await createClient();
-    const invitation = await client.invitations.create(input);
-    return { success: true, invitation };
-  } catch (err) {
-    if (err instanceof RustrakError) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Failed to create invitation' };
-  }
+): Promise<Result<Invitation, RustrakError>> {
+  const client = await createClient();
+  return client.invitations.create(input);
 }
 
 /**
  * Revoke (delete) a pending invitation by its token.
  *
  * @param token - The invitation token to revoke
- * @returns Result object describing success or a friendly error
+ * @returns `Ok` on success, or the failure the server reported
  */
 export async function revokeInvitation(
   token: string,
-): Promise<RevokeInvitationResult> {
-  try {
-    const client = await createClient();
-    await client.invitations.revoke(token);
-    return { success: true };
-  } catch (err) {
-    if (err instanceof RustrakError) {
-      return { success: false, error: err.message };
-    }
-    return { success: false, error: 'Failed to revoke invitation' };
-  }
+): Promise<Result<void, RustrakError>> {
+  const client = await createClient();
+  return client.invitations.revoke(token);
 }

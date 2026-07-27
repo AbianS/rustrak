@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { listIntegrations } from '@/actions/alerts';
+import { LoadFailure } from '@/components/load-failure';
 import { IntegrationsList } from './integrations-list';
 
 export const metadata: Metadata = {
@@ -9,6 +10,16 @@ export const metadata: Metadata = {
 
 export default async function IntegrationsPage() {
   const integrations = await listIntegrations();
+
+  if (!integrations.success) {
+    return (
+      <LoadFailure
+        error={integrations.error}
+        title="Could not load integrations"
+        notFoundOnMissing={false}
+      />
+    );
+  }
 
   return (
     <>
@@ -22,7 +33,7 @@ export default async function IntegrationsPage() {
         </p>
       </div>
 
-      <IntegrationsList initialIntegrations={integrations} />
+      <IntegrationsList initialIntegrations={integrations.data} />
     </>
   );
 }

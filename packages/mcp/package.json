@@ -34,7 +34,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "check-types": "tsc --noEmit"
   },
   "keywords": [
     "rustrak",
@@ -52,7 +52,7 @@
   "author": "AbianS",
   "license": "GPL-3.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
