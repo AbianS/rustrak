@@ -114,10 +114,21 @@ export function ChangelogFeed({
   useEffect(() => {
     const resolve = () => {
       const anchor = decodeURIComponent(window.location.hash.slice(1));
-      if (!anchor) return;
+      const chunk = anchor ? chunkByAnchor[anchor] : undefined;
 
-      const chunk = chunkByAnchor[anchor];
-      if (!chunk || chunk <= loadedRef.current) return;
+      /*
+        Every path clears the pending anchor, including the ones with nothing
+        to do. The last hash is the only one the reader asked for, and the
+        cases that return here — a release already on the page, an unknown
+        anchor, an empty hash — are all cases the browser has already handled
+        or that mean nothing. Leaving a previous anchor standing through them
+        meant the next chunk to arrive would scroll the page off whatever the
+        reader had just navigated to, back to a release they had abandoned.
+      */
+      if (!chunk || chunk <= loadedRef.current) {
+        setPendingAnchor(null);
+        return;
+      }
 
       setPendingAnchor(anchor);
       void loadThrough(chunk);
