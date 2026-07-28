@@ -665,6 +665,7 @@ function WebhookConfigDialog({
 function WebhookConfigForm({
   onOpenChange,
   existingIntegration,
+  onTest,
   onDelete,
   isPending: parentPending,
 }: Omit<ConfigDialogProps, 'open'>) {
@@ -837,9 +838,9 @@ function WebhookConfigForm({
               <div className="flex gap-2 mr-auto">
                 <Button
                   type="button"
-                  variant="destructive"
+                  variant="outline"
                   size="sm"
-                  onClick={() => onDelete(existingIntegration)}
+                  onClick={() => onTest(existingIntegration)}
                   disabled={isLoading}
                 >
                   <Play className="size-4 mr-1" />
