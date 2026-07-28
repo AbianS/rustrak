@@ -1,44 +1,18 @@
 import type { Project } from '@rustrak/client';
-import type { CommandItem } from '@/shared/config/commands';
-
-/** The pages every project has, in the order the command bar lists them. */
-const PAGES: { label: string; segment: string }[] = [
-  { label: 'Issues', segment: '/issues' },
-  { label: 'Releases', segment: '/releases' },
-  { label: 'Performance', segment: '/performance' },
-  { label: 'Agents', segment: '/agents' },
-  { label: 'Logs', segment: '/logs' },
-  { label: 'General settings', segment: '/settings/general' },
-  { label: 'Alerts', segment: '/settings/alerts' },
-  { label: 'Members', segment: '/settings/members' },
-  { label: 'Client keys', segment: '/settings/client-keys' },
-];
+import type { CommandProject } from '@/shared/config/commands';
 
 /**
- * One command per project page, grouped under the project's own name so the
- * results read as belonging to it.
+ * Narrows a project to the three fields the command bar renders.
  *
- * Every item carries `platform` and no `icon`: these are built on the server
- * and handed to a client component, and a component reference would not
- * survive that boundary.
+ * This is the seam that keeps `shared` from knowing `@rustrak/client` exists:
+ * the bar lives in `shared/ui`, so it cannot name `Project`, and the pages it
+ * offers per project are a fixed template it already holds. All it needs from
+ * this slice is which projects exist and what they are called.
  */
-export function toProjectCommands(projects: Project[]): CommandItem[] {
-  return projects.flatMap((project) => {
-    const base = `/projects/${project.id}`;
-
-    return [
-      {
-        label: project.name,
-        href: base,
-        category: project.name,
-        platform: project.platform,
-      },
-      ...PAGES.map((page) => ({
-        label: `${project.name} ${page.label}`,
-        href: `${base}${page.segment}`,
-        category: project.name,
-        platform: project.platform,
-      })),
-    ];
-  });
+export function toCommandProjects(projects: Project[]): CommandProject[] {
+  return projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    platform: project.platform,
+  }));
 }

@@ -1,5 +1,5 @@
 import { getProjects } from '@/features/project/api/queries';
-import { toProjectCommands } from '@/features/project/lib/command-items';
+import { toCommandProjects } from '@/features/project/lib/command-items';
 import CommandBar from '@/shared/ui/components/command-bar';
 
 /**
@@ -16,5 +16,5 @@ export async function CommandBarSlot() {
   const result = await getProjects({ per_page: 100 });
   const projects = result.success ? result.data.items : [];
 
-  return <CommandBar projectCommands={toProjectCommands(projects)} />;
+  return <CommandBar projects={toCommandProjects(projects)} />;
 }
