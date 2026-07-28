@@ -8,12 +8,15 @@ function scoreTerm(
   target: string,
   words: string[],
   acronym: string,
+  squashed: string,
   term: string,
 ): number {
   if (target.startsWith(term)) return 1;
   if (words.some((word) => word.startsWith(term))) return 0.8;
   if (term.length > 1 && acronym.startsWith(term)) return 0.6;
+  if (squashed.startsWith(term)) return 0.5;
   if (target.includes(term)) return 0.3;
+  if (squashed.includes(term)) return 0.2;
   return 0;
 }
 
@@ -37,10 +40,12 @@ function scoreCommand(haystack: string, query: string): number {
   const target = normalize(haystack);
   const words = target.split(/[^a-z0-9]+/).filter(Boolean);
   const acronym = words.map((word) => word[0]).join('');
+  // used for matching 'apitoken' to 'API Tokens'
+  const squashed = words.join('');
 
   let total = 0;
   for (const term of terms) {
-    const score = scoreTerm(target, words, acronym, term);
+    const score = scoreTerm(target, words, acronym, squashed, term);
     if (score === 0) return 0;
     total += score;
   }
