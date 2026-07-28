@@ -3,7 +3,7 @@
 import type { Span } from '@rustrak/client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 interface AgentTraceWaterfallProps {
   spans: Span[];

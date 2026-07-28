@@ -8,7 +8,7 @@ import {
   buildFrameContextLines,
   type StackFrame,
 } from '@/features/event/lib/format-stack-trace';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 /**
  * Detect programming language from filename extension

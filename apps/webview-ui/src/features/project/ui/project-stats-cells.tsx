@@ -1,8 +1,8 @@
 import type { ProjectListStats } from '@rustrak/client';
-import { MetricDeltaText } from '@/components/metric-delta';
-import { TrendSparkline } from '@/components/trend-sparkline';
-import { compactCount, exactCount } from '@/lib/chart-format';
-import { cn } from '@/lib/utils';
+import { compactCount, exactCount } from '@/shared/lib/chart-format';
+import { cn } from '@/shared/lib/utils';
+import { MetricDeltaText } from '@/shared/ui/metric-delta';
+import { TrendSparkline } from '@/shared/ui/trend-sparkline';
 
 /**
  * Column widths, shared by the header row and the cells.

@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  removeTeamMember,
+  updateUserRole,
+} from '@/features/user/api/mutations';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -15,23 +19,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/shared/ui/shadcn/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/shared/ui/shadcn/select';
 import {
   Table,
   TableBody,
@@ -39,11 +43,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import {
-  removeTeamMember,
-  updateUserRole,
-} from '@/features/user/api/mutations';
+} from '@/shared/ui/shadcn/table';
 
 interface TeamMembersListProps {
   members: TeamMember[];

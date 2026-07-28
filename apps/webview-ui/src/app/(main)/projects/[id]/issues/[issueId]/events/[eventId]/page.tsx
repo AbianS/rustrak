@@ -2,11 +2,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Section } from '@/components/collapsible-section';
-import { CopyAsDropdown } from '@/components/copy-as-dropdown';
-import { EventChart } from '@/components/event-chart';
-import { LoadFailure } from '@/components/load-failure';
-import { TagDistribution } from '@/components/tag-distribution';
 import {
   getEventDetail,
   getEventNavigation,
@@ -35,9 +30,14 @@ import {
 import { IssueActions } from '@/features/issue/ui/issue-actions';
 import { IssueActivity } from '@/features/issue/ui/issue-activity';
 import { StatusIndicator } from '@/features/issue/ui/issue-indicators';
+import { TagDistribution } from '@/features/issue/ui/tag-distribution';
 import { getProject } from '@/features/project/api/queries';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 import { CollapsibleRail } from '@/shared/ui/collapsible-rail';
+import { Section } from '@/shared/ui/collapsible-section';
+import { CopyAsDropdown } from '@/shared/ui/copy-as-dropdown';
+import { EventChart } from '@/shared/ui/event-chart';
+import { LoadFailure } from '@/shared/ui/load-failure';
 
 interface EventPageProps {
   params: Promise<{ id: string; issueId: string; eventId: string }>;

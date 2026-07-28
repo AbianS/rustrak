@@ -2,11 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   OVERVIEW_PERIODS,
   type OverviewPeriod,
 } from '@/features/release/model/session-health';
+import { Button } from '@/shared/ui/shadcn/button';
 
 interface OverviewPeriodFilterProps {
   projectId: number;

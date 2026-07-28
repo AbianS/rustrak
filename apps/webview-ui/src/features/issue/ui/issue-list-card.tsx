@@ -1,16 +1,16 @@
 import type { Issue } from '@rustrak/client';
 import { AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
-import { TrendSparkline } from '@/components/trend-sparkline';
+import { LevelBadge } from '@/features/issue/ui/issue-indicators';
+import { compactCount, exactCount } from '@/shared/lib/chart-format';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { LevelBadge } from '@/features/issue/ui/issue-indicators';
-import { compactCount, exactCount } from '@/lib/chart-format';
+} from '@/shared/ui/shadcn/card';
+import { TrendSparkline } from '@/shared/ui/trend-sparkline';
 
 interface IssueListCardProps {
   projectId: number;

@@ -3,7 +3,7 @@
 import { Database, Info, Key, Palette, Plug, User, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 const navItems = [
   { href: '/settings/tokens', label: 'API Tokens', icon: Key },

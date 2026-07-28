@@ -19,6 +19,17 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
+  createIntegration,
+  deleteIntegration,
+  testIntegration,
+  updateIntegration,
+} from '@/features/alert/api/mutations';
+import {
+  applyServerFieldErrors,
+  type ServerFieldMap,
+} from '@/shared/lib/form-errors';
+import { cn } from '@/shared/lib/utils';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -27,14 +38,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+} from '@/shared/ui/shadcn/collapsible';
 import {
   Dialog,
   DialogContent,
@@ -42,7 +53,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/shared/ui/shadcn/dialog';
 import {
   Form,
   FormControl,
@@ -52,18 +63,15 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
+import { Switch } from '@/shared/ui/shadcn/switch';
 import {
-  createIntegration,
-  deleteIntegration,
-  testIntegration,
-  updateIntegration,
-} from '@/features/alert/api/mutations';
-import { applyServerFieldErrors, type ServerFieldMap } from '@/lib/form-errors';
-import { cn } from '@/lib/utils';
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/shared/ui/shadcn/tabs';
 
 // Active alert notification providers
 const alertProviders = [

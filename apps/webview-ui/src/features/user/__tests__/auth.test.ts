@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getCurrentUserMock = vi.fn<() => Promise<Result<User, RustrakError>>>();
 
-vi.mock('@/lib/rustrak', () => ({
+vi.mock('@/shared/api/rustrak', () => ({
   createClient: async () => ({ auth: { getCurrentUser: getCurrentUserMock } }),
   applySetCookies: vi.fn(),
   clearSessionCookies: vi.fn(),

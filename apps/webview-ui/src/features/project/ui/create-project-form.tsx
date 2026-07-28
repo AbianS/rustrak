@@ -8,7 +8,18 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
+import { createProject } from '@/features/project/api/mutations';
+import {
+  PROJECT_NAME_MAX_LENGTH,
+  projectNameField,
+  projectSlugField,
+  slugifyPreview,
+} from '@/features/project/model/fields';
+import { platformLabel } from '@/shared/config/platforms';
+import { applyServerFieldErrors } from '@/shared/lib/form-errors';
+import { cn } from '@/shared/lib/utils';
+import { PlatformGrid } from '@/shared/ui/platform-grid';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Form,
   FormControl,
@@ -17,19 +28,8 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { createProject } from '@/features/project/api/mutations';
-import {
-  PROJECT_NAME_MAX_LENGTH,
-  projectNameField,
-  projectSlugField,
-  slugifyPreview,
-} from '@/features/project/model/fields';
-import { applyServerFieldErrors } from '@/lib/form-errors';
-import { platformLabel } from '@/lib/platforms';
-import { cn } from '@/lib/utils';
-import { PlatformGrid } from '@/shared/ui/platform-grid';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
 
 const createProjectFormSchema = z.object({
   platform: z.string().min(1, 'Choose a platform to continue'),

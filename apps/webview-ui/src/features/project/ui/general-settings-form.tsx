@@ -8,6 +8,19 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { deleteProject, updateProject } from '@/features/project/api/mutations';
+import {
+  PROJECT_NAME_MAX_LENGTH,
+  projectNameField,
+  projectSlugField,
+} from '@/features/project/model/fields';
+import { describeError } from '@/shared/lib/error-copy';
+import {
+  applyServerFieldErrors,
+  SERVER_ERROR_PATH,
+} from '@/shared/lib/form-errors';
+import { PlatformPicker } from '@/shared/ui/platform-picker';
+import { SettingRow, SettingSection } from '@/shared/ui/setting-row';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,8 +30,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Form,
   FormControl,
@@ -26,18 +39,8 @@ import {
   FormItem,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { deleteProject, updateProject } from '@/features/project/api/mutations';
-import {
-  PROJECT_NAME_MAX_LENGTH,
-  projectNameField,
-  projectSlugField,
-} from '@/features/project/model/fields';
-import { describeError } from '@/lib/error-copy';
-import { applyServerFieldErrors, SERVER_ERROR_PATH } from '@/lib/form-errors';
-import { PlatformPicker } from '@/shared/ui/platform-picker';
-import { SettingRow, SettingSection } from '@/shared/ui/setting-row';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
 
 /**
  * The same rules the create form uses, imported rather than restated.

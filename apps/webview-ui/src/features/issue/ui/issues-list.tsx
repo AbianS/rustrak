@@ -18,26 +18,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { TrendSparkline } from '@/components/trend-sparkline';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   bulkDeleteIssues,
   bulkUpdateIssues,
@@ -48,6 +28,26 @@ import {
   PriorityIndicator,
   StatusIndicator,
 } from '@/features/issue/ui/issue-indicators';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Button } from '@/shared/ui/shadcn/button';
+import { Checkbox } from '@/shared/ui/shadcn/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/ui/shadcn/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/shared/ui/shadcn/tabs';
+import { TrendSparkline } from '@/shared/ui/trend-sparkline';
 
 interface IssuesListProps {
   projectId: number;

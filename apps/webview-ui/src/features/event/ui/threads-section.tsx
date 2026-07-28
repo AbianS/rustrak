@@ -1,15 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { CopyAsDropdown } from '@/components/copy-as-dropdown';
-import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   type ExceptionChain,
   findBestThread,
@@ -18,6 +9,15 @@ import {
   orderFramesForDisplay,
   type Thread,
 } from '@/features/event/lib/format-stack-trace';
+import { CopyAsDropdown } from '@/shared/ui/copy-as-dropdown';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/shadcn/select';
 import { StackFrameItem } from './stack-frame-item';
 
 interface ThreadsSectionProps {

@@ -16,7 +16,7 @@ import type {
   TeamMember,
   User,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * Whether there is a session, and if not, why not.

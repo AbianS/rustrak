@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Fragment, useState, useTransition } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
+import { Separator } from '@/shared/ui/shadcn/separator';
 import {
   Table,
   TableBody,
@@ -20,8 +20,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/shadcn/table';
+import { cn } from '@/shared/lib/utils';
 
 interface LogsListProps {
   projectId: number;

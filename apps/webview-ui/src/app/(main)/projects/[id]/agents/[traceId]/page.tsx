@@ -9,12 +9,12 @@ import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { LoadFailure } from '@/components/load-failure';
-import { Badge } from '@/components/ui/badge';
 import { listSpans } from '@/features/agent-trace/api/queries';
 import { AgentTraceWaterfall } from '@/features/agent-trace/ui/agent-trace-waterfall';
 import { getProject } from '@/features/project/api/queries';
-import { loadAll } from '@/lib/results';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/load-failure';
+import { Badge } from '@/shared/ui/shadcn/badge';
 
 interface AgentTraceDetailPageProps {
   params: Promise<{ id: string; traceId: string }>;

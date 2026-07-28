@@ -5,7 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/shared/ui/shadcn/card';
 import { ThemeSelector } from './theme-selector';
 
 export const metadata: Metadata = {

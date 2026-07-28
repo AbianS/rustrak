@@ -17,7 +17,7 @@ import {
   clearSessionCookies,
   createClient,
   dropSessionCookie,
-} from '@/lib/rustrak';
+} from '@/shared/api/rustrak';
 import { listTeam as listTeamQuery } from './queries';
 
 /**

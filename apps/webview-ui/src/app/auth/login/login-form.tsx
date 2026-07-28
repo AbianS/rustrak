@@ -7,7 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
+import { login } from '@/features/user/api/mutations';
+import { SERVER_ERROR_PATH } from '@/shared/lib/form-errors';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Form,
   FormControl,
@@ -16,10 +18,8 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { login } from '@/features/user/api/mutations';
-import { SERVER_ERROR_PATH } from '@/lib/form-errors';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

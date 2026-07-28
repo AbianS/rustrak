@@ -2,7 +2,7 @@
 
 import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/shared/ui/shadcn/button';
 
 /**
  * The issue detail right rail with a collapse toggle. Plain component state,

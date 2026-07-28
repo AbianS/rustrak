@@ -11,7 +11,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { getSummaryBreadcrumbs } from '@/features/event/lib/breadcrumbs';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 import { BreadcrumbsExpand } from './breadcrumbs-expand';
 
 export interface Breadcrumb {

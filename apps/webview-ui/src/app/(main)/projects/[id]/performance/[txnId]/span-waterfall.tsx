@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 /**
  * A single Sentry span. Every field is optional — SDKs omit most of them; a

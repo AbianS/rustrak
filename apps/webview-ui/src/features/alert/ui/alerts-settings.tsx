@@ -27,6 +27,13 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
+  createAlertRule,
+  deleteAlertRule,
+  updateAlertRule,
+} from '@/features/alert/api/mutations';
+import { applyServerFieldErrors } from '@/shared/lib/form-errors';
+import { cn } from '@/shared/lib/utils';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -35,9 +42,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Dialog,
   DialogContent,
@@ -45,7 +52,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/shared/ui/shadcn/dialog';
 import {
   Form,
   FormControl,
@@ -55,9 +62,9 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
+import { Switch } from '@/shared/ui/shadcn/switch';
 import {
   Table,
   TableBody,
@@ -65,15 +72,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  createAlertRule,
-  deleteAlertRule,
-  updateAlertRule,
-} from '@/features/alert/api/mutations';
-import { applyServerFieldErrors } from '@/lib/form-errors';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/shadcn/table';
+import { Textarea } from '@/shared/ui/shadcn/textarea';
 
 // Alert type definitions
 const alertTypes: {

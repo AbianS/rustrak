@@ -1,7 +1,12 @@
 import type { ReleaseHealthRow } from '@rustrak/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { crashFreeClass, pct } from '@/features/release/model/session-health';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui/shadcn/card';
 
 interface ReleaseEnvironmentCardsProps {
   rows: ReleaseHealthRow[];

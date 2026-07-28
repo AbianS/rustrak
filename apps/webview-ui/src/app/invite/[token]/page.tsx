@@ -1,9 +1,9 @@
 import { AlertCircle } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
-import { Button } from '@/components/ui/button';
 import { getInvitation } from '@/features/user/api/queries';
+import { RustrakLogoIcon } from '@/shared/ui/rustrak-logo';
+import { Button } from '@/shared/ui/shadcn/button';
 import { AcceptInvitationForm } from './accept-invitation-form';
 
 export const metadata: Metadata = {

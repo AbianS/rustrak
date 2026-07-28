@@ -5,15 +5,15 @@ import { Check, Copy, Loader2 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { copyToClipboard } from '@/lib/clipboard';
 import {
   PLATFORM_DOCS,
   PLATFORM_SNIPPETS,
   renderSnippet,
-} from '@/lib/platform-snippets';
-import { platformLabel } from '@/lib/platforms';
+} from '@/shared/config/platform-snippets';
+import { platformLabel } from '@/shared/config/platforms';
+import { copyToClipboard } from '@/shared/lib/clipboard';
 import { SettingSection } from '@/shared/ui/setting-row';
+import { Button } from '@/shared/ui/shadcn/button';
 
 interface ClientKeysSettingsProps {
   project: Project;

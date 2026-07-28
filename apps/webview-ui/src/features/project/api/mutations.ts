@@ -7,7 +7,7 @@ import type {
   RustrakError,
   UpdateProject,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * Create a new project.

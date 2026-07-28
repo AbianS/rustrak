@@ -4,8 +4,12 @@ import { Combobox } from '@base-ui/react/combobox';
 import { CheckIcon, ChevronDownIcon } from 'lucide-react';
 import { PlatformIcon } from 'platformicons';
 import { useMemo } from 'react';
-import { languageLabel, PLATFORMS, type Platform } from '@/lib/platforms';
-import { cn } from '@/lib/utils';
+import {
+  languageLabel,
+  PLATFORMS,
+  type Platform,
+} from '@/shared/config/platforms';
+import { cn } from '@/shared/lib/utils';
 
 interface PlatformPickerProps {
   value: string | null;

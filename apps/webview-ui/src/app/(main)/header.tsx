@@ -5,16 +5,16 @@ import { LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
-import { Button } from '@/components/ui/button';
+import { logout } from '@/features/user/api/mutations';
+import { RustrakLogoIcon } from '@/shared/ui/rustrak-logo';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { logout } from '@/features/user/api/mutations';
+} from '@/shared/ui/shadcn/dropdown-menu';
 
 interface HeaderProps {
   user: User;

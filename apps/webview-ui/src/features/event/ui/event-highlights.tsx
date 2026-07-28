@@ -1,5 +1,5 @@
 import type { EventDetail } from '@rustrak/client';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 interface EventHighlightsProps {
   event: EventDetail;

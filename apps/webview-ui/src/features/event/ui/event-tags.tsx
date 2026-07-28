@@ -3,8 +3,8 @@
 import { AlertCircle, Check, Copy } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { copyToClipboard } from '@/lib/clipboard';
+import { copyToClipboard } from '@/shared/lib/clipboard';
+import { Button } from '@/shared/ui/shadcn/button';
 
 interface EventTagsProps {
   tags: Record<string, string> | undefined;

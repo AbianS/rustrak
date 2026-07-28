@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { LoadFailure } from '@/components/load-failure';
-import { ServiceUnavailable } from '@/components/service-unavailable';
 import { getProject } from '@/features/project/api/queries';
 import {
   getCurrentUser,
   listProjectMembers,
 } from '@/features/user/api/queries';
 import { MembersSettings } from '@/features/user/ui/members-settings';
-import { loadAll } from '@/lib/results';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
 
 interface MembersSettingsPageProps {
   params: Promise<{ id: string }>;

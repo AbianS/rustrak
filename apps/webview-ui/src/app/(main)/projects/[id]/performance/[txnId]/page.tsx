@@ -1,11 +1,11 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LoadFailure } from '@/components/load-failure';
-import { Badge } from '@/components/ui/badge';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
-import { loadAll } from '@/lib/results';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/load-failure';
+import { Badge } from '@/shared/ui/shadcn/badge';
 import { MeasurementsCard } from './measurements-card';
 import type { Span, TraceContext } from './span-waterfall';
 import { SpanWaterfall } from './span-waterfall';

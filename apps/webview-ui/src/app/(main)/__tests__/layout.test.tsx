@@ -20,7 +20,7 @@ vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('@/features/user/api/queries', () => ({
   getCurrentUser: () => getCurrentUser(),
 }));
-vi.mock('@/components/update-banner-slot', () => ({
+vi.mock('@/shared/ui/update-banner-slot', () => ({
   UpdateBannerSlot: () => null,
 }));
 vi.mock('../header', () => ({

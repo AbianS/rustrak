@@ -6,6 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  listTeam,
+  removeProjectMember,
+  upsertProjectMember,
+} from '@/features/user/api/mutations';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -14,9 +19,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Dialog,
   DialogContent,
@@ -24,14 +29,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/shared/ui/shadcn/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/shared/ui/shadcn/select';
 import {
   Table,
   TableBody,
@@ -39,12 +44,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import {
-  listTeam,
-  removeProjectMember,
-  upsertProjectMember,
-} from '@/features/user/api/mutations';
+} from '@/shared/ui/shadcn/table';
 
 const PROJECT_ROLES: { value: ProjectRole; label: string }[] = [
   { value: 'viewer', label: 'Viewer' },

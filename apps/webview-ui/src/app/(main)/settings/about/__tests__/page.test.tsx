@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getVersion = vi.fn<() => Promise<Result<ServerVersion, RustrakError>>>();
 
-vi.mock('@/lib/rustrak', () => ({
+vi.mock('@/shared/api/rustrak', () => ({
   createClient: async () => ({ health: { getVersion } }),
 }));
 

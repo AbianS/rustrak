@@ -12,13 +12,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { crashFreeColor, pct } from '@/features/release/model/session-health';
+import { exactCount } from '@/shared/lib/chart-format';
 import {
   ChartTooltipCaption,
   ChartTooltipRow,
   ChartTooltipSurface,
-} from '@/components/charts/chart-tooltip';
-import { crashFreeColor, pct } from '@/features/release/model/session-health';
-import { exactCount } from '@/lib/chart-format';
+} from '@/shared/ui/chart-tooltip';
 
 /** The rate every project is aiming at. Drawn as the line to beat. */
 const TARGET = 0.99;

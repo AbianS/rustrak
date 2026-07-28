@@ -1,8 +1,8 @@
 import { Zap } from 'lucide-react';
 import type { Metadata } from 'next';
-import { LoadFailure } from '@/components/load-failure';
 import { getProject } from '@/features/project/api/queries';
 import { getTransactionStats } from '@/features/transaction/api/queries';
+import { LoadFailure } from '@/shared/ui/load-failure';
 import { TransactionStatsTable } from './transaction-stats-table';
 
 interface PerformancePageProps {

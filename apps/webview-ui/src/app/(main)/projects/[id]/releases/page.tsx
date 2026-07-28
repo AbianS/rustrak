@@ -1,11 +1,11 @@
 import { Rocket } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { LoadFailure } from '@/components/load-failure';
 import { getProject } from '@/features/project/api/queries';
 import { getReleaseHealth } from '@/features/release/api/queries';
 import { parseReleasePeriod } from '@/features/release/model/session-health';
 import { ReleasesList } from '@/features/release/ui/releases-list';
+import { LoadFailure } from '@/shared/ui/load-failure';
 
 interface ReleasesPageProps {
   params: Promise<{ id: string }>;

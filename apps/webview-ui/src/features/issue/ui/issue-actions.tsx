@@ -25,6 +25,15 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  deleteIssue,
+  resolveIssueInNextRelease,
+  setIssueBookmark,
+  setIssueSubscription,
+  updateIssueState,
+} from '@/features/issue/api/mutations';
+import { priorityDisplay } from '@/features/issue/model/status';
+import { cn } from '@/shared/lib/utils';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -33,24 +42,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  deleteIssue,
-  resolveIssueInNextRelease,
-  setIssueBookmark,
-  setIssueSubscription,
-  updateIssueState,
-} from '@/features/issue/api/mutations';
-import { priorityDisplay } from '@/features/issue/model/status';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/shadcn/dropdown-menu';
 
 interface IssueActionsProps {
   issue: Issue;

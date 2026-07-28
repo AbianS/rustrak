@@ -7,6 +7,12 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
+  createToken,
+  deleteToken,
+  getToken,
+} from '@/features/token/api/mutations';
+import { copyToClipboard } from '@/shared/lib/clipboard';
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -15,15 +21,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/shared/ui/shadcn/card';
 import {
   Dialog,
   DialogContent,
@@ -32,9 +38,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from '@/shared/ui/shadcn/dialog';
+import { Input } from '@/shared/ui/shadcn/input';
+import { Label } from '@/shared/ui/shadcn/label';
 import {
   Table,
   TableBody,
@@ -42,13 +48,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import {
-  createToken,
-  deleteToken,
-  getToken,
-} from '@/features/token/api/mutations';
-import { copyToClipboard } from '@/lib/clipboard';
+} from '@/shared/ui/shadcn/table';
 
 const TOKEN_DESCRIPTION_MAX_LENGTH = 200;
 

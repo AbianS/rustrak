@@ -15,6 +15,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PlatformIcon } from 'platformicons';
+import { cn } from '@/shared/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +24,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from '@/shared/ui/shadcn/dropdown-menu';
 import {
   Sidebar,
   SidebarContent,
@@ -37,9 +38,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
   useSidebar,
-} from '@/components/ui/sidebar';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/shadcn/sidebar';
+import { TooltipProvider } from '@/shared/ui/shadcn/tooltip';
 
 interface ProjectOption {
   id: number;

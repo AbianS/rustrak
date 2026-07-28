@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
-import { LoadFailure } from '@/components/load-failure';
 import { getProject } from '@/features/project/api/queries';
+import { LoadFailure } from '@/shared/ui/load-failure';
 import { ClientKeysSettings } from './client-keys-settings';
 
 interface ClientKeysPageProps {

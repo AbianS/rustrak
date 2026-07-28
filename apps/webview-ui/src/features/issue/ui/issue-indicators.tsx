@@ -1,6 +1,6 @@
 import type { Issue, IssuePriority } from '@rustrak/client';
 import { priorityDisplay, statusDisplay } from '@/features/issue/model/status';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
 
 /**
  * A small rounded pill: a leading color dot + label on a subtle surface. The

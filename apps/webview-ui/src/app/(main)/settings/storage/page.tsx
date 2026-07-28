@@ -9,16 +9,29 @@ import {
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { getStorageProjects, getStorageSummary } from '@/actions/storage';
-import { LoadFailure } from '@/components/load-failure';
-import { ServiceUnavailable } from '@/components/service-unavailable';
+import { getProjects } from '@/features/project/api/queries';
+import {
+  getStorageProjects,
+  getStorageSummary,
+} from '@/features/storage/api/storage';
+import { SourceMapGc } from '@/features/storage/ui/source-map-gc';
+import { StorageCleanup } from '@/features/storage/ui/storage-cleanup';
+import {
+  CleanupSkeleton,
+  ProjectsTableSkeleton,
+  SummaryCardsSkeleton,
+} from '@/features/storage/ui/storage-skeletons';
+import { getCurrentUser } from '@/features/user/api/queries';
+import { formatBytes } from '@/shared/lib/utils';
+import { LoadFailure } from '@/shared/ui/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/shared/ui/shadcn/card';
 import {
   Table,
   TableBody,
@@ -26,17 +39,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { getProjects } from '@/features/project/api/queries';
-import { getCurrentUser } from '@/features/user/api/queries';
-import { formatBytes } from '@/lib/utils';
-import { SourceMapGc } from './source-map-gc';
-import { StorageCleanup } from './storage-cleanup';
-import {
-  CleanupSkeleton,
-  ProjectsTableSkeleton,
-  SummaryCardsSkeleton,
-} from './storage-skeletons';
+} from '@/shared/ui/shadcn/table';
 
 export const metadata: Metadata = {
   title: 'Storage | Rustrak',

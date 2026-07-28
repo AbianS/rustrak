@@ -8,14 +8,17 @@ import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { Button } from '@/components/ui/button';
+import { createInvitation } from '@/features/user/api/mutations';
+import { copyToClipboard } from '@/shared/lib/clipboard';
+import { applyServerFieldErrors } from '@/shared/lib/form-errors';
+import { Button } from '@/shared/ui/shadcn/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from '@/shared/ui/shadcn/card';
 import {
   Form,
   FormControl,
@@ -24,18 +27,15 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
+} from '@/shared/ui/shadcn/form';
+import { Input } from '@/shared/ui/shadcn/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { createInvitation } from '@/features/user/api/mutations';
-import { copyToClipboard } from '@/lib/clipboard';
-import { applyServerFieldErrors } from '@/lib/form-errors';
+} from '@/shared/ui/shadcn/select';
 
 const inviteSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

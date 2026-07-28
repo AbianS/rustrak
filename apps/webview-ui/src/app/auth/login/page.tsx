@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
-import { APP_VERSION } from '@/lib/constants';
+import { APP_VERSION } from '@/shared/config/constants';
+import { RustrakLogoIcon } from '@/shared/ui/rustrak-logo';
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = {

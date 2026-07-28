@@ -16,6 +16,8 @@ import { useRouter } from 'next/navigation';
 import { PlatformIcon } from 'platformicons';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+import { deleteProject } from '@/features/project/api/mutations';
+import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,17 +27,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+} from '@/shared/ui/shadcn/alert-dialog';
+import { Button } from '@/shared/ui/shadcn/button';
+import { Checkbox } from '@/shared/ui/shadcn/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { deleteProject } from '@/features/project/api/mutations';
-import { cn } from '@/lib/utils';
+} from '@/shared/ui/shadcn/dropdown-menu';
 import { PROJECT_COLUMNS, ProjectStatsCells } from './project-stats-cells';
 
 /** Shared styling for every column header in the table. */

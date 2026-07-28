@@ -2,8 +2,8 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import type { EventNavigation } from '@/features/event/api/queries';
+import { Button } from '@/shared/ui/shadcn/button';
 
 interface EventNavigationBarProps {
   projectId: number;

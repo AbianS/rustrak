@@ -19,7 +19,7 @@ vi.mock('@/features/release/api/queries', () => ({
 
 // The tile module pulls in the other action files too, and those reach
 // `next/headers` on import. Nothing in this suite calls them.
-vi.mock('@/lib/rustrak', () => ({ createClient: vi.fn() }));
+vi.mock('@/shared/api/rustrak', () => ({ createClient: vi.fn() }));
 vi.mock('next/navigation', () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),

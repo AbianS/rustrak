@@ -3,14 +3,14 @@
 import { Check, Search } from 'lucide-react';
 import { PlatformIcon } from 'platformicons';
 import { useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import {
   categoryPlatforms,
   PLATFORM_CATEGORIES,
   type Platform,
   searchPlatforms,
-} from '@/lib/platforms';
-import { cn } from '@/lib/utils';
+} from '@/shared/config/platforms';
+import { cn } from '@/shared/lib/utils';
+import { Input } from '@/shared/ui/shadcn/input';
 
 /** Sentry's generic escape hatch, a real platform id the server accepts. */
 const OTHER_PLATFORM_ID = 'other';

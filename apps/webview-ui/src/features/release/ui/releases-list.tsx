@@ -8,14 +8,14 @@ import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   crashFreeClass,
   pct,
   RELEASE_PERIODS,
 } from '@/features/release/model/session-health';
-import { cn } from '@/lib/utils';
+import { cn } from '@/shared/lib/utils';
+import { Badge } from '@/shared/ui/shadcn/badge';
+import { Button } from '@/shared/ui/shadcn/button';
 
 interface ReleasesListProps {
   projectId: number;

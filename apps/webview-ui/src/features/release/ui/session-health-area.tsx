@@ -10,13 +10,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { compactCount, exactCount } from '@/shared/lib/chart-format';
 import {
   ChartLegend,
   ChartTooltipCaption,
   ChartTooltipRow,
   ChartTooltipSurface,
-} from '@/components/charts/chart-tooltip';
-import { compactCount, exactCount } from '@/lib/chart-format';
+} from '@/shared/ui/chart-tooltip';
 
 const SERIES = [
   { key: 'crashed', label: 'Crashed', color: 'var(--sev-error)' },
