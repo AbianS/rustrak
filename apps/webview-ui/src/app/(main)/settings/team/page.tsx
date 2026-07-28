@@ -8,9 +8,9 @@ import { LoadFailure } from '@/components/load-failure';
 import { ServiceUnavailable } from '@/components/service-unavailable';
 import { Card, CardContent } from '@/components/ui/card';
 import { loadAll } from '@/lib/results';
-import { InviteForm } from './components/invite-form';
-import { PendingInvitations } from './components/pending-invitations';
-import { TeamMembersList } from './components/team-members-list';
+import { InviteForm } from './_components/invite-form';
+import { PendingInvitations } from './_components/pending-invitations';
+import { TeamMembersList } from './_components/team-members-list';
 
 export const metadata: Metadata = {
   title: 'Team | Rustrak',

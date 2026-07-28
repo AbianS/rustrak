@@ -6,9 +6,9 @@ import { Loader2, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { addIssueComment } from '@/actions/issues';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { addIssueComment } from '@/features/issue/api/mutations';
 
 interface IssueActivityProps {
   projectId: number;

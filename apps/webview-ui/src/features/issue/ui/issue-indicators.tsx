@@ -1,5 +1,5 @@
 import type { Issue, IssuePriority } from '@rustrak/client';
-import { priorityDisplay, statusDisplay } from '@/lib/issue-status';
+import { priorityDisplay, statusDisplay } from '@/features/issue/model/status';
 import { cn } from '@/lib/utils';
 
 /**

@@ -4,6 +4,14 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [tsconfigPaths(), react()],
+  resolve: {
+    alias: {
+      // See vitest.server-only-stub.ts: Next resolves `server-only` itself, so
+      // there is no package for Vite to find.
+      'server-only': new URL('./vitest.server-only-stub.ts', import.meta.url)
+        .pathname,
+    },
+  },
   test: {
     environment: 'jsdom',
     // The 5s default is too tight for this suite on a cold CI runner, and the

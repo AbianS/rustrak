@@ -1,7 +1,6 @@
 import type { Issue } from '@rustrak/client';
 import { AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
-import { LevelBadge } from '@/components/issue-indicators';
 import { TrendSparkline } from '@/components/trend-sparkline';
 import {
   Card,
@@ -10,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { LevelBadge } from '@/features/issue/ui/issue-indicators';
 import { compactCount, exactCount } from '@/lib/chart-format';
 
 interface IssueListCardProps {

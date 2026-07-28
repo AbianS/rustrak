@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { RustrakError } from '@rustrak/client';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -34,18 +35,17 @@ type LoginFormData = z.infer<typeof loginSchema>;
  * again", and on a login page behind a proxy rate-limit that is the one
  * instruction that makes things worse: every retry extends the block.
  */
-function loginFailureMessage(
-  error: 'unreachable' | 'rate_limited' | 'unknown',
-  retryAfter: number | undefined,
-): string {
-  switch (error) {
-    case 'unreachable':
+function loginFailureMessage(error: RustrakError): string {
+  switch (error.kind) {
+    case 'network':
       return 'Could not reach the server. Check your connection and try again.';
     case 'rate_limited':
-      return retryAfter && retryAfter > 0
-        ? `Too many login attempts. Wait about ${formatWait(retryAfter)} before trying again.`
+      // `retryAfter` is reachable only on this arm, which is what branching on
+      // the client's own union buys over a flattened domain enum.
+      return error.retryAfter && error.retryAfter > 0
+        ? `Too many login attempts. Wait about ${formatWait(error.retryAfter)} before trying again.`
         : 'Too many login attempts. Wait a few minutes before trying again.';
-    case 'unknown':
+    default:
       return 'An unexpected error occurred. Please try again.';
   }
 }
@@ -82,7 +82,7 @@ export function LoginForm() {
         return;
       }
 
-      if (result.error === 'invalid_credentials') {
+      if (result.error.kind === 'unauthenticated') {
         // **This form deliberately gets no per-field errors, and that is not an
         // oversight the field-error work should "fix".**
         //
@@ -117,7 +117,7 @@ export function LoginForm() {
       // nothing checks.
       form.setError(SERVER_ERROR_PATH, {
         type: 'server',
-        message: loginFailureMessage(result.error, result.retryAfter),
+        message: loginFailureMessage(result.error),
       });
     });
   };

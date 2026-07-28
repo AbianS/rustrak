@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getLastEvent } from '@/actions/events';
-import { getIssue } from '@/actions/issues';
 import { LoadFailure } from '@/components/load-failure';
+import { getIssue } from '@/features/issue/api/queries';
 
 interface IssuePageProps {
   params: Promise<{ id: string; issueId: string }>;

@@ -25,13 +25,6 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
-  deleteIssue,
-  resolveIssueInNextRelease,
-  setIssueBookmark,
-  setIssueSubscription,
-  updateIssueState,
-} from '@/actions/issues';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -49,7 +42,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { priorityDisplay } from '@/lib/issue-status';
+import {
+  deleteIssue,
+  resolveIssueInNextRelease,
+  setIssueBookmark,
+  setIssueSubscription,
+  updateIssueState,
+} from '@/features/issue/api/mutations';
+import { priorityDisplay } from '@/features/issue/model/status';
 import { cn } from '@/lib/utils';
 
 interface IssueActionsProps {

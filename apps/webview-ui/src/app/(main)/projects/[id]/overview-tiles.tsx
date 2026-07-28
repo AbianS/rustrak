@@ -1,5 +1,4 @@
 import type { RustrakError } from '@rustrak/client';
-import { listIssues } from '@/actions/issues';
 import { getSessionSummary, getSessionTimeseries } from '@/actions/sessions';
 import {
   getProjectEventTimeseries,
@@ -11,7 +10,6 @@ import { ErrorVolumeChart } from '@/components/charts/error-volume-chart';
 import { SessionHealthArea } from '@/components/charts/session-health-area';
 import { StatTile } from '@/components/charts/stat-tile';
 import { TransactionP95Bars } from '@/components/charts/transaction-p95-bars';
-import { IssueListCard } from '@/components/issue-list-card';
 import { LoadFailure } from '@/components/load-failure';
 import {
   Card,
@@ -21,6 +19,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { listIssues } from '@/features/issue/api/queries';
+import { IssueListCard } from '@/features/issue/ui/issue-list-card';
 import { exactCount } from '@/lib/chart-format';
 import { loadAll } from '@/lib/results';
 import { type OverviewPeriod, overviewInterval } from '@/lib/session-health';

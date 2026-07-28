@@ -61,7 +61,7 @@ export function AcceptInvitationForm({
       } else {
         form.setError('confirmPassword', {
           type: 'server',
-          message: result.error,
+          message: result.error.message,
         });
       }
     });

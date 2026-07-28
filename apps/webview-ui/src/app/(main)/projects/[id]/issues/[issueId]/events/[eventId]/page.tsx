@@ -3,20 +3,22 @@ import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getEventDetail, getEventNavigation } from '@/actions/events';
-import {
-  getIssue,
-  getIssueActivity,
-  getIssueAggregates,
-  getIssueStats,
-} from '@/actions/issues';
 import { getProject } from '@/actions/projects';
 import { Section } from '@/components/collapsible-section';
 import { CopyAsDropdown } from '@/components/copy-as-dropdown';
 import { EventChart } from '@/components/event-chart';
 import { EventHighlights } from '@/components/event-highlights';
-import { StatusIndicator } from '@/components/issue-indicators';
 import { LoadFailure } from '@/components/load-failure';
 import { TagDistribution } from '@/components/tag-distribution';
+import {
+  getIssue,
+  getIssueActivity,
+  getIssueAggregates,
+  getIssueStats,
+} from '@/features/issue/api/queries';
+import { IssueActions } from '@/features/issue/ui/issue-actions';
+import { IssueActivity } from '@/features/issue/ui/issue-activity';
+import { StatusIndicator } from '@/features/issue/ui/issue-indicators';
 import {
   normalizeBreadcrumbs,
   normalizeThreads,
@@ -24,8 +26,6 @@ import {
 } from '@/lib/event-schema';
 import { formatStackTraceAsText } from '@/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
-import { IssueActions } from '../../issue-actions';
-import { IssueActivity } from '../../issue-activity';
 import { Breadcrumbs } from './breadcrumbs';
 import { CollapsibleRail } from './collapsible-rail';
 import { EventContext } from './event-context';

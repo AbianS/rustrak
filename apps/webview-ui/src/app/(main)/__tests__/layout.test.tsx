@@ -17,7 +17,9 @@ const redirect = vi.fn((to: string): never => {
 });
 
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
-vi.mock('@/actions/auth', () => ({ getCurrentUser: () => getCurrentUser() }));
+vi.mock('@/actions/auth', () => ({
+  getCurrentUser: () => getCurrentUser(),
+}));
 vi.mock('@/components/update-banner-slot', () => ({
   UpdateBannerSlot: () => null,
 }));

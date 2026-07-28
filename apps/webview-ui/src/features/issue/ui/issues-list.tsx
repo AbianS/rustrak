@@ -18,16 +18,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import {
-  bulkDeleteIssues,
-  bulkUpdateIssues,
-  deleteIssue,
-} from '@/actions/issues';
-import {
-  LevelBadge,
-  PriorityIndicator,
-  StatusIndicator,
-} from '@/components/issue-indicators';
 import { TrendSparkline } from '@/components/trend-sparkline';
 import {
   AlertDialog,
@@ -48,6 +38,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  bulkDeleteIssues,
+  bulkUpdateIssues,
+  deleteIssue,
+} from '@/features/issue/api/mutations';
+import {
+  LevelBadge,
+  PriorityIndicator,
+  StatusIndicator,
+} from '@/features/issue/ui/issue-indicators';
 
 interface IssuesListProps {
   projectId: number;

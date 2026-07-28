@@ -21,8 +21,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
 
   const isInvalid =
     !result.success ||
-    result.invitation.status !== 'pending' ||
-    new Date(result.invitation.expires_at).getTime() < Date.now();
+    result.data.status !== 'pending' ||
+    new Date(result.data.expires_at).getTime() < Date.now();
 
   return (
     <div className="min-h-screen bg-card flex items-center justify-center p-8 lg:p-12">
@@ -58,7 +58,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
             </Button>
           </div>
         ) : (
-          <AcceptInvitationForm token={token} email={result.invitation.email} />
+          <AcceptInvitationForm token={token} email={result.data.email} />
         )}
       </div>
     </div>

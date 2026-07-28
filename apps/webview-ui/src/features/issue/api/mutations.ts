@@ -5,11 +5,6 @@ import type {
   BulkDeleteIssues,
   BulkUpdateIssues,
   Issue,
-  IssueAggregates,
-  IssueStats,
-  IssueStatsWindow,
-  ListIssuesOptions,
-  OffsetPaginatedResponse,
   Result,
   RustrakError,
   UpdateIssueState,
@@ -23,28 +18,6 @@ import { createClient } from '@/lib/rustrak';
  * @param options - Optional filtering and pagination options
  * @returns Paginated list of issues with total count
  */
-export async function listIssues(
-  projectId: number,
-  options?: ListIssuesOptions,
-): Promise<Result<OffsetPaginatedResponse<Issue>, RustrakError>> {
-  const client = await createClient();
-  return client.issues.list(projectId, options);
-}
-
-/**
- * Get a single issue by ID.
- *
- * @param projectId - The project ID
- * @param issueId - The issue UUID
- * @returns The issue
- */
-export async function getIssue(
-  projectId: number,
-  issueId: string,
-): Promise<Result<Issue, RustrakError>> {
-  const client = await createClient();
-  return client.issues.get(projectId, issueId);
-}
 
 /**
  * Update an issue's state (resolve, mute, etc.).
@@ -107,50 +80,6 @@ export async function bulkDeleteIssues(
 ): Promise<Result<{ deleted: number }, RustrakError>> {
   const client = await createClient();
   return client.issues.bulkDelete(projectId, body);
-}
-
-/**
- * Get per-issue aggregates (unique user count + top tags).
- *
- * @param projectId - The project ID
- * @param issueId - The issue UUID
- */
-export async function getIssueAggregates(
-  projectId: number,
-  issueId: string,
-): Promise<Result<IssueAggregates, RustrakError>> {
-  const client = await createClient();
-  return client.issues.getAggregates(projectId, issueId);
-}
-
-/**
- * Get a zero-filled event-count timeseries for an issue (24h or 30d).
- *
- * @param projectId - The project ID
- * @param issueId - The issue UUID
- * @param window - The time window (`24h` or `30d`)
- */
-export async function getIssueStats(
-  projectId: number,
-  issueId: string,
-  window: IssueStatsWindow = '24h',
-): Promise<Result<IssueStats, RustrakError>> {
-  const client = await createClient();
-  return client.issues.getStats(projectId, issueId, window);
-}
-
-/**
- * Get an issue's activity log (status changes, comments/notes, etc.).
- *
- * @param projectId - The project ID
- * @param issueId - The issue UUID
- */
-export async function getIssueActivity(
-  projectId: number,
-  issueId: string,
-): Promise<Result<ActivityEntry[], RustrakError>> {
-  const client = await createClient();
-  return client.issues.getActivity(projectId, issueId);
 }
 
 /**
