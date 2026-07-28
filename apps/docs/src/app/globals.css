@@ -555,14 +555,43 @@ body:has(.landing-root) {
    one line and was unreadable, and none of it could be reasoned about without
    mentally rendering it first.
 
-   The type is deliberately a step smaller than the docs' prose. A release note
-   is a list of facts being scanned for one of them, not a page being read, and
-   at documentation size a five-section entry runs three screens deep. */
+   The type is a step smaller than the docs' prose. A release note is a list of
+   facts being scanned for one of them, not a page being read, and at
+   documentation size a five-section entry runs three screens deep.
+
+   ── The colour, which is the part that was wrong ───────────────────────────
+
+   This was `--muted-foreground`, and that single declaration was most of why
+   the page was hard to read. `--muted-foreground` is the token for metadata:
+   dates, counts, labels. It is chosen to recede. Painting the body of
+   every release in it meant the actual content of the page was the quietest
+   thing on it, and the effect compounded with the measure: a 95-character line
+   of receding grey is a paragraph the eye slides off rather than reads.
+
+   It now mixes towards the background from `--foreground` instead, the same
+   move `.blog-prose` already makes and for the same reason: a long read set in
+   the full heading colour is harsher than it looks in a screenshot, most of all
+   in dark mode. 80% is a step firmer than the blog's 84% mix because this type
+   is 1.5px smaller and small type needs the contrast back.
+
+   The measure is capped in `release-article.tsx` rather than here, because it
+   is a property of the column the prose sits in and not of the prose. */
 .changelog-prose p,
 .changelog-prose li {
-  font-size: 14.5px;
-  line-height: 1.72;
-  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.7;
+  color: color-mix(in oklab, var(--foreground) 80%, var(--background));
+}
+
+/* The release's one-line summary, between the title and the first section. It
+   sits a step above the body, larger and in the full foreground, because it
+   is the sentence that decides whether the reader keeps going, and it was
+   previously indistinguishable from the prose underneath it. */
+.changelog-lead {
+  max-width: 58ch;
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: color-mix(in oklab, var(--foreground) 88%, var(--background));
 }
 
 .changelog-prose p + p {

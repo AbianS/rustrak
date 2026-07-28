@@ -8,6 +8,7 @@ import {
   type Release,
   type ReleaseChannel,
   type ReleaseChunk,
+  type ReleasePulse,
   type ReleaseSection,
   type SectionKind,
   safeDate,
@@ -39,6 +40,7 @@ export type {
   Release,
   ReleaseChannel,
   ReleaseChunk,
+  ReleasePulse,
   ReleaseSection,
   SectionKind,
 };
@@ -202,4 +204,63 @@ export function getReleaseChunk(chunk: number): ReleaseChunk {
 
 export function getChunkCount(): number {
   return Math.max(1, Math.ceil(getReleases().length / RELEASES_PER_CHUNK));
+}
+
+/**
+ * How many discrete changes a section describes.
+ *
+ * Counting list items is the honest measure for this content: every entry in
+ * `content/changelog/` is written as a heading and a list of the things that
+ * landed under it, so one `<li>` is one change. The paragraph fallback covers
+ * the handful of sections written as prose: v0.10.2 is two sentences and no
+ * list, and scoring it zero would drop a real release out of the spectrum
+ * entirely.
+ *
+ * Nested items are counted too, and that is deliberate rather than overlooked:
+ * a sub-item is still something that shipped, and excluding it would need the
+ * HTML parsed into a tree to find out which items are nested. This is a
+ * magnitude, not an inventory.
+ */
+function countChanges(html: string): number {
+  const items = html.match(/<li[\s>]/g)?.length ?? 0;
+  if (items > 0) return items;
+  return html.match(/<p[\s>]/g)?.length ?? 0;
+}
+
+function pulseOf(release: Release): ReleasePulse {
+  const counts: Record<SectionKind, number> = {
+    shipped: 0,
+    improved: 0,
+    fixed: 0,
+    documented: 0,
+  };
+
+  let total = 0;
+  for (const section of release.sections) {
+    const changes = countChanges(section.html);
+    counts[section.kind] += changes;
+    total += changes;
+  }
+
+  return {
+    anchor: release.anchor,
+    version: release.version,
+    title: release.title,
+    date: release.date,
+    channel: release.channel,
+    counts,
+    // Floored at one so a release can never draw as nothing. An entry with
+    // neither a list nor a paragraph is malformed, but the spectrum is a map of
+    // the history and a missing column reads as a missing release.
+    total: Math.max(1, total),
+  };
+}
+
+/**
+ * The whole history, at the resolution the spectrum draws it. Newest first,
+ * matching `getReleases()`; the spectrum reverses it, because time reads left
+ * to right and the archive reads top to bottom.
+ */
+export function getPulse(): ReleasePulse[] {
+  return getReleases().map(pulseOf);
 }
