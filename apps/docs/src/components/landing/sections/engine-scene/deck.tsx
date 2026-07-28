@@ -39,7 +39,7 @@ import { BOARD_FILL, Box, EDGE, ELL_RX, ELL_RY } from './solids';
 export const TRACE_Y = DECK + 0.002;
 
 /** One part's footprint: an outline on the surface with pads at its corners. */
-export function Footprint({
+function Footprint({
   cx,
   cz,
   w,

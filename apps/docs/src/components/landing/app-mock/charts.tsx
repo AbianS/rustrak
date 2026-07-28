@@ -55,7 +55,7 @@ export function crashFreeColor(rate: number): string {
 }
 
 /** `ChartLegend` from components/charts/chart-tooltip.tsx. */
-export function ChartLegend({
+function ChartLegend({
   items,
 }: {
   items: ReadonlyArray<{ label: string; color: string }>;
