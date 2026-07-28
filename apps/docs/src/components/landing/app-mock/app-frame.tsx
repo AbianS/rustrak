@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
@@ -79,7 +79,7 @@ export function AppFrame({
           // A soft vignette that lifts one region out of a gently dimmed frame,
           // rather than a hard cut-out with a bright outline — the outline read
           // like a tooltip and the heavy dim muddied the UI.
-          <motion.div
+          <m.div
             className="pointer-events-none absolute rounded-xl"
             initial={false}
             animate={

@@ -1,4 +1,4 @@
-import { LandingNav } from './nav';
+import { LandingNav } from './nav/nav';
 import { GridFrame } from './primitives/grid';
 import { Cover } from './primitives/pinned';
 import { Alerts } from './sections/alerts';
@@ -7,7 +7,7 @@ import { Compatible } from './sections/compatible';
 import { DayOne } from './sections/day-one';
 import { Engine } from './sections/engine';
 import { SiteFooter } from './sections/footer';
-import { Hero } from './sections/hero';
+import { Hero } from './sections/hero/hero';
 import { Manifesto } from './sections/manifesto';
 import { Migrate } from './sections/migrate';
 import { OneCommand } from './sections/one-command';

@@ -2,7 +2,7 @@
 
 import { useLenis } from 'lenis/react';
 import { ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import * as m from 'motion/react-m';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
@@ -593,10 +593,15 @@ function ChapterRail({ active }: { active: number }) {
             lit segment reads as part of it lighting up rather than as a tick
             that appears next to a word. */}
         <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-rule" />
-        <motion.span
+        <m.span
           aria-hidden
+          /* A 1px marker, `absolute`, so it is out of flow: animating its
+             height lays out its own box and reflows nothing around it. The
+             transform version of this would need a scaleY on a one-pixel
+             bar, which is worse to read for no measurable gain. */
           className="absolute left-0 w-px bg-primary"
           initial={false}
+          // react-doctor-disable-next-line react-doctor/no-layout-property-animation
           animate={{ y: marker.y, height: marker.height }}
           transition={{ duration: 0.5, ease: EASE }}
         />

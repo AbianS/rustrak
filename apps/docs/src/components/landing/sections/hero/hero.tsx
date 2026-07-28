@@ -1,26 +1,24 @@
 'use client';
 
 import {
-  motion,
   useMotionValue,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { GithubIcon } from '@/components/icons/github';
 import StaggerFromCenter from '@/components/smoothui/stagger-from-center';
-import { AppFrame } from '../app-mock/app-frame';
-import { MockOverview } from '../app-mock/mock-overview';
-import { Tour } from '../app-mock/tour';
-import { AsciiField } from '../ascii-field';
-import { GITHUB } from '../links';
-import { EASE } from '../motion';
-import { Typewriter } from '../primitives/typewriter';
-import { DESKTOP, useMediaQuery } from '../use-media-query';
-import { useOnScreen } from '../use-on-screen';
-import { useStarted } from '../use-started';
+import { AsciiField } from '../../ascii-field/ascii-field';
+import { GITHUB } from '../../links';
+import { EASE } from '../../motion';
+import { Typewriter } from '../../primitives/typewriter';
+import { DESKTOP, useMediaQuery } from '../../use-media-query';
+import { useOnScreen } from '../../use-on-screen';
+import { useStarted } from '../../use-started';
+import { HeroPanel } from './hero-panel';
 
 /**
  * Sets a line character by character from its middle outwards, keeping line
@@ -61,6 +59,7 @@ function Words({
 
         return (
           // Words are a fixed authored sentence, never reordered.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <Fragment key={`${index}-${word}`}>
             <span className="inline-block">
               {active ? (
@@ -238,7 +237,7 @@ export function Hero() {
             middle and nothing above it moves.
           */}
           <span ref={claim} className="relative mt-1 block">
-            <motion.span
+            <m.span
               className="inline-block bg-[linear-gradient(105deg,var(--primary)_28%,color-mix(in_oklab,var(--primary)_35%,white)_44%,var(--primary)_60%)] bg-clip-text text-transparent [background-size:260%_100%]"
               initial={
                 reduced
@@ -317,7 +316,7 @@ export function Hero() {
                    condition that grants it, there is nothing to reset. */
                 handedOver={held && caretAway}
               />
-            </motion.span>
+            </m.span>
             <span
               aria-hidden
               className="pointer-events-none absolute inset-x-0 -bottom-2 -z-10 h-10 blur-2xl [background:radial-gradient(50%_100%_at_50%_50%,color-mix(in_oklab,var(--primary)_28%,transparent),transparent_70%)]"
@@ -338,7 +337,7 @@ export function Hero() {
             pair of differently-sized pills reads as an accident. Below `xs`
             they stack full width instead, which is also the shape a thumb
             expects. */}
-        <motion.div
+        <m.div
           className="mx-auto mt-8 flex max-w-xs flex-col items-stretch gap-3 sm:mt-9 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center"
           {...enter(1.05)}
         >
@@ -365,7 +364,7 @@ export function Hero() {
             <GithubIcon className="size-4" />
             View on GitHub
           </a>
-        </motion.div>
+        </m.div>
       </div>
 
       {/*
@@ -377,72 +376,16 @@ export function Hero() {
         a pin with nothing happening during it is just a section that will not
         scroll — so there the track has no extra height and nothing sticks.
       */}
-      <div className="relative mt-14 sm:mt-20 lg:h-[138vh]">
-        <div className="px-3 sm:px-6 lg:sticky lg:top-[13vh] lg:px-10">
-          {/*
-            The panel's arrival, nested inside the track rather than applied to
-            it: a transform on the track would be an ancestor transform over its
-            own `sticky` child, which changes what the child sticks to.
-
-            Delayed until the painting behind it has finished resolving, which
-            takes about 2.75s. Opacity and scale only — a blur here reads well
-            and costs badly, since an element with five hundred descendants has
-            to be rasterised to a buffer and gaussian-blurred every frame for
-            the whole 1.9s. A deeper scale buys the same sense of a subject
-            being approached out of properties the compositor animates for free.
-          */}
-          <motion.div
-            initial={reduced ? undefined : { opacity: 0, y: 72, scale: 0.92 }}
-            animate={
-              reduced || !started ? undefined : { opacity: 1, y: 0, scale: 1 }
-            }
-            transition={{ duration: 1.9, ease: EASE, delay: 2 }}
-          >
-            <motion.div
-              ref={panel}
-              className="relative mx-auto w-full max-w-[1160px]"
-              style={held ? { scale } : undefined}
-            >
-              {held ? (
-                /*
-                  The product using itself: a pointer clicks through five
-                  screens, each playing its own entrance (`app-mock/tour.tsx`).
-                  A reader looking at one held dashboard learns that there is a
-                  dashboard; a reader watching the issue list open into a stack
-                  trace, then a log stream, then an agent waterfall, learns the
-                  shape of the whole product before scrolling once.
-
-                  It opens its own `AppFrame`, because the pointer starts below
-                  the product and the frame hides its overflow.
-                */
-                <Tour
-                  armed={started && visible}
-                  gate={gate}
-                  onCaret={setCaretAway}
-                />
-              ) : (
-                /*
-                  Below `lg`: the overview alone, played once on entry rather
-                  than scrubbed on scroll, since it is already on the page at
-                  first paint and scrubbing would mean an empty dashboard until
-                  the visitor scrolled.
-
-                  The fill-in trails the panel by three tenths of a second
-                  rather than starting at mount. `armed` answers "is there a
-                  client alive to run this", not "is there anything to see": the
-                  panel is at `opacity: 0` until 2s, so an unheld fill-in
-                  animated sixty-odd motion values where nobody could watch them
-                  — on the same frames as the painting's reveal, which is where
-                  the opening fell from 120fps to 64.
-                */
-                <AppFrame>
-                  <MockOverview mode="enter" armed={started} enterDelay={2.3} />
-                </AppFrame>
-              )}
-            </motion.div>
-          </motion.div>
-        </div>
-      </div>
+      <HeroPanel
+        panelRef={panel}
+        visible={visible}
+        held={held}
+        started={started}
+        reduced={reduced}
+        scale={scale}
+        gate={gate}
+        onCaretAway={setCaretAway}
+      />
     </section>
   );
 }

@@ -22,19 +22,24 @@ interface PendingInvitationsProps {
   invitations: Invitation[];
 }
 
+/**
+ * Put an invite link on the clipboard, or show it when there is no clipboard.
+ *
+ * Module scope: it reads  and the invitation it is handed, and closes
+ * over nothing in the component.
+ */
+async function handleCopy(invitation: Invitation) {
+  const link = `${window.location.origin}/invite/${invitation.token}`;
+  if (await copyToClipboard(link)) {
+    toast.success('Invite link copied to clipboard');
+  } else {
+    toast.info('Copy the invite link', { description: link });
+  }
+}
+
 export function PendingInvitations({ invitations }: PendingInvitationsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-
-  const handleCopy = async (invitation: Invitation) => {
-    const link = `${window.location.origin}/invite/${invitation.token}`;
-    const copied = await copyToClipboard(link);
-    if (copied) {
-      toast.success('Invite link copied to clipboard');
-    } else {
-      toast.info('Copy the invite link', { description: link });
-    }
-  };
 
   const handleRevoke = (invitation: Invitation) => {
     startTransition(async () => {

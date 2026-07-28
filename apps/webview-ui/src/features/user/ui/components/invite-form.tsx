@@ -38,7 +38,7 @@ import {
 } from '@/shared/ui/components/shadcn/select';
 
 const inviteSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.email('Please enter a valid email address'),
   role: z.enum(['admin', 'member']),
 });
 

@@ -2,7 +2,7 @@ import { BookOpen, ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listTokens } from '@/features/token/api/queries';
-import { TokensList } from '@/features/token/ui/components/tokens-list';
+import { TokensList } from '@/features/token/ui/components/tokens-list/tokens-list';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 export const metadata: Metadata = {

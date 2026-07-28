@@ -1,26 +1,20 @@
 'use client';
 
-import {
-  type MotionValue,
-  motion,
-  useReducedMotion,
-  useTransform,
-} from 'motion/react';
-import { DUR } from '../motion';
-import { Deck } from './engine-scene/deck';
+import { type MotionValue, useReducedMotion, useTransform } from 'motion/react';
+import * as m from 'motion/react-m';
+import { DUR } from '../../motion';
+import { Deck } from './deck';
 import {
   CELL,
   COS30,
-  DECK,
   facePoints,
   GROUND,
-  GROUND_RX,
-  GROUND_RY,
   H,
   LID_RISE,
   line,
-  type Point,
   planeAt,
+  px,
+  py,
   R,
   SIN30,
   sx,
@@ -28,15 +22,10 @@ import {
   U,
   WALL_OUT,
   WALL_OUT_TALL,
-} from './engine-scene/iso';
-import {
-  AdmissionForm,
-  DecoderForm,
-  FoldForm,
-  SpoolForm,
-  WorkersForm,
-} from './engine-scene/parts';
-import { LEFT, px, py, RIGHT, TOP } from './engine-scene/solids';
+} from './iso';
+import { PARTS } from './parts-table';
+import { SceneDefs } from './scene-defs';
+import { LEFT, RIGHT, TOP } from './solids';
 
 /**
  * The server, as one cube that opens.
@@ -120,59 +109,6 @@ import { LEFT, px, py, RIGHT, TOP } from './engine-scene/solids';
  * fraction of its opacity, which is the same thing the near walls do on the way
  * out and is what lets an arrangement chosen for depth stay readable.
  */
-
-/**
- * `anchor` is where the leader line leaves the part. It is authored per part
- * rather than derived from a bounding box because the point that reads as "this
- * one" is a specific corner of a specific feature — the top of the tallest fin,
- * the outer end of the card — and a bounding box would pick the arithmetic
- * centre of a shape that may be mostly empty air.
- *
- * `depth` is `x + z` at the part's centre, which is exactly how far from the eye
- * it is in this projection, and it is what the draw order is sorted on.
- */
-export const PARTS = [
-  {
-    key: 'admission',
-    label: 'Admission control',
-    note: 'quota · 429',
-    Form: AdmissionForm,
-    anchor: [-1.35, DECK + 0.53, -0.04] as Point,
-    depth: -1.7,
-  },
-  {
-    key: 'decoder',
-    label: 'Envelope decoder',
-    note: 'gzip · 8 item kinds',
-    Form: DecoderForm,
-    anchor: [1.14, DECK + 0.58, -0.16] as Point,
-    depth: 0.18,
-  },
-  {
-    key: 'spool',
-    label: 'Durable spool',
-    note: 'disk · 200 OK',
-    Form: SpoolForm,
-    anchor: [1.62, DECK + 0.4, -0.97] as Point,
-    depth: -0.23,
-  },
-  {
-    key: 'workers',
-    label: 'Digest workers',
-    note: 'tokio · in-process',
-    Form: WorkersForm,
-    anchor: [0.11, DECK + 0.67, 0.05] as Point,
-    depth: -0.2,
-  },
-  {
-    key: 'fold',
-    label: 'Fingerprint',
-    note: 'sha-256 · one row',
-    Form: FoldForm,
-    anchor: [0.35, DECK + 0.69, 1.24] as Point,
-    depth: 0.65,
-  },
-] as const;
 
 /**
  * The order the parts are painted in: furthest from the eye first.
@@ -373,20 +309,20 @@ function Component({
   */
   return (
     <>
-      <motion.g style={{ opacity: stand, y: rise }}>
+      <m.g style={{ opacity: stand, y: rise }}>
         <g
           opacity={ghosted ? 0.42 : 1}
           style={{ transition: `opacity ${DUR.base}s` }}
         >
           <part.Form lit={active} />
         </g>
-      </motion.g>
+      </m.g>
 
       {/* Leader out to the gutter, in the convention of the drawing: a hairline
           from the part, one elbow, then its name. Absent on a portrait frame,
           where the names are set in the reading panel instead. */}
       {named ? (
-        <motion.g style={{ opacity: annotation }}>
+        <m.g style={{ opacity: annotation }}>
           <path
             d={`M${anchorX} ${anchorY} L${LEADER_FROM} ${labelY + 6} L${LEADER_TO} ${labelY + 6}`}
             fill="none"
@@ -416,7 +352,7 @@ function Component({
           >
             {part.note}
           </text>
-        </motion.g>
+        </m.g>
       ) : null}
     </>
   );
@@ -523,29 +459,7 @@ export function EngineScene({
     >
       <title>The server, opened up</title>
 
-      <defs>
-        {/* The lattice has to stop without having an edge. A hard rectangle of
-            grid reads as a texture swatch someone pasted behind the object;
-            faded out radially it reads as ground continuing past the frame. */}
-        <radialGradient id="engine-ground" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-          <stop offset="55%" stopColor="#fff" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
-        <mask id="engine-ground-mask">
-          <rect
-            x={sx(0, 0) - GROUND_RX}
-            y={sy(0, 0, 0) - GROUND_RY}
-            width={GROUND_RX * 2}
-            height={GROUND_RY * 2}
-            fill="url(#engine-ground)"
-          />
-        </mask>
-        <radialGradient id="engine-contact" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#000" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#000" stopOpacity="0" />
-        </radialGradient>
-      </defs>
+      <SceneDefs />
 
       {/* Everything the drawing is made of rides one group, so the recentring
           slide moves the ground, the box, the components and their labels as a
@@ -573,7 +487,7 @@ export function EngineScene({
         {/* ── The interior, revealed as the walls come away ─────────────────────
           The floor and the two far walls, seen from the inside. They are the
           surfaces the box was hiding, so they only exist once it is opening. */}
-        <motion.g style={{ opacity: interior }}>
+        <m.g style={{ opacity: interior }}>
           <polygon
             points={facePoints([
               [-R, 0, -R],
@@ -612,7 +526,7 @@ export function EngineScene({
             strokeWidth={1}
             vectorEffect="non-scaling-stroke"
           />
-        </motion.g>
+        </m.g>
 
         {/* ── What is inside ─────────────────────────────────────────────────
           The board first, because everything else is bolted to it and it has to
@@ -624,9 +538,9 @@ export function EngineScene({
           different: an SVG has no depth buffer, so document order is the whole
           of the hidden-surface handling, while the labels down the gutter still
           have to run in the order an event meets the parts. */}
-        <motion.g style={{ opacity: interior }}>
+        <m.g style={{ opacity: interior }}>
           <Deck />
-        </motion.g>
+        </m.g>
 
         {DRAW_ORDER.map(({ part, index }) => (
           <Component
@@ -643,7 +557,7 @@ export function EngineScene({
         {/* ── The two near walls ───────────────────────────────────────────────
           Drawn after the interior because when the box is shut they are in
           front of it, and they have to stay in front the whole way out. */}
-        <motion.g style={{ x: leftX, y: leftY, opacity: wallFade }}>
+        <m.g style={{ x: leftX, y: leftY, opacity: wallFade }}>
           <polygon
             points={facePoints([
               [-R, H, R],
@@ -658,9 +572,9 @@ export function EngineScene({
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"
           />
-        </motion.g>
+        </m.g>
 
-        <motion.g style={{ x: rightX, y: rightY, opacity: wallFade }}>
+        <m.g style={{ x: rightX, y: rightY, opacity: wallFade }}>
           <polygon
             points={facePoints([
               [R, H, R],
@@ -676,7 +590,7 @@ export function EngineScene({
             vectorEffect="non-scaling-stroke"
           />
           {/* The vent and the status light ride the wall they are cut into. */}
-          <motion.g style={{ opacity: shut }}>
+          <m.g style={{ opacity: shut }}>
             <path
               d={louvres}
               stroke="var(--foreground)"
@@ -691,13 +605,13 @@ export function EngineScene({
               r={2.6}
               fill="var(--primary)"
             />
-          </motion.g>
-        </motion.g>
+          </m.g>
+        </m.g>
 
         {/* ── The lid ──────────────────────────────────────────────────────────
           Last, so it passes over everything as it lifts, and carrying the one
           piece of branding in the drawing. */}
-        <motion.g style={{ y: lidY }}>
+        <m.g style={{ y: lidY }}>
           <polygon
             points={facePoints([
               [-R, H, -R],
@@ -726,7 +640,7 @@ export function EngineScene({
               RUSTRAK
             </text>
           </g>
-        </motion.g>
+        </m.g>
       </g>
     </svg>
   );

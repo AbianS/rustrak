@@ -28,6 +28,11 @@ export function StackTrace({ exception, platform }: StackTraceProps) {
         const originalFrames = exc.stacktrace?.frames ?? [];
         const displayFrames = orderFramesForDisplay(originalFrames, platform);
         return (
+          // An exception chain read once off a stored event. It has no id, and
+          // `type` repeats across a chain that rethrows the same class, so the
+          // position is the only thing that identifies a link. The list never
+          // reorders or filters: a different event is a different route.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <div key={i} className="space-y-4">
             {/* Exception Header */}
             <div className="space-y-1">

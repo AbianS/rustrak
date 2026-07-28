@@ -2,7 +2,14 @@
 
 import type { LenisRef } from 'lenis/react';
 import { ReactLenis } from 'lenis/react';
-import { cancelFrame, frame, time, useReducedMotion } from 'motion/react';
+import {
+  cancelFrame,
+  domAnimation,
+  frame,
+  LazyMotion,
+  time,
+  useReducedMotion,
+} from 'motion/react';
 import {
   createContext,
   type ReactNode,
@@ -105,7 +112,25 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
           smoothWheel: enabled,
         }}
       >
-        {children}
+        {/*
+          Every animated element below is `m.*` from `motion/react-m`, which
+          ships no features of its own: they arrive here instead. The full
+          `motion` component carries all of them at ~34kb, against ~4.6kb plus
+          the 15kb of `domAnimation` for the same landing.
+
+          `domAnimation` and not `domMax` because the difference is pan/drag
+          gestures and layout animations, and this page uses none: no `layout`,
+          no `layoutId`, no `drag`, no `Reorder`. Adding any of those means
+          moving to `domMax` in the same commit, because with `domAnimation`
+          they do not warn, they simply never animate.
+
+          `strict` makes that enforceable rather than a convention: rendering a
+          plain `motion.*` anywhere under here throws instead of quietly
+          pulling the full bundle back in and undoing all of this.
+        */}
+        <LazyMotion features={domAnimation} strict>
+          {children}
+        </LazyMotion>
       </ReactLenis>
     </SmoothScrollContext.Provider>
   );

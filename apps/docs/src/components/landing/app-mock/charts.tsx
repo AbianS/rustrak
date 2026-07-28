@@ -1,8 +1,10 @@
 'use client';
 
-import { motion, useTransform } from 'motion/react';
+import { useTransform } from 'motion/react';
+import * as m from 'motion/react-m';
 import { Fragment, type ReactNode } from 'react';
 import type { SessionBucket, VolumeBucket } from './fixtures';
+import { compact } from './format';
 import {
   Breath,
   Draw,
@@ -26,36 +28,15 @@ import {
  * reproduced from the real components rather than approximated.
  */
 
-/**
- * Built once, at module scope.
- *
- * `new Intl.NumberFormat(...)` is not a cheap constructor — it resolves a
- * locale and builds a formatter — and this used to run on every call. `compact`
- * is a `Ticker` formatter, so "every call" meant several times a frame for as
- * long as a counter was on screen.
- */
-const COMPACT = new Intl.NumberFormat('en', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-/** `compactCount` from apps/webview-ui/src/lib/chart-format.ts. */
-export function compact(value: number): string {
-  if (Math.abs(value) < 1000) {
-    return String(Math.round(value));
-  }
-  return COMPACT.format(value);
-}
-
 /** `crashFreeColor` from lib/session-health.ts — the rate colours itself. */
-export function crashFreeColor(rate: number): string {
+function crashFreeColor(rate: number): string {
   if (rate >= 0.99) return 'var(--chart-3)';
   if (rate >= 0.95) return 'var(--sev-warning)';
   return 'var(--sev-error)';
 }
 
 /** `ChartLegend` from components/charts/chart-tooltip.tsx. */
-export function ChartLegend({
+function ChartLegend({
   items,
 }: {
   items: ReadonlyArray<{ label: string; color: string }>;
@@ -114,6 +95,17 @@ const VOLUME_SERIES = [
   { key: 'warning', label: 'Warnings', color: 'var(--sev-warning)' },
   { key: 'info', label: 'Info', color: 'var(--sev-info)' },
 ] as const;
+
+/**
+ * The same colours, keyed. Indexing a record the compiler knows is total
+ * removes the non-null assertion `.find(...)!` needed, which was a promise
+ * about the data rather than something the types could check.
+ */
+const VOLUME_COLOR: Record<(typeof VOLUME_SERIES)[number]['key'], string> = {
+  errors: 'var(--sev-error)',
+  warning: 'var(--sev-warning)',
+  info: 'var(--sev-info)',
+};
 
 /**
  * The chrome every fixed-size plot in this file shares: a viewBox in the
@@ -259,11 +251,14 @@ export function ErrorVolumeChart({
 
         {data.map((bucket, index) => {
           const x = gutter + index * slot + (slot - barW) / 2;
+          // `as const` on the keys so they stay literals: that is what lets
+          // `VOLUME_COLOR[segment.key]` be a total lookup instead of an
+          // assertion that the series happens to contain them.
           const stack = [
             { key: 'errors', v: bucket.errors + bucket.fatal },
             { key: 'warning', v: bucket.warning },
             { key: 'info', v: bucket.info },
-          ];
+          ] as const;
           const topMost = [...stack].reverse().find((s) => s.v > 0)?.key;
 
           let cursor = plotH;
@@ -281,9 +276,7 @@ export function ErrorVolumeChart({
                 // Only inset segments that carry something above them, and
                 // only when they are tall enough to survive it.
                 const inset = !isTop && h > SEGMENT_GAP + 1 ? SEGMENT_GAP : 0;
-                const color = VOLUME_SERIES.find(
-                  (s) => s.key === segment.key,
-                )!.color;
+                const color = VOLUME_COLOR[segment.key];
 
                 return (
                   <path
@@ -359,7 +352,7 @@ function MeanLine({
   const opacity = useTransform(p, [0, 0.4], [0, 1]);
 
   return (
-    <motion.g style={{ transformOrigin: `${x1}px ${y}px`, scaleX: p, opacity }}>
+    <m.g style={{ transformOrigin: `${x1}px ${y}px`, scaleX: p, opacity }}>
       <line
         x1={x1}
         x2={x2}
@@ -370,7 +363,7 @@ function MeanLine({
         strokeDasharray="4 4"
         strokeOpacity={0.6}
       />
-    </motion.g>
+    </m.g>
   );
 }
 
@@ -536,9 +529,13 @@ export function SessionHealthArea({
 
   /** The wash between two series: out along the upper edge, back along the lower. */
   const band = (upper: number[], lower: number[]) => {
+    // Walked backwards in one pass. Two chained maps built an array of
+    // reversed indices only to immediately index back through it.
     const back = lower
-      .map((_, i) => lower.length - 1 - i)
-      .map((i) => `L${x(i)},${y(lower[i])}`)
+      .map((_, k) => {
+        const i = lower.length - 1 - k;
+        return `L${x(i)},${y(lower[i])}`;
+      })
       .join(' ');
     return `${line(upper)} ${back} Z`;
   };
@@ -736,7 +733,7 @@ export function TrendSparkline({
   const last = trend.length - 1;
 
   return (
-    <motion.svg
+    <m.svg
       viewBox={`0 0 ${trend.length * (barWidth + gap)} 24`}
       className={className}
       preserveAspectRatio="none"
@@ -760,14 +757,16 @@ export function TrendSparkline({
 
           return live && i === last ? (
             // A fixed authored series, never reordered.
+            // react-doctor-disable-next-line react-doctor/no-array-index-as-key
             <Breath key={i} origin="0 24px" amount={0.14}>
               {bar}
             </Breath>
           ) : (
+            // react-doctor-disable-next-line react-doctor/no-array-index-as-key
             <Fragment key={i}>{bar}</Fragment>
           );
         })}
       </Grow>
-    </motion.svg>
+    </m.svg>
   );
 }

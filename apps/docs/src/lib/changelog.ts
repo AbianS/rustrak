@@ -138,6 +138,8 @@ function splitSections(body: string): ReleaseSection[] {
   }
   sections.push(current);
 
+  // One release's sections, a handful of them, parsed once at build.
+  // react-doctor-disable-next-line react-doctor/js-combine-iterations
   return sections
     .map((section) => ({
       title: section.title,
@@ -176,6 +178,8 @@ export function getReleases(): Release[] {
   if (cache) return cache;
   if (!fs.existsSync(CHANGELOG_DIR)) return [];
 
+  // Build-time, over the changelog directory. Same reasoning as blog.ts.
+  // react-doctor-disable-next-line react-doctor/js-combine-iterations
   cache = fs
     .readdirSync(CHANGELOG_DIR)
     .filter((filename) => filename.endsWith('.mdx'))

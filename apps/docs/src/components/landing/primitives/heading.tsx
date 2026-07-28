@@ -2,11 +2,11 @@
 
 import {
   type MotionValue,
-  motion,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ReactNode, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { DUR, EASE } from '../motion';
@@ -63,13 +63,13 @@ function Word({
         target, and an ordinary inline box always is.
       */}
       <span className="text-foreground/12">{children}</span>
-      <motion.span
+      <m.span
         aria-hidden
         className={cn('absolute inset-0 select-none', tone)}
         style={{ opacity }}
       >
         {children}
-      </motion.span>
+      </m.span>
     </span>
   );
 }
@@ -107,7 +107,9 @@ function ScrubbedHeading({
   const render = (word: string, index: number, tone: string) => {
     const start = index / total;
     return (
+      // react-doctor-disable-next-line react-doctor/no-array-index-as-key
       <Word
+        // Words split from an authored headline: fixed length, fixed order.
         key={`${index}-${word}`}
         progress={scrollYProgress}
         range={[start, start + 1 / total]}
@@ -208,14 +210,14 @@ export function Heading({
 
   return (
     <Tag ref={ref} className={cn('text-balance', className)}>
-      <motion.span
+      <m.span
         className="block"
         initial={{ opacity: 0, y: 14 }}
         animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
         transition={{ duration: DUR.base, ease: EASE, delay }}
       >
         {body}
-      </motion.span>
+      </m.span>
     </Tag>
   );
 }

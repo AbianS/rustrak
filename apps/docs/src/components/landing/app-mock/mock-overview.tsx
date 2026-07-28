@@ -5,7 +5,6 @@ import type { MotionValue } from 'motion/react';
 import { cn } from '@/lib/utils';
 import {
   CrashFreeTrend,
-  compact,
   ErrorVolumeChart,
   SessionHealthArea,
   TransactionP95Bars,
@@ -14,6 +13,7 @@ import {
 import { useCompact } from './design';
 import { useScene } from './event-scene';
 import { ISSUES, SESSIONS, TRANSACTIONS, VOLUME } from './fixtures';
+import { compact } from './format';
 import { MockCard, MockLevel, MockShell, usePad } from './mock-shell';
 import {
   Enter,
@@ -102,11 +102,12 @@ function ProjectHeaderBand() {
 }
 
 /** `OverviewPeriodFilter` — the window selector, held in the URL. */
+const PERIODS = ['24h', '7d', '14d', '30d', 'All'];
+
 function PeriodFilter() {
-  const periods = ['24h', '7d', '14d', '30d', 'All'];
   return (
     <div className="flex w-fit items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
-      {periods.map((period) => (
+      {PERIODS.map((period) => (
         <span
           key={period}
           className={cn(

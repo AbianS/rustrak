@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useScroll, useTransform } from 'motion/react';
+import { useScroll, useTransform } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ReactNode, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import {
@@ -219,7 +220,7 @@ export function Bleed({
       </div>
 
       {framed ? (
-        <motion.span
+        <m.span
           className="pointer-events-none absolute inset-0 z-10 rounded-tl-xl border-l border-t border-white/10"
           style={{ clipPath: strokeClip }}
         />

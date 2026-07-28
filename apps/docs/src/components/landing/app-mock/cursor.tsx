@@ -3,11 +3,12 @@
 import {
   AnimatePresence,
   animate,
-  motion,
   useMotionValue,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { type Point, PRESS } from './cursor-motion';
 import { POINTER_ORIGIN } from './pointer-origin';
 
 /**
@@ -81,11 +82,6 @@ import { POINTER_ORIGIN } from './pointer-origin';
 const DESIGN_W = 1240;
 const DESIGN_H = 840;
 
-export interface Point {
-  x: number;
-  y: number;
-}
-
 type Quad = [Point, Point, Point, Point];
 
 /**
@@ -133,11 +129,6 @@ const EDGE_ARROW = 1.8;
  */
 const RIM = 2.6;
 
-/** Slowest and fastest an ordinary hop may be, and the distance between them. */
-const NEAR = 0.85;
-const FAR = 1.45;
-const SPAN = 900;
-
 /**
  * The glide.
  *
@@ -146,15 +137,6 @@ const SPAN = 900;
  * drifting, which is the quality being asked for.
  */
 const GLIDE = [0.42, 0, 0.18, 1] as const;
-
-/** How long the button is held down. */
-export const PRESS = 0.14;
-
-/** Time to cross from one target to another. */
-export function travelTime(from: Point, to: Point): number {
-  const distance = Math.hypot(to.x - from.x, to.y - from.y);
-  return NEAR + Math.min(distance / SPAN, 1) * (FAR - NEAR);
-}
 
 interface Frame {
   w: number;
@@ -308,7 +290,7 @@ export function Cursor({
 
   return (
     <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0">
-      <motion.div
+      <m.div
         className="absolute left-0 top-0"
         // Applied once, on mount: exactly where the caret is, exactly its size.
         // Nothing fades in, because on this frame this *is* the caret.
@@ -334,7 +316,7 @@ export function Cursor({
             from the point rather than from the graphic. */}
         <AnimatePresence>
           {pressed ? (
-            <motion.span
+            <m.span
               key="ring"
               className="absolute -left-5 -top-5 size-10 rounded-full border border-primary"
               initial={{ scale: 0.25, opacity: 0.8 }}
@@ -345,7 +327,7 @@ export function Cursor({
           ) : null}
         </AnimatePresence>
 
-        <motion.svg
+        <m.svg
           width="40"
           height="40"
           viewBox="0 0 40 40"
@@ -366,7 +348,7 @@ export function Cursor({
           {/* The rim is the same path stroked wider and drawn behind, so the
               two silhouettes are the same shape by construction and cannot
               drift out of register during the morph. */}
-          <motion.path
+          <m.path
             d={d}
             fill="none"
             stroke="oklch(0.12 0 0)"
@@ -375,7 +357,7 @@ export function Cursor({
             strokeLinecap="round"
             style={{ opacity: rimOpacity }}
           />
-          <motion.path
+          <m.path
             d={d}
             fill="var(--primary)"
             stroke="var(--primary)"
@@ -383,8 +365,8 @@ export function Cursor({
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-        </motion.svg>
-      </motion.div>
+        </m.svg>
+      </m.div>
     </div>
   );
 }

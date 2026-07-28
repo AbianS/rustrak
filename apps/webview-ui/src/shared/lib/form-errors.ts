@@ -75,7 +75,11 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
 
   const fields = 'fields' in error ? (error.fields ?? []) : [];
 
+  // `marked` is the ordered result the caller gets back; `markedSet` is the
+  // membership test the loop below does per field. Kept in step by only ever
+  // being written together.
   const marked: string[] = [];
+  const markedSet = new Set<string>();
   const unattributed: string[] = [];
 
   for (const fieldError of fields) {
@@ -86,13 +90,14 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
     // `setError` replaces rather than appends, so the first reason would
     // vanish and the user would fix one problem only to meet the other on the
     // next submit. The extra reason goes to the form-level slot instead.
-    if (!canMark(form, name) || marked.includes(name)) {
+    if (!canMark(form, name) || markedSet.has(name)) {
       unattributed.push(message);
       continue;
     }
 
     form.setError(name as Path<TFieldValues>, { type: 'server', message });
     marked.push(name);
+    markedSet.add(name);
   }
 
   // Nothing named, or nothing nameable: the failure still has to be visible,

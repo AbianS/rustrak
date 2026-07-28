@@ -15,6 +15,13 @@ export function ThemeSelector() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
+  // The theme is not knowable on the server: next-themes reads localStorage
+  // and the system preference, both of which only exist in the browser. There
+  // is no render-safe initial value to use instead, and useSyncExternalStore
+  // would still have to return something for the server snapshot. So the
+  // first paint renders a placeholder of the same size, which is what stops
+  // this being a flash rather than causing one.
+  // react-doctor-disable-next-line react-doctor/rendering-hydration-no-flicker
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -41,6 +48,7 @@ export function ThemeSelector() {
         return (
           <button
             key={t.value}
+            type="button"
             onClick={() => setTheme(t.value)}
             className={cn(
               'flex flex-1 flex-col items-center justify-center gap-2 h-20 md:h-24 rounded-lg border transition-colors cursor-pointer',

@@ -1,7 +1,8 @@
 'use client';
 
 import { ChevronRight } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
 import { useCompact } from './design';
@@ -267,7 +268,7 @@ export function MockLogs() {
                 className="relative h-9 border-t border-border"
               >
                 <AnimatePresence initial={false}>
-                  <motion.div
+                  <m.div
                     key={tail[slot - 1].id}
                     className="absolute inset-0"
                     initial={{ opacity: 0, y: 9 }}
@@ -276,7 +277,7 @@ export function MockLogs() {
                     transition={{ duration: 0.5, ease: EASE }}
                   >
                     <Row log={tail[slot - 1]} row={slot} />
-                  </motion.div>
+                  </m.div>
                 </AnimatePresence>
               </Enter>
             ))}

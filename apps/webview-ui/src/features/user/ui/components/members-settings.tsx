@@ -322,21 +322,36 @@ interface AddMemberDialogProps {
 function AddMemberDialog({
   open,
   onOpenChange,
+  ...formProps
+}: AddMemberDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <AddMemberForm onOpenChange={onOpenChange} {...formProps} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * The dialog body, and the only owner of the draft member.
+ *
+ * It lives inside `DialogContent` rather than beside it because Base UI
+ * unmounts the portal once the close animation finishes. Mounting is
+ * therefore the reset: every open starts from a fresh `userId` and `role`
+ * with no effect clearing them, and the previous draft stays on screen
+ * while the dialog animates away instead of blanking mid-flight.
+ */
+function AddMemberForm({
+  onOpenChange,
   projectId,
   availableUsers,
   teamFailed,
   onSuccess,
-}: AddMemberDialogProps) {
+}: Omit<AddMemberDialogProps, 'open'>) {
   const [isPending, startTransition] = useTransition();
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState<ProjectRole>('viewer');
-
-  useEffect(() => {
-    if (!open) {
-      setUserId('');
-      setRole('viewer');
-    }
-  }, [open]);
 
   const handleAdd = () => {
     const parsedId = Number.parseInt(userId, 10);
@@ -358,105 +373,111 @@ function AddMemberDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add Member</DialogTitle>
-          <DialogDescription>
-            Grant a teammate access to this project.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Add Member</DialogTitle>
+        <DialogDescription>
+          Grant a teammate access to this project.
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="space-y-4 py-1">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              User
-            </label>
-            <Select
-              value={userId}
-              onValueChange={(value) => setUserId(value ?? '')}
-              disabled={isPending || availableUsers.length === 0}
+      <div className="space-y-4 py-1">
+        <div className="space-y-1.5">
+          <label
+            htmlFor="add-member-user"
+            className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+          >
+            User
+          </label>
+          <Select
+            value={userId}
+            onValueChange={(value) => setUserId(value ?? '')}
+            disabled={isPending || availableUsers.length === 0}
+          >
+            <SelectTrigger
+              id="add-member-user"
+              className="w-full"
+              aria-label="Select a user to add"
             >
-              <SelectTrigger
-                className="w-full"
-                aria-label="Select a user to add"
+              <SelectValue
+                placeholder={
+                  teamFailed
+                    ? 'Could not load the team list'
+                    : availableUsers.length === 0
+                      ? 'No users available'
+                      : 'Select a user'
+                }
               >
-                <SelectValue
-                  placeholder={
-                    teamFailed
-                      ? 'Could not load the team list'
-                      : availableUsers.length === 0
-                        ? 'No users available'
-                        : 'Select a user'
-                  }
-                >
-                  {(value) =>
-                    availableUsers.find((u) => String(u.id) === value)?.email ??
-                    ''
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {availableUsers.map((user) => (
-                  <SelectItem key={user.id} value={String(user.id)}>
-                    {user.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Role
-            </label>
-            <Select
-              value={role}
-              onValueChange={(value) => {
-                if (value) setRole(value as ProjectRole);
-              }}
-              disabled={isPending}
-            >
-              <SelectTrigger
-                className="w-full"
-                aria-label="Role for new member"
-              >
-                <SelectValue>
-                  {(value) => roleLabel(value as ProjectRole)}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {PROJECT_ROLES.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>
-                    {r.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+                {(value) =>
+                  availableUsers.find((u) => String(u.id) === value)?.email ??
+                  ''
+                }
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {availableUsers.map((user) => (
+                <SelectItem key={user.id} value={String(user.id)}>
+                  {user.email}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="add-member-role"
+            className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+          >
+            Role
+          </label>
+          <Select
+            value={role}
+            onValueChange={(value) => {
+              if (value) setRole(value as ProjectRole);
+            }}
             disabled={isPending}
           >
-            Cancel
-          </Button>
-          <Button onClick={handleAdd} disabled={isPending || !userId}>
-            {isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <>
-                <UserPlus className="mr-2 size-4" />
-                Add
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <SelectTrigger
+              id="add-member-role"
+              className="w-full"
+              aria-label="Role for new member"
+            >
+              <SelectValue>
+                {(value) => roleLabel(value as ProjectRole)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {PROJECT_ROLES.map((r) => (
+                <SelectItem key={r.value} value={r.value}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          disabled={isPending}
+        >
+          Cancel
+        </Button>
+        <Button onClick={handleAdd} disabled={isPending || !userId}>
+          {isPending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <UserPlus className="mr-2 size-4" />
+              Add
+            </>
+          )}
+        </Button>
+      </DialogFooter>
+    </>
   );
 }
