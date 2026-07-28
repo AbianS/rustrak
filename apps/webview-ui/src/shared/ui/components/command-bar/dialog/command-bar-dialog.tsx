@@ -163,7 +163,7 @@ export function CommandBarDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="top-[10vh] w-[calc(100%-2rem)] translate-y-0 gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[52rem]"
+        className="top-[10vh] flex max-h-[80svh] w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[52rem]"
         showCloseButton={false}
       >
         <DialogTitle className="sr-only">Command bar</DialogTitle>
@@ -176,7 +176,7 @@ export function CommandBarDialog({
           filter={filterCommand}
           value={selected}
           onValueChange={setSelected}
-          className="p-0"
+          className="min-h-0 flex-1 p-0"
         >
           <div
             className={cn(
@@ -201,9 +201,7 @@ export function CommandBarDialog({
             />
           </div>
 
-          {/* Fixed height so the list does not resize under the selection as
-              it shortens with the query. */}
-          <div className="flex h-[30rem] min-h-0 border-t border-foreground/10">
+          <div className="flex h-[30rem] min-h-0 shrink border-t border-foreground/10">
             <ResultsList
               projects={projects}
               query={query}
