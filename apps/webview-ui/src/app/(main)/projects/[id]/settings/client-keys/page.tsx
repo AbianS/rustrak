@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { LoadFailure } from '@/components/load-failure';
 import { getProject } from '@/features/project/api/queries';
-import { ClientKeysSettings } from './client-keys-settings';
+import { ClientKeysSettings } from '@/features/project/ui/components/client-keys-settings';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface ClientKeysPageProps {
   params: Promise<{ id: string }>;

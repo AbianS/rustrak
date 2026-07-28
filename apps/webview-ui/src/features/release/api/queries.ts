@@ -22,7 +22,7 @@ import type {
   SessionTimeseries,
 } from '@rustrak/client';
 import { Ok } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * Get issues first seen in a given release, most recently introduced first.

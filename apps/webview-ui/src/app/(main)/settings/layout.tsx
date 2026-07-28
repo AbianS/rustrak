@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { ServiceUnavailable } from '@/components/service-unavailable';
 import { getCurrentUser } from '@/features/user/api/queries';
-import { SettingsMobileNav } from './settings-mobile-nav';
-import { SettingsNav } from './settings-nav';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
+import { SettingsMobileNav } from './_components/settings-mobile-nav';
+import { SettingsNav } from './_components/settings-nav';
 
 export const metadata: Metadata = {
   title: 'Settings | Rustrak',

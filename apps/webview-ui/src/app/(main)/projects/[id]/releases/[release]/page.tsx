@@ -1,15 +1,20 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { LoadFailure } from '@/components/load-failure';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import { IssueListCard } from '@/features/issue/ui/components/issue-list-card';
 import { getProject } from '@/features/project/api/queries';
 import {
   getAllReleaseHealthRows,
   getNewIssuesForRelease,
 } from '@/features/release/api/queries';
-import { ReleaseEnvironmentCards } from '@/features/release/ui/release-environment-cards';
-import { loadAll } from '@/lib/results';
+import { ReleaseEnvironmentCards } from '@/features/release/ui/components/release-environment-cards';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/shared/ui/components/shadcn/card';
 
 interface ReleaseDetailPageProps {
   params: Promise<{ id: string; release: string }>;

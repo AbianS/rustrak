@@ -12,7 +12,7 @@ import type {
   UpdateAlertIntegration,
   UpdateAlertRule,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 // ============================================================================
 // Alert Integrations (Global Credential Destinations)

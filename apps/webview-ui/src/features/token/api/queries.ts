@@ -8,7 +8,7 @@ import 'server-only';
  * a browser bundle that holds the session cookie.
  */
 import type { AuthToken, Result, RustrakError } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * List all auth tokens (masked).

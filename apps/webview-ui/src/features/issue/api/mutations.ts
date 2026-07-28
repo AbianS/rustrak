@@ -9,7 +9,7 @@ import type {
   RustrakError,
   UpdateIssueState,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * List issues for a project with offset-based pagination.

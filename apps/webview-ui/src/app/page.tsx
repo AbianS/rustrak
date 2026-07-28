@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { OutageScreen } from '@/components/outage-screen';
 import { getCurrentUser } from '@/features/user/api/queries';
+import { OutageScreen } from '@/shared/ui/components/outage-screen';
 
 export default async function Home() {
   const session = await getCurrentUser();

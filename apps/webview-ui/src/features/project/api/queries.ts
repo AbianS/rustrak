@@ -15,7 +15,7 @@ import type {
   Result,
   RustrakError,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * Get projects with pagination.

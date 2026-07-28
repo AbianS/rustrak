@@ -11,7 +11,7 @@ import type {
   Result,
   RustrakError,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 // ============================================================================
 // Alert Integrations (Global Credential Destinations)

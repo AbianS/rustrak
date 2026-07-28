@@ -9,7 +9,7 @@ import 'server-only';
  */
 import type { Event, EventDetail, Result, RustrakError } from '@rustrak/client';
 import { Ok } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 /**
  * Get a single event with full details.

@@ -1,14 +1,14 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { LoadFailure } from '@/components/load-failure';
-import { Badge } from '@/components/ui/badge';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
-import { loadAll } from '@/lib/results';
-import { MeasurementsCard } from './measurements-card';
-import type { Span, TraceContext } from './span-waterfall';
-import { SpanWaterfall } from './span-waterfall';
+import type { Span, TraceContext } from '@/features/transaction/model/span';
+import { MeasurementsCard } from '@/features/transaction/ui/components/measurements-card';
+import { SpanWaterfall } from '@/features/transaction/ui/components/span-waterfall';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Badge } from '@/shared/ui/components/shadcn/badge';
 
 interface TransactionDetailPageProps {
   params: Promise<{ id: string; txnId: string }>;
