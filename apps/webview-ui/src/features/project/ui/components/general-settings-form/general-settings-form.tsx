@@ -2,15 +2,13 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Project } from '@rustrak/client';
-import { Loader2, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { deleteProject, updateProject } from '@/features/project/api/mutations';
 import {
-  PROJECT_NAME_MAX_LENGTH,
   projectNameField,
   projectSlugField,
 } from '@/features/project/model/fields';
@@ -22,25 +20,11 @@ import {
 import { PlatformPicker } from '@/shared/ui/components/platform-picker';
 import { SettingRow, SettingSection } from '@/shared/ui/components/setting-row';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/shared/ui/components/shadcn/alert-dialog';
-import { Button } from '@/shared/ui/components/shadcn/button';
-import {
   Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
   FormRootError,
 } from '@/shared/ui/components/shadcn/form';
-import { Input } from '@/shared/ui/components/shadcn/input';
+import { DangerZone } from './danger-zone';
+import { SavableRow } from './savable-row';
 
 /**
  * The same rules the create form uses, imported rather than restated.
@@ -54,7 +38,7 @@ const generalSettingsSchema = z.object({
   slug: projectSlugField,
 });
 
-type GeneralSettingsFormData = z.infer<typeof generalSettingsSchema>;
+export type GeneralSettingsFormData = z.infer<typeof generalSettingsSchema>;
 
 interface GeneralSettingsFormProps {
   project: Project;
@@ -65,7 +49,6 @@ const FIELD_LABELS = { name: 'Project name', slug: 'Slug' };
 export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   const form = useForm<GeneralSettingsFormData>({
     resolver: zodResolver(generalSettingsSchema),
@@ -146,24 +129,21 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
     });
   };
 
-  const handleRemoveProject = () => {
-    startTransition(async () => {
-      const result = await deleteProject(project.id);
+  const handleRemoveProject = async () => {
+    const result = await deleteProject(project.id);
 
-      if (!result.success) {
-        // Toast only, deliberately. The Danger Zone sits outside the `<Form>`
-        // wrapper, so a form-level message raised here renders up in Project
-        // Details, nowhere near the button that was pressed.
-        toast.error('Failed to delete project', {
-          description: describeError(result.error),
-        });
-        setIsDeleteOpen(false);
-        return;
-      }
+    if (!result.success) {
+      // Toast only, deliberately. The Danger Zone sits outside the `<Form>`
+      // wrapper, so a form-level message raised here renders up in Project
+      // Details, nowhere near the button that was pressed.
+      toast.error('Failed to delete project', {
+        description: describeError(result.error),
+      });
+      return;
+    }
 
-      toast.success('Project deleted');
-      router.push('/projects');
-    });
+    toast.success('Project deleted');
+    router.push('/projects');
   };
 
   /**
@@ -216,91 +196,30 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
     <div className="max-w-3xl">
       <Form {...form}>
         <SettingSection title="Project Details">
-          <SettingRow
+          <SavableRow
+            form={form}
+            name="name"
             title="Name"
             description="How this project appears across the dashboard."
-            htmlFor="project-name"
-          >
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center gap-2">
-                    <FormControl>
-                      <Input
-                        id="project-name"
-                        placeholder="Project name"
-                        maxLength={PROJECT_NAME_MAX_LENGTH}
-                        disabled={isPending}
-                        {...field}
-                        onChange={(event) => {
-                          field.onChange(event);
-                          clearServerError('name');
-                        }}
-                      />
-                    </FormControl>
-                    <Button
-                      type="button"
-                      onClick={handleSaveName}
-                      disabled={isPending || !hasNameChanges || !name.trim()}
-                      size="sm"
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        'Save'
-                      )}
-                    </Button>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </SettingRow>
+            placeholder="Project name"
+            isPending={isPending}
+            hasChanges={hasNameChanges}
+            onSave={handleSaveName}
+            onEdit={() => clearServerError('name')}
+          />
 
-          <SettingRow
+          <SavableRow
+            form={form}
+            name="slug"
             title="Slug"
             description="Short identifier for this project. Your DSN and dashboard links use the numeric project ID, so renaming this will not break anything already sending events."
-            htmlFor="project-slug"
-          >
-            <FormField
-              control={form.control}
-              name="slug"
-              render={({ field }) => (
-                <FormItem>
-                  <div className="flex items-center gap-2">
-                    <FormControl>
-                      <Input
-                        id="project-slug"
-                        placeholder="project-slug"
-                        className="font-mono"
-                        disabled={isPending}
-                        {...field}
-                        onChange={(event) => {
-                          field.onChange(event);
-                          clearServerError('slug');
-                        }}
-                      />
-                    </FormControl>
-                    <Button
-                      type="button"
-                      onClick={handleSaveSlug}
-                      disabled={isPending || !hasSlugChanges || !slug.trim()}
-                      size="sm"
-                    >
-                      {isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        'Save'
-                      )}
-                    </Button>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </SettingRow>
+            placeholder="project-slug"
+            className="font-mono"
+            isPending={isPending}
+            hasChanges={hasSlugChanges}
+            onSave={handleSaveSlug}
+            onEdit={() => clearServerError('slug')}
+          />
 
           <SettingRow
             title="Platform"
@@ -318,53 +237,7 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         </SettingSection>
       </Form>
 
-      <SettingSection title="Danger Zone" destructive>
-        <SettingRow
-          title="Remove Project"
-          description="Permanently deletes this project and all of its issues and events. This cannot be undone."
-        >
-          <Button
-            variant="destructive"
-            onClick={() => setIsDeleteOpen(true)}
-            disabled={isPending}
-            className="w-full sm:w-auto"
-          >
-            <Trash2 className="mr-2 size-4" />
-            Remove Project
-          </Button>
-        </SettingRow>
-      </SettingSection>
-
-      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete &quot;{project.name}&quot;?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this project and all associated
-              issues and events. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRemoveProject}
-              disabled={isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DangerZone project={project} onRemove={handleRemoveProject} />
     </div>
   );
 }

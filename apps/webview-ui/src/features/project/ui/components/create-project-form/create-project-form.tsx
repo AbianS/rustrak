@@ -1,23 +1,21 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Pencil, RotateCcw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PlatformIcon } from 'platformicons';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { createProject } from '@/features/project/api/mutations';
 import {
-  PROJECT_NAME_MAX_LENGTH,
   projectNameField,
   projectSlugField,
-  slugifyPreview,
 } from '@/features/project/model/fields';
+import { useProjectSlug } from '@/features/project/ui/hooks/use-project-slug';
 import { platformLabel } from '@/shared/config/platforms';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
-import { cn } from '@/shared/lib/utils';
 import { PlatformGrid } from '@/shared/ui/components/platform-grid';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -29,7 +27,7 @@ import {
   FormMessage,
   FormRootError,
 } from '@/shared/ui/components/shadcn/form';
-import { Input } from '@/shared/ui/components/shadcn/input';
+import { IdentityFields } from './identity-fields';
 
 const createProjectFormSchema = z.object({
   platform: z.string().min(1, 'Choose a platform to continue'),
@@ -37,7 +35,7 @@ const createProjectFormSchema = z.object({
   slug: projectSlugField,
 });
 
-type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
+export type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
 
 interface CreateProjectFormProps {
   /**
@@ -82,6 +80,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
     defaultValues: { platform: '', name: '', slug: '' },
   });
 
+  const slug = useProjectSlug(form);
   const platform = form.watch('platform');
   const taken = new Set(existingNames);
 
@@ -89,16 +88,8 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
   // over with the Edit button. An explicit mode rather than a dirty-field
   // heuristic, because the field is what the button controls: read-only while
   // it mirrors the name, editable once it stops.
-  const [slugMode, setSlugMode] = useState<'auto' | 'manual'>('auto');
-
   // In a handler rather than an effect: this is a reaction to the user typing,
   // not to a render.
-  const syncSlugFromName = (name: string) => {
-    if (slugMode === 'auto') {
-      form.setValue('slug', slugifyPreview(name), { shouldValidate: true });
-    }
-  };
-
   const handlePlatformChange = (platformId: string) => {
     form.setValue('platform', platformId, { shouldValidate: true });
 
@@ -111,7 +102,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         shouldDirty: false,
         shouldValidate: true,
       });
-      syncSlugFromName(suggested);
+      slug.syncFromName(suggested);
     }
   };
 
@@ -123,7 +114,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         // Only sent when the user took the field over. An auto slug is
         // derived, and the server is allowed to de-duplicate a derived slug
         // silently. Sending the preview would turn that into a 409.
-        ...(slugMode === 'manual' ? { slug: data.slug } : {}),
+        ...(slug.isManual ? { slug: data.slug } : {}),
       });
 
       if (!result.success) {
@@ -140,7 +131,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         // The slug input is read-only while it mirrors the name, so a slug the
         // server rejected would be marked and unfixable. Hand the field over.
         if (applied.marked.includes('slug')) {
-          setSlugMode('manual');
+          slug.takeOver();
         }
 
         // Only when nothing landed on an input: a toast next to a red field is
@@ -222,118 +213,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
             )}
           </div>
 
-          <div className="pt-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Project name
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="my-application"
-                      autoComplete="off"
-                      disabled={isPending}
-                      maxLength={PROJECT_NAME_MAX_LENGTH}
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        syncSlugFromName(e.target.value);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="pt-4">
-            <FormField
-              control={form.control}
-              name="slug"
-              render={({ field, fieldState }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Slug
-                  </FormLabel>
-                  <div className="flex items-center gap-2">
-                    <FormControl>
-                      <Input
-                        placeholder="my-application"
-                        autoComplete="off"
-                        readOnly={slugMode === 'auto'}
-                        aria-readonly={slugMode === 'auto'}
-                        disabled={isPending}
-                        className={cn(
-                          'font-mono',
-                          slugMode === 'auto' &&
-                            'bg-muted text-muted-foreground',
-                        )}
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(slugifyPreview(e.target.value))
-                        }
-                      />
-                    </FormControl>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={isPending}
-                      aria-label={
-                        slugMode === 'auto'
-                          ? 'Edit slug'
-                          : 'Reset slug to follow the name'
-                      }
-                      title={
-                        slugMode === 'auto'
-                          ? 'Edit slug'
-                          : 'Reset slug to follow the name'
-                      }
-                      onClick={() => {
-                        if (slugMode === 'auto') {
-                          setSlugMode('manual');
-                          return;
-                        }
-                        // Back to auto: re-derive immediately, otherwise the
-                        // field would keep a stale hand-typed value until the
-                        // next keystroke in the name.
-                        setSlugMode('auto');
-                        form.setValue(
-                          'slug',
-                          slugifyPreview(form.getValues('name')),
-                          { shouldValidate: true },
-                        );
-                      }}
-                      className="shrink-0"
-                    >
-                      {slugMode === 'auto' ? (
-                        <Pencil className="size-4" />
-                      ) : (
-                        <RotateCcw className="size-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {/* One line, not two: FormMessage falls back to its
-                      children when the field is valid, so the hint and the
-                      error occupy the same slot and the panel never reflows. */}
-                  <FormMessage
-                    className={cn(
-                      'mt-1.5 text-xs',
-                      !fieldState.error && 'text-muted-foreground',
-                    )}
-                  >
-                    {slugMode === 'auto'
-                      ? 'Generated from the name. Edit it to choose your own.'
-                      : 'Yours to choose. A slug already in use is rejected.'}
-                  </FormMessage>
-                </FormItem>
-              )}
-            />
-          </div>
+          <IdentityFields slug={slug} disabled={isPending} />
 
           {/* Where a server failure that named no field of this form lands. */}
           <FormRootError className="mt-4" />
