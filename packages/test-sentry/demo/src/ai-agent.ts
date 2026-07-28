@@ -43,12 +43,7 @@ const webSearchTool = tool({
 
 const model = new MockLanguageModelV3({
   modelId: 'gpt-4o',
-  // Index 0 is never read: MockLanguageModelV3 indexes this array by
-  // `doGenerateCalls.length` *after* pushing the in-flight call, so the
-  // first real call reads index 1. A leading placeholder keeps the two
-  // real steps below at their intended indices.
   doGenerate: [
-    undefined as never,
     // Step 1: model decides to call the tool.
     {
       finishReason: 'tool-calls',
