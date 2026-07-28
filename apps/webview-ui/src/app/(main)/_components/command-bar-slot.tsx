@@ -1,7 +1,7 @@
 import { getProjects } from '@/features/project/api/queries';
 import { toCommandProjects } from '@/features/project/lib/command-items';
 import { COMMAND_BAR_PROJECT_LIMIT } from '@/shared/config/commands';
-import CommandBar from '@/shared/ui/components/command-bar';
+import { CommandBar } from '@/shared/ui/components/command-bar/command-bar';
 
 /**
  * Composition seam for the command bar: it spans the `project` slice and the

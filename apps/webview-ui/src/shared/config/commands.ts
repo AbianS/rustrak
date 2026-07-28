@@ -66,7 +66,7 @@ export type CommandProject = {
 export const COMMAND_BAR_PROJECT_LIMIT = 100;
 
 /** Every project's own pages, in the order the bar lists them. */
-export const PROJECT_PAGES: ProjectPage[] = [
+const PROJECT_PAGES: ProjectPage[] = [
   {
     label: 'Overview',
     segment: '',
@@ -112,11 +112,11 @@ export const PROJECT_PAGES: ProjectPage[] = [
 ];
 
 /**
- * Kept apart from `PROJECT_PAGES` so the drill-down can put a heading between
- * the two: navigating to a project's issues and reconfiguring it are different
- * intents, and a single ten-row list hides that.
+ * Kept as their own list so the two intents stay distinguishable in source --
+ * navigating to a project's issues and reconfiguring it are different things.
+ * The preview column reads them through `ALL_PROJECT_PAGES`, below.
  */
-export const PROJECT_SETTINGS_PAGES: ProjectPage[] = [
+const PROJECT_SETTINGS_PAGES: ProjectPage[] = [
   {
     label: 'General',
     segment: '/settings/general',
@@ -147,9 +147,14 @@ export const PROJECT_SETTINGS_PAGES: ProjectPage[] = [
   },
 ];
 
+/** Every page a project has, in the order the preview column lists them. */
+export const ALL_PROJECT_PAGES: ProjectPage[] = [
+  ...PROJECT_PAGES,
+  ...PROJECT_SETTINGS_PAGES,
+];
+
 /** How many rows a project's drill-down holds, shown on its collapsed row. */
-export const PROJECT_PAGE_COUNT =
-  PROJECT_PAGES.length + PROJECT_SETTINGS_PAGES.length;
+export const PROJECT_PAGE_COUNT = ALL_PROJECT_PAGES.length;
 
 /** Commands about projects in general rather than about one of them. */
 export const PROJECT_COMMANDS: CommandLink[] = [

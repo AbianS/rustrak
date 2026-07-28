@@ -3,16 +3,17 @@
 import { SearchIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CommandProject } from '@/shared/config/commands';
-import CommandBarDialog from './command-bar-dialog';
-import { Button } from './shadcn/button';
-import { Kbd } from './shadcn/kbd';
+import { Button } from '@/shared/ui/components/shadcn/button';
+import { Kbd } from '@/shared/ui/components/shadcn/kbd';
+import { useIsMac } from '@/shared/ui/hooks/use-is-mac';
+import { CommandBarDialog } from './dialog/command-bar-dialog';
 
 interface CommandBarProps {
   /** Built per request from the projects the viewer can see. */
   projects: CommandProject[];
 }
 
-export default function CommandBar({ projects }: CommandBarProps) {
+export function CommandBar({ projects }: CommandBarProps) {
   const [open, setOpen] = useState(false);
   /**
    * Bumped on every open, and used as the dialog's `key`, so each open gets a
@@ -26,22 +27,16 @@ export default function CommandBar({ projects }: CommandBarProps) {
    */
   const [session, setSession] = useState(0);
   /**
-   * Which label the shortcut hint wears. Not derivable during render: the
-   * server has no idea which OS will receive this HTML, so reading `navigator`
-   * in a `useState` initialiser would hand a Windows browser the mac label and
-   * then mismatch on hydration. Mac is the assumed default, so the common case
-   * never repaints and only the other platforms correct themselves on mount.
+   * Which label the shortcut hint wears. Not derivable during render on the
+   * server, and deliberately not an effect either: an effect lands after the
+   * first paint, so the correction would be visible. See `use-is-mac`.
    */
-  const [isMac, setIsMac] = useState(true);
+  const isMac = useIsMac();
 
   const openBar = () => {
     setSession((count) => count + 1);
     setOpen(true);
   };
-
-  useEffect(() => {
-    setIsMac(/mac|iphone|ipad|ipod/i.test(navigator.userAgent));
-  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

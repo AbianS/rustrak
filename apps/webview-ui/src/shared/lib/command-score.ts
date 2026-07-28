@@ -30,7 +30,7 @@ function scoreTerm(
  * text, never as scattered letters, and *every* term has to land. The second
  * is what makes "acme iss" narrow to one row where "iss" alone cannot.
  */
-export function scoreCommand(haystack: string, query: string): number {
+function scoreCommand(haystack: string, query: string): number {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
   if (terms.length === 0) return 1;
 
@@ -47,3 +47,14 @@ export function scoreCommand(haystack: string, query: string): number {
 
   return total / terms.length;
 }
+
+/**
+ * cmdk scores each rendered row through this. `value` carries the project name
+ * and page, `keywords` the synonyms that never appear on screen, and both are
+ * searchable.
+ */
+export const filterCommand = (
+  value: string,
+  search: string,
+  keywords?: string[],
+) => scoreCommand([value, ...(keywords ?? [])].join(' '), search);
