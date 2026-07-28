@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { parseOverviewPeriod } from '@/lib/session-health';
-import { OverviewPeriodFilter } from './overview-period-filter';
+import { getProject } from '@/features/project/api/queries';
+import { ProjectHeader } from '@/features/project/ui/components/project-header';
+import { parseOverviewPeriod } from '@/features/release/model/session-health';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { OverviewPeriodFilter } from './_components/overview-period-filter';
 import {
   CounterTiles,
   CrashFreeTile,
@@ -12,8 +13,7 @@ import {
   SessionHealthTile,
   TileSkeleton,
   TopIssuesTile,
-} from './overview-tiles';
-import { ProjectHeader } from './project-header';
+} from './_components/overview-tiles';
 
 interface ProjectPageProps {
   params: Promise<{ id: string }>;

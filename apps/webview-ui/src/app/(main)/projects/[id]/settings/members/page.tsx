@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/actions/auth';
-import { listProjectMembers } from '@/actions/members';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { ServiceUnavailable } from '@/components/service-unavailable';
-import { loadAll } from '@/lib/results';
-import { MembersSettings } from './members-settings';
+import { getProject } from '@/features/project/api/queries';
+import {
+  getCurrentUser,
+  listProjectMembers,
+} from '@/features/user/api/queries';
+import { MembersSettings } from '@/features/user/ui/components/members-settings';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 
 interface MembersSettingsPageProps {
   params: Promise<{ id: string }>;

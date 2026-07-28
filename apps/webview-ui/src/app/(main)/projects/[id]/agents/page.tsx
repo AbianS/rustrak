@@ -7,21 +7,21 @@ import {
   getAgentRuns,
   getAgentTools,
   getAgentTraces,
-} from '@/actions/agents';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
+} from '@/features/agent-trace/api/queries';
+import { AgentBreakdownChart } from '@/features/agent-trace/ui/components/agent-breakdown-chart';
+import { AgentDurationChart } from '@/features/agent-trace/ui/components/agent-duration-chart';
+import { AgentTimeseriesChart } from '@/features/agent-trace/ui/components/agent-timeseries-chart';
+import { AgentTracesTable } from '@/features/agent-trace/ui/components/agent-traces-table';
+import { getProject } from '@/features/project/api/queries';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { loadAll } from '@/lib/results';
-import { AgentBreakdownChart } from './agent-breakdown-chart';
-import { AgentDurationChart } from './agent-duration-chart';
-import { AgentTimeseriesChart } from './agent-timeseries-chart';
-import { AgentTracesTable } from './agent-traces-table';
+} from '@/shared/ui/components/shadcn/card';
 
 interface AgentsPageProps {
   params: Promise<{ id: string }>;
