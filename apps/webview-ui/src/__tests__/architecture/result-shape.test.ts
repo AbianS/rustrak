@@ -41,7 +41,7 @@ describe('AD-9 rule (7): only the client mints a failed Result', () => {
       .adhereTo((file) => !isTestFile(file.path), 'counted')
       .check();
 
-    // 180 source files at 81f50af. This floor exists because the rule is a
+    // 181 non-test source files. This floor exists because the rule is a
     // negative one: if the folder glob ever stops matching, every file passes
     // and the rule reports success while checking nothing. Counted through
     // `projectFiles` rather than a walk of our own, so the population and the

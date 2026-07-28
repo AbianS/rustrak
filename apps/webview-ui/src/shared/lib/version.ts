@@ -30,7 +30,10 @@ export type UpdateCheck =
   | { state: 'disabled' }
   | { state: 'unknown'; reason: 'server-version' | 'feed' };
 
-export function normalizeVersion(version: string): string {
+// Not exported: `parse` below is the only caller. It was public solely so the
+// deleted unit test could reach it, which is the wrong reason for a helper to
+// be part of a module's surface.
+function normalizeVersion(version: string): string {
   return version.trim().replace(/^v/i, '');
 }
 

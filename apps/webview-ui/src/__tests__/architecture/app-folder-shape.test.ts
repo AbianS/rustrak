@@ -80,9 +80,10 @@ describe('AD-9 rule (8): the shape of app/', () => {
       .adhereTo(() => true, 'counted')
       .check();
 
-    // 53 source files under `app/` after the seven domain components left for
-    // their features and `theme-selector` left for `shared/ui`. It was 60.
-    expect(underApp.length).toBeGreaterThanOrEqual(53);
+    // 49 source files under `app/`. It was 53 until the page tests were
+    // deleted, and this floor is what reported that rather than absorbing it:
+    // the four `__tests__` folders under `app/` went with them.
+    expect(underApp.length).toBeGreaterThanOrEqual(49);
   });
 
   it('has no component sitting loose beside a route', async () => {
