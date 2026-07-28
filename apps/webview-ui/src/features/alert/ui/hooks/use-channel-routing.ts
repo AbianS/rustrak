@@ -18,10 +18,11 @@ function initialRoutingMap(
   integrations: readonly AlertIntegration[],
 ): RoutingMap {
   if (!existingRule) return {};
+  const byId = new Map(integrations.map((i) => [i.id, i]));
   const map: RoutingMap = {};
   for (const ch of existingRule.channels) {
     const override = ch.routing_override ?? {};
-    const integration = integrations.find((i) => i.id === ch.integration_id);
+    const integration = byId.get(ch.integration_id);
     const normalized: Record<string, string> = {};
     if (integration?.provider_type === 'email') {
       const r = override.recipients;

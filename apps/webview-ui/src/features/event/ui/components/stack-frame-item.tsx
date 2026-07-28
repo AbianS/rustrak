@@ -85,6 +85,7 @@ export function StackFrameItem({
     >
       {/* Frame Header */}
       <button
+        type="button"
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full px-4 py-3 flex items-center gap-4 text-left hover:bg-muted/30 transition-colors"
       >

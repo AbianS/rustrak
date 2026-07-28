@@ -595,8 +595,13 @@ function ChapterRail({ active }: { active: number }) {
         <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-rule" />
         <m.span
           aria-hidden
+          /* A 1px marker, `absolute`, so it is out of flow: animating its
+             height lays out its own box and reflows nothing around it. The
+             transform version of this would need a scaleY on a one-pixel
+             bar, which is worse to read for no measurable gain. */
           className="absolute left-0 w-px bg-primary"
           initial={false}
+          // react-doctor-disable-next-line react-doctor/no-layout-property-animation
           animate={{ y: marker.y, height: marker.height }}
           transition={{ duration: 0.5, ease: EASE }}
         />

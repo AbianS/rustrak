@@ -33,6 +33,16 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
+    "//#doctor": {
+      "inputs": [
+        "doctor.config.json",
+        "apps/*/src/**",
+        "apps/*/package.json",
+        "packages/*/src/**",
+        "packages/*/package.json",
+        "pnpm-lock.yaml"
+      ]
+    },
     "check-types": {
       "dependsOn": ["^check-types", "^build"]
     },

@@ -28,6 +28,10 @@ function safeDate(s: string): Date | null {
 
 export function getPosts(): Post[] {
   ensurePostsDir();
+  // Runs once at build over a directory of a few files. Fusing the filter
+  // into the map saves one small array and costs the reader the shape of
+  // what this does.
+  // react-doctor-disable-next-line react-doctor/js-combine-iterations
   return fs
     .readdirSync(POSTS_DIR)
     .filter((f) => f.endsWith('.mdx'))

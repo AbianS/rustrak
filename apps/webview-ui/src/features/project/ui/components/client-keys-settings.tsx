@@ -22,6 +22,27 @@ interface ClientKeysSettingsProps {
 type HighlighterComponent = typeof import('react-syntax-highlighter').Prism;
 type HighlighterStyle = Record<string, React.CSSProperties>;
 
+/**
+ * Copy a value and flash the caller's copied flag for two seconds.
+ *
+ * At module scope because it closes over nothing: the value, the flag setter
+ * and the label a failure names all arrive as arguments.
+ */
+async function copy(
+  value: string,
+  setFlag: (copied: boolean) => void,
+  label: string,
+) {
+  if (!(await copyToClipboard(value))) {
+    toast.info('Clipboard unavailable', {
+      description: `Select the ${label} and copy it manually, or access Rustrak over HTTPS.`,
+    });
+    return;
+  }
+  setFlag(true);
+  setTimeout(() => setFlag(false), 2000);
+}
+
 export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
   const { resolvedTheme } = useTheme();
   const [copiedDsn, setCopiedDsn] = useState(false);
@@ -93,21 +114,6 @@ Sentry.init({
   const exampleTitle = snippet
     ? `Example (${platformLabel(project.platform ?? '')})`
     : 'Example (JavaScript)';
-
-  const copy = async (
-    value: string,
-    setFlag: (copied: boolean) => void,
-    label: string,
-  ) => {
-    if (!(await copyToClipboard(value))) {
-      toast.info('Clipboard unavailable', {
-        description: `Select the ${label} and copy it manually, or access Rustrak over HTTPS.`,
-      });
-      return;
-    }
-    setFlag(true);
-    setTimeout(() => setFlag(false), 2000);
-  };
 
   return (
     <div className="max-w-3xl">

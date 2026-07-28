@@ -19,10 +19,7 @@ import {
 } from '@/shared/lib/form-errors';
 import { PlatformPicker } from '@/shared/ui/components/platform-picker';
 import { SettingRow, SettingSection } from '@/shared/ui/components/setting-row';
-import {
-  Form,
-  FormRootError,
-} from '@/shared/ui/components/shadcn/form';
+import { Form, FormRootError } from '@/shared/ui/components/shadcn/form';
 import { DangerZone } from './danger-zone';
 import { SavableRow } from './savable-row';
 

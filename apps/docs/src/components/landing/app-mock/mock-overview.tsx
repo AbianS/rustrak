@@ -102,11 +102,12 @@ function ProjectHeaderBand() {
 }
 
 /** `OverviewPeriodFilter` — the window selector, held in the URL. */
+const PERIODS = ['24h', '7d', '14d', '30d', 'All'];
+
 function PeriodFilter() {
-  const periods = ['24h', '7d', '14d', '30d', 'All'];
   return (
     <div className="flex w-fit items-center gap-1 rounded-lg border border-border bg-muted/30 p-1">
-      {periods.map((period) => (
+      {PERIODS.map((period) => (
         <span
           key={period}
           className={cn(

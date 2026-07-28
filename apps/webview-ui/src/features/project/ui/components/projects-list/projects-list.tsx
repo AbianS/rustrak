@@ -41,8 +41,12 @@ export function ProjectsList({
   // Optimistic state for immediate UI feedback on deletion
   const [projects, removeOptimistic] = useOptimistic(
     serverProjects,
-    (state, deletedIds: number[]) =>
-      state.filter((p) => !deletedIds.includes(p.id)),
+    (state, deletedIds: number[]) => {
+      // A Set because this is a filter over every row: with the array, a batch
+      // delete of n rows out of m scans n*m times.
+      const gone = new Set(deletedIds);
+      return state.filter((p) => !gone.has(p.id));
+    },
   );
 
   const selection = useRowSelection(projects.map((p) => p.id));

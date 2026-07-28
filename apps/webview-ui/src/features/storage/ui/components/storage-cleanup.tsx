@@ -61,6 +61,10 @@ const TYPE_OPTIONS: { key: DataType; label: string }[] = [
   { key: 'logs', label: 'Logs' },
 ];
 
+/** The human label for a retention period, or the raw value if unknown. */
+const periodLabel = (value: string) =>
+  PERIODS.find((p) => p.value === value)?.label ?? value;
+
 export function StorageCleanup({ projects }: StorageCleanupProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -130,8 +134,6 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
     });
   };
 
-  const periodLabel = (value: string) =>
-    PERIODS.find((p) => p.value === value)?.label ?? value;
   const scopeLabel = (value: string) =>
     value === ALL_SCOPE
       ? 'All projects'

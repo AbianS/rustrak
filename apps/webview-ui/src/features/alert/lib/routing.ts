@@ -102,9 +102,12 @@ export function collectRoutingErrors(
   routingMap: RoutingMap,
   integrations: readonly AlertIntegration[],
 ): Record<number, string> {
+  // Indexed once: the loop is over the selection and the lookup is over every
+  // configured integration, so the pair is quadratic without it.
+  const byId = new Map(integrations.map((i) => [i.id, i]));
   const errors: Record<number, string> = {};
   for (const id of selectedIds) {
-    const integration = integrations.find((i) => i.id === id);
+    const integration = byId.get(id);
     if (!integration) continue;
     const err = validateRoutingForIntegration(
       integration,

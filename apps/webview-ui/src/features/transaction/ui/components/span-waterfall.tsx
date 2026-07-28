@@ -155,8 +155,7 @@ function opBreakdown(tree: TreeNode[]): { color: string; ms: number }[] {
   };
   walk(tree);
   return [...byColor.entries()]
-    .map(([color, ms]) => ({ color, ms }))
-    .filter((e) => e.ms > 0)
+    .flatMap(([color, ms]) => (ms > 0 ? [{ color, ms }] : []))
     .sort((a, b) => b.ms - a.ms);
 }
 
@@ -292,6 +291,12 @@ export function SpanWaterfall({
                     style={{ paddingLeft: `${Math.min(depth, 8) * 12}px` }}
                   >
                     {hasChildren ? (
+                      // The row itself is the selectable control, and this is a
+                      // second control inside it. Nesting is unavoidable here:
+                      // the row cannot be a <button> without making this one
+                      // invalid HTML, which is why the row is a div with a
+                      // role and its own keyboard handling.
+                      // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
                       <button
                         type="button"
                         aria-label={isCol ? 'Expand' : 'Collapse'}

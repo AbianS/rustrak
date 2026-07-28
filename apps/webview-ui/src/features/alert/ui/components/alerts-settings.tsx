@@ -2,6 +2,7 @@
 
 import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
 import { Bell, Pencil, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -121,9 +122,12 @@ export function AlertsSettings({
           <p className="text-sm font-medium">No integrations configured</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Go to{' '}
-            <a href="/settings/integrations" className="text-primary underline">
+            <Link
+              href="/settings/integrations"
+              className="text-primary underline"
+            >
               Settings → Integrations
-            </a>{' '}
+            </Link>{' '}
             to add integrations first.
           </p>
         </div>

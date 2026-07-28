@@ -234,6 +234,9 @@ export function Tour({
   const leg = step < 0 ? -1 : step % ROUTE.length;
   const first = step === 0;
 
+  // `if (!running) return` schedules nothing, so it has nothing to clear.
+  // Every branch that sets a timer returns its own clearTimeout.
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     if (!running) return;
 
@@ -264,6 +267,11 @@ export function Tour({
     return () => {
       for (const timer of timers) clearTimeout(timer);
     };
+  // `onCaret` stays a dependency rather than moving into a `useEffectEvent`.
+  // That hook is still experimental in React 19 and is not exported from the
+  // stable build, so adopting it here would pin the landing to a canary. The
+  // callback is stable at the call site, so re-running on it is a no-op.
+  // react-doctor-disable-next-line react-doctor/prefer-use-effect-event
   }, [running, step, leg, first, onCaret]);
 
   /*
@@ -281,6 +289,11 @@ export function Tour({
     if (!launched) return;
     const id = setTimeout(() => onCaret(false), CARET_RETURN * 1000);
     return () => clearTimeout(id);
+  // `onCaret` stays a dependency rather than moving into a `useEffectEvent`.
+  // That hook is still experimental in React 19 and is not exported from the
+  // stable build, so adopting it here would pin the landing to a canary. The
+  // callback is stable at the call site, so re-running on it is a no-op.
+  // react-doctor-disable-next-line react-doctor/prefer-use-effect-event
   }, [launched, onCaret]);
 
   const screen = STOPS[at];

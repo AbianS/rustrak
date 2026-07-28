@@ -176,6 +176,12 @@ export function IntegrationsList({
               const isDisabled = !!single && !single.is_enabled;
 
               return (
+                /* Not a <button>: the card holds its own Manage button, and a
+                   button inside a button is invalid HTML. So it takes the role
+                   and the keyboard handling a button would have given it for
+                   free — without this the card was mouse-only and unreachable
+                   by Tab. */
+                // biome-ignore lint/a11y/useSemanticElements: see above
                 <div
                   key={providerDef.type}
                   className={cn(
@@ -183,7 +189,16 @@ export function IntegrationsList({
                     'hover:border-primary/50 transition-all cursor-pointer',
                     count === 0 && 'opacity-70 hover:opacity-100',
                   )}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Configure ${providerDef.name}`}
                   onClick={() => handleCardClick(providerDef.type)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleCardClick(providerDef.type);
+                    }
+                  }}
                 >
                   <div className="flex justify-between items-start">
                     <div

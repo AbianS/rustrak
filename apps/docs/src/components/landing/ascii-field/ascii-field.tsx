@@ -105,7 +105,12 @@ export function AsciiField({
   const reduced = useReducedMotion();
   // Read inside the animation loop rather than closed over, so arming it does
   // not restart the fetch or re-enter the effect.
+  // Written during render on purpose: the animation loop reads this rather
+  // than closing over `active`, so arming the band does not restart the
+  // fetch or re-enter the effect. Reading it in render is what would be
+  // unsafe; writing the latest value is the documented pattern.
   const armed = useRef(active);
+  // react-doctor-disable-next-line react-doctor/no-ref-current-in-render
   armed.current = active;
   /**
    * Whether the band has been on screen yet. The hero's is visible at once, so
@@ -116,6 +121,21 @@ export function AsciiField({
   /** Live, unlike `seen`: the idle loop stops the moment the band leaves. */
   const visible = useRef(false);
 
+  /*
+    Two suppressions, both about paths rather than about the teardown.
+
+    The cleanup is real and at the bottom: it cancels the frame, drops the
+    observers and flips `cancelled` so a fetch landing after unmount does
+    nothing. What the rule sees are the early returns above it, taken when
+    there is no canvas or no 2D context — where nothing has been started.
+
+    The fetch belongs here too. It pulls a static text asset for a
+    decorative canvas that is gated on the band being scrolled into view;
+    there is no server-rendered form of a canvas, and hoisting it would
+    load three paintings on every visit whether or not they are reached.
+  */
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
+  // react-doctor-disable-next-line react-doctor/no-fetch-in-effect
   useEffect(() => {
     const canvas = ref.current;
     const container = box.current;

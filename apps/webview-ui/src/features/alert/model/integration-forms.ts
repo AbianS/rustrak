@@ -119,7 +119,7 @@ export const emailFormSchema = z.object({
   smtp_port: z.number().int().min(1).max(65535),
   smtp_username: z.string().optional(),
   smtp_password: z.string().optional(),
-  from_address: z.string().email('Please enter a valid email'),
+  from_address: z.email('Please enter a valid email'),
   is_enabled: z.boolean(),
 });
 export type WebhookFormData = z.infer<typeof webhookFormSchema>;

@@ -97,6 +97,17 @@ const VOLUME_SERIES = [
 ] as const;
 
 /**
+ * The same colours, keyed. Indexing a record the compiler knows is total
+ * removes the non-null assertion `.find(...)!` needed, which was a promise
+ * about the data rather than something the types could check.
+ */
+const VOLUME_COLOR: Record<(typeof VOLUME_SERIES)[number]['key'], string> = {
+  errors: 'var(--sev-error)',
+  warning: 'var(--sev-warning)',
+  info: 'var(--sev-info)',
+};
+
+/**
  * The chrome every fixed-size plot in this file shares: a viewBox in the
  * design's own units, a fluid width, and a label, since these are `role="img"`
  * and have nothing else to announce themselves with.
@@ -240,11 +251,14 @@ export function ErrorVolumeChart({
 
         {data.map((bucket, index) => {
           const x = gutter + index * slot + (slot - barW) / 2;
+          // `as const` on the keys so they stay literals: that is what lets
+          // `VOLUME_COLOR[segment.key]` be a total lookup instead of an
+          // assertion that the series happens to contain them.
           const stack = [
             { key: 'errors', v: bucket.errors + bucket.fatal },
             { key: 'warning', v: bucket.warning },
             { key: 'info', v: bucket.info },
-          ];
+          ] as const;
           const topMost = [...stack].reverse().find((s) => s.v > 0)?.key;
 
           let cursor = plotH;
@@ -262,9 +276,7 @@ export function ErrorVolumeChart({
                 // Only inset segments that carry something above them, and
                 // only when they are tall enough to survive it.
                 const inset = !isTop && h > SEGMENT_GAP + 1 ? SEGMENT_GAP : 0;
-                const color = VOLUME_SERIES.find(
-                  (s) => s.key === segment.key,
-                )!.color;
+                const color = VOLUME_COLOR[segment.key];
 
                 return (
                   <path
@@ -517,9 +529,13 @@ export function SessionHealthArea({
 
   /** The wash between two series: out along the upper edge, back along the lower. */
   const band = (upper: number[], lower: number[]) => {
+    // Walked backwards in one pass. Two chained maps built an array of
+    // reversed indices only to immediately index back through it.
     const back = lower
-      .map((_, i) => lower.length - 1 - i)
-      .map((i) => `L${x(i)},${y(lower[i])}`)
+      .map((_, k) => {
+        const i = lower.length - 1 - k;
+        return `L${x(i)},${y(lower[i])}`;
+      })
       .join(' ');
     return `${line(upper)} ${back} Z`;
   };

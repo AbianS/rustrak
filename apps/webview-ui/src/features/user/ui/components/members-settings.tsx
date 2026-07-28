@@ -383,7 +383,10 @@ function AddMemberForm({
 
       <div className="space-y-4 py-1">
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <label
+            htmlFor="add-member-user"
+            className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+          >
             User
           </label>
           <Select
@@ -391,7 +394,11 @@ function AddMemberForm({
             onValueChange={(value) => setUserId(value ?? '')}
             disabled={isPending || availableUsers.length === 0}
           >
-            <SelectTrigger className="w-full" aria-label="Select a user to add">
+            <SelectTrigger
+              id="add-member-user"
+              className="w-full"
+              aria-label="Select a user to add"
+            >
               <SelectValue
                 placeholder={
                   teamFailed
@@ -418,7 +425,10 @@ function AddMemberForm({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <label
+            htmlFor="add-member-role"
+            className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
+          >
             Role
           </label>
           <Select
@@ -428,7 +438,11 @@ function AddMemberForm({
             }}
             disabled={isPending}
           >
-            <SelectTrigger className="w-full" aria-label="Role for new member">
+            <SelectTrigger
+              id="add-member-role"
+              className="w-full"
+              aria-label="Role for new member"
+            >
               <SelectValue>
                 {(value) => roleLabel(value as ProjectRole)}
               </SelectValue>

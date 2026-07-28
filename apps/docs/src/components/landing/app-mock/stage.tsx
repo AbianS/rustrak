@@ -100,6 +100,10 @@ export function useSettled(
 ): boolean {
   const [settled, setSettled] = useState(false);
 
+  // The bare `return` below is the disabled path, where nothing has been
+  // subscribed yet and so there is nothing to tear down. Every path that
+  // does subscribe returns its own unsubscribe.
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     if (!enabled) {
       setSettled(false);

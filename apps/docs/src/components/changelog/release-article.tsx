@@ -88,6 +88,10 @@ function Section({
       )}
       <div
         className={cn('changelog-prose', section.title && 'mt-3.5 pl-[1.4rem]')}
+        /* The HTML is this repo's own changelog MDX, parsed by `marked` at
+           build time. Nothing user-supplied reaches it: the only inputs are
+           files in content/changelog/, which are as trusted as the code. */
+        // react-doctor-disable-next-line react-doctor/dangerous-html-sink
         // biome-ignore lint/security/noDangerouslySetInnerHtml: the only input is content/changelog/*.mdx, rendered by lib/changelog.ts at build time — nothing here is reachable from a request
         dangerouslySetInnerHTML={{ __html: section.html }}
       />
