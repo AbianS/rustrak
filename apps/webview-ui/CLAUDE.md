@@ -7,181 +7,193 @@
 
 ## Overview
 
-Next.js 16.1 dashboard for Rustrak error tracking system. Uses App Router with Server Components by default, and shadcn/ui for the component library.
+Next.js 16 dashboard for the Rustrak error tracking system. App Router, Server
+Components by default, Client Components only where something is interactive.
+
+The code is organised by **domain**, not by technical type, following a reduced
+[Feature-Sliced Design](https://feature-sliced.design). If you are looking for a
+`components/`, `hooks/`, `actions/` or `lib/` folder at the root of `src/`, they
+were deleted on purpose. See "Architecture" below before adding a file.
 
 ## Tech Stack
 
-- **Framework**: Next.js 16.1 (App Router)
+- **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript 5.9 (strict mode)
-- **Styling**: Tailwind CSS 4.1
-- **UI Components**: Radix UI + shadcn/ui
+- **Styling**: Tailwind CSS 4.3
+- **UI Components**: Base UI + shadcn/ui
 - **Theme**: next-themes (dark/light/system)
 - **Icons**: Lucide React
-- **API Client**: @rustrak/client (internal package)
+- **API Client**: `@rustrak/client` (workspace package)
+- **Architecture tests**: [archunit](https://github.com/lukasniessen/archunitts)
 
-## Directory Structure
+## Architecture
+
+Three layers. **A layer imports only from layers strictly below it, never
+upward.** This is enforced, not merely documented.
 
 ```
 apps/webview-ui/
-├── CLAUDE.md              # This file
-├── Dockerfile             # Production image
-├── package.json
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx         # Root layout (ThemeProvider)
-│   │   ├── page.tsx           # Root redirect to /projects
-│   │   ├── globals.css        # Tailwind + CSS variables
-│   │   ├── auth/
-│   │   │   └── login/         # Login page
-│   │   └── (main)/            # Protected route group
-│   │       ├── layout.tsx     # Auth check + Header
-│   │       ├── header.tsx     # Navigation header
-│   │       ├── projects/      # Projects management
-│   │       │   ├── page.tsx
-│   │       │   ├── projects-header.tsx
-│   │       │   ├── projects-list.tsx
-│   │       │   └── [id]/      # Project detail
-│   │       │       ├── page.tsx
-│   │       │       ├── project-header.tsx
-│   │       │       ├── project-sidebar.tsx
-│   │       │       ├── settings/          # Per-project settings
-│   │       │       │   ├── layout.tsx     # w-64 nav + content
-│   │       │       │   ├── settings-nav.tsx
-│   │       │       │   ├── settings-mobile-nav.tsx
-│   │       │       │   ├── setting-row.tsx  # SettingRow/SettingSection
-│   │       │       │   ├── general/
-│   │       │       │   ├── client-keys/
-│   │       │       │   ├── alerts/
-│   │       │       │   └── members/
-│   │       │       ├── issues-list.tsx
-│   │       │       └── issues/[issueId]/
-│   │       │           ├── page.tsx
-│   │       │           ├── issue-header.tsx
-│   │       │           ├── issue-actions.tsx
-│   │       │           ├── events-list.tsx
-│   │       │           └── events/[eventId]/
-│   │       │               ├── page.tsx
-│   │       │               ├── event-navigation.tsx
-│   │       │               ├── stack-trace.tsx
-│   │       │               ├── breadcrumbs.tsx
-│   │       │               ├── event-details.tsx
-│   │       │               ├── event-tags.tsx
-│   │       │               ├── event-context.tsx
-│   │       │               └── raw-json.tsx
-│   │       └── settings/      # Settings pages
-│   │           ├── layout.tsx
-│   │           ├── page.tsx   # Redirect to /settings/tokens
-│   │           ├── settings-nav.tsx
-│   │           ├── tokens/
-│   │           │   ├── page.tsx
-│   │           │   └── tokens-list.tsx
-│   │           ├── account/
-│   │           │   └── page.tsx
-│   │           ├── appearance/
-│   │           │   ├── page.tsx
-│   │           │   └── theme-selector.tsx
-│   │           └── about/
-│   │               └── page.tsx
-│   ├── actions/           # Server Actions
-│   │   ├── auth.ts        # login, logout, register, getCurrentUser
-│   │   ├── projects.ts    # CRUD operations
-│   │   ├── issues.ts      # Issue management
-│   │   ├── events.ts      # Event listing and detail
-│   │   └── tokens.ts      # API token management
-│   ├── components/
-│   │   ├── theme-provider.tsx
-│   │   ├── theme-toggle.tsx
-│   │   └── ui/            # shadcn/ui components
-│   │       ├── button.tsx
-│   │       ├── card.tsx
-│   │       ├── dialog.tsx
-│   │       ├── dropdown-menu.tsx
-│   │       ├── table.tsx
-│   │       ├── tabs.tsx
-│   │       ├── badge.tsx
-│   │       ├── alert-dialog.tsx
-│   │       ├── checkbox.tsx
-│   │       ├── input.tsx
-│   │       ├── label.tsx
-│   │       ├── select.tsx
-│   │       ├── separator.tsx
-│   │       ├── textarea.tsx
-│   │       ├── tooltip.tsx
-│   │       └── form.tsx
-│   └── lib/
-│       ├── rustrak.ts     # API client factory + cookie utilities
-│       └── utils.ts       # cn() helper for classnames
+├── components.json              shadcn CLI config; its aliases point into shared/
+└── src/
+    ├── app/                     routing + composition. Next lives here.
+    │   └── <route>/
+    │       ├── page.tsx         and the other Next special files
+    │       └── _components/     everything else, unconditionally
+    ├── features/                the domain, one slice per business concept
+    │   └── <slice>/
+    │       ├── ui/
+    │       │   ├── components/  components whose props name a domain type
+    │       │   └── hooks/       (when one exists)
+    │       ├── api/             the only place that calls @rustrak/client
+    │       │   ├── queries.ts   reads      -> import 'server-only'
+    │       │   └── mutations.ts writes     -> 'use server'
+    │       ├── model/           types and domain logic. No React, no Next.
+    │       └── lib/             derived logic. No React, no Next.
+    └── shared/                  no slices, segments directly
+        ├── ui/
+        │   ├── components/      primitives, and shadcn/ under components/shadcn/
+        │   └── hooks/
+        ├── lib/                 pure helpers: cn, clipboard, chart formatting
+        ├── api/                 client construction + the cookie adapter
+        └── config/              constants and static tables
 ```
+
+### The eleven features
+
+Derived from the resources `@rustrak/client` exposes and the routes that consume
+them, not invented. The non-obvious groupings are the point:
+
+| Feature | Absorbs | Why |
+|---|---|---|
+| `project` | projects, stats | stats are aggregates *of a project*, not a concept of their own |
+| `issue` | issues | |
+| `event` | events | |
+| `release` | releases, sessions | "release health" *is* sessions grouped by release |
+| `transaction` | transactions, spans | the spans embedded in a transaction payload |
+| `agent-trace` | agents, span rows | reads the `spans` table; a different type to `transaction`'s |
+| `log` | logs | |
+| `user` | auth, team, members, invitations | all four are people and their access |
+| `alert` | alertRules, alertIntegrations | a rule without an integration does nothing |
+| `token` | tokens | |
+| `storage` | storage, source maps | |
+
+### Where does this file go?
+
+| What you have | Where it goes |
+|---|---|
+| A component whose props name one domain type | `features/<that>/ui/components/` |
+| A component whose props name several features | composition: `app/**/_components/` |
+| A component whose props are only primitives / `ReactNode` | `shared/ui/components/` |
+| A hook about one domain | `features/<that>/ui/hooks/` |
+| A hook with no domain | `shared/ui/hooks/` |
+| Pure logic about one domain | `features/<that>/model/` or `lib/` |
+| A static data table | `shared/config/` |
+| A read called from a Server Component | `features/<that>/api/queries.ts` |
+| A mutation called from the browser | `features/<that>/api/mutations.ts` |
+| A type two features both need | it moves **down** into `shared`, never sideways |
+
+**Decide by the type it renders, not by who imports it.** A component used by
+five routes still belongs to the feature whose type it names.
+
+## Rules the CI enforces
+
+`src/__tests__/architecture/` holds nine rule files, 35 assertions, written on
+archunit. They run in `pnpm test`. **Read the rule before working around it** --
+each file documents why it exists and what it is protecting.
+
+| Rule | What it forbids |
+|---|---|
+| `layer-direction` | `shared` reaching into `features` or `app`; `features` reaching into `app` |
+| `slice-isolation` | any slice importing a sibling slice |
+| `portable-core` | `features/*/model`, `features/*/lib`, `shared/lib` importing `next/*` |
+| `no-barrel-files` | any `index.ts` / `index.tsx` under `src/` |
+| `app-folder-shape` | a component sitting loose under `app/` outside `_components/` |
+| `ui-segment-shape` | a file at a `ui/` segment root, or a folder outside `components/hooks/utils/stores` |
+| `use-server-placement` | a file in `api/` that is not `queries.ts` (`server-only`) or `mutations.ts` (`'use server'`) |
+| `result-shape` | minting a `success: false` literal outside `@rustrak/client` |
+| `client-error-kinds` | a new client error `kind` slipping in unhandled (compile-time) |
+
+Two conventions in that folder that exist for a reason:
+
+- **Every rule commits a specific population number**, never `> 0`. A negative
+  rule over an empty set passes while checking nothing, and a glob that quietly
+  stops matching is the most common way that happens. When one of these floors
+  fails, the number moved -- update it deliberately and say why.
+- **Every rule was watched failing** against a real violation before being kept.
+
+### No barrel files. Ever.
+
+Every import names the file it wants: `@/features/issue/ui/components/issues-list`,
+never `@/features/issue`. This is not a style preference. A barrel re-exporting
+both `api/queries.ts` (`server-only`) and a `'use client'` component drags the
+server-only poison pill into every client component that imports anything from
+the slice -- it was tried, and the build failed with 11 errors.
+
+The segment is the public boundary, not a file.
 
 ## Key Patterns
 
-### 1. Authentication Flow
+### 1. Two directives, two purposes
 
-**Session-based auth with httpOnly cookies:**
+Both appear **only** in an `api` segment or under `app/`, and they are not
+interchangeable:
+
+- `import 'server-only'` -- a build-time poison pill. The module is unreachable
+  from the browser bundle. Used by every `queries.ts`: reads are called directly
+  from Server Components and never need an endpoint.
+- `'use server'` -- turns every export into a public POST endpoint. Used only by
+  `mutations.ts`, because the browser genuinely calls those.
+
+Marking a read `'use server'` costs a public endpoint and buys nothing.
+
+**The split is by who calls it, not by what it does to the database.**
+`previewStorageCleanup` mutates nothing and still lives in `mutations.ts`,
+because a `'use client'` component invokes it and a `server-only` module would
+not be reachable from there.
+
+### 2. Reads go straight to the source
+
+A Server Component calls `queries.ts` directly. No action layer, no fetch
+waterfall:
 
 ```typescript
-// src/lib/rustrak.ts
+// features/issue/api/queries.ts
+import 'server-only';
+
+export async function listIssues(
+  projectId: number,
+): Promise<Result<OffsetPaginatedResponse<Issue>, RustrakError>> {
+  const client = await createClient();
+  return client.issues.list(projectId);
+}
+```
+
+### 3. `Result`, never exceptions
+
+Every `@rustrak/client` method returns `Result<T, RustrakError>`, a plain-object
+discriminated union keyed on `kind`. It survives `structuredClone`, so an action
+hands it straight back across the server/client boundary instead of losing it to
+an RSC digest. Consuming `result.success` is the point; **minting a second thing
+that looks like one is what `result-shape` forbids.**
+
+See `packages/client/CLAUDE.md`.
+
+### 4. Session auth via httpOnly cookie
+
+`shared/api/rustrak.ts` builds the client with the request's session cookie:
+
+```typescript
 export async function createClient(): Promise<RustrakClient> {
-  const cookies = await getCookies();
-  return new RustrakClient({
-    baseUrl: process.env.RUSTRAK_API_URL ?? 'http://localhost:8080',
-    headers: {
-      Cookie: cookies.toString(),
-    },
-  });
-}
-
-// src/actions/auth.ts
-export async function getCurrentUser(): Promise<User | null> {
-  try {
-    const client = await createClient();
-    return await client.auth.getCurrentUser();
-  } catch {
-    return null;
-  }
+  const cookieStore = await cookies();
+  // ...forwards the session cookie to the server
 }
 ```
 
-**Protected routes via layout:**
+`RUSTRAK_API_URL` is **server-side only**. Never expose it to the browser: the
+server serves `Cors::default().allow_any_origin()` without `supports_credentials()`,
+so a browser would refuse to send the session cookie anyway.
 
-```typescript
-// src/app/(main)/layout.tsx
-export default async function MainLayout({ children }) {
-  const user = await getCurrentUser();
-  if (!user) {
-    redirect('/auth/login');
-  }
-  return (
-    <>
-      <Header user={user} />
-      <main>{children}</main>
-    </>
-  );
-}
-```
-
-### 2. Server Actions Pattern
-
-All API calls go through Server Actions:
-
-```typescript
-// src/actions/projects.ts
-'use server';
-
-export async function getProjects(options?: ListProjectsOptions) {
-  const client = await createClient();
-  return client.projects.list(options);
-}
-
-export async function deleteProject(id: number): Promise<void> {
-  const client = await createClient();
-  return client.projects.delete(id);
-}
-```
-
-### 3. Client Components with useTransition
-
-For interactive UI with pending states:
+### 5. Mutations from the browser
 
 ```typescript
 'use client';
@@ -192,35 +204,13 @@ export function DeleteButton({ id }: { id: number }) {
 
   const handleDelete = () => {
     startTransition(async () => {
-      await deleteProject(id);
+      const result = await deleteProject(id);
+      if (!result.success) return toast.error(errorCopy(result.error));
       router.refresh();
     });
   };
-
-  return (
-    <Button onClick={handleDelete} disabled={isPending}>
-      {isPending ? 'Deleting...' : 'Delete'}
-    </Button>
-  );
+  // ...
 }
-```
-
-### 4. Theme Support
-
-**Theme Provider in root layout:**
-
-```typescript
-// src/app/layout.tsx
-<ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-  {children}
-</ThemeProvider>
-```
-
-**Theme selector in settings:**
-
-```typescript
-// Uses next-themes useTheme() hook
-const { theme, setTheme } = useTheme();
 ```
 
 ## Routes
@@ -229,92 +219,89 @@ const { theme, setTheme } = useTheme();
 |-------|-------------|
 | `/` | Redirect to `/projects` |
 | `/auth/login` | Login form |
-| `/projects` | Projects list with pagination |
-| `/projects/new` | Create project: platform grid + name (full page, not a dialog) |
-| `/projects/[id]` | Project detail + issues list |
-| `/projects/[id]/issues/[issueId]` | Issue detail (redirects to latest event) |
-| `/projects/[id]/issues/[issueId]/events/[eventId]` | Event detail with tabs |
-| `/projects/[id]/settings` | Redirect to `/projects/[id]/settings/general` |
+| `/invite/[token]` | Accept an invitation |
+| `/projects` | Projects list |
+| `/projects/new` | Create project: platform grid + name |
+| `/projects/[id]` | Project overview: independently streamed tiles |
+| `/projects/[id]/issues` | Issues list |
+| `/projects/[id]/issues/[issueId]` | Redirects to the latest event |
+| `/projects/[id]/issues/[issueId]/events/[eventId]` | Event detail |
+| `/projects/[id]/issues/[issueId]/events/empty` | Issue with no retained events |
+| `/projects/[id]/logs` | Log stream |
+| `/projects/[id]/performance` | Transaction stats |
+| `/projects/[id]/performance/summary` | Performance summary |
+| `/projects/[id]/performance/[txnId]` | Transaction detail + span waterfall |
+| `/projects/[id]/releases` | Releases + health |
+| `/projects/[id]/releases/[release]` | Release detail |
+| `/projects/[id]/agents` | AI agent traces |
+| `/projects/[id]/agents/[traceId]` | Agent trace waterfall |
+| `/projects/[id]/settings` | Redirect to `general` |
 | `/projects/[id]/settings/general` | Name, slug, platform, danger zone |
-| `/projects/[id]/settings/client-keys` | DSN + SDK setup example |
-| `/projects/[id]/settings/alerts` | Alert rules for the project |
-| `/projects/[id]/settings/members` | Project membership + roles |
-| `/settings` | Redirect to `/settings/tokens` |
+| `/projects/[id]/settings/client-keys` | DSN + SDK setup snippet |
+| `/projects/[id]/settings/alerts` | Alert rules |
+| `/projects/[id]/settings/members` | Membership + roles |
+| `/settings` | Redirect to `tokens` |
 | `/settings/tokens` | API token management |
-| `/settings/account` | Account info (read-only) |
+| `/settings/team` | Team + invitations |
+| `/settings/integrations` | Alert integrations |
+| `/settings/storage` | Retention and source-map cleanup |
+| `/settings/account` | Account info |
 | `/settings/appearance` | Theme selector |
 | `/settings/about` | Version info |
 
-## Event Detail Tabs
-
-The event detail page (`events/[eventId]/page.tsx`) shows:
-
-1. **Stack Trace** - Exception frames with code context
-2. **Breadcrumbs** - Timeline of user actions
-3. **Event Details** - Metadata (event ID, timestamp, SDK, etc.)
-4. **Tags** - Categorized tag display
-5. **Context** - Runtime/device/browser info
-6. **Raw JSON** - Full event payload
+Failure surfaces: `app/error.tsx` (full screen, with brand panel),
+`app/(main)/error.tsx` (below the header, no brand panel), `app/not-found.tsx`
+(one 404 for every route, including every `notFound()` raised inside the app).
 
 ## UI Components
 
-Using shadcn/ui with Radix primitives. Key components:
+shadcn/ui on Base UI primitives. **The CLI-generated kit lives in
+`shared/ui/components/shadcn/` and is kept separate from hand-written shared
+components in `shared/ui/components/`.** `components.json` aliases are set so
+`shadcn add` lands files in the right place -- do not move them by hand.
 
-- **AlertDialog** - Confirmation dialogs (delete actions)
-- **Dialog** - Modal dialogs (create token, project settings)
-- **DropdownMenu** - Action menus
-- **Tabs** - Tab navigation (event detail)
-- **Table** - Data tables (projects, issues, tokens)
-- **Badge** - Status indicators
-- **Card** - Content containers
+## Testing
+
+**This project currently runs architecture tests only.** The page, component and
+action tests were deleted deliberately while the structure was still moving;
+they return in their own pass. So:
+
+- `vitest.config.mts` runs on `node`, not jsdom. There is no
+  testing-library, no React plugin and no setup file.
+- Adding a rendering test means restoring that harness in the same commit.
+
+```bash
+pnpm test          # the architecture rules
+pnpm test:watch
+```
+
+Rule files live in `src/__tests__/architecture/`. Shared predicates are in
+`predicates.ts`, which is deliberately free of filesystem walking -- selection,
+counting and assertion all go through archunit's `projectFiles()`, so a rule's
+population and its verdict cannot disagree about which files exist.
 
 ## Environment Variables
 
 ```bash
-RUSTRAK_API_URL=http://localhost:8080  # Backend API URL
+RUSTRAK_API_URL=http://localhost:8080  # Backend API URL. Server-side only.
 ```
 
 ## Development
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development server
 pnpm dev
-
-# Tests (vitest + jsdom)
-pnpm test
-pnpm test:watch
-
-# Type checking
-pnpm check-types
-
-# Lint (Biome linter + assist, warnings are errors)
-pnpm lint
-
-# Formatting
+pnpm build
+pnpm test           # architecture rules
+pnpm lint           # Biome, warnings are errors
 pnpm format         # rewrite
 pnpm format:check   # verify only
-
-# Build
-pnpm build
+pnpm check-types    # tsc --noEmit
+pnpm knip           # unused files, exports and dependencies
 ```
-
-### Test file convention
-
-Tests live in a `__tests__/` folder sibling to the file under test
-(`src/lib/version.ts` -> `src/lib/__tests__/version.test.ts`). This differs on
-purpose from `packages/client`, which keeps a top-level `tests/` directory
-because it is a published library and its tests must stay outside the shipped
-`src/`. Nothing here is published, so tests sit next to the code they cover.
 
 ## Docker
 
 ```bash
-# Build image
 docker build -t rustrak-ui .
-
-# Run container
 docker run -p 3000:3000 -e RUSTRAK_API_URL=http://api:8080 rustrak-ui
 ```

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { listIssues } from '@/actions/issues';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { loadAll } from '@/lib/results';
-import { IssuesList } from './issues-list';
+import { listIssues } from '@/features/issue/api/queries';
+import { IssuesList } from '@/features/issue/ui/components/issues-list';
+import { getProject } from '@/features/project/api/queries';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface IssuesPageProps {
   params: Promise<{ id: string }>;

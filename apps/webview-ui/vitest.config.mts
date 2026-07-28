@@ -1,31 +1,60 @@
-import react from '@vitejs/plugin-react';
-import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
+/**
+ * This project runs **architecture tests only**.
+ *
+ * The page, component and action tests were deleted deliberately: the structure
+ * is still moving, and a test asserting where a component sits is worth less
+ * than the rule that decides it. They come back in their own pass once the
+ * shape has settled.
+ *
+ * That is why nothing here resembles a normal React test setup any more. The
+ * rules never render, never mount and never import a source module -- archunit
+ * reads files as text and resolves the import graph through the TypeScript
+ * program -- so the whole of it went with the tests: jsdom, the React plugin,
+ * the testing-library setup, the `matchMedia` and `ResizeObserver` stubs, and
+ * the `server-only` alias that let a test load a server module in Node.
+ *
+ * Restoring any of it is a decision about tests, not about config, and should
+ * arrive in the commit that needs it.
+ */
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
   test: {
-    environment: 'jsdom',
-    // The 5s default is too tight for this suite on a cold CI runner, and the
-    // failure mode is worse than a slow test: several files resolve the module
-    // under test with `await import(...)` inside the first `it`, so the whole
-    // cold module graph is loaded against the test's own clock. When that
-    // overran, the timed-out test kept going, resolved during the *next*
-    // test's window, and rendered into its DOM -- which surfaced as
-    // "Found multiple elements" in a test that renders exactly one thing.
-    // A GitHub runner reported `environment 72.92s` for 11 files, so this is
-    // headroom for a genuinely slow machine, not cover for a slow test.
-    testTimeout: 20_000,
-    hookTimeout: 30_000,
-    // `globals` is what lets `describe`/`it`/`expect` resolve without a per-file
-    // import, and it is also required by archunit's `toPassAsync` matcher, which
-    // a later phase installs. Cheaper to set now than to redo the config then.
+    /**
+     * Sequential files, one shared module registry, and it is a **20x
+     * reduction in work** rather than a scheduling preference.
+     *
+     * archunit resolves the import graph by building a TypeScript program, and
+     * caches it at module scope. Vitest's default is a fresh module registry per
+     * test file, so nine rule files meant nine full extractions of the same
+     * program: 32s of CPU. Sharing the registry means it is built once and the
+     * other eight files read the cache -- 1.6s.
+     *
+     * This surfaced as a CI failure, not as slowness. Locally the 32s spread
+     * across 7 cores and the suite finished in 4.5s; a 2-core GitHub runner has
+     * no such luxury, so individual population tests took 22.8s and tripped the
+     * timeout while every rule they guard passed.
+     *
+     * Safe here because nothing in this suite has mutable state to leak: the
+     * rules read files and assert. A future test that stubs a global would need
+     * to opt back into isolation, and should say so where it does.
+     */
+    isolate: false,
+    fileParallelism: false,
+    // Node, not jsdom. Nothing here touches a DOM.
+    environment: 'node',
+    // `globals` is required by archunit's `toPassAsync` matcher, which the
+    // rules assert with. Not a convenience.
     globals: true,
-    setupFiles: ['./vitest.setup.ts'],
-    // Tests live next to the code they cover, in a `__tests__/` folder, and
-    // only ever under `src/`. Scoping the glob keeps a future Playwright
-    // `e2e/*.spec.ts` out of vitest, which would otherwise collect it and fail.
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Scoped to the one folder that holds rules, so a `.test.ts` added
+    // anywhere else is not silently collected into this suite.
+    include: ['src/__tests__/architecture/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/e2e/**'],
+    // Whichever test runs first pays for the whole graph extraction; the rest
+    // cost milliseconds. That one test needs room on a cold runner, and since
+    // the suite now finishes in under two seconds, a generous ceiling costs
+    // nothing and a tight one costs a red build.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });
