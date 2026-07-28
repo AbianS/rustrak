@@ -1,8 +1,8 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getProjects } from '@/actions/projects';
-import { CreateProjectForm } from './create-project-form';
+import { getProjects } from '@/features/project/api/queries';
+import { CreateProjectForm } from '@/features/project/ui/components/create-project-form';
 
 export const metadata: Metadata = {
   title: 'New Project | Rustrak',

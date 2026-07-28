@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/actions/auth';
-import { ServiceUnavailable } from '@/components/service-unavailable';
+import { getCurrentUser } from '@/features/user/api/queries';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
+} from '@/shared/ui/components/shadcn/card';
+import { Label } from '@/shared/ui/components/shadcn/label';
 
 export const metadata: Metadata = {
   title: 'Account | Rustrak',
