@@ -1,4 +1,4 @@
-import { AsciiField } from '../ascii-field';
+import { AsciiField } from '../ascii-field/ascii-field';
 import { Deferred } from '../primitives/deferred';
 import { Heading } from '../primitives/heading';
 import { Pinned } from '../primitives/pinned';

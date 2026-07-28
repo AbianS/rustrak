@@ -2,15 +2,13 @@
 
 import { type MotionValue, useReducedMotion, useTransform } from 'motion/react';
 import * as m from 'motion/react-m';
-import { DUR } from '../motion';
-import { Deck } from './engine-scene/deck';
+import { DUR } from '../../motion';
+import { Deck } from './deck';
 import {
   CELL,
   COS30,
   facePoints,
   GROUND,
-  GROUND_RX,
-  GROUND_RY,
   H,
   LID_RISE,
   line,
@@ -24,9 +22,10 @@ import {
   U,
   WALL_OUT,
   WALL_OUT_TALL,
-} from './engine-scene/iso';
-import { PARTS } from './engine-scene/parts-table';
-import { LEFT, RIGHT, TOP } from './engine-scene/solids';
+} from './iso';
+import { PARTS } from './parts-table';
+import { SceneDefs } from './scene-defs';
+import { LEFT, RIGHT, TOP } from './solids';
 
 /**
  * The server, as one cube that opens.
@@ -460,29 +459,7 @@ export function EngineScene({
     >
       <title>The server, opened up</title>
 
-      <defs>
-        {/* The lattice has to stop without having an edge. A hard rectangle of
-            grid reads as a texture swatch someone pasted behind the object;
-            faded out radially it reads as ground continuing past the frame. */}
-        <radialGradient id="engine-ground" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-          <stop offset="55%" stopColor="#fff" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="#fff" stopOpacity="0" />
-        </radialGradient>
-        <mask id="engine-ground-mask">
-          <rect
-            x={sx(0, 0) - GROUND_RX}
-            y={sy(0, 0, 0) - GROUND_RY}
-            width={GROUND_RX * 2}
-            height={GROUND_RY * 2}
-            fill="url(#engine-ground)"
-          />
-        </mask>
-        <radialGradient id="engine-contact" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#000" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#000" stopOpacity="0" />
-        </radialGradient>
-      </defs>
+      <SceneDefs />
 
       {/* Everything the drawing is made of rides one group, so the recentring
           slide moves the ground, the box, the components and their labels as a
