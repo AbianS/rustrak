@@ -146,7 +146,9 @@ export function webhookDefaults(
   };
 }
 
-export function slackDefaults(integration: AlertIntegration | null): SlackFormData {
+export function slackDefaults(
+  integration: AlertIntegration | null,
+): SlackFormData {
   const creds = (integration?.credentials ?? {}) as {
     method?: SlackMethod;
     webhook_url?: string;
@@ -163,7 +165,9 @@ export function slackDefaults(integration: AlertIntegration | null): SlackFormDa
   };
 }
 
-export function emailDefaults(integration: AlertIntegration | null): EmailFormData {
+export function emailDefaults(
+  integration: AlertIntegration | null,
+): EmailFormData {
   const creds = (integration?.credentials ?? {}) as {
     smtp_host?: string;
     smtp_port?: number;
