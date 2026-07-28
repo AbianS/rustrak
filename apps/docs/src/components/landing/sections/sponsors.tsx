@@ -98,7 +98,7 @@ export async function Sponsors() {
                 >
                   {/* Static export with images unoptimized: a plain img is
                       what next/image would emit here anyway. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {/* biome-ignore lint/performance/noImgElement: static export with unoptimized images, so next/image emits a plain img here anyway */}
                   <img
                     src={sponsor.avatar}
                     alt=""

@@ -1,43 +1,28 @@
 import { formatDistanceToNow } from 'date-fns';
-import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import {
   getEventDetail,
   getEventNavigation,
 } from '@/features/event/api/queries';
 import {
-  normalizeBreadcrumbs,
-  normalizeThreads,
-  parseEventData,
-} from '@/features/event/lib/event-schema';
-import { formatStackTraceAsText } from '@/features/event/lib/format-stack-trace';
-import { Breadcrumbs } from '@/features/event/ui/components/breadcrumbs';
-import { EventContext } from '@/features/event/ui/components/event-context';
-import { EventDetails } from '@/features/event/ui/components/event-details';
-import { EventHighlights } from '@/features/event/ui/components/event-highlights';
+  readEventPayload,
+  splitIssueTitle,
+} from '@/features/event/lib/event-payload';
 import { EventNavigationBar } from '@/features/event/ui/components/event-navigation';
-import { EventTags } from '@/features/event/ui/components/event-tags';
-import { RawJson } from '@/features/event/ui/components/raw-json';
-import { StackTrace } from '@/features/event/ui/components/stack-trace';
-import { ThreadsSection } from '@/features/event/ui/components/threads-section';
 import {
   getIssue,
   getIssueActivity,
   getIssueAggregates,
   getIssueStats,
 } from '@/features/issue/api/queries';
-import { IssueActions } from '@/features/issue/ui/components/issue-actions';
 import { IssueActivity } from '@/features/issue/ui/components/issue-activity';
-import { StatusIndicator } from '@/features/issue/ui/components/issue-indicators';
 import { TagDistribution } from '@/features/issue/ui/components/tag-distribution';
 import { getProject } from '@/features/project/api/queries';
-import { cn } from '@/shared/lib/utils';
 import { CollapsibleRail } from '@/shared/ui/components/collapsible-rail';
-import { Section } from '@/shared/ui/components/collapsible-section';
-import { CopyAsDropdown } from '@/shared/ui/components/copy-as-dropdown';
 import { EventChart } from '@/shared/ui/components/event-chart';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { EventHeader } from './_components/event-header';
+import { EventSections } from './_components/event-sections';
 
 interface EventPageProps {
   params: Promise<{ id: string; issueId: string; eventId: string }>;
@@ -139,35 +124,12 @@ export default async function EventPage({ params }: EventPageProps) {
   const activity = activityResult.success ? activityResult.data : [];
 
   const eventData = event.data as Record<string, unknown>;
-  const {
-    exception,
-    breadcrumbs: rawBreadcrumbs,
-    threads: rawThreads,
-    contexts,
-    modules,
-    tags,
-    user,
-  } = parseEventData(eventData);
-  const breadcrumbs = normalizeBreadcrumbs(rawBreadcrumbs);
-  const threads = normalizeThreads(rawThreads);
-
-  // A `threads` entry supersedes a bare `exception` view — same dispatch
-  // Sentry's frontend uses (crashes reported via threads carry their own
-  // exception cross-linking, so the plain exception view would be a
-  // strictly worse rendering of the same data).
-  const hasThreads = threads.length > 0;
-  const hasStackTrace = hasThreads || Boolean(exception?.values?.length);
-  const hasBreadcrumbs = breadcrumbs.length > 0;
-  const hasContexts = Boolean(contexts && Object.keys(contexts).length > 0);
-  const hasModules = Boolean(modules && Object.keys(modules).length > 0);
-  const hasUser = Boolean(user && (user.id || user.email || user.ip_address));
-  const safeTags = tags ?? {};
-  const hasTags = Object.keys(safeTags).length > 0;
-
-  // Title = exception type; message = full value (Sentry-style).
-  const colonIdx = issue.title.indexOf(': ');
-  const titleType = colonIdx > 0 ? issue.title.slice(0, colonIdx) : issue.title;
-  const message = issue.value || issue.title;
+  const payload = readEventPayload(eventData);
+  const { has } = payload;
+  const { type: titleType, message } = splitIssueTitle(
+    issue.title,
+    issue.value,
+  );
   const levelText =
     LEVEL_TEXT[(event.level ?? '').toLowerCase()] ?? 'text-muted-foreground';
 
@@ -177,10 +139,10 @@ export default async function EventPage({ params }: EventPageProps) {
   // "Jump to" anchors — only for sections that exist.
   const jumps = [
     { id: 'highlights', label: 'Highlights' },
-    hasStackTrace && { id: 'stacktrace', label: 'Stack Trace' },
-    hasBreadcrumbs && { id: 'breadcrumbs', label: 'Breadcrumbs' },
-    hasTags && { id: 'tags', label: 'Tags' },
-    (hasContexts || hasModules || hasUser) && {
+    has.stackTrace && { id: 'stacktrace', label: 'Stack Trace' },
+    has.breadcrumbs && { id: 'breadcrumbs', label: 'Breadcrumbs' },
+    has.tags && { id: 'tags', label: 'Tags' },
+    (has.contexts || has.modules || has.user) && {
       id: 'context',
       label: 'Context',
     },
@@ -224,66 +186,14 @@ export default async function EventPage({ params }: EventPageProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] bg-background">
-      {/* Header */}
-      <header className="shrink-0 bg-card border-b">
-        <div className="w-full px-4 md:px-8 py-3 space-y-1.5">
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-            <Link
-              href={`/projects/${projectId}/issues`}
-              className="hover:text-foreground transition-colors"
-            >
-              Issues
-            </Link>
-            <span className="text-muted-foreground/40">/</span>
-            <span className="font-mono text-foreground truncate">
-              {issue.short_id}
-            </span>
-          </nav>
-
-          <div className="flex items-start justify-between gap-6">
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate min-w-0">
-              {titleType}
-            </h1>
-            <div className="flex items-start gap-4 sm:gap-8 shrink-0">
-              <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Events (total)
-                </p>
-                <p className="text-xl font-semibold tabular-nums leading-tight">
-                  {compact(issue.event_count)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Users
-                </p>
-                <p className="text-xl font-semibold tabular-nums leading-tight">
-                  {compact(userCount)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
-            <CircleAlert className={cn('size-4 shrink-0 mt-0.5', levelText)} />
-            <p className="truncate font-mono text-foreground/90">{message}</p>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-            <StatusIndicator issue={issue} />
-            {issue.culprit && (
-              <span className="font-mono truncate">{issue.culprit}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Workflow toolbar — same elevated band as the header */}
-        <div className="border-t">
-          <div className="w-full px-4 md:px-8 py-2">
-            <IssueActions issue={issue} projectId={projectId} />
-          </div>
-        </div>
-      </header>
+      <EventHeader
+        issue={issue}
+        projectId={projectId}
+        titleType={titleType}
+        message={message}
+        levelText={levelText}
+        userCount={userCount}
+      />
 
       {/* Body */}
       <div className="flex-1 min-h-0 flex">
@@ -389,102 +299,11 @@ export default async function EventPage({ params }: EventPageProps) {
               </div>
             </div>
 
-            {/* Sections */}
-            <div className="rounded-lg border bg-card px-4">
-              <Section id="highlights" title="Highlights">
-                <EventHighlights
-                  event={event}
-                  tags={safeTags}
-                  contexts={contexts}
-                  eventData={eventData}
-                />
-              </Section>
-
-              {hasStackTrace && (
-                <Section
-                  id="stacktrace"
-                  title="Stack Trace"
-                  actions={
-                    // ThreadsSection owns its own copy control — the active
-                    // thread/exception pairing is client state the section
-                    // header (a Server Component) can't see.
-                    hasThreads ? undefined : (
-                      <CopyAsDropdown
-                        formats={[
-                          {
-                            label: 'Plain Text',
-                            value: formatStackTraceAsText(
-                              exception,
-                              event.platform,
-                            ),
-                          },
-                          {
-                            label: 'JSON',
-                            value: JSON.stringify(exception, null, 2),
-                          },
-                        ]}
-                      />
-                    )
-                  }
-                >
-                  {hasThreads ? (
-                    <ThreadsSection
-                      threads={threads}
-                      exception={exception}
-                      platform={event.platform}
-                    />
-                  ) : (
-                    <StackTrace
-                      exception={exception}
-                      platform={event.platform}
-                    />
-                  )}
-                </Section>
-              )}
-
-              {hasBreadcrumbs && (
-                <Section
-                  id="breadcrumbs"
-                  title="Breadcrumbs"
-                  actions={
-                    <CopyAsDropdown
-                      formats={[
-                        {
-                          label: 'JSON',
-                          value: JSON.stringify(breadcrumbs, null, 2),
-                        },
-                      ]}
-                    />
-                  }
-                >
-                  <Breadcrumbs breadcrumbs={breadcrumbs} />
-                </Section>
-              )}
-
-              {hasTags && (
-                <Section id="tags" title="Tags">
-                  <EventTags tags={tags} />
-                </Section>
-              )}
-
-              {(hasContexts || hasModules || hasUser) && (
-                <Section id="context" title="Context">
-                  <EventContext
-                    contexts={contexts}
-                    modules={modules}
-                    user={user}
-                  />
-                </Section>
-              )}
-
-              <Section id="details" title="Event Details">
-                <EventDetails event={event} />
-              </Section>
-
-              <Section id="raw" title="Raw JSON" defaultOpen={false}>
-                <RawJson data={eventData} />
-              </Section>
-            </div>
+            <EventSections
+              event={event}
+              payload={payload}
+              eventData={eventData}
+            />
 
             {/* Right rail (mobile) */}
             <div className="lg:hidden rounded-lg border bg-card overflow-hidden">

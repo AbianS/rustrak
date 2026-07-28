@@ -3,15 +3,25 @@
  * the same whether it lands on an axis, in a tooltip or on a KPI tile.
  */
 
+/**
+ * Built once, at module scope.
+ *
+ * `new Intl.NumberFormat(...)` is not a cheap constructor: it resolves a locale
+ * and builds a formatter. `compactCount` runs per cell of every table that
+ * shows a count, so constructing it per call paid that repeatedly for a
+ * formatter that never varies.
+ */
+const COMPACT = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
 /** `12403` -> `12.4k`. Used where space is tight (axis ticks, hero figures). */
 export function compactCount(value: number): string {
   if (Math.abs(value) < 1000) {
     return value.toString();
   }
-  return new Intl.NumberFormat('en', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-  }).format(value);
+  return COMPACT.format(value);
 }
 
 /** `12403` -> `12,403`. Used in tooltips and tables, where exactness matters. */

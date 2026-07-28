@@ -197,7 +197,10 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
               width: pill,
               height: open ? HEIGHT + BLUR * 3 : HEIGHT,
               borderRadius: ROUNDNESS,
-              willChange: 'height, width',
+              // Only while the pill is actually moving. A permanent
+              // will-change keeps a compositor layer alive for the whole
+              // session for an animation that runs twice.
+              willChange: open ? 'height, width' : 'auto',
               transition: `left ${ease}, width ${ease}, height ${ease}`,
             }}
           />
@@ -208,7 +211,7 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
               height: open ? expanded - HEIGHT : 0,
               opacity: open ? 1 : 0,
               borderRadius: ROUNDNESS,
-              willChange: 'height',
+              willChange: open ? 'height' : 'auto',
               transition: `height ${ease}, opacity 200ms ease-out`,
             }}
           />

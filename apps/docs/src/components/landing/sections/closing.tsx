@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { GithubIcon } from '@/components/icons/github';
-import { AsciiField } from '../ascii-field';
+import { AsciiField } from '../ascii-field/ascii-field';
 import { GITHUB } from '../links';
 import { Deferred } from '../primitives/deferred';
 import { Band } from '../primitives/grid';

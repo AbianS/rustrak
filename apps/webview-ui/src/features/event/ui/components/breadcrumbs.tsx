@@ -10,23 +10,13 @@ import {
   Navigation,
   Terminal,
 } from 'lucide-react';
-import { getSummaryBreadcrumbs } from '@/features/event/lib/breadcrumbs';
+import {
+  type Breadcrumb,
+  type GroupedBreadcrumb,
+  getSummaryBreadcrumbs,
+} from '@/features/event/lib/breadcrumbs';
 import { cn } from '@/shared/lib/utils';
 import { BreadcrumbsExpand } from './breadcrumbs-expand';
-
-export interface Breadcrumb {
-  timestamp?: number;
-  type?: string;
-  category?: string;
-  message?: string;
-  level?: string;
-  data?: Record<string, unknown>;
-}
-
-export interface GroupedBreadcrumb {
-  crumb: Breadcrumb;
-  count: number;
-}
 
 interface BreadcrumbsProps {
   breadcrumbs?: Breadcrumb[] | { values?: Breadcrumb[] };
@@ -41,29 +31,6 @@ function normalizeBreadcrumbs(
     return breadcrumbs.values;
   }
   return [];
-}
-
-export function groupConsecutiveBreadcrumbs(
-  items: Breadcrumb[],
-): GroupedBreadcrumb[] {
-  const grouped: GroupedBreadcrumb[] = [];
-  for (const crumb of items) {
-    const last = grouped[grouped.length - 1];
-    if (
-      last &&
-      last.crumb.category === crumb.category &&
-      last.crumb.message === crumb.message &&
-      last.crumb.level === crumb.level &&
-      last.crumb.type === crumb.type &&
-      !crumb.data &&
-      !last.crumb.data
-    ) {
-      last.count++;
-    } else {
-      grouped.push({ crumb, count: 1 });
-    }
-  }
-  return grouped;
 }
 
 /** Pick a timeline icon from the crumb category/type. */
@@ -110,6 +77,11 @@ export function BreadcrumbTimeline({
         const Icon = crumbIcon(crumb);
         const isLast = i === grouped.length - 1;
         return (
+          // `BreadcrumbTimeline` is presentational: no state, no filtering, no
+          // sort. `grouped` is built once from the event's crumbs, and two
+          // crumbs can be identical in every field but their position, so the
+          // index is the only thing that tells them apart.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
             {!isLast && (
               <span className="absolute left-[13px] top-7 bottom-0 w-px bg-border" />

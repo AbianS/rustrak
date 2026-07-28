@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   type Breadcrumb,
-  BreadcrumbTimeline,
   groupConsecutiveBreadcrumbs,
-} from './breadcrumbs';
+} from '@/features/event/lib/breadcrumbs';
+import { Button } from '@/shared/ui/components/shadcn/button';
+import { BreadcrumbTimeline } from './breadcrumbs';
 
 interface BreadcrumbsExpandProps {
   items: Breadcrumb[];

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "projects": [
+    "*"
+  ],
+  "noScore": true,
+  "scope": "full",
+  "lint": true,
+  "deadCode": true,
+  "warnings": true,
+  "blocking": "warning",
+  "adoptExistingLintConfig": false,
+  "respectInlineDisables": true,
+  "supplyChain": {
+    "enabled": true,
+    "minScore": 70,
+    "severity": "error",
+    "includeDevDependencies": true
+  },
+  "categories": {
+    "Accessibility": "error",
+    "Bugs": "error",
+    "Maintainability": "error",
+    "Performance": "error",
+    "Security": "error"
+  },
+  "buckets": {
+    "compiler-cleanup": "error"
+  },
+  "serverAuthFunctionNames": [
+    "createClient"
+  ],
+  "ignore": {
+    "files": [
+      "**/shared/ui/components/shadcn/**",
+      "**/src/components/ui/**",
+      "content/**/_meta.js"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "**/landing/sections/sponsors.tsx"
+        ],
+        "rules": [
+          "react-doctor/nextjs-no-img-element"
+        ]
+      },
+      {
+        "files": [
+          "**/changelog/release-article.tsx"
+        ],
+        "rules": [
+          "react-doctor/dangerous-html-sink"
+        ]
+      }
+    ]
+  }
+}

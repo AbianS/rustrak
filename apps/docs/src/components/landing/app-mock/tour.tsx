@@ -4,14 +4,15 @@ import {
   AnimatePresence,
   animate,
   type MotionValue,
-  motion,
   useMotionValue,
   useReducedMotion,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ReactNode, useEffect, useState } from 'react';
 import { EASE } from '../motion';
 import { AppFrame } from './app-frame';
-import { Cursor, type Point, PRESS, travelTime } from './cursor';
+import { Cursor } from './cursor';
+import { type Point, PRESS, travelTime } from './cursor-motion';
 import { EventScene } from './event-scene';
 import { MockAgents } from './mock-agents';
 import { MockIssueDetail } from './mock-issue-detail';
@@ -233,6 +234,9 @@ export function Tour({
   const leg = step < 0 ? -1 : step % ROUTE.length;
   const first = step === 0;
 
+  // `if (!running) return` schedules nothing, so it has nothing to clear.
+  // Every branch that sets a timer returns its own clearTimeout.
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     if (!running) return;
 
@@ -263,6 +267,11 @@ export function Tour({
     return () => {
       for (const timer of timers) clearTimeout(timer);
     };
+  // `onCaret` stays a dependency rather than moving into a `useEffectEvent`.
+  // That hook is still experimental in React 19 and is not exported from the
+  // stable build, so adopting it here would pin the landing to a canary. The
+  // callback is stable at the call site, so re-running on it is a no-op.
+  // react-doctor-disable-next-line react-doctor/prefer-use-effect-event
   }, [running, step, leg, first, onCaret]);
 
   /*
@@ -280,6 +289,11 @@ export function Tour({
     if (!launched) return;
     const id = setTimeout(() => onCaret(false), CARET_RETURN * 1000);
     return () => clearTimeout(id);
+  // `onCaret` stays a dependency rather than moving into a `useEffectEvent`.
+  // That hook is still experimental in React 19 and is not exported from the
+  // stable build, so adopting it here would pin the landing to a canary. The
+  // callback is stable at the call site, so re-running on it is a no-op.
+  // react-doctor-disable-next-line react-doctor/prefer-use-effect-event
   }, [launched, onCaret]);
 
   const screen = STOPS[at];
@@ -296,7 +310,7 @@ export function Tour({
         <EventScene active={running}>
           <div className="relative h-full w-full">
             <AnimatePresence initial={false}>
-              <motion.div
+              <m.div
                 key={screen.id}
                 className="absolute inset-0"
                 initial={{ opacity: 0 }}
@@ -310,7 +324,7 @@ export function Tour({
                 <Stage gate={gate} delay={step < 1 ? OPEN_DELAY : 0}>
                   {screen.node}
                 </Stage>
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
         </EventScene>

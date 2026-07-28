@@ -142,7 +142,7 @@ export function OneCommand() {
                 <code>
                   {command.split('\n').map((line, index) => (
                     // The command is a fixed authored string, never reordered.
-                    // biome-ignore lint/suspicious/noArrayIndexKey: static list.
+                    // react-doctor-disable-next-line react-doctor/no-array-index-as-key
                     <span key={index} className="block whitespace-pre">
                       {highlight(line, index)}
                     </span>

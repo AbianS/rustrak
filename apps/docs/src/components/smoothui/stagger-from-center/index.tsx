@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useInView, useReducedMotion } from 'motion/react';
+import { useInView, useReducedMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useRef } from 'react';
 
 export interface StaggerFromCenterProps {
@@ -69,13 +70,18 @@ export default function StaggerFromCenter({
       {characters.map((char, index) => {
         const distance = Math.abs(index - center);
         return (
-          <motion.span
+          <m.span
             animate={play ? { opacity: 1, y: 0 } : undefined}
             aria-hidden="true"
             initial={
               shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 12 }
             }
-            // biome-ignore lint/suspicious/noArrayIndexKey: characters have no stable id
+            // Characters have no stable id, and the list is a fixed split of
+            // one authored string: it is never reordered, filtered or appended
+            // to, so the index *is* the identity. This carried a `biome-ignore`
+            // until the element became `m.span` — Biome's noArrayIndexKey does
+            // not recognise it as a component, so the rule stopped firing and
+            // the suppression with it.
             key={index}
             style={{ display: 'inline-block', whiteSpace: 'pre' }}
             transition={
@@ -89,7 +95,7 @@ export default function StaggerFromCenter({
             }
           >
             {char === ' ' ? ' ' : char}
-          </motion.span>
+          </m.span>
         );
       })}
     </span>

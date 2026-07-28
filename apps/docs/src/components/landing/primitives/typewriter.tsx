@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { POINTER_ORIGIN } from '../app-mock/pointer-origin';
@@ -183,7 +184,7 @@ function Caret({
       The outer one also carries the marker and the layout box, because it is
       the box the pointer measures.
     */
-    <motion.span
+    <m.span
       className="ml-[0.06em] inline-block align-baseline"
       {...{ [POINTER_ORIGIN]: '' }}
       animate={{ opacity: hidden ? 0 : 1 }}
@@ -197,7 +198,7 @@ function Caret({
         ease: EASE,
       }}
     >
-      <motion.span
+      <m.span
         className={cn('block w-[0.06em] bg-current', className)}
         style={{ height: '0.82em', y: '0.06em' }}
         animate={blinking ? { opacity: [1, 1, 0, 0] } : { opacity: 1 }}
@@ -212,6 +213,6 @@ function Caret({
             : { duration: 0.1 }
         }
       />
-    </motion.span>
+    </m.span>
   );
 }

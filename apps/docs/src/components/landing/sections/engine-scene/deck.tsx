@@ -36,10 +36,10 @@ import { BOARD_FILL, Box, EDGE, ELL_RX, ELL_RY } from './solids';
  * around the edge of every part, so each one is visibly *seated in a place made
  * for it* rather than set down on a plate.
  */
-export const TRACE_Y = DECK + 0.002;
+const TRACE_Y = DECK + 0.002;
 
 /** One part's footprint: an outline on the surface with pads at its corners. */
-export function Footprint({
+function Footprint({
   cx,
   cz,
   w,
@@ -104,7 +104,7 @@ export function Footprint({
  * corner, along the other. A straight diagonal between two pads is the one
  * thing that would give this away as a drawing of a board rather than a board.
  */
-export function traceRun(
+function traceRun(
   from: [number, number],
   to: [number, number],
   zFirst: boolean,
@@ -178,7 +178,7 @@ export function traceRun(
  * the two is a hydration mismatch. A fixed seed makes it fixed art that merely
  * happens to have been computed.
  */
-export function seeded(seed: number) {
+function seeded(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -205,7 +205,7 @@ export function seeded(seed: number) {
  * density is what turns a flat marking into a texture that looks like it is
  * standing up, so the bundles are small, spaced, and far apart.
  */
-export const CIRCUIT = (() => {
+const CIRCUIT = (() => {
   const rand = seeded(0x5eed_1a7c);
   const edge = BOARD - 0.22;
   /*
@@ -262,33 +262,33 @@ export const CIRCUIT = (() => {
   return { runs: runs.join(' '), vias: [...vias.values()] };
 })();
 
+/* Every footprint routed back to the socket in the middle, in bundles of two
+   so a run reads as a bus rather than as a single wire. These terminate the
+   same way the field does: a pad at each end, taken from the run itself,
+   since the offset copy does not end where its base does. */
+const SIGNAL = [
+  traceRun([-1.14, -0.3], [-0.86, -0.3], false, 0),
+  traceRun([-1.14, -0.3], [-0.86, -0.3], false, 0.1),
+  traceRun([1.04, -0.6], [0.36, -0.2], true, 0),
+  traceRun([1.04, -0.6], [0.36, -0.2], true, 0.1),
+  traceRun([0.8, -0.95], [0.1, -0.58], true, 0),
+  traceRun([0.8, -0.95], [0.1, -0.58], true, 0.1),
+  traceRun([-0.5, 0.92], [-0.5, 0.68], false, 0),
+  traceRun([-0.2, 0.92], [-0.2, 0.68], false, 0),
+];
+const SIGNAL_RUNS = SIGNAL.map((s) => s.d).join(' ');
+const SIGNAL_PADS = [
+  ...new Map(
+    SIGNAL.flatMap((s) => s.ends.map((e) => [`${e[0]},${e[1]}`, e] as const)),
+  ).values(),
+];
+
 /**
  * The board itself. Not one of the five, and not decoration either: it is the
  * thing that makes the other five one machine instead of five objects, and it
  * is the surface every one of them is standing on.
  */
 export function Deck() {
-  /* Every footprint routed back to the socket in the middle, in bundles of two
-     so a run reads as a bus rather than as a single wire. These terminate the
-     same way the field does: a pad at each end, taken from the run itself,
-     since the offset copy does not end where its base does. */
-  const signal = [
-    traceRun([-1.14, -0.3], [-0.86, -0.3], false, 0),
-    traceRun([-1.14, -0.3], [-0.86, -0.3], false, 0.1),
-    traceRun([1.04, -0.6], [0.36, -0.2], true, 0),
-    traceRun([1.04, -0.6], [0.36, -0.2], true, 0.1),
-    traceRun([0.8, -0.95], [0.1, -0.58], true, 0),
-    traceRun([0.8, -0.95], [0.1, -0.58], true, 0.1),
-    traceRun([-0.5, 0.92], [-0.5, 0.68], false, 0),
-    traceRun([-0.2, 0.92], [-0.2, 0.68], false, 0),
-  ];
-  const runs = signal.map((s) => s.d).join(' ');
-  const signalPads = [
-    ...new Map(
-      signal.flatMap((s) => s.ends).map((e) => [`${e[0]},${e[1]}`, e]),
-    ).values(),
-  ];
-
   return (
     <>
       <Box
@@ -327,7 +327,7 @@ export function Deck() {
 
       {/* Then the runs that go somewhere, brighter and heavier, and terminated
           at both ends like everything else on the board. */}
-      {signalPads.map(([vx, vz]) => (
+      {SIGNAL_PADS.map(([vx, vz]) => (
         <ellipse
           key={`${vx},${vz}`}
           cx={sx(vx, vz)}
@@ -339,7 +339,7 @@ export function Deck() {
         />
       ))}
       <path
-        d={runs}
+        d={SIGNAL_RUNS}
         fill="none"
         stroke={EDGE}
         strokeOpacity={0.45}

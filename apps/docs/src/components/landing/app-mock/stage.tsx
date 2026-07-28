@@ -4,12 +4,12 @@ import {
   animate,
   cubicBezier,
   type MotionValue,
-  motion,
   useMotionValue,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import {
   type CSSProperties,
   createContext,
@@ -100,6 +100,10 @@ export function useSettled(
 ): boolean {
   const [settled, setSettled] = useState(false);
 
+  // The bare `return` below is the disabled path, where nothing has been
+  // subscribed yet and so there is nothing to tear down. Every path that
+  // does subscribe returns its own unsubscribe.
+  // react-doctor-disable-next-line react-doctor/effect-needs-cleanup
   useEffect(() => {
     if (!enabled) {
       setSettled(false);
@@ -332,9 +336,9 @@ export function Enter({
   const x = useTransform(p, [0, 1], [-12, 0]);
 
   return (
-    <motion.div className={className} style={{ opacity, x }}>
+    <m.div className={className} style={{ opacity, x }}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -351,9 +355,9 @@ export function Settle({
   const y = useTransform(p, [0, 1], [18, 0]);
 
   return (
-    <motion.div className={className} style={{ opacity, y }}>
+    <m.div className={className} style={{ opacity, y }}>
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -371,9 +375,7 @@ export function Grow({
   children,
 }: Slotted & { origin: string; children: ReactNode }) {
   const scaleY = useSlot(delay + index * step);
-  return (
-    <motion.g style={{ transformOrigin: origin, scaleY }}>{children}</motion.g>
-  );
+  return <m.g style={{ transformOrigin: origin, scaleY }}>{children}</m.g>;
 }
 
 /**
@@ -395,7 +397,7 @@ export function Sweep({
 }) {
   const scaleX = useSlot(delay, span);
   return (
-    <motion.span
+    <m.span
       className={className}
       style={{ ...style, transformOrigin: 'left center', scaleX }}
     />
@@ -419,7 +421,7 @@ export function Rise({
 }) {
   const scaleY = useSlot(delay);
   return (
-    <motion.span
+    <m.span
       className={className}
       style={{ ...style, transformOrigin: 'bottom center', scaleY }}
     />
@@ -438,7 +440,7 @@ export function Wipe({
 }) {
   const scaleY = useSlot(delay, 0.22);
   return (
-    <motion.span
+    <m.span
       className={className}
       style={{ ...style, transformOrigin: 'top center', scaleY }}
     />
@@ -460,7 +462,7 @@ export function Draw({
   'd' | 'fill' | 'stroke' | 'strokeWidth' | 'strokeLinecap' | 'strokeLinejoin'
 > & { delay?: number; span?: number }) {
   const pathLength = useSlot(delay, span);
-  return <motion.path {...path} style={{ pathLength }} />;
+  return <m.path {...path} style={{ pathLength }} />;
 }
 
 /** The wash under a drawn line. Fades in behind it rather than being traced. */
@@ -472,7 +474,7 @@ export function Wash({
   children: ReactNode;
 }) {
   const opacity = useSlot(delay, 0.45);
-  return <motion.g style={{ opacity }}>{children}</motion.g>;
+  return <m.g style={{ opacity }}>{children}</m.g>;
 }
 
 /**
@@ -554,7 +556,7 @@ export function Ticker({
   const text = useTransform([p, gained, stepped], ([t, g, s]: number[]) =>
     format(t * (value + g + s)),
   );
-  return <motion.span className={className}>{text}</motion.span>;
+  return <m.span className={className}>{text}</m.span>;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -588,7 +590,7 @@ export function Breath({
   }
 
   return (
-    <motion.g
+    <m.g
       style={{ transformOrigin: origin }}
       animate={idle ? { scaleY: [1, 1 + amount, 1] } : { scaleY: 1 }}
       transition={
@@ -598,7 +600,7 @@ export function Breath({
       }
     >
       {children}
-    </motion.g>
+    </m.g>
   );
 }
 
@@ -633,9 +635,7 @@ export function StepGrow({
     return () => controls.stop();
   }, [amount, reduced, scaleY]);
 
-  return (
-    <motion.g style={{ transformOrigin: origin, scaleY }}>{children}</motion.g>
-  );
+  return <m.g style={{ transformOrigin: origin, scaleY }}>{children}</m.g>;
 }
 
 /**
@@ -662,7 +662,7 @@ export function Flash({ run }: { run: number }) {
   }
 
   return (
-    <motion.span
+    <m.span
       key={run}
       aria-hidden
       className="pointer-events-none absolute inset-0 rounded-xl border border-primary/60"
@@ -702,7 +702,7 @@ export function Sheen({
   }
 
   return (
-    <motion.span
+    <m.span
       aria-hidden
       className={cn(
         'pointer-events-none absolute inset-y-[-30%] left-0 w-[45%] -skew-x-12',
@@ -747,10 +747,10 @@ export function Pulse({
   const opacity = useSlot(0.55, 0.2);
 
   return (
-    <motion.g style={{ opacity }}>
+    <m.g style={{ opacity }}>
       {!reduced && idle
         ? [0, 1.4].map((offset) => (
-            <motion.circle
+            <m.circle
               key={offset}
               cx={cx}
               cy={cy}
@@ -768,7 +768,7 @@ export function Pulse({
           ))
         : null}
       <circle cx={cx} cy={cy} r={r} fill={color} />
-    </motion.g>
+    </m.g>
   );
 }
 /**
@@ -801,7 +801,7 @@ export function Beacon({ className }: { className?: string }) {
       className="relative grid size-1.5 shrink-0 place-items-center"
     >
       {onScreen ? (
-        <motion.span
+        <m.span
           className={cn('absolute inset-0 rounded-full', className)}
           animate={{ scale: [1, 2.6, 2.6], opacity: [0.5, 0, 0] }}
           transition={{

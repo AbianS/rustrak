@@ -2,11 +2,11 @@
 
 import {
   type MotionValue,
-  motion,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Band, Cell } from '../primitives/grid';
@@ -215,7 +215,7 @@ function NodeCard({
   const y = useTransform(progress, [node.at - 0.06, node.at + 0.05], [8, 0]);
 
   return (
-    <motion.div
+    <m.div
       className={compact ? 'relative' : 'absolute'}
       style={{
         ...(compact
@@ -275,7 +275,7 @@ function NodeCard({
           {node.detail}
         </p>
       </div>
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -292,7 +292,7 @@ function Wire({
   const drawn = useTransform(progress, [wire.at, wire.at + 0.12], [0, 1]);
 
   return (
-    <motion.path
+    <m.path
       d={wire.d}
       pathLength={1}
       fill="none"
@@ -406,7 +406,7 @@ export function Alerts() {
             {/* The `true`/`false` pair is the one detail that turns a set of
                 connected boxes into a rule you can read. */}
             {WIRES.filter((wire) => wire.label).map((wire) => (
-              <motion.span
+              <m.span
                 key={wire.label}
                 className="absolute rounded bg-[var(--surface)] px-1 font-mono text-[9px] text-white/40"
                 style={{
@@ -422,7 +422,7 @@ export function Alerts() {
                 }}
               >
                 {wire.label}
-              </motion.span>
+              </m.span>
             ))}
 
             {NODES.map((node) => (

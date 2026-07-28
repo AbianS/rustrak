@@ -6,8 +6,8 @@ import {
   formatPercentChange,
   percentChange,
 } from '@/shared/lib/chart-format';
+import { deltaTone, type Polarity } from '@/shared/lib/metric-tone';
 import { cn } from '@/shared/lib/utils';
-import { deltaTone, type Polarity } from '@/shared/ui/components/metric-delta';
 import {
   Card,
   CardContent,

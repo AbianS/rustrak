@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { listIntegrations } from '@/features/alert/api/queries';
-import { IntegrationsList } from '@/features/alert/ui/components/integrations-list';
+import { IntegrationsList } from '@/features/alert/ui/components/integrations-list/integrations-list';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 export const metadata: Metadata = {
