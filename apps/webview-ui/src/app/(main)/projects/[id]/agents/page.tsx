@@ -1,13 +1,5 @@
 import { Bot } from 'lucide-react';
 import type { Metadata } from 'next';
-import {
-  getAgentDuration,
-  getAgentModelsByCalls,
-  getAgentModelsByTokens,
-  getAgentRuns,
-  getAgentTools,
-  getAgentTraces,
-} from '@/actions/agents';
 import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import {
@@ -17,11 +9,19 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  getAgentDuration,
+  getAgentModelsByCalls,
+  getAgentModelsByTokens,
+  getAgentRuns,
+  getAgentTools,
+  getAgentTraces,
+} from '@/features/agent-trace/api/queries';
+import { AgentBreakdownChart } from '@/features/agent-trace/ui/agent-breakdown-chart';
+import { AgentDurationChart } from '@/features/agent-trace/ui/agent-duration-chart';
+import { AgentTimeseriesChart } from '@/features/agent-trace/ui/agent-timeseries-chart';
+import { AgentTracesTable } from '@/features/agent-trace/ui/agent-traces-table';
 import { loadAll } from '@/lib/results';
-import { AgentBreakdownChart } from './agent-breakdown-chart';
-import { AgentDurationChart } from './agent-duration-chart';
-import { AgentTimeseriesChart } from './agent-timeseries-chart';
-import { AgentTracesTable } from './agent-traces-table';
 
 interface AgentsPageProps {
   params: Promise<{ id: string }>;

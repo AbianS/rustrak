@@ -1,5 +1,16 @@
-'use server';
+import 'server-only';
 
+/**
+ * Reads for the agent-monitoring pages.
+ *
+ * No `mutations.ts` beside this: nothing in the product writes an agent trace,
+ * they arrive through ingestion. A slice with only one half of its `api`
+ * segment is the expected shape, not an omission.
+ *
+ * `import 'server-only'` is a build-time poison pill rather than a directive:
+ * if this module reaches the client bundle the build fails, instead of shipping
+ * a browser bundle that holds the session cookie.
+ */
 import type {
   AgentBreakdownOptions,
   AgentDurationPoint,
