@@ -65,6 +65,10 @@ export const sy = (x: number, y: number, z: number) =>
 
 export type Point = [x: number, y: number, z: number];
 
+/** Screen position of a world point, as numbers rather than as a string. */
+export const px = ([x, , z]: Point) => sx(x, z);
+export const py = ([x, y, z]: Point) => sy(x, y, z);
+
 export const vertex = ([x, y, z]: Point) =>
   `${sx(x, z).toFixed(1)},${sy(x, y, z).toFixed(1)}`;
 

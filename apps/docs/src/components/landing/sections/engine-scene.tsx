@@ -7,7 +7,6 @@ import { Deck } from './engine-scene/deck';
 import {
   CELL,
   COS30,
-  DECK,
   facePoints,
   GROUND,
   GROUND_RX,
@@ -15,8 +14,9 @@ import {
   H,
   LID_RISE,
   line,
-  type Point,
   planeAt,
+  px,
+  py,
   R,
   SIN30,
   sx,
@@ -25,14 +25,8 @@ import {
   WALL_OUT,
   WALL_OUT_TALL,
 } from './engine-scene/iso';
-import {
-  AdmissionForm,
-  DecoderForm,
-  FoldForm,
-  SpoolForm,
-  WorkersForm,
-} from './engine-scene/parts';
-import { LEFT, px, py, RIGHT, TOP } from './engine-scene/solids';
+import { PARTS } from './engine-scene/parts-table';
+import { LEFT, RIGHT, TOP } from './engine-scene/solids';
 
 /**
  * The server, as one cube that opens.
@@ -116,59 +110,6 @@ import { LEFT, px, py, RIGHT, TOP } from './engine-scene/solids';
  * fraction of its opacity, which is the same thing the near walls do on the way
  * out and is what lets an arrangement chosen for depth stay readable.
  */
-
-/**
- * `anchor` is where the leader line leaves the part. It is authored per part
- * rather than derived from a bounding box because the point that reads as "this
- * one" is a specific corner of a specific feature — the top of the tallest fin,
- * the outer end of the card — and a bounding box would pick the arithmetic
- * centre of a shape that may be mostly empty air.
- *
- * `depth` is `x + z` at the part's centre, which is exactly how far from the eye
- * it is in this projection, and it is what the draw order is sorted on.
- */
-export const PARTS = [
-  {
-    key: 'admission',
-    label: 'Admission control',
-    note: 'quota · 429',
-    Form: AdmissionForm,
-    anchor: [-1.35, DECK + 0.53, -0.04] as Point,
-    depth: -1.7,
-  },
-  {
-    key: 'decoder',
-    label: 'Envelope decoder',
-    note: 'gzip · 8 item kinds',
-    Form: DecoderForm,
-    anchor: [1.14, DECK + 0.58, -0.16] as Point,
-    depth: 0.18,
-  },
-  {
-    key: 'spool',
-    label: 'Durable spool',
-    note: 'disk · 200 OK',
-    Form: SpoolForm,
-    anchor: [1.62, DECK + 0.4, -0.97] as Point,
-    depth: -0.23,
-  },
-  {
-    key: 'workers',
-    label: 'Digest workers',
-    note: 'tokio · in-process',
-    Form: WorkersForm,
-    anchor: [0.11, DECK + 0.67, 0.05] as Point,
-    depth: -0.2,
-  },
-  {
-    key: 'fold',
-    label: 'Fingerprint',
-    note: 'sha-256 · one row',
-    Form: FoldForm,
-    anchor: [0.35, DECK + 0.69, 1.24] as Point,
-    depth: 0.65,
-  },
-] as const;
 
 /**
  * The order the parts are painted in: furthest from the eye first.

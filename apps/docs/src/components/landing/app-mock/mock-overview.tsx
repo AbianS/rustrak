@@ -5,7 +5,6 @@ import type { MotionValue } from 'motion/react';
 import { cn } from '@/lib/utils';
 import {
   CrashFreeTrend,
-  compact,
   ErrorVolumeChart,
   SessionHealthArea,
   TransactionP95Bars,
@@ -14,6 +13,7 @@ import {
 import { useCompact } from './design';
 import { useScene } from './event-scene';
 import { ISSUES, SESSIONS, TRANSACTIONS, VOLUME } from './fixtures';
+import { compact } from './format';
 import { MockCard, MockLevel, MockShell, usePad } from './mock-shell';
 import {
   Enter,

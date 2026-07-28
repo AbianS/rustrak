@@ -41,7 +41,7 @@ export const RIGHT = 0.38;
  * leaves every face opaque, so a solid in front of another solid hides it —
  * which is the entire job of a solid.
  */
-export const shade = (color: string, tone: number) =>
+const shade = (color: string, tone: number) =>
   tone >= 1
     ? color
     : `color-mix(in oklab, ${color} ${Math.round(tone * 100)}%, black)`;
@@ -82,10 +82,6 @@ export const BOARD_FILL = 'oklch(0.21 0 0)';
  */
 export const ELL_RX = Math.SQRT2 * COS30 * U;
 export const ELL_RY = Math.SQRT2 * SIN30 * U;
-
-/** Screen position of a world point, as numbers rather than as a string. */
-export const px = ([x, , z]: Point) => sx(x, z);
-export const py = ([x, y, z]: Point) => sy(x, y, z);
 
 /**
  * A rectangular solid, sized independently along `x` and along `z`.

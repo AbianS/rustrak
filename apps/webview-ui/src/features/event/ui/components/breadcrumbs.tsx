@@ -10,23 +10,13 @@ import {
   Navigation,
   Terminal,
 } from 'lucide-react';
-import { getSummaryBreadcrumbs } from '@/features/event/lib/breadcrumbs';
+import {
+  type Breadcrumb,
+  type GroupedBreadcrumb,
+  getSummaryBreadcrumbs,
+} from '@/features/event/lib/breadcrumbs';
 import { cn } from '@/shared/lib/utils';
 import { BreadcrumbsExpand } from './breadcrumbs-expand';
-
-export interface Breadcrumb {
-  timestamp?: number;
-  type?: string;
-  category?: string;
-  message?: string;
-  level?: string;
-  data?: Record<string, unknown>;
-}
-
-export interface GroupedBreadcrumb {
-  crumb: Breadcrumb;
-  count: number;
-}
 
 interface BreadcrumbsProps {
   breadcrumbs?: Breadcrumb[] | { values?: Breadcrumb[] };
@@ -41,29 +31,6 @@ function normalizeBreadcrumbs(
     return breadcrumbs.values;
   }
   return [];
-}
-
-export function groupConsecutiveBreadcrumbs(
-  items: Breadcrumb[],
-): GroupedBreadcrumb[] {
-  const grouped: GroupedBreadcrumb[] = [];
-  for (const crumb of items) {
-    const last = grouped[grouped.length - 1];
-    if (
-      last &&
-      last.crumb.category === crumb.category &&
-      last.crumb.message === crumb.message &&
-      last.crumb.level === crumb.level &&
-      last.crumb.type === crumb.type &&
-      !crumb.data &&
-      !last.crumb.data
-    ) {
-      last.count++;
-    } else {
-      grouped.push({ crumb, count: 1 });
-    }
-  }
-  return grouped;
 }
 
 /** Pick a timeline icon from the crumb category/type. */

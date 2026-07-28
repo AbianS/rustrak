@@ -14,7 +14,8 @@ import { DUR, EASE } from '../motion';
 import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 import { COMPACT, DESKTOP, useMediaQuery } from '../use-media-query';
-import { EngineScene, PARTS } from './engine-scene';
+import { EngineScene } from './engine-scene';
+import { PARTS } from './engine-scene/parts-table';
 
 /**
  * How the server stays small, told by opening it.

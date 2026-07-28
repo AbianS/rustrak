@@ -8,6 +8,7 @@ import {
 } from 'motion/react';
 import * as m from 'motion/react-m';
 import { useLayoutEffect, useRef, useState } from 'react';
+import { type Point, PRESS } from './cursor-motion';
 import { POINTER_ORIGIN } from './pointer-origin';
 
 /**
@@ -81,11 +82,6 @@ import { POINTER_ORIGIN } from './pointer-origin';
 const DESIGN_W = 1240;
 const DESIGN_H = 840;
 
-export interface Point {
-  x: number;
-  y: number;
-}
-
 type Quad = [Point, Point, Point, Point];
 
 /**
@@ -133,11 +129,6 @@ const EDGE_ARROW = 1.8;
  */
 const RIM = 2.6;
 
-/** Slowest and fastest an ordinary hop may be, and the distance between them. */
-const NEAR = 0.85;
-const FAR = 1.45;
-const SPAN = 900;
-
 /**
  * The glide.
  *
@@ -146,15 +137,6 @@ const SPAN = 900;
  * drifting, which is the quality being asked for.
  */
 const GLIDE = [0.42, 0, 0.18, 1] as const;
-
-/** How long the button is held down. */
-export const PRESS = 0.14;
-
-/** Time to cross from one target to another. */
-export function travelTime(from: Point, to: Point): number {
-  const distance = Math.hypot(to.x - from.x, to.y - from.y);
-  return NEAR + Math.min(distance / SPAN, 1) * (FAR - NEAR);
-}
 
 interface Frame {
   w: number;

@@ -17,6 +17,7 @@ import { PlatformIcon } from 'platformicons';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deleteProject } from '@/features/project/api/mutations';
+import { PROJECT_COLUMNS } from '@/features/project/model/columns';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -36,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/shared/ui/components/shadcn/dropdown-menu';
-import { PROJECT_COLUMNS, ProjectStatsCells } from './project-stats-cells';
+import { ProjectStatsCells } from './project-stats-cells';
 
 /** Shared styling for every column header in the table. */
 const HEADER =

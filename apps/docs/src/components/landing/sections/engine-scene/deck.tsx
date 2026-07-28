@@ -36,7 +36,7 @@ import { BOARD_FILL, Box, EDGE, ELL_RX, ELL_RY } from './solids';
  * around the edge of every part, so each one is visibly *seated in a place made
  * for it* rather than set down on a plate.
  */
-export const TRACE_Y = DECK + 0.002;
+const TRACE_Y = DECK + 0.002;
 
 /** One part's footprint: an outline on the surface with pads at its corners. */
 function Footprint({
@@ -104,7 +104,7 @@ function Footprint({
  * corner, along the other. A straight diagonal between two pads is the one
  * thing that would give this away as a drawing of a board rather than a board.
  */
-export function traceRun(
+function traceRun(
   from: [number, number],
   to: [number, number],
   zFirst: boolean,
@@ -178,7 +178,7 @@ export function traceRun(
  * the two is a hydration mismatch. A fixed seed makes it fixed art that merely
  * happens to have been computed.
  */
-export function seeded(seed: number) {
+function seeded(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -205,7 +205,7 @@ export function seeded(seed: number) {
  * density is what turns a flat marking into a texture that looks like it is
  * standing up, so the bundles are small, spaced, and far apart.
  */
-export const CIRCUIT = (() => {
+const CIRCUIT = (() => {
   const rand = seeded(0x5eed_1a7c);
   const edge = BOARD - 0.22;
   /*

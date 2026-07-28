@@ -4,6 +4,7 @@ import { useTransform } from 'motion/react';
 import * as m from 'motion/react-m';
 import { Fragment, type ReactNode } from 'react';
 import type { SessionBucket, VolumeBucket } from './fixtures';
+import { compact } from './format';
 import {
   Breath,
   Draw,
@@ -27,29 +28,8 @@ import {
  * reproduced from the real components rather than approximated.
  */
 
-/**
- * Built once, at module scope.
- *
- * `new Intl.NumberFormat(...)` is not a cheap constructor — it resolves a
- * locale and builds a formatter — and this used to run on every call. `compact`
- * is a `Ticker` formatter, so "every call" meant several times a frame for as
- * long as a counter was on screen.
- */
-const COMPACT = new Intl.NumberFormat('en', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-});
-
-/** `compactCount` from apps/webview-ui/src/lib/chart-format.ts. */
-export function compact(value: number): string {
-  if (Math.abs(value) < 1000) {
-    return String(Math.round(value));
-  }
-  return COMPACT.format(value);
-}
-
 /** `crashFreeColor` from lib/session-health.ts — the rate colours itself. */
-export function crashFreeColor(rate: number): string {
+function crashFreeColor(rate: number): string {
   if (rate >= 0.99) return 'var(--chart-3)';
   if (rate >= 0.95) return 'var(--sev-warning)';
   return 'var(--sev-error)';
