@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/actions/auth';
 import { ServiceUnavailable } from '@/components/service-unavailable';
 import {
   Card,
@@ -10,6 +9,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { getCurrentUser } from '@/features/user/api/queries';
 
 export const metadata: Metadata = {
   title: 'Account | Rustrak',

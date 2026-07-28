@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { login } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -19,6 +18,7 @@ import {
   FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { login } from '@/features/user/api/mutations';
 import { SERVER_ERROR_PATH } from '@/lib/form-errors';
 
 const loginSchema = z.object({

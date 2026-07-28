@@ -8,7 +8,6 @@ import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { createInvitation } from '@/actions/invitations';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { createInvitation } from '@/features/user/api/mutations';
 import { copyToClipboard } from '@/lib/clipboard';
 import { applyServerFieldErrors } from '@/lib/form-errors';
 

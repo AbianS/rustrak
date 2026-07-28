@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import { listAlertRules, listIntegrations } from '@/features/alert/api/queries';
 import { AlertsSettings } from '@/features/alert/ui/alerts-settings';
+import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/lib/results';
 
 interface AlertsSettingsPageProps {

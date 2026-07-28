@@ -1,6 +1,5 @@
 import { Bot } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import {
   Card,
@@ -21,6 +20,7 @@ import { AgentBreakdownChart } from '@/features/agent-trace/ui/agent-breakdown-c
 import { AgentDurationChart } from '@/features/agent-trace/ui/agent-duration-chart';
 import { AgentTimeseriesChart } from '@/features/agent-trace/ui/agent-timeseries-chart';
 import { AgentTracesTable } from '@/features/agent-trace/ui/agent-traces-table';
+import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/lib/results';
 
 interface AgentsPageProps {

@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { getCurrentUser } from '@/actions/auth';
 import { OutageScreen } from '@/components/outage-screen';
 import { UpdateBannerSlot } from '@/components/update-banner-slot';
+import { getCurrentUser } from '@/features/user/api/queries';
 import { Header } from './header';
 
 export default async function MainLayout({

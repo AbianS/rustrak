@@ -1,7 +1,7 @@
 import type { RustrakError, User } from '@rustrak/client';
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CurrentUser } from '@/actions/auth';
+import type { CurrentUser } from '@/features/user/api/queries';
 
 const getCurrentUser = vi.fn<() => Promise<CurrentUser>>();
 
@@ -17,7 +17,7 @@ const redirect = vi.fn((to: string): never => {
 });
 
 vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
-vi.mock('@/actions/auth', () => ({
+vi.mock('@/features/user/api/queries', () => ({
   getCurrentUser: () => getCurrentUser(),
 }));
 vi.mock('@/components/update-banner-slot', () => ({

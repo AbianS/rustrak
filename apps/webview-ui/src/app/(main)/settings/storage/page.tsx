@@ -9,8 +9,6 @@ import {
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { getCurrentUser } from '@/actions/auth';
-import { getProjects } from '@/actions/projects';
 import { getStorageProjects, getStorageSummary } from '@/actions/storage';
 import { LoadFailure } from '@/components/load-failure';
 import { ServiceUnavailable } from '@/components/service-unavailable';
@@ -29,6 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { getProjects } from '@/features/project/api/queries';
+import { getCurrentUser } from '@/features/user/api/queries';
 import { formatBytes } from '@/lib/utils';
 import { SourceMapGc } from './source-map-gc';
 import { StorageCleanup } from './storage-cleanup';

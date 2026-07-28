@@ -1,7 +1,7 @@
 import { Zap } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
+import { getProject } from '@/features/project/api/queries';
 import { getTransactionStats } from '@/features/transaction/api/queries';
 import { TransactionStatsTable } from './transaction-stats-table';
 

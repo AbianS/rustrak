@@ -1,12 +1,47 @@
-'use server';
+import 'server-only';
 
+/**
+ * Reads for the project feature.
+ *
+ * `stats` lives here rather than in a slice of its own: the aggregates are
+ * *of a project*, not a concept a user manipulates.
+ */
 import type {
   EventTimeseries,
+  ListProjectsOptions,
+  OffsetPaginatedResponse,
+  Project,
   ProjectStatsSummary,
   Result,
   RustrakError,
 } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
+
+/**
+ * Get projects with pagination.
+ *
+ * @param options - Optional pagination options
+ * @returns Paginated list of projects, or the failure that stopped it
+ */
+export async function getProjects(
+  options?: ListProjectsOptions,
+): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
+  const client = await createClient();
+  return client.projects.list(options);
+}
+
+/**
+ * Get a single project by ID.
+ *
+ * @param id - Project ID
+ * @returns The project
+ */
+export async function getProject(
+  id: number,
+): Promise<Result<Project, RustrakError>> {
+  const client = await createClient();
+  return client.projects.get(id);
+}
 
 /**
  * Get time-bucketed error-event volume for a project, split by severity.

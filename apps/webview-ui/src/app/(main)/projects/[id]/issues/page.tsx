@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import { listIssues } from '@/features/issue/api/queries';
 import { IssuesList } from '@/features/issue/ui/issues-list';
+import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/lib/results';
 
 interface IssuesPageProps {

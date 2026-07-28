@@ -1,16 +1,15 @@
 import { ShieldX } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/actions/auth';
-import { listInvitations } from '@/actions/invitations';
-import { listTeam } from '@/actions/team';
 import { LoadFailure } from '@/components/load-failure';
 import { ServiceUnavailable } from '@/components/service-unavailable';
 import { Card, CardContent } from '@/components/ui/card';
+import { listTeam } from '@/features/user/api/mutations';
+import { getCurrentUser, listInvitations } from '@/features/user/api/queries';
+import { InviteForm } from '@/features/user/ui/invite-form';
+import { PendingInvitations } from '@/features/user/ui/pending-invitations';
+import { TeamMembersList } from '@/features/user/ui/team-members-list';
 import { loadAll } from '@/lib/results';
-import { InviteForm } from './_components/invite-form';
-import { PendingInvitations } from './_components/pending-invitations';
-import { TeamMembersList } from './_components/team-members-list';
 
 export const metadata: Metadata = {
   title: 'Team | Rustrak',

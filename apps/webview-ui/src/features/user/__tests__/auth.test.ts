@@ -27,7 +27,7 @@ describe('getCurrentUser', () => {
   });
 
   async function subject() {
-    const { getCurrentUser } = await import('@/actions/auth');
+    const { getCurrentUser } = await import('@/features/user/api/queries');
     return getCurrentUser();
   }
 

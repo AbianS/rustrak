@@ -2,7 +2,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getProject } from '@/actions/projects';
 import { Section } from '@/components/collapsible-section';
 import { CopyAsDropdown } from '@/components/copy-as-dropdown';
 import { EventChart } from '@/components/event-chart';
@@ -36,6 +35,7 @@ import {
 import { IssueActions } from '@/features/issue/ui/issue-actions';
 import { IssueActivity } from '@/features/issue/ui/issue-activity';
 import { StatusIndicator } from '@/features/issue/ui/issue-indicators';
+import { getProject } from '@/features/project/api/queries';
 import { cn } from '@/lib/utils';
 import { CollapsibleRail } from '@/shared/ui/collapsible-rail';
 

@@ -16,7 +16,6 @@ import { useRouter } from 'next/navigation';
 import { PlatformIcon } from 'platformicons';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { deleteProject } from '@/actions/projects';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { deleteProject } from '@/features/project/api/mutations';
 import { cn } from '@/lib/utils';
 import { PROJECT_COLUMNS, ProjectStatsCells } from './project-stats-cells';
 

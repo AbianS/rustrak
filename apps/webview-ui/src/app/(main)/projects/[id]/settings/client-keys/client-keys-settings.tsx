@@ -13,7 +13,7 @@ import {
   renderSnippet,
 } from '@/lib/platform-snippets';
 import { platformLabel } from '@/lib/platforms';
-import { SettingSection } from '../setting-row';
+import { SettingSection } from '@/shared/ui/setting-row';
 
 interface ClientKeysSettingsProps {
   project: Project;

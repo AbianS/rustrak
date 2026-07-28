@@ -1,8 +1,4 @@
 import type { RustrakError } from '@rustrak/client';
-import {
-  getProjectEventTimeseries,
-  getProjectStatsSummary,
-} from '@/actions/stats';
 import { ErrorVolumeChart } from '@/components/charts/error-volume-chart';
 import { StatTile } from '@/components/charts/stat-tile';
 import { TransactionP95Bars } from '@/components/charts/transaction-p95-bars';
@@ -17,6 +13,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { listIssues } from '@/features/issue/api/queries';
 import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import {
+  getProjectEventTimeseries,
+  getProjectStatsSummary,
+} from '@/features/project/api/queries';
 import {
   getSessionSummary,
   getSessionTimeseries,

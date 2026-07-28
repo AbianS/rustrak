@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import { getProject } from '@/features/project/api/queries';
 import {
   getAllReleaseHealthRows,
   getNewIssuesForRelease,

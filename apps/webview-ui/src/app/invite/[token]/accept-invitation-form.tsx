@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { acceptInvitation } from '@/actions/auth';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -17,6 +16,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { acceptInvitation } from '@/features/user/api/mutations';
 
 const acceptSchema = z
   .object({

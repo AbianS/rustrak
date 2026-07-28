@@ -6,7 +6,6 @@ import { Copy, Mail, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
-import { revokeInvitation } from '@/actions/invitations';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { revokeInvitation } from '@/features/user/api/mutations';
 import { copyToClipboard } from '@/lib/clipboard';
 
 interface PendingInvitationsProps {

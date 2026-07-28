@@ -5,7 +5,6 @@ import { LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { logout } from '@/actions/auth';
 import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { logout } from '@/features/user/api/mutations';
 
 interface HeaderProps {
   user: User;

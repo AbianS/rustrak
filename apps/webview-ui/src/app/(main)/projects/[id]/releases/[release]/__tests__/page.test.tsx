@@ -14,7 +14,7 @@ const getNewIssuesForRelease =
 const project = { id: 1, name: 'Checkout' } as Project;
 const rows = [{ environment: 'production' }] as ReleaseHealthRow[];
 
-vi.mock('@/actions/projects', () => ({
+vi.mock('@/features/project/api/queries', () => ({
   getProject: async () => ({ success: true, data: project }),
 }));
 // One mock, not two. `releases` and `sessions` used to be separate action

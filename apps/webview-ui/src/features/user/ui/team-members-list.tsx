@@ -6,7 +6,6 @@ import { Loader2, Trash2, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { removeTeamMember, updateUserRole } from '@/actions/team';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +40,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  removeTeamMember,
+  updateUserRole,
+} from '@/features/user/api/mutations';
 
 interface TeamMembersListProps {
   members: TeamMember[];

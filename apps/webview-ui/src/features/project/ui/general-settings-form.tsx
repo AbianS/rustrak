@@ -8,7 +8,6 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { deleteProject, updateProject } from '@/actions/projects';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,15 +28,16 @@ import {
   FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { describeError } from '@/lib/error-copy';
-import { applyServerFieldErrors, SERVER_ERROR_PATH } from '@/lib/form-errors';
+import { deleteProject, updateProject } from '@/features/project/api/mutations';
 import {
   PROJECT_NAME_MAX_LENGTH,
   projectNameField,
   projectSlugField,
-} from '@/lib/project-fields';
-import { SettingRow, SettingSection } from '../setting-row';
-import { PlatformPicker } from './platform-picker';
+} from '@/features/project/model/fields';
+import { describeError } from '@/lib/error-copy';
+import { applyServerFieldErrors, SERVER_ERROR_PATH } from '@/lib/form-errors';
+import { PlatformPicker } from '@/shared/ui/platform-picker';
+import { SettingRow, SettingSection } from '@/shared/ui/setting-row';
 
 /**
  * The same rules the create form uses, imported rather than restated.

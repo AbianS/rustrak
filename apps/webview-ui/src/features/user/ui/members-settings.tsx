@@ -5,8 +5,6 @@ import { Loader2, Trash2, UserPlus, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { removeProjectMember, upsertProjectMember } from '@/actions/members';
-import { listTeam } from '@/actions/team';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +40,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  listTeam,
+  removeProjectMember,
+  upsertProjectMember,
+} from '@/features/user/api/mutations';
 
 const PROJECT_ROLES: { value: ProjectRole; label: string }[] = [
   { value: 'viewer', label: 'Viewer' },

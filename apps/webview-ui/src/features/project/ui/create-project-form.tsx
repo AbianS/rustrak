@@ -8,7 +8,6 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
-import { createProject } from '@/actions/projects';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -20,16 +19,17 @@ import {
   FormRootError,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { applyServerFieldErrors } from '@/lib/form-errors';
-import { platformLabel } from '@/lib/platforms';
+import { createProject } from '@/features/project/api/mutations';
 import {
   PROJECT_NAME_MAX_LENGTH,
   projectNameField,
   projectSlugField,
   slugifyPreview,
-} from '@/lib/project-fields';
+} from '@/features/project/model/fields';
+import { applyServerFieldErrors } from '@/lib/form-errors';
+import { platformLabel } from '@/lib/platforms';
 import { cn } from '@/lib/utils';
-import { PlatformGrid } from './platform-grid';
+import { PlatformGrid } from '@/shared/ui/platform-grid';
 
 const createProjectFormSchema = z.object({
   platform: z.string().min(1, 'Choose a platform to continue'),
