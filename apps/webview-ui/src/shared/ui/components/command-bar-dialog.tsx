@@ -15,6 +15,7 @@ import {
 } from '@/shared/config/commands';
 import { scoreCommand } from '@/shared/lib/command-score';
 import { cn } from '@/shared/lib/utils';
+import { useIsMobile } from '@/shared/ui/hooks/use-mobile';
 import {
   Command,
   CommandEmpty,
@@ -45,6 +46,18 @@ const PANEL_PAGES: ProjectPage[] = [
  */
 const filterCommand = (value: string, search: string, keywords?: string[]) =>
   scoreCommand([value, ...(keywords ?? [])].join(' '), search);
+
+/**
+ * How many project-page rows a search will render.
+ *
+ * The flattened set is every project times every page, which on a full
+ * instance is a thousand rows that cmdk would mount and then rescore on each
+ * keystroke. So the matching runs here first, in plain JS over strings, and
+ * only the best rows are ever mounted. Nothing is lost that anyone would have
+ * read: a query returning more than this many project pages is a query that
+ * needed narrowing, and the static links below are never subject to the cap.
+ */
+const SEARCH_ROW_LIMIT = 50;
 
 /**
  * cmdk lowercases item values and collapses their whitespace before it reports
@@ -386,6 +399,10 @@ export default function CommandBarDialog({
 }: CommandBarDialogProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  // The preview column is `md:flex`, and 768px is exactly that breakpoint.
+  // Below it the column is `display: none`, where `focus()` is a no-op, so
+  // every key the column claims would land nowhere.
+  const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   /**
    * Which page of the preview column has focus, and by the same token whether
@@ -409,9 +426,11 @@ export default function CommandBarDialog({
     return projects.find((project) => rowKey(project.name) === key) ?? null;
   }, [projects, selected]);
 
-  // Derived rather than stored, so a selection that stops being a project
-  // takes the column with it without an effect chasing it.
-  const showPreview = selectedProject !== null && panelIndex !== null;
+  // Derived rather than stored, so a selection that stops being a project --
+  // or a viewport that drops below `md` mid-session -- takes the column with
+  // it without an effect chasing it.
+  const canPreview = selectedProject !== null && !isMobile;
+  const showPreview = canPreview && panelIndex !== null;
 
   // Nothing to tear down on the way out: `CommandBar` keys this component on
   // the open count, so the next open is a new instance and every piece of
@@ -445,7 +464,11 @@ export default function CommandBarDialog({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!selectedProject) return;
+    // `isMobile` as well as the selection: below `md` there is no column to
+    // enter, and claiming Tab there would strand `panelIndexRef` non-null and
+    // route every subsequent arrow and Enter into a hidden subtree, which
+    // reads as the visible list having died.
+    if (!selectedProject || isMobile) return;
 
     // DOM focus reaches the column one render after `panelIndex` is set, so a
     // quick second keystroke still arrives here. Routing by intent rather than
@@ -482,26 +505,62 @@ export default function CommandBarDialog({
     }
   };
 
+  // Collapsed at rest, flattened while searching. A project is one row until
+  // the viewer types, at which point every project's pages become candidates
+  // and the list only gets long once a query is there to make it short again.
+  const searching = query.trim().length > 0;
+
+  /**
+   * The project pages a query matches, best first and capped.
+   *
+   * Scored here rather than handed to cmdk row by row. It is the same function
+   * cmdk would have called through `filter`, over the same string, so the rows
+   * that survive are exactly the rows it would have kept and it still does the
+   * final ordering -- the difference is that the thousand that do not survive
+   * were never mounted. See `SEARCH_ROW_LIMIT`.
+   */
+  const matches = useMemo(() => {
+    if (query.trim().length === 0) return [];
+
+    const scored: {
+      project: CommandProject;
+      page: ProjectPage;
+      value: string;
+      score: number;
+    }[] = [];
+
+    for (const project of projects) {
+      for (const page of PANEL_PAGES) {
+        const value = `${project.name} ${page.label}`;
+        const score = filterCommand(value, query, page.keywords);
+        if (score > 0) scored.push({ project, page, value, score });
+      }
+    }
+
+    // Stable, so projects that score alike stay in the order they arrived.
+    return scored.sort((a, b) => b.score - a.score).slice(0, SEARCH_ROW_LIMIT);
+  }, [projects, query]);
+
   // Only ever rendered by the search, where every project's pages sit in one
   // list, so the badge is unconditional: without it "Issues" appears once per
   // project with nothing to tell the rows apart.
-  const pageRows = (project: CommandProject) =>
-    PANEL_PAGES.map((page) => {
-      const value = `${project.name} ${page.label}`;
-      return (
-        <Row
-          key={`${project.id}${page.segment}`}
-          value={value}
-          keywords={page.keywords}
-          label={page.label}
-          description={page.description}
-          badge={<ProjectBadge project={project} />}
-          media={<page.icon className="size-[18px] text-muted-foreground" />}
-          onSelect={() => go(`/projects/${project.id}${page.segment}`)}
-          onHover={() => panelIndex === null && setSelected(value)}
-        />
-      );
-    });
+  const pageRow = (
+    project: CommandProject,
+    page: ProjectPage,
+    value: string,
+  ) => (
+    <Row
+      key={`${project.id}${page.segment}`}
+      value={value}
+      keywords={page.keywords}
+      label={page.label}
+      description={page.description}
+      badge={<ProjectBadge project={project} />}
+      media={<page.icon className="size-[18px] text-muted-foreground" />}
+      onSelect={() => go(`/projects/${project.id}${page.segment}`)}
+      onHover={() => panelIndex === null && setSelected(value)}
+    />
+  );
 
   const linkRows = (links: CommandLink[], badgeLabel?: string) =>
     links.map((link) => (
@@ -517,12 +576,6 @@ export default function CommandBarDialog({
         onHover={() => panelIndex === null && setSelected(link.label)}
       />
     ));
-
-  // Collapsed at rest, flattened while searching. A project is one row until
-  // the viewer types, at which point every project's pages are rendered and
-  // cmdk filters across all of them: the list only gets long once a query is
-  // there to make it short again.
-  const searching = query.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -578,7 +631,9 @@ export default function CommandBarDialog({
                 // spends a heading on every match, which for a query that hits
                 // one page per project is three headings for three rows.
                 <Section heading="Results">
-                  {projects.flatMap((project) => pageRows(project))}
+                  {matches.map(({ project, page, value }) =>
+                    pageRow(project, page, value),
+                  )}
                   {linkRows(PROJECT_COMMANDS, 'General')}
                   {linkRows(SETTINGS_COMMANDS, 'Settings')}
                 </Section>
@@ -637,10 +692,9 @@ export default function CommandBarDialog({
             ) : null}
           </div>
 
-          <Footer
-            hasPreview={selectedProject !== null}
-            previewOpen={showPreview}
-          />
+          {/* `canPreview`, so the hint is not advertising a Tab that does
+              nothing on the viewports where the column cannot open. */}
+          <Footer hasPreview={canPreview} previewOpen={showPreview} />
         </Command>
       </DialogContent>
     </Dialog>

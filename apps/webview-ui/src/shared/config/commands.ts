@@ -53,6 +53,18 @@ export type CommandProject = {
   platform: string | null;
 };
 
+/**
+ * How many projects the command bar carries.
+ *
+ * A deliberate scope, not an accident of the default page size. The bar is
+ * rendered by the layout, so its projects read runs on *every* authenticated
+ * page: paging to exhaustion would turn one request per navigation into one
+ * per hundred projects, to populate a palette that already caps how many rows
+ * it will show. An instance past this many projects needs the search to move
+ * server-side, which is a different change to making this number bigger.
+ */
+export const COMMAND_BAR_PROJECT_LIMIT = 100;
+
 /** Every project's own pages, in the order the bar lists them. */
 export const PROJECT_PAGES: ProjectPage[] = [
   {

@@ -186,9 +186,3 @@
     cursor: pointer;
   }
 }
-
-@custom-variant can-hover {
-  @media (pointer: fine) {
-    @slot;
-  }
-}
