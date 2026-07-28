@@ -1,12 +1,6 @@
 import { projectFiles } from 'archunit';
 import { describe, expect, it } from 'vitest';
-import {
-  isTestFile,
-  read,
-  SRC,
-  sourceFilesUnder,
-  withoutComments,
-} from './source-files';
+import { isTestFile, withoutComments } from './predicates';
 
 /**
  * AD-9 rule (10): no `'use server'` directive exists anywhere outside
@@ -42,11 +36,19 @@ describe('AD-9 rule (10): where `use server` may appear', () => {
   // archunit reports an `EmptyTestViolation` when its filters match nothing,
   // but it does not expose *how many* it matched. AD-9 requires a floor that is
   // a specific number, on every rule whatever the mechanism, so the population
-  // is asserted separately rather than delegated to the library.
-  it('reads the population it expects to read', () => {
-    const withDirective = sourceFilesUnder(SRC)
-      .filter((f) => !f.includes('__tests__'))
-      .filter((f) => USE_SERVER.test(withoutComments(read(f))));
+  // is asserted separately -- through `projectFiles` all the same, so it counts
+  // the files the rule below will actually judge.
+  it('reads the population it expects to read', async () => {
+    const withDirective = await projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo(
+        (file) =>
+          !isTestFile(file.path) &&
+          USE_SERVER.test(withoutComments(file.content)),
+        'counted',
+      )
+      .check();
 
     // 6 after phase 6: the `mutations.ts` of issue, token, alert, user and
     // project, plus storage. Nine slices have no mutations at all -- nothing

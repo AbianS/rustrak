@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { getProjects } from '@/features/project/api/queries';
 import { ProjectsList } from '@/features/project/ui/projects-list';
 import { LoadFailure } from '@/shared/ui/load-failure';
-import { ProjectsHeader } from './projects-header';
+import { ProjectsHeader } from './_components/projects-header';
 
 export const metadata: Metadata = {
   title: 'Projects | Rustrak',

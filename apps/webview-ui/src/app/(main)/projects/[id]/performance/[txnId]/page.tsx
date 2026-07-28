@@ -3,12 +3,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
+import type { Span, TraceContext } from '@/features/transaction/model/span';
+import { MeasurementsCard } from '@/features/transaction/ui/measurements-card';
+import { SpanWaterfall } from '@/features/transaction/ui/span-waterfall';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/load-failure';
 import { Badge } from '@/shared/ui/shadcn/badge';
-import { MeasurementsCard } from './measurements-card';
-import type { Span, TraceContext } from './span-waterfall';
-import { SpanWaterfall } from './span-waterfall';
 
 interface TransactionDetailPageProps {
   params: Promise<{ id: string; txnId: string }>;

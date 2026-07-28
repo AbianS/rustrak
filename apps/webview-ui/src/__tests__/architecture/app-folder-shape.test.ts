@@ -1,61 +1,118 @@
-import { basename, dirname } from 'node:path';
+import { projectFiles } from 'archunit';
 import { describe, expect, it } from 'vitest';
-import { APP, containsRoute, directoriesUnder, rel } from './source-files';
+import { isTestFile } from './predicates';
 
 /**
- * AD-9 rule (8): every folder under `app/` is a route segment, a route group
- * `(name)`, a parallel slot `@name`, or a private `_`-prefixed folder — and no
- * `_` folder sits at the bare `app/` root.
+ * AD-9 rule (8): everything under `app/` is either a file Next itself gives
+ * meaning to, or a component sitting in a `_components/` folder.
  *
- * The naive version of this rule, matching folder names against a pattern,
- * cannot work: `components` is a perfectly legal segment name, so the live
- * violation at `app/(main)/settings/team/components/` would pass. What makes it
- * a violation is that it contributes no route while pretending to be one.
+ * **This replaces a rule that checked the wrong thing.** The previous version
+ * walked *directories* and asked whether each one contributed a route, which
+ * caught a folder named `components/` pretending to be a route segment but was
+ * blind to the actual constraint: sixteen components sat loose beside their
+ * `page.tsx`, in folders that did contribute routes, and the rule passed. The
+ * spec's requirement is about files, so the rule is about files now.
  *
- * So the predicate is about reachability, not spelling: a folder that is not a
- * group, a slot or `_`-prefixed must have a routable file **somewhere beneath
- * it**. That distinction is load-bearing in the other direction too —
- * `issues/[issueId]/events/` holds no `page.tsx` of its own and is entirely
- * legal, because its children do.
+ * The directory check is not lost, it is subsumed. A folder that contributes no
+ * route can only hold files, and those files are not in a `_components/` folder
+ * -- so the file rule reports them, and names the file rather than the folder,
+ * which is the thing someone has to move.
+ *
+ * **Unconditional, with no size threshold.** One component beside a page is as
+ * much a violation as eleven. A threshold is a judgement call, judgement calls
+ * rot, and the six-component threshold this replaces is what let the sixteen
+ * accumulate.
  */
 
-const ROUTE_GROUP = /^\(.+\)$/;
-const PARALLEL_SLOT = /^@/;
-const PRIVATE = /^_/;
+/**
+ * The files Next resolves by name. Everything here is a framework contract:
+ * renaming `page.tsx` unroutes the page, so these cannot move into
+ * `_components/` and are not violations.
+ *
+ * Metadata routes (`icon`, `opengraph-image`, ...) are included because Next
+ * resolves them the same way, even though none exists here yet. Listing them
+ * now costs nothing and stops the rule from firing on the first one added.
+ */
+const NEXT_SPECIAL = new Set([
+  'page',
+  'layout',
+  'loading',
+  'error',
+  'global-error',
+  'not-found',
+  'forbidden',
+  'unauthorized',
+  'template',
+  'default',
+  'route',
+  'sitemap',
+  'robots',
+  'manifest',
+  'icon',
+  'apple-icon',
+  'opengraph-image',
+  'twitter-image',
+]);
 
-const directories = directoriesUnder(APP);
+const posix = (path: string) => path.split('\\').join('/');
+
+/** `app/(main)/projects/[id]/page.tsx` -> `page`. */
+const stem = (path: string) =>
+  posix(path)
+    .split('/')
+    .pop()
+    ?.replace(/\.tsx?$/, '') ?? '';
 
 describe('AD-9 rule (8): the shape of app/', () => {
-  // The floor is a committed number, never `> 0`. A glob or a walk that
-  // silently matches one directory out of forty passes a `> 0` assertion while
-  // proving nothing, which is the vacuous-rule failure AD-9 exists to prevent.
-  it('walks the population it expects to walk', () => {
-    // 38 after phase 6, excluding `app/` itself. It was 39 before: the domain
-    // components left, and `settings/team/_components` went with them.
-    expect(directories.length).toBeGreaterThanOrEqual(38);
+  /**
+   * The population, asserted as a number rather than delegated to archunit.
+   *
+   * archunit raises `EmptyTestViolation` when a filter matches nothing, which
+   * covers the total-glob-failure case. It does not report how many files it
+   * did match, so a glob that silently narrowed to a handful would still pass
+   * every negative below. AD-9 asks for a specific committed number, so this
+   * counts them.
+   */
+  it('reads the population it expects to read', async () => {
+    const underApp = await projectFiles()
+      .inFolder('src/app/**')
+      .shouldNot()
+      .adhereTo(() => true, 'counted')
+      .check();
+
+    // 53 source files under `app/` after the seven domain components left for
+    // their features and `theme-selector` left for `shared/ui`. It was 60.
+    expect(underApp.length).toBeGreaterThanOrEqual(53);
   });
 
-  it('has no folder that contributes no route and is not marked private', () => {
-    const violations = directories
-      .filter((dir) => {
-        const name = basename(dir);
-        if (ROUTE_GROUP.test(name)) return false;
-        if (PARALLEL_SLOT.test(name)) return false;
-        if (PRIVATE.test(name)) return false;
-        return !containsRoute(dir);
-      })
-      .map(rel);
+  it('has no component sitting loose beside a route', async () => {
+    const rule = projectFiles()
+      .inFolder('src/app/**')
+      .shouldNot()
+      .adhereTo(
+        (file) =>
+          !isTestFile(file.path) &&
+          !NEXT_SPECIAL.has(stem(file.path)) &&
+          !posix(file.path).includes('/_components/'),
+        'sits loose under app/: move it to a _components/ folder, or to the feature whose type it renders',
+      );
 
-    expect(violations).toEqual([]);
+    await expect(rule).toPassAsync();
   });
 
-  it('has no private folder at the bare app/ root', () => {
-    const violations = directories
-      .filter((dir) => dirname(dir) === APP && PRIVATE.test(basename(dir)))
-      .map(rel);
+  /**
+   * A `_`-prefixed folder directly under `app/` has no route group to sit
+   * inside, so it competes with the root route rather than hiding beneath it.
+   */
+  it('has no private folder at the bare app/ root', async () => {
+    const rule = projectFiles()
+      .inFolder('src/app/**')
+      .shouldNot()
+      .adhereTo(
+        (file) => /(^|\/)app\/_[^/]+\//.test(posix(file.path)),
+        'sits in a private folder at the bare app/ root, where it competes with the root route',
+      );
 
-    // A `_`-prefixed folder directly under `app/` has no route group to sit
-    // inside, so it competes with the root route rather than hiding beneath it.
-    expect(violations).toEqual([]);
+    await expect(rule).toPassAsync();
   });
 });

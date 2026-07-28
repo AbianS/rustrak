@@ -47,7 +47,7 @@ const outage: RustrakError = {
 // single test's timeout is what made this file flaky on CI: the first test
 // overran, then finished during the second test's window and rendered into its
 // DOM. `vi.mock` is hoisted above this, so the mocks are already in place.
-let tiles: typeof import('../overview-tiles');
+let tiles: typeof import('../_components/overview-tiles');
 
 async function renderCrashFree() {
   render(await tiles.CrashFreeTile({ projectId: 1, period: '24h' }));
@@ -59,7 +59,7 @@ async function renderSessionHealth() {
 
 describe('session tiles on the project overview', () => {
   beforeAll(async () => {
-    tiles = await import('../overview-tiles');
+    tiles = await import('../_components/overview-tiles');
   });
 
   beforeEach(() => {

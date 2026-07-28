@@ -23,7 +23,7 @@ vi.mock('@/features/user/api/queries', () => ({
 vi.mock('@/shared/ui/update-banner-slot', () => ({
   UpdateBannerSlot: () => null,
 }));
-vi.mock('../header', () => ({
+vi.mock('@/features/user/ui/header', () => ({
   Header: ({ user }: { user: User }) => <div>header for {user.email}</div>,
 }));
 

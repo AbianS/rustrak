@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { listLogs } from '@/features/log/api/queries';
 import { getProject } from '@/features/project/api/queries';
 import { LoadFailure } from '@/shared/ui/load-failure';
-import { LogsList } from './logs-list';
+import { LogsList } from '@/features/log/ui/logs-list';
 
 interface LogsPageProps {
   params: Promise<{ id: string }>;

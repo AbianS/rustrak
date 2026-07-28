@@ -1,11 +1,6 @@
 import { projectFiles } from 'archunit';
 import { describe, expect, it } from 'vitest';
-import {
-  isTestFile,
-  SRC,
-  sourceFilesUnder,
-  withoutComments,
-} from './source-files';
+import { isTestFile, withoutComments } from './predicates';
 
 /**
  * AD-9 rule (7): no `success: false` object literal exists outside
@@ -39,12 +34,18 @@ import {
 const FALSE_LITERAL = /\bsuccess\s*:\s*false\b/;
 
 describe('AD-9 rule (7): only the client mints a failed Result', () => {
-  it('reads the population it expects to read', () => {
-    const files = sourceFilesUnder(SRC).filter((f) => !f.includes('__tests__'));
+  it('reads the population it expects to read', async () => {
+    const files = await projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo((file) => !isTestFile(file.path), 'counted')
+      .check();
 
     // 180 source files at 81f50af. This floor exists because the rule is a
     // negative one: if the folder glob ever stops matching, every file passes
-    // and the rule reports success while checking nothing.
+    // and the rule reports success while checking nothing. Counted through
+    // `projectFiles` rather than a walk of our own, so the population and the
+    // verdict below cannot disagree about which files exist.
     expect(files.length).toBeGreaterThanOrEqual(180);
   });
 

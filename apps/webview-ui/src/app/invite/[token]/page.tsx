@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { getInvitation } from '@/features/user/api/queries';
 import { RustrakLogoIcon } from '@/shared/ui/rustrak-logo';
 import { Button } from '@/shared/ui/shadcn/button';
-import { AcceptInvitationForm } from './accept-invitation-form';
+import { AcceptInvitationForm } from './_components/accept-invitation-form';
 
 export const metadata: Metadata = {
   title: 'Accept Invitation | Rustrak',

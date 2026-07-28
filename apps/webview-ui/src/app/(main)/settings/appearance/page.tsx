@@ -6,7 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/shared/ui/shadcn/card';
-import { ThemeSelector } from './theme-selector';
+import { ThemeSelector } from '@/shared/ui/theme-selector';
 
 export const metadata: Metadata = {
   title: 'Appearance | Rustrak',

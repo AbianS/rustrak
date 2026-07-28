@@ -2,29 +2,8 @@
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type KeyboardEvent, useMemo, useState } from 'react';
+import type { Span, TraceContext } from '@/features/transaction/model/span';
 import { cn } from '@/shared/lib/utils';
-
-/**
- * A single Sentry span. Every field is optional — SDKs omit most of them; a
- * minimal legal span is `{ span_id, start_timestamp, timestamp }`.
- */
-export interface Span {
-  span_id?: string;
-  parent_span_id?: string;
-  op?: string;
-  description?: string;
-  status?: string;
-  start_timestamp?: number;
-  timestamp?: number;
-  exclusive_time?: number;
-}
-
-export interface TraceContext {
-  span_id?: string;
-  op?: string;
-  status?: string;
-  description?: string;
-}
 
 interface SpanWaterfallProps {
   spans: Span[];
