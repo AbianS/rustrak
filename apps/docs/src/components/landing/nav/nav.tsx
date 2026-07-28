@@ -37,8 +37,8 @@ const ITEM_VARIANTS = {
 export function LandingNav() {
   const started = useStarted();
   const handheld = useMediaQuery(HANDHELD);
-  const menu = useMobileMenu();
-  const { lifted, tucked, untuck } = useNavScroll(menu.open);
+  const { lifted, tucked, untuck } = useNavScroll();
+  const menu = useMobileMenu({ onOpen: untuck });
 
   /** Out of the way only where it can be brought back: a phone, menu closed. */
   const away = handheld && tucked && !menu.open;

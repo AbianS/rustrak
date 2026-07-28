@@ -1,7 +1,5 @@
 import { formatDistanceToNow } from 'date-fns';
-import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import {
   getEventDetail,
   getEventNavigation,
@@ -17,15 +15,13 @@ import {
   getIssueAggregates,
   getIssueStats,
 } from '@/features/issue/api/queries';
-import { IssueActions } from '@/features/issue/ui/components/issue-actions';
 import { IssueActivity } from '@/features/issue/ui/components/issue-activity';
-import { StatusIndicator } from '@/features/issue/ui/components/issue-indicators';
 import { TagDistribution } from '@/features/issue/ui/components/tag-distribution';
 import { getProject } from '@/features/project/api/queries';
-import { cn } from '@/shared/lib/utils';
 import { CollapsibleRail } from '@/shared/ui/components/collapsible-rail';
 import { EventChart } from '@/shared/ui/components/event-chart';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { EventHeader } from './_components/event-header';
 import { EventSections } from './_components/event-sections';
 
 interface EventPageProps {
@@ -190,66 +186,14 @@ export default async function EventPage({ params }: EventPageProps) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] bg-background">
-      {/* Header */}
-      <header className="shrink-0 bg-card border-b">
-        <div className="w-full px-4 md:px-8 py-3 space-y-1.5">
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-            <Link
-              href={`/projects/${projectId}/issues`}
-              className="hover:text-foreground transition-colors"
-            >
-              Issues
-            </Link>
-            <span className="text-muted-foreground/40">/</span>
-            <span className="font-mono text-foreground truncate">
-              {issue.short_id}
-            </span>
-          </nav>
-
-          <div className="flex items-start justify-between gap-6">
-            <h1 className="text-lg sm:text-xl font-semibold tracking-tight truncate min-w-0">
-              {titleType}
-            </h1>
-            <div className="flex items-start gap-4 sm:gap-8 shrink-0">
-              <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Events (total)
-                </p>
-                <p className="text-xl font-semibold tabular-nums leading-tight">
-                  {compact(issue.event_count)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Users
-                </p>
-                <p className="text-xl font-semibold tabular-nums leading-tight">
-                  {compact(userCount)}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-2 text-sm text-muted-foreground min-w-0">
-            <CircleAlert className={cn('size-4 shrink-0 mt-0.5', levelText)} />
-            <p className="truncate font-mono text-foreground/90">{message}</p>
-          </div>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-            <StatusIndicator issue={issue} />
-            {issue.culprit && (
-              <span className="font-mono truncate">{issue.culprit}</span>
-            )}
-          </div>
-        </div>
-
-        {/* Workflow toolbar — same elevated band as the header */}
-        <div className="border-t">
-          <div className="w-full px-4 md:px-8 py-2">
-            <IssueActions issue={issue} projectId={projectId} />
-          </div>
-        </div>
-      </header>
+      <EventHeader
+        issue={issue}
+        projectId={projectId}
+        titleType={titleType}
+        message={message}
+        levelText={levelText}
+        userCount={userCount}
+      />
 
       {/* Body */}
       <div className="flex-1 min-h-0 flex">

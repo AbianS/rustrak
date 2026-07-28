@@ -1,7 +1,7 @@
 'use client';
 
 import { useMotionValueEvent, useScroll } from 'motion/react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 /**
  * Scroll past which the bar is allowed to tuck away at all.
@@ -27,11 +27,11 @@ const NAV_SHOW_AFTER = 48;
  * background. `tucked` is "get out of the way", and the two are separate
  * because a bar can be lifted for the whole page and tucked for none of it.
  *
- * The menu forces `tucked` off while it is open: the bar is what the menu is
- * closed back onto, and tucked underneath it the overlay would shut onto
- * nothing, leaving the reader no way to open it again short of scrolling.
+ * Neither is adjusted from anywhere else. The bar is what the menu is closed
+ * back onto, so opening the menu has to bring it back — but that is an event,
+ * not a prop change, so the menu calls  rather than this watching it.
  */
-export function useNavScroll(menuOpen: boolean) {
+export function useNavScroll() {
   const { scrollY } = useScroll();
   const [lifted, setLifted] = useState(false);
   const [tucked, setTucked] = useState(false);
@@ -64,10 +64,6 @@ export function useNavScroll(menuOpen: boolean) {
     if (run.current > NAV_HIDE_AFTER) setTucked(true);
     else if (run.current < -NAV_SHOW_AFTER) setTucked(false);
   });
-
-  useEffect(() => {
-    if (menuOpen) setTucked(false);
-  }, [menuOpen]);
 
   /**
    * Brings the bar back without a scroll.

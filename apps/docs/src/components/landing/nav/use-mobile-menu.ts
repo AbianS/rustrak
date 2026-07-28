@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
  * is still covered while it fades, so the scroll lock and the focus trap have
  * to outlive the dismissal.
  */
-export function useMobileMenu() {
+export function useMobileMenu({ onOpen }: { onOpen: () => void }) {
   const [open, setOpen] = useState(false);
   const [showing, setShowing] = useState(false);
 
@@ -24,6 +24,10 @@ export function useMobileMenu() {
   const openMenu = () => {
     setOpen(true);
     setShowing(true);
+    // The bar is what the menu closes back onto. Tucked underneath it the
+    // overlay would shut onto nothing, leaving no way to open it again short
+    // of scrolling.
+    onOpen();
   };
 
   const closeMenu = () => setOpen(false);
