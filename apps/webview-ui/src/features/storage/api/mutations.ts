@@ -3,29 +3,24 @@
 import type {
   CleanupCounts,
   CleanupOptions,
-  ProjectStorage,
   Result,
   RustrakError,
   SourceMapGcResult,
-  StorageSummary,
 } from '@rustrak/client';
 import { createClient } from '@/shared/api/rustrak';
 
-/** Instance-wide storage summary (counts + DB size + source-map weight). */
-export async function getStorageSummary(): Promise<
-  Result<StorageSummary, RustrakError>
-> {
-  const client = await createClient();
-  return client.storage.getSummary();
-}
-
-/** Per-project storage breakdown (one row per project). */
-export async function getStorageProjects(): Promise<
-  Result<ProjectStorage[], RustrakError>
-> {
-  const client = await createClient();
-  return client.storage.getProjects();
-}
+/**
+ * Everything the storage page's client components call.
+ *
+ * The two `preview*` functions mutate nothing, so they read oddly in a file
+ * named `mutations.ts`. They belong here all the same: the split is by **who
+ * calls it**, not by what it does to the database. `storage-cleanup.tsx` and
+ * `source-map-gc.tsx` are `'use client'` and invoke them from the browser, so
+ * they need the directive -- a `server-only` module would not be reachable.
+ *
+ * Both are POST on the server too, because a preview takes a `CleanupOptions`
+ * body it has to compute against.
+ */
 
 /** Dry-run: count what a cleanup would remove. Mutates nothing. */
 export async function previewStorageCleanup(

@@ -13,7 +13,7 @@ import { getProjects } from '@/features/project/api/queries';
 import {
   getStorageProjects,
   getStorageSummary,
-} from '@/features/storage/api/storage';
+} from '@/features/storage/api/queries';
 import { SourceMapGc } from '@/features/storage/ui/components/source-map-gc';
 import { StorageCleanup } from '@/features/storage/ui/components/storage-cleanup';
 import {

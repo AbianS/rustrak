@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   gcStorageSourceMaps,
   previewStorageSourceMapGc,
-} from '@/features/storage/api/storage';
+} from '@/features/storage/api/mutations';
 import { formatBytes } from '@/shared/lib/utils';
 import {
   AlertDialog,

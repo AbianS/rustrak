@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
   executeStorageCleanup,
   previewStorageCleanup,
-} from '@/features/storage/api/storage';
+} from '@/features/storage/api/mutations';
 import {
   AlertDialog,
   AlertDialogAction,
