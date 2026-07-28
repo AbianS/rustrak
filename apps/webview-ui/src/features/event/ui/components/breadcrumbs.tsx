@@ -110,6 +110,11 @@ export function BreadcrumbTimeline({
         const Icon = crumbIcon(crumb);
         const isLast = i === grouped.length - 1;
         return (
+          // `BreadcrumbTimeline` is presentational: no state, no filtering, no
+          // sort. `grouped` is built once from the event's crumbs, and two
+          // crumbs can be identical in every field but their position, so the
+          // index is the only thing that tells them apart.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
             {!isLast && (
               <span className="absolute left-[13px] top-7 bottom-0 w-px bg-border" />

@@ -191,7 +191,12 @@ export function ReleaseArticle({ release }: { release: Release }) {
             return release.sections.map((section, index) => {
               if (section.title) number += 1;
               return (
+                // react-doctor-disable-next-line react-doctor/no-array-index-as-key
                 <Section
+                  // The title is the key wherever there is one. The index is
+                  // reached only by the untitled lead section, of which a
+                  // release has at most one, in a list parsed once from static
+                  // MDX and never reordered.
                   key={section.title || index}
                   section={section}
                   index={number}

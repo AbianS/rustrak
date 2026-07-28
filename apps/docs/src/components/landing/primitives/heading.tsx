@@ -107,7 +107,9 @@ function ScrubbedHeading({
   const render = (word: string, index: number, tone: string) => {
     const start = index / total;
     return (
+      // react-doctor-disable-next-line react-doctor/no-array-index-as-key
       <Word
+        // Words split from an authored headline: fixed length, fixed order.
         key={`${index}-${word}`}
         progress={scrollYProgress}
         range={[start, start + 1 / total]}

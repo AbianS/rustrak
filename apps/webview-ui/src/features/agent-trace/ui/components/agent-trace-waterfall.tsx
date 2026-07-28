@@ -249,6 +249,10 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
             };
 
             return (
+              // `span_id` is the key wherever the span has one. The index is
+              // the fallback for a span the SDK sent without an id, which
+              // nothing else can distinguish.
+              // react-doctor-disable-next-line react-doctor/no-array-index-as-key
               <div key={span.span_id ?? `span-${i}`}>
                 {/* biome-ignore lint/a11y/useSemanticElements: the row contains
                     its own collapse <button>, and a <button> nested inside a

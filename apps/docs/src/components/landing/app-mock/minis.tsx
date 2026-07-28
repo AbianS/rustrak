@@ -154,6 +154,7 @@ export function GroupingMini() {
           not a component. */}
       <div className="mt-3 flex h-9 items-end gap-1">
         {bars.map((height, index) => (
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <Rise
             // A fixed decorative run.
             key={index}

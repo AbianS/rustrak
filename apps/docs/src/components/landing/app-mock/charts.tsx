@@ -761,10 +761,12 @@ export function TrendSparkline({
 
           return live && i === last ? (
             // A fixed authored series, never reordered.
+            // react-doctor-disable-next-line react-doctor/no-array-index-as-key
             <Breath key={i} origin="0 24px" amount={0.14}>
               {bar}
             </Breath>
           ) : (
+            // react-doctor-disable-next-line react-doctor/no-array-index-as-key
             <Fragment key={i}>{bar}</Fragment>
           );
         })}

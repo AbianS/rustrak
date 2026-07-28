@@ -125,6 +125,13 @@ export function StackFrameItem({
           {contextLines.length > 0 && (
             <div className="bg-zinc-900 font-mono text-xs leading-relaxed overflow-x-auto">
               {contextLines.map((line, i) => (
+                // Deliberately not `line.lineNumber`. `buildFrameContextLines`
+                // clamps its start at 0 when `pre_context` is longer than
+                // `lineno`, so a malformed payload yields repeated line numbers
+                // (0,1,2,3,4,2,3,4) and a stable-looking key would collide on
+                // exactly the input the clamp exists to survive. The list is
+                // built once per frame and never reorders.
+                // react-doctor-disable-next-line react-doctor/no-array-index-as-key
                 <CodeLine
                   key={i}
                   lineNumber={line.lineNumber}

@@ -597,7 +597,7 @@ body:has(.landing-root) {
 }
 
 .changelog-prose ul > li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0.82em;
@@ -799,7 +799,7 @@ body:has(.landing-root) {
 }
 
 .blog-prose ul > li::before {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   top: 0.85em;

@@ -51,6 +51,10 @@ export function ProjectSettingsNav({
   return (
     <nav className="flex flex-col gap-6">
       {navGroups.map((group, index) => (
+        // `navGroups` is a module-level constant. The index is the fallback for
+        // the one group that carries no label, and it cannot collide because a
+        // label is either present and unique or absent exactly once.
+        // react-doctor-disable-next-line react-doctor/no-array-index-as-key
         <div key={group.label ?? index} className="flex flex-col gap-1">
           {showLabels && group.label && (
             <span className="mb-1 px-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">

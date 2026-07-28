@@ -61,6 +61,7 @@ function Words({
 
         return (
           // Words are a fixed authored sentence, never reordered.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
           <Fragment key={`${index}-${word}`}>
             <span className="inline-block">
               {active ? (

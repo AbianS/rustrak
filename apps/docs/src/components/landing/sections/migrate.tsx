@@ -94,6 +94,7 @@ export function Migrate() {
                   const added = line.state === 'added';
 
                   return (
+                    // react-doctor-disable-next-line react-doctor/no-array-index-as-key
                     <m.div
                       // Lines are a fixed authored snippet, never reordered.
                       key={`${index}-${line.state}`}
