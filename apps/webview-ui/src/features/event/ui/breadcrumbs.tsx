@@ -10,7 +10,7 @@ import {
   Navigation,
   Terminal,
 } from 'lucide-react';
-import { getSummaryBreadcrumbs } from '@/lib/breadcrumbs';
+import { getSummaryBreadcrumbs } from '@/features/event/lib/breadcrumbs';
 import { cn } from '@/lib/utils';
 import { BreadcrumbsExpand } from './breadcrumbs-expand';
 

@@ -3,7 +3,7 @@
 import {
   type ExceptionChain,
   orderFramesForDisplay,
-} from '@/lib/format-stack-trace';
+} from '@/features/event/lib/format-stack-trace';
 import { StackFrameItem } from './stack-frame-item';
 
 interface StackTraceProps {

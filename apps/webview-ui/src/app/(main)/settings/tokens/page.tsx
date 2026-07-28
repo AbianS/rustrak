@@ -1,9 +1,9 @@
 import { BookOpen, ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { listTokens } from '@/actions/tokens';
 import { LoadFailure } from '@/components/load-failure';
-import { TokensList } from './tokens-list';
+import { listTokens } from '@/features/token/api/queries';
+import { TokensList } from '@/features/token/ui/tokens-list';
 
 export const metadata: Metadata = {
   title: 'API Tokens | Rustrak',

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { listIntegrations } from '@/actions/alerts';
 import { LoadFailure } from '@/components/load-failure';
-import { IntegrationsList } from './integrations-list';
+import { listIntegrations } from '@/features/alert/api/queries';
+import { IntegrationsList } from '@/features/alert/ui/integrations-list';
 
 export const metadata: Metadata = {
   title: 'Integrations | Rustrak',

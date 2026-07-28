@@ -10,7 +10,11 @@ import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { crashFreeClass, pct, RELEASE_PERIODS } from '@/lib/session-health';
+import {
+  crashFreeClass,
+  pct,
+  RELEASE_PERIODS,
+} from '@/features/release/model/session-health';
 import { cn } from '@/lib/utils';
 
 interface ReleasesListProps {

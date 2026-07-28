@@ -19,12 +19,6 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
-  createIntegration,
-  deleteIntegration,
-  testIntegration,
-  updateIntegration,
-} from '@/actions/alerts';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -62,6 +56,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  createIntegration,
+  deleteIntegration,
+  testIntegration,
+  updateIntegration,
+} from '@/features/alert/api/mutations';
 import { applyServerFieldErrors, type ServerFieldMap } from '@/lib/form-errors';
 import { cn } from '@/lib/utils';
 

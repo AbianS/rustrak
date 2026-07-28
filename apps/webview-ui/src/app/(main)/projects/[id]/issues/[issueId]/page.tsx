@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getLastEvent } from '@/actions/events';
 import { LoadFailure } from '@/components/load-failure';
+import { getLastEvent } from '@/features/event/api/queries';
 import { getIssue } from '@/features/issue/api/queries';
 
 interface IssuePageProps {

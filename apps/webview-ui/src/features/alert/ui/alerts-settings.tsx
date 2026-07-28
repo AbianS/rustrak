@@ -27,11 +27,6 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import {
-  createAlertRule,
-  deleteAlertRule,
-  updateAlertRule,
-} from '@/actions/alerts';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -72,6 +67,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  createAlertRule,
+  deleteAlertRule,
+  updateAlertRule,
+} from '@/features/alert/api/mutations';
 import { applyServerFieldErrors } from '@/lib/form-errors';
 import { cn } from '@/lib/utils';
 

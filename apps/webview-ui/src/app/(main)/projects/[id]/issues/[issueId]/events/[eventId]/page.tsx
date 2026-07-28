@@ -2,14 +2,31 @@ import { formatDistanceToNow } from 'date-fns';
 import { CircleAlert } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getEventDetail, getEventNavigation } from '@/actions/events';
 import { getProject } from '@/actions/projects';
 import { Section } from '@/components/collapsible-section';
 import { CopyAsDropdown } from '@/components/copy-as-dropdown';
 import { EventChart } from '@/components/event-chart';
-import { EventHighlights } from '@/components/event-highlights';
 import { LoadFailure } from '@/components/load-failure';
 import { TagDistribution } from '@/components/tag-distribution';
+import {
+  getEventDetail,
+  getEventNavigation,
+} from '@/features/event/api/queries';
+import {
+  normalizeBreadcrumbs,
+  normalizeThreads,
+  parseEventData,
+} from '@/features/event/lib/event-schema';
+import { formatStackTraceAsText } from '@/features/event/lib/format-stack-trace';
+import { Breadcrumbs } from '@/features/event/ui/breadcrumbs';
+import { EventContext } from '@/features/event/ui/event-context';
+import { EventDetails } from '@/features/event/ui/event-details';
+import { EventHighlights } from '@/features/event/ui/event-highlights';
+import { EventNavigationBar } from '@/features/event/ui/event-navigation';
+import { EventTags } from '@/features/event/ui/event-tags';
+import { RawJson } from '@/features/event/ui/raw-json';
+import { StackTrace } from '@/features/event/ui/stack-trace';
+import { ThreadsSection } from '@/features/event/ui/threads-section';
 import {
   getIssue,
   getIssueActivity,
@@ -19,22 +36,8 @@ import {
 import { IssueActions } from '@/features/issue/ui/issue-actions';
 import { IssueActivity } from '@/features/issue/ui/issue-activity';
 import { StatusIndicator } from '@/features/issue/ui/issue-indicators';
-import {
-  normalizeBreadcrumbs,
-  normalizeThreads,
-  parseEventData,
-} from '@/lib/event-schema';
-import { formatStackTraceAsText } from '@/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
-import { Breadcrumbs } from './breadcrumbs';
-import { CollapsibleRail } from './collapsible-rail';
-import { EventContext } from './event-context';
-import { EventDetails } from './event-details';
-import { EventNavigationBar } from './event-navigation';
-import { EventTags } from './event-tags';
-import { RawJson } from './raw-json';
-import { StackTrace } from './stack-trace';
-import { ThreadsSection } from './threads-section';
+import { CollapsibleRail } from '@/shared/ui/collapsible-rail';
 
 interface EventPageProps {
   params: Promise<{ id: string; issueId: string; eventId: string }>;

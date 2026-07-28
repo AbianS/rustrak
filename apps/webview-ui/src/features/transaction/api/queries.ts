@@ -1,5 +1,12 @@
-'use server';
+import 'server-only';
 
+/**
+ * Reads for the transaction feature, called straight from Server Components.
+ *
+ * `import 'server-only'` is a build-time poison pill rather than a directive:
+ * if this module reaches the client bundle the build fails, instead of shipping
+ * a browser bundle that holds the session cookie.
+ */
 import type {
   ListTransactionsOptions,
   OffsetPaginatedResponse,

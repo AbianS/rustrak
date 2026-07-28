@@ -12,7 +12,7 @@ const getSessionSummary =
 const getSessionTimeseries =
   vi.fn<() => Promise<Result<SessionTimeseries, RustrakError>>>();
 
-vi.mock('@/actions/sessions', () => ({
+vi.mock('@/features/release/api/queries', () => ({
   getSessionSummary: () => getSessionSummary(),
   getSessionTimeseries: () => getSessionTimeseries(),
 }));

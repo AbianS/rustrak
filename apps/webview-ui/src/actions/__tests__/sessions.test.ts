@@ -59,7 +59,9 @@ describe('getSessionSummary', () => {
   });
 
   async function subject() {
-    const { getSessionSummary } = await import('@/actions/sessions');
+    const { getSessionSummary } = await import(
+      '@/features/release/api/queries'
+    );
     return getSessionSummary(1, '24h');
   }
 
@@ -104,7 +106,9 @@ describe('getSessionTimeseries', () => {
   });
 
   async function subject() {
-    const { getSessionTimeseries } = await import('@/actions/sessions');
+    const { getSessionTimeseries } = await import(
+      '@/features/release/api/queries'
+    );
     return getSessionTimeseries(1, '24h', 1);
   }
 

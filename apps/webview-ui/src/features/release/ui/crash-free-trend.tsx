@@ -17,8 +17,8 @@ import {
   ChartTooltipRow,
   ChartTooltipSurface,
 } from '@/components/charts/chart-tooltip';
+import { crashFreeColor, pct } from '@/features/release/model/session-health';
 import { exactCount } from '@/lib/chart-format';
-import { crashFreeColor, pct } from '@/lib/session-health';
 
 /** The rate every project is aiming at. Drawn as the line to beat. */
 const TARGET = 0.99;

@@ -1,6 +1,6 @@
 import { ScrollText } from 'lucide-react';
 import type { Metadata } from 'next';
-import { listLogs } from '@/actions/logs';
+import { listLogs } from '@/features/log/api/queries';
 import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
 import { LogsList } from './logs-list';

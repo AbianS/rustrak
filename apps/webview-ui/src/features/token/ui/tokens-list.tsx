@@ -6,7 +6,6 @@ import { Check, Copy, Key, Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { createToken, deleteToken, getToken } from '@/actions/tokens';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +43,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  createToken,
+  deleteToken,
+  getToken,
+} from '@/features/token/api/mutations';
 import { copyToClipboard } from '@/lib/clipboard';
 
 const TOKEN_DESCRIPTION_MAX_LENGTH = 200;

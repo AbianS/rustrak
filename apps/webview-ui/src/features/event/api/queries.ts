@@ -1,8 +1,24 @@
-'use server';
+import 'server-only';
 
+/**
+ * Reads for the event feature, called straight from Server Components.
+ *
+ * `import 'server-only'` is a build-time poison pill rather than a directive:
+ * if this module reaches the client bundle the build fails, instead of shipping
+ * a browser bundle that holds the session cookie.
+ */
 import type { Event, EventDetail, Result, RustrakError } from '@rustrak/client';
 import { Ok } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
+
+/**
+ * Get a single event with full details.
+ *
+ * @param projectId - The project ID
+ * @param issueId - The issue UUID
+ * @param eventId - The event UUID
+ * @returns The event with full Sentry data
+ */
 
 /**
  * Get a single event with full details.

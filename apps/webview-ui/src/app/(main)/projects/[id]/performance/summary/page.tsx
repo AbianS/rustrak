@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
+import { LoadFailure } from '@/components/load-failure';
+import { Badge } from '@/components/ui/badge';
 import {
   getTransactionStatForGroup,
   listTransactions,
-} from '@/actions/transactions';
-import { LoadFailure } from '@/components/load-failure';
-import { Badge } from '@/components/ui/badge';
+} from '@/features/transaction/api/queries';
+import { TransactionsList } from '@/features/transaction/ui/transactions-list';
 import { loadAll } from '@/lib/results';
-import { TransactionsList } from '../transactions-list';
 
 interface SummaryPageProps {
   params: Promise<{ id: string }>;

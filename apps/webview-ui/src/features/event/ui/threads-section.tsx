@@ -17,7 +17,7 @@ import {
   matchExceptionForThread,
   orderFramesForDisplay,
   type Thread,
-} from '@/lib/format-stack-trace';
+} from '@/features/event/lib/format-stack-trace';
 import { StackFrameItem } from './stack-frame-item';
 
 interface ThreadsSectionProps {

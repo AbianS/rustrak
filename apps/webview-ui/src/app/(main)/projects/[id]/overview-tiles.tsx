@@ -1,13 +1,9 @@
 import type { RustrakError } from '@rustrak/client';
-import { getSessionSummary, getSessionTimeseries } from '@/actions/sessions';
 import {
   getProjectEventTimeseries,
   getProjectStatsSummary,
 } from '@/actions/stats';
-import { getTransactionStats } from '@/actions/transactions';
-import { CrashFreeTrend } from '@/components/charts/crash-free-trend';
 import { ErrorVolumeChart } from '@/components/charts/error-volume-chart';
-import { SessionHealthArea } from '@/components/charts/session-health-area';
 import { StatTile } from '@/components/charts/stat-tile';
 import { TransactionP95Bars } from '@/components/charts/transaction-p95-bars';
 import { LoadFailure } from '@/components/load-failure';
@@ -21,9 +17,19 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { listIssues } from '@/features/issue/api/queries';
 import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import {
+  getSessionSummary,
+  getSessionTimeseries,
+} from '@/features/release/api/queries';
+import {
+  type OverviewPeriod,
+  overviewInterval,
+} from '@/features/release/model/session-health';
+import { CrashFreeTrend } from '@/features/release/ui/crash-free-trend';
+import { SessionHealthArea } from '@/features/release/ui/session-health-area';
+import { getTransactionStats } from '@/features/transaction/api/queries';
 import { exactCount } from '@/lib/chart-format';
 import { loadAll } from '@/lib/results';
-import { type OverviewPeriod, overviewInterval } from '@/lib/session-health';
 
 /**
  * Every tile takes the same props so the grid can stream them independently:

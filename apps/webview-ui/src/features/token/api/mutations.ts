@@ -1,7 +1,6 @@
 'use server';
 
 import type {
-  AuthToken,
   AuthTokenCreated,
   CreateAuthToken,
   Result,
@@ -15,10 +14,6 @@ import { createClient } from '@/lib/rustrak';
  *
  * @returns List of auth tokens with masked token values
  */
-export async function listTokens(): Promise<Result<AuthToken[], RustrakError>> {
-  const client = await createClient();
-  return client.tokens.list();
-}
 
 /**
  * Create a new auth token.

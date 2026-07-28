@@ -1,6 +1,18 @@
-'use server';
+import 'server-only';
 
+/**
+ * Reads for the release feature.
+ *
+ * Releases and sessions are one slice because "release health" *is* sessions
+ * grouped by release: the two were never separate concepts, only separate
+ * endpoints.
+ *
+ * `import 'server-only'` is a build-time poison pill rather than a directive:
+ * if this module reaches the client bundle the build fails, instead of shipping
+ * a browser bundle that holds the session cookie.
+ */
 import type {
+  Issue,
   OffsetPaginatedResponse,
   ReleaseHealthRow,
   ReleaseHealthStatsOptions,
@@ -11,6 +23,27 @@ import type {
 } from '@rustrak/client';
 import { Ok } from '@rustrak/client';
 import { createClient } from '@/lib/rustrak';
+
+/**
+ * Get issues first seen in a given release, most recently introduced first.
+ *
+ * The failure is returned, not swallowed. An empty array here renders "no new
+ * issues introduced in this release", which is a claim about the release; a
+ * fetch that failed makes no claim at all, and the two must not look the same
+ * on a product whose whole job is telling you what broke.
+ *
+ * @param projectId - The project ID
+ * @param release - Release version
+ * @param limit - Max issues to return (default: 10, max: 50)
+ */
+export async function getNewIssuesForRelease(
+  projectId: number,
+  release: string,
+  limit?: number,
+): Promise<Result<Issue[], RustrakError>> {
+  const client = await createClient();
+  return client.releases.newIssues(projectId, release, limit);
+}
 
 /**
  * Get one page of per-release health stats for a project.

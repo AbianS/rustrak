@@ -3,7 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { OVERVIEW_PERIODS, type OverviewPeriod } from '@/lib/session-health';
+import {
+  OVERVIEW_PERIODS,
+  type OverviewPeriod,
+} from '@/features/release/model/session-health';
 
 interface OverviewPeriodFilterProps {
   projectId: number;

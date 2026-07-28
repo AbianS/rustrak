@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { getProject } from '@/actions/projects';
 import { LoadFailure } from '@/components/load-failure';
-import { parseOverviewPeriod } from '@/lib/session-health';
+import { parseOverviewPeriod } from '@/features/release/model/session-health';
 import { OverviewPeriodFilter } from './overview-period-filter';
 import {
   CounterTiles,

@@ -7,7 +7,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import {
   buildFrameContextLines,
   type StackFrame,
-} from '@/lib/format-stack-trace';
+} from '@/features/event/lib/format-stack-trace';
 import { cn } from '@/lib/utils';
 
 /**

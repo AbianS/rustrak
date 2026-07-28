@@ -18,13 +18,6 @@ import { createClient } from '@/lib/rustrak';
 // Alert Integrations (Global Credential Destinations)
 // ============================================================================
 
-export async function listIntegrations(): Promise<
-  Result<AlertIntegration[], RustrakError>
-> {
-  const client = await createClient();
-  return client.alertIntegrations.list();
-}
-
 export async function createIntegration(
   input: CreateAlertIntegration,
 ): Promise<Result<AlertIntegration, RustrakError>> {
@@ -58,13 +51,6 @@ export async function testIntegration(
 // ============================================================================
 // Alert Rules (Per-Project Alert Configuration)
 // ============================================================================
-
-export async function listAlertRules(
-  projectId: number,
-): Promise<Result<AlertRule[], RustrakError>> {
-  const client = await createClient();
-  return client.alertRules.list(projectId);
-}
 
 export async function createAlertRule(
   projectId: number,

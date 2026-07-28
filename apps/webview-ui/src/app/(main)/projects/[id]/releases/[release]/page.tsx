@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProject } from '@/actions/projects';
-import { getNewIssuesForRelease } from '@/actions/releases';
-import { getAllReleaseHealthRows } from '@/actions/sessions';
 import { LoadFailure } from '@/components/load-failure';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import {
+  getAllReleaseHealthRows,
+  getNewIssuesForRelease,
+} from '@/features/release/api/queries';
+import { ReleaseEnvironmentCards } from '@/features/release/ui/release-environment-cards';
 import { loadAll } from '@/lib/results';
-import { ReleaseEnvironmentCards } from './release-environment-cards';
 
 interface ReleaseDetailPageProps {
   params: Promise<{ id: string; release: string }>;

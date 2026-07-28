@@ -17,13 +17,15 @@ const rows = [{ environment: 'production' }] as ReleaseHealthRow[];
 vi.mock('@/actions/projects', () => ({
   getProject: async () => ({ success: true, data: project }),
 }));
-vi.mock('@/actions/sessions', () => ({
+// One mock, not two. `releases` and `sessions` used to be separate action
+// modules and had a `vi.mock` each; now they are one slice, and two calls for
+// the same path do not merge -- the second replaces the first, taking the
+// first's exports with it.
+vi.mock('@/features/release/api/queries', () => ({
   getAllReleaseHealthRows: async () => ({ success: true, data: rows }),
-}));
-vi.mock('@/actions/releases', () => ({
   getNewIssuesForRelease: () => getNewIssuesForRelease(),
 }));
-vi.mock('../release-environment-cards', () => ({
+vi.mock('@/features/release/ui/release-environment-cards', () => ({
   ReleaseEnvironmentCards: () => <div>environment cards</div>,
 }));
 vi.mock('next/navigation', () => ({
