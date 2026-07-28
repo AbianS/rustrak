@@ -1,5 +1,5 @@
-import { ProjectSettingsMobileNav } from './settings-mobile-nav';
-import { ProjectSettingsNav } from './settings-nav';
+import { ProjectSettingsMobileNav } from './_components/settings-mobile-nav';
+import { ProjectSettingsNav } from './_components/settings-nav';
 
 interface ProjectSettingsLayoutProps {
   children: React.ReactNode;

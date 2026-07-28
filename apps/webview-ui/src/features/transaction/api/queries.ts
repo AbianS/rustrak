@@ -17,7 +17,7 @@ import type {
   TransactionStats,
 } from '@rustrak/client';
 import { Ok } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 export async function listTransactions(
   projectId: number,

@@ -1,16 +1,16 @@
 import { PlugZap } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getServerVersion } from '@/actions/server';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
+import { getServerVersion } from '@/shared/api/server-version';
+import { APP_VERSION } from '@/shared/config/constants';
+import { describeError } from '@/shared/lib/error-copy';
+import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { APP_VERSION } from '@/lib/constants';
-import { describeError } from '@/lib/error-copy';
+} from '@/shared/ui/components/shadcn/card';
 
 export const metadata: Metadata = {
   title: 'About | Rustrak',

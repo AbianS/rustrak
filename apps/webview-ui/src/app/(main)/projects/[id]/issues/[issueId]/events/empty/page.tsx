@@ -1,12 +1,12 @@
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { getIssue } from '@/features/issue/api/queries';
-import { loadAll } from '@/lib/results';
+import { getProject } from '@/features/project/api/queries';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Button } from '@/shared/ui/components/shadcn/button';
+import { Card, CardContent } from '@/shared/ui/components/shadcn/card';
 
 interface EmptyEventsPageProps {
   params: Promise<{ id: string; issueId: string }>;

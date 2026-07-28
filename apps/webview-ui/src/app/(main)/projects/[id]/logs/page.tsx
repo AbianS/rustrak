@@ -1,9 +1,9 @@
 import { ScrollText } from 'lucide-react';
 import type { Metadata } from 'next';
 import { listLogs } from '@/features/log/api/queries';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { LogsList } from './logs-list';
+import { getProject } from '@/features/project/api/queries';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { LogsList } from '@/features/log/ui/components/logs-list';
 
 interface LogsPageProps {
   params: Promise<{ id: string }>;

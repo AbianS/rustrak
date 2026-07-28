@@ -25,7 +25,7 @@ import type {
   RustrakError,
   Span,
 } from '@rustrak/client';
-import { createClient } from '@/lib/rustrak';
+import { createClient } from '@/shared/api/rustrak';
 
 export async function listSpans(
   projectId: number,

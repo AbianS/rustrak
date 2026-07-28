@@ -2,15 +2,15 @@ import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getProject } from '@/actions/projects';
-import { LoadFailure } from '@/components/load-failure';
-import { Badge } from '@/components/ui/badge';
+import { getProject } from '@/features/project/api/queries';
 import {
   getTransactionStatForGroup,
   listTransactions,
 } from '@/features/transaction/api/queries';
-import { TransactionsList } from '@/features/transaction/ui/transactions-list';
-import { loadAll } from '@/lib/results';
+import { TransactionsList } from '@/features/transaction/ui/components/transactions-list';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Badge } from '@/shared/ui/components/shadcn/badge';
 
 interface SummaryPageProps {
   params: Promise<{ id: string }>;

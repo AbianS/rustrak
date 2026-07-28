@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
-import { getCurrentUser } from '@/actions/auth';
-import { OutageScreen } from '@/components/outage-screen';
-import { UpdateBannerSlot } from '@/components/update-banner-slot';
-import { Header } from './header';
+import { getCurrentUser } from '@/features/user/api/queries';
+import { Header } from '@/features/user/ui/components/header';
+import { OutageScreen } from '@/shared/ui/components/outage-screen';
+import { UpdateBannerSlot } from '@/shared/ui/components/update-banner-slot';
 
 export default async function MainLayout({
   children,
