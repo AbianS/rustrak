@@ -1,10 +1,10 @@
-import { AlertCircle } from 'lucide-react';
+import type { RustrakError } from '@rustrak/client';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { getInvitation } from '@/features/user/api/queries';
+import { OutageScreen } from '@/shared/ui/components/outage-screen';
 import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
-import { Button } from '@/shared/ui/components/shadcn/button';
 import { AcceptInvitationForm } from './_components/accept-invitation-form';
+import { InvitationUnavailable } from './_components/invitation-unavailable';
 
 export const metadata: Metadata = {
   title: 'Accept Invitation | Rustrak',
@@ -15,14 +15,56 @@ interface InvitePageProps {
   params: Promise<{ token: string }>;
 }
 
+/**
+ * The kinds that mean the token itself buys nothing.
+ *
+ * The server emits exactly two of them: `404` when no invitation carries the
+ * token, and `400` when one does but is expired or already spent. `gone` is
+ * listed because the docstring on `getInvitation` promises this page branches
+ * on `kind`, and a `410` is the natural way for that endpoint to grow.
+ *
+ * **Written as an allowlist on purpose.** Every other kind -- an outage, a rate
+ * limit from a proxy, a version mismatch -- means the question could not be
+ * asked, not that the answer was no. Defaulting the unknown case to "your link
+ * is dead" is the bug this replaces; defaulting it to "we could not check" is
+ * wrong at worst about a cause, never about the invitation.
+ */
+function isDeadToken(error: RustrakError): boolean {
+  return (
+    error.kind === 'not_found' ||
+    error.kind === 'validation' ||
+    error.kind === 'gone'
+  );
+}
+
 export default async function InvitePage({ params }: InvitePageProps) {
   const { token } = await params;
   const result = await getInvitation(token);
 
-  const isInvalid =
-    !result.success ||
-    result.data.status !== 'pending' ||
-    new Date(result.data.expires_at).getTime() < Date.now();
+  // Three outcomes, where there used to be two. `!result.success` alone folded
+  // a transient outage into "this invitation link is invalid ... ask an
+  // administrator to send you a new one" -- false, and the single action that
+  // cannot fix an unreachable API. The invitee would burn an admin's time on a
+  // link that was fine all along.
+  if (!result.success && !isDeadToken(result.error)) {
+    return <OutageScreen error={result.error} />;
+  }
+
+  // Belt and braces: the server's `is_acceptable` already rejects both of these
+  // with a `400`, so this only fires if the two halves disagree about the
+  // clock or the status.
+  const invitation = result.success ? result.data : null;
+  const isAcceptable =
+    invitation !== null &&
+    invitation.status === 'pending' &&
+    new Date(invitation.expires_at).getTime() >= Date.now();
+
+  // Both failure screens own the whole viewport, so they return before the
+  // invite chrome rather than rendering inside it. What is left below is the
+  // one success path.
+  if (!isAcceptable) {
+    return <InvitationUnavailable />;
+  }
 
   return (
     <div className="min-h-screen bg-card flex items-center justify-center p-8 lg:p-12">
@@ -34,32 +76,7 @@ export default async function InvitePage({ params }: InvitePageProps) {
           </span>
         </div>
 
-        {isInvalid ? (
-          <div className="space-y-6">
-            <div className="flex size-12 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <AlertCircle className="size-6" />
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight">
-                Invitation unavailable
-              </h1>
-              <p className="text-muted-foreground">
-                This invitation link is invalid, has expired, or has already
-                been used. Ask an administrator to send you a new one.
-              </p>
-            </div>
-            <Button
-              nativeButton={false}
-              render={<Link href="/auth/login" />}
-              variant="outline"
-              className="w-full"
-            >
-              Go to login
-            </Button>
-          </div>
-        ) : (
-          <AcceptInvitationForm token={token} email={result.data.email} />
-        )}
+        <AcceptInvitationForm token={token} email={invitation.email} />
       </div>
     </div>
   );
