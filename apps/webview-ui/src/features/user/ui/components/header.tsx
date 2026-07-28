@@ -48,10 +48,11 @@ export function Header({ user, commandBar }: HeaderProps) {
         </Link>
       </div>
 
-      {commandBar}
-
-      {/* User Menu */}
-      <div className="flex items-center gap-4">
+      {/* Search and account, grouped: both are things you do to the app rather
+          than places in it, and the header reads better with one cluster at
+          each end than with a third floating in the middle. */}
+      <div className="flex items-center gap-2 md:gap-3">
+        {commandBar}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

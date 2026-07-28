@@ -45,16 +45,20 @@ export default function CommandBar({ projects }: CommandBarProps) {
 
   return (
     <>
+      {/* One button, two shapes. Below `sm` it collapses to a 32px square with
+          just the icon: the palette used to be hidden outright on touch, which
+          left phones with no way into it at all. */}
       <Button
         variant="outline"
-        className="hidden w-40 justify-between text-muted-foreground can-hover:flex sm:w-80"
+        aria-label="Search"
         onClick={openBar}
+        className="size-8 justify-center p-0 text-muted-foreground sm:w-56 sm:justify-between sm:px-2.5"
       >
         <span className="flex items-center gap-1.5">
-          <SearchIcon />
-          Search
+          <SearchIcon className="size-3.5" />
+          <span className="hidden text-[13px] sm:inline">Search</span>
         </span>
-        <Kbd>⌘K</Kbd>
+        <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
       </Button>
 
       <CommandBarDialog
