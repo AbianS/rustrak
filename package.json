@@ -13,6 +13,8 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "check-types": "turbo run check-types",
+    "doctor": "react-doctor",
+    "doctor:json": "react-doctor --json --json-out react-doctor-report.json",
     "clean": "turbo run clean",
     "changeset": "changeset",
     "version-packages": "changeset version && bash scripts/sync-version.sh",
@@ -24,6 +26,7 @@
     "@changesets/changelog-github": "0.7.0",
     "@changesets/cli": "2.31.0",
     "bmad-method": "6.10.0",
+    "react-doctor": "0.9.2",
     "turbo": "2.10.5",
     "typescript": "6.0.3"
   },

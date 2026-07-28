@@ -14,7 +14,7 @@ import {
   Webhook,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -629,38 +629,58 @@ interface ConfigDialogProps {
 // Webhook Configuration Dialog
 // ============================================================================
 
+function webhookDefaults(
+  integration: AlertIntegration | null,
+): WebhookFormData {
+  const creds = (integration?.credentials ?? {}) as {
+    url?: string;
+    secret?: string;
+  };
+  return {
+    name: integration?.name ?? '',
+    url: creds.url ?? '',
+    secret: creds.secret ?? '',
+    is_enabled: integration?.is_enabled ?? true,
+  };
+}
+
 function WebhookConfigDialog({
   open,
+  onOpenChange,
+  ...bodyProps
+}: ConfigDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <WebhookConfigForm
+          key={bodyProps.existingIntegration?.id ?? 'new'}
+          onOpenChange={onOpenChange}
+          {...bodyProps}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WebhookConfigForm({
   onOpenChange,
   existingIntegration,
   onDelete,
   isPending: parentPending,
-}: ConfigDialogProps) {
+}: Omit<ConfigDialogProps, 'open'>) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
 
+  // Seeded at mount, never re-seeded. The body only exists while the dialog
+  // is open (Base UI unmounts the portal after the close animation), so
+  // "opened again" and "opened on a different integration" are both a fresh
+  // mount, and the `key` above makes the second case structural rather than
+  // a fact about how the parent happens to sequence its state updates.
   const form = useForm<WebhookFormData>({
     resolver: zodResolver(webhookFormSchema),
-    defaultValues: { name: '', url: '', secret: '', is_enabled: true },
+    defaultValues: webhookDefaults(existingIntegration),
   });
-
-  useEffect(() => {
-    if (open && existingIntegration) {
-      const creds = existingIntegration.credentials as {
-        url?: string;
-        secret?: string;
-      };
-      form.reset({
-        name: existingIntegration.name,
-        url: creds.url ?? '',
-        secret: creds.secret ?? '',
-        is_enabled: existingIntegration.is_enabled,
-      });
-    } else if (open) {
-      form.reset({ name: '', url: '', secret: '', is_enabled: true });
-    }
-  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: WebhookFormData) => {
     startTransition(async () => {
@@ -709,157 +729,153 @@ function WebhookConfigDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {existingIntegration ? 'Edit Webhook' : 'Configure Webhook'}
-          </DialogTitle>
-          <DialogDescription>
-            POST JSON payloads to external API endpoints. Specify the target URL
-            here (global default) or per-alert-rule as an override.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {existingIntegration ? 'Edit Webhook' : 'Configure Webhook'}
+        </DialogTitle>
+        <DialogDescription>
+          POST JSON payloads to external API endpoints. Specify the target URL
+          here (global default) or per-alert-rule as an override.
+        </DialogDescription>
+      </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Name
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g., Production Alerts"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Default URL (optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="url"
-                      placeholder="https://example.com/webhook"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Leave blank to require a URL override per alert rule.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="secret"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Secret (optional)
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="HMAC signing secret"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Used to sign payloads with HMAC-SHA256
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="is_enabled"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-medium">
-                      Enabled
-                    </FormLabel>
-                    <FormDescription className="text-xs">
-                      Receive alerts on this integration
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={isLoading}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              {existingIntegration && (
-                <div className="flex gap-2 mr-auto">
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onDelete(existingIntegration)}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Name
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g., Production Alerts"
                     disabled={isLoading}
-                  >
-                    <Play className="size-4 mr-1" />
-                    Test
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(existingIntegration)}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="url"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Default URL (optional)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="url"
+                    placeholder="https://example.com/webhook"
                     disabled={isLoading}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="size-4 mr-1" />
-                    Delete
-                  </Button>
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Leave blank to require a URL override per alert rule.
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="secret"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Secret (optional)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="password"
+                    placeholder="HMAC signing secret"
+                    disabled={isLoading}
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  Used to sign payloads with HMAC-SHA256
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="is_enabled"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-sm font-medium">Enabled</FormLabel>
+                  <FormDescription className="text-xs">
+                    Receive alerts on this integration
+                  </FormDescription>
                 </div>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingIntegration ? 'Save Changes' : 'Create Webhook'}
-              </Button>
-            </DialogFooter>
-            {/* Where a failure that named no field of this dialog lands. */}
-            <FormRootError />
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={isLoading}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {existingIntegration && (
+              <div className="flex gap-2 mr-auto">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onDelete(existingIntegration)}
+                  disabled={isLoading}
+                >
+                  <Play className="size-4 mr-1" />
+                  Test
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDelete(existingIntegration)}
+                  disabled={isLoading}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="size-4 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {existingIntegration ? 'Save Changes' : 'Create Webhook'}
+            </Button>
+          </DialogFooter>
+          {/* Where a failure that named no field of this dialog lands. */}
+          <FormRootError />
+        </form>
+      </Form>
+    </>
   );
 }
 
@@ -867,14 +883,48 @@ function WebhookConfigDialog({
 // Slack Configuration Dialog
 // ============================================================================
 
+function slackDefaults(integration: AlertIntegration | null): SlackFormData {
+  const creds = (integration?.credentials ?? {}) as {
+    method?: SlackMethod;
+    webhook_url?: string;
+  };
+  return {
+    name: integration?.name ?? '',
+    method: creds.method ?? 'webhook',
+    is_edit: integration !== null,
+    webhook_url: creds.webhook_url ?? '',
+    // Never seeded from the integration: the server does not return the bot
+    // token, and an empty field means "leave the stored one alone".
+    token: '',
+    is_enabled: integration?.is_enabled ?? true,
+  };
+}
+
 function SlackConfigDialog({
   open,
+  onOpenChange,
+  ...bodyProps
+}: ConfigDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <SlackConfigForm
+          key={bodyProps.existingIntegration?.id ?? 'new'}
+          onOpenChange={onOpenChange}
+          {...bodyProps}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SlackConfigForm({
   onOpenChange,
   existingIntegration,
   onTest,
   onDelete,
   isPending: parentPending,
-}: ConfigDialogProps) {
+}: Omit<ConfigDialogProps, 'open'>) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
@@ -882,44 +932,10 @@ function SlackConfigDialog({
 
   const form = useForm<SlackFormData>({
     resolver: zodResolver(slackFormSchema),
-    defaultValues: {
-      name: '',
-      method: 'webhook',
-      is_edit: false,
-      webhook_url: '',
-      token: '',
-      is_enabled: true,
-    },
+    defaultValues: slackDefaults(existingIntegration),
   });
 
   const method = form.watch('method') as SlackMethod;
-
-  useEffect(() => {
-    if (open && existingIntegration) {
-      const creds = existingIntegration.credentials as {
-        method?: SlackMethod;
-        webhook_url?: string;
-      };
-      form.reset({
-        name: existingIntegration.name,
-        method: creds.method ?? 'webhook',
-        is_edit: true,
-        webhook_url: creds.webhook_url ?? '',
-        token: '',
-        is_enabled: existingIntegration.is_enabled,
-      });
-    } else if (open) {
-      form.reset({
-        name: '',
-        method: 'webhook',
-        is_edit: false,
-        webhook_url: '',
-        token: '',
-        is_enabled: true,
-      });
-    }
-    setTestChannel('');
-  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: SlackFormData) => {
     startTransition(async () => {
@@ -977,238 +993,233 @@ function SlackConfigDialog({
   const isBotToken = method === 'bot_token';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {existingIntegration
-              ? 'Edit Slack Integration'
-              : 'Add Slack Integration'}
-          </DialogTitle>
-          <DialogDescription>
-            Store your Slack credentials here. Choose the target channel when
-            creating an alert rule.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {existingIntegration
+            ? 'Edit Slack Integration'
+            : 'Add Slack Integration'}
+        </DialogTitle>
+        <DialogDescription>
+          Store your Slack credentials here. Choose the target channel when
+          creating an alert rule.
+        </DialogDescription>
+      </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Name
-                  </FormLabel>
-                  <FormControl>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Name
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g., Engineering Alerts"
+                    disabled={isLoading}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Connection method
+                </FormLabel>
+                <Tabs
+                  value={field.value}
+                  onValueChange={(v) => field.onChange(v as SlackMethod)}
+                >
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="webhook" disabled={isLoading}>
+                      Incoming Webhook
+                    </TabsTrigger>
+                    <TabsTrigger value="bot_token" disabled={isLoading}>
+                      Bot Token
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="webhook" className="mt-3">
+                    <FormField
+                      control={form.control}
+                      name="webhook_url"
+                      render={({ field: urlField }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                            Webhook URL
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="url"
+                              placeholder="https://hooks.slack.com/services/..."
+                              disabled={isLoading}
+                              {...urlField}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Create an incoming webhook in your Slack app
+                            settings.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="bot_token" className="mt-3">
+                    <FormField
+                      control={form.control}
+                      name="token"
+                      render={({ field: tokenField }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                            Bot Token
+                            {existingIntegration
+                              ? ' (leave blank to keep existing)'
+                              : ''}
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              type="password"
+                              placeholder="xoxb-..."
+                              autoComplete="new-password"
+                              disabled={isLoading}
+                              {...tokenField}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            OAuth bot token starting with xoxb- from your Slack
+                            app.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="is_enabled"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-sm font-medium">Enabled</FormLabel>
+                  <FormDescription className="text-xs">
+                    Receive alerts on this integration
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={isLoading}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {existingIntegration && (
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Send a test
+              </p>
+              {isBotToken ? (
+                <>
+                  <div className="flex gap-2">
                     <Input
-                      placeholder="e.g., Engineering Alerts"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="method"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Connection method
-                  </FormLabel>
-                  <Tabs
-                    value={field.value}
-                    onValueChange={(v) => field.onChange(v as SlackMethod)}
-                  >
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="webhook" disabled={isLoading}>
-                        Incoming Webhook
-                      </TabsTrigger>
-                      <TabsTrigger value="bot_token" disabled={isLoading}>
-                        Bot Token
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="webhook" className="mt-3">
-                      <FormField
-                        control={form.control}
-                        name="webhook_url"
-                        render={({ field: urlField }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                              Webhook URL
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="url"
-                                placeholder="https://hooks.slack.com/services/..."
-                                disabled={isLoading}
-                                {...urlField}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Create an incoming webhook in your Slack app
-                              settings.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </TabsContent>
-
-                    <TabsContent value="bot_token" className="mt-3">
-                      <FormField
-                        control={form.control}
-                        name="token"
-                        render={({ field: tokenField }) => (
-                          <FormItem>
-                            <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                              Bot Token
-                              {existingIntegration
-                                ? ' (leave blank to keep existing)'
-                                : ''}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="password"
-                                placeholder="xoxb-..."
-                                autoComplete="new-password"
-                                disabled={isLoading}
-                                {...tokenField}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              OAuth bot token starting with xoxb- from your
-                              Slack app.
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </TabsContent>
-                  </Tabs>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="is_enabled"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-medium">
-                      Enabled
-                    </FormLabel>
-                    <FormDescription className="text-xs">
-                      Receive alerts on this integration
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                      placeholder="#alerts"
+                      value={testChannel}
+                      onChange={(e) => setTestChannel(e.target.value)}
+                      className="h-8 text-xs"
                       disabled={isLoading}
                     />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            {existingIntegration && (
-              <div className="rounded-lg border p-3 space-y-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Send a test
-                </p>
-                {isBotToken ? (
-                  <>
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="#alerts"
-                        value={testChannel}
-                        onChange={(e) => setTestChannel(e.target.value)}
-                        className="h-8 text-xs"
-                        disabled={isLoading}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!testChannel.trim()) return;
-                          onTest(existingIntegration, {
-                            channel: testChannel.trim(),
-                          });
-                        }}
-                        disabled={isLoading || !testChannel.trim()}
-                      >
-                        <Play className="size-3.5 mr-1" />
-                        Test
-                      </Button>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Enter the Slack channel where the test message will be
-                      sent.
-                    </p>
-                  </>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-muted-foreground">
-                      Sends a test message to the configured webhook.
-                    </p>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => onTest(existingIntegration)}
-                      disabled={isLoading}
+                      onClick={() => {
+                        if (!testChannel.trim()) return;
+                        onTest(existingIntegration, {
+                          channel: testChannel.trim(),
+                        });
+                      }}
+                      disabled={isLoading || !testChannel.trim()}
                     >
                       <Play className="size-3.5 mr-1" />
                       Test
                     </Button>
                   </div>
-                )}
-              </div>
-            )}
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              {existingIntegration && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete(existingIntegration)}
-                  disabled={isLoading}
-                >
-                  <Trash2 className="size-4 mr-1" />
-                  Delete
-                </Button>
+                  <p className="text-[11px] text-muted-foreground">
+                    Enter the Slack channel where the test message will be sent.
+                  </p>
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground">
+                    Sends a test message to the configured webhook.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onTest(existingIntegration)}
+                    disabled={isLoading}
+                  >
+                    <Play className="size-3.5 mr-1" />
+                    Test
+                  </Button>
+                </div>
               )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {existingIntegration && (
               <Button
                 type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
+                variant="destructive"
+                size="sm"
+                onClick={() => onDelete(existingIntegration)}
                 disabled={isLoading}
               >
-                Cancel
+                <Trash2 className="size-4 mr-1" />
+                Delete
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingIntegration ? 'Save Changes' : 'Add Integration'}
-              </Button>
-            </DialogFooter>
-            {/* Where a failure that named no field of this dialog lands. */}
-            <FormRootError />
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {existingIntegration ? 'Save Changes' : 'Add Integration'}
+            </Button>
+          </DialogFooter>
+          {/* Where a failure that named no field of this dialog lands. */}
+          <FormRootError />
+        </form>
+      </Form>
+    </>
   );
 }
 
@@ -1216,14 +1227,51 @@ function SlackConfigDialog({
 // Email Configuration Dialog — credentials only (no recipients)
 // ============================================================================
 
+function emailDefaults(integration: AlertIntegration | null): EmailFormData {
+  const creds = (integration?.credentials ?? {}) as {
+    smtp_host?: string;
+    smtp_port?: number;
+    smtp_username?: string;
+    from_address?: string;
+  };
+  return {
+    name: integration?.name ?? '',
+    smtp_host: creds.smtp_host ?? '',
+    smtp_port: creds.smtp_port ?? 587,
+    smtp_username: creds.smtp_username ?? '',
+    // Never seeded from the integration: the server does not return the SMTP
+    // password, and an empty field means "leave the stored one alone".
+    smtp_password: '',
+    from_address: creds.from_address ?? '',
+    is_enabled: integration?.is_enabled ?? true,
+  };
+}
+
 function EmailConfigDialog({
   open,
+  onOpenChange,
+  ...bodyProps
+}: ConfigDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <EmailConfigForm
+          key={bodyProps.existingIntegration?.id ?? 'new'}
+          onOpenChange={onOpenChange}
+          {...bodyProps}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EmailConfigForm({
   onOpenChange,
   existingIntegration,
   onTest,
   onDelete,
   isPending: parentPending,
-}: ConfigDialogProps) {
+}: Omit<ConfigDialogProps, 'open'>) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
@@ -1243,47 +1291,8 @@ function EmailConfigDialog({
 
   const form = useForm<EmailFormData>({
     resolver: zodResolver(emailFormSchema),
-    defaultValues: {
-      name: '',
-      smtp_host: '',
-      smtp_port: 587,
-      smtp_username: '',
-      smtp_password: '',
-      from_address: '',
-      is_enabled: true,
-    },
+    defaultValues: emailDefaults(existingIntegration),
   });
-
-  useEffect(() => {
-    if (open && existingIntegration) {
-      const creds = existingIntegration.credentials as {
-        smtp_host?: string;
-        smtp_port?: number;
-        smtp_username?: string;
-        from_address?: string;
-      };
-      form.reset({
-        name: existingIntegration.name,
-        smtp_host: creds.smtp_host ?? '',
-        smtp_port: creds.smtp_port ?? 587,
-        smtp_username: creds.smtp_username ?? '',
-        smtp_password: '',
-        from_address: creds.from_address ?? '',
-        is_enabled: existingIntegration.is_enabled,
-      });
-    } else if (open) {
-      form.reset({
-        name: '',
-        smtp_host: '',
-        smtp_port: 587,
-        smtp_username: '',
-        smtp_password: '',
-        from_address: '',
-        is_enabled: true,
-      });
-    }
-    setTestRecipients('');
-  }, [open, existingIntegration, form]);
 
   const onSubmit = (data: EmailFormData) => {
     startTransition(async () => {
@@ -1340,145 +1349,53 @@ function EmailConfigDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {existingIntegration
-              ? 'Edit Email Integration'
-              : 'Configure Email (SMTP)'}
-          </DialogTitle>
-          <DialogDescription>
-            Store SMTP credentials here. Specify recipients when creating an
-            alert rule.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>
+          {existingIntegration
+            ? 'Edit Email Integration'
+            : 'Configure Email (SMTP)'}
+        </DialogTitle>
+        <DialogDescription>
+          Store SMTP credentials here. Specify recipients when creating an alert
+          rule.
+        </DialogDescription>
+      </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  Name
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder="e.g., Email Alerts"
+                    disabled={isLoading}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="name"
+              name="smtp_host"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Name
+                    SMTP Host
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g., Email Alerts"
-                      disabled={isLoading}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="smtp_host"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      SMTP Host
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="smtp.example.com"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="smtp_port"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Port
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="587"
-                        disabled={isLoading}
-                        {...field}
-                        onChange={(e) =>
-                          field.onChange(parseInt(e.target.value, 10) || 587)
-                        }
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="smtp_username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Username (optional)
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="username"
-                        autoComplete="off"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="smtp_password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                      Password (optional)
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="••••••••"
-                        autoComplete="new-password"
-                        disabled={isLoading}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="from_address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    From Address
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="alerts@rustrak.local"
+                      placeholder="smtp.example.com"
                       disabled={isLoading}
                       {...field}
                     />
@@ -1490,105 +1407,193 @@ function EmailConfigDialog({
 
             <FormField
               control={form.control}
-              name="is_enabled"
+              name="smtp_port"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-medium">
-                      Enabled
-                    </FormLabel>
-                    <FormDescription className="text-xs">
-                      Receive alerts on this integration
-                    </FormDescription>
-                  </div>
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Port
+                  </FormLabel>
                   <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
+                    <Input
+                      type="number"
+                      placeholder="587"
                       disabled={isLoading}
+                      {...field}
+                      onChange={(e) =>
+                        field.onChange(parseInt(e.target.value, 10) || 587)
+                      }
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="smtp_username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Username (optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="username"
+                      autoComplete="off"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Shown while creating too, disabled — the test endpoint needs a
+            <FormField
+              control={form.control}
+              name="smtp_password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Password (optional)
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="password"
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <FormField
+            control={form.control}
+            name="from_address"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  From Address
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="email"
+                    placeholder="alerts@rustrak.local"
+                    disabled={isLoading}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="is_enabled"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-sm font-medium">Enabled</FormLabel>
+                  <FormDescription className="text-xs">
+                    Receive alerts on this integration
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={isLoading}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {/* Shown while creating too, disabled — the test endpoint needs a
                 persisted integration id, so it only becomes usable on save. */}
-            <div className="rounded-lg border p-3 space-y-2">
-              <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Send a test
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  aria-label="Test recipients"
-                  placeholder="test@example.com"
-                  value={testRecipients}
-                  onChange={(e) => setTestRecipients(e.target.value)}
-                  className="h-8 text-xs"
-                  disabled={isLoading || !existingIntegration}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!existingIntegration || parsedRecipients.length === 0) {
-                      return;
-                    }
-                    onTest(existingIntegration, {
-                      recipients: parsedRecipients,
-                    });
-                  }}
-                  disabled={
-                    isLoading ||
-                    !existingIntegration ||
-                    parsedRecipients.length === 0
-                  }
-                >
-                  <Play className="size-3.5 mr-1" />
-                  Test
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                {existingIntegration
-                  ? 'Comma-separate multiple addresses. The test uses the SMTP settings you last saved, not unsaved edits above.'
-                  : 'Save this integration first to send a test email.'}
-              </p>
-            </div>
-
-            <DialogFooter className="gap-2 sm:gap-0">
-              {existingIntegration && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete(existingIntegration)}
-                  disabled={isLoading}
-                >
-                  <Trash2 className="size-4 mr-1" />
-                  Delete
-                </Button>
-              )}
+          <div className="rounded-lg border p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Send a test
+            </p>
+            <div className="flex gap-2">
+              <Input
+                aria-label="Test recipients"
+                placeholder="test@example.com"
+                value={testRecipients}
+                onChange={(e) => setTestRecipients(e.target.value)}
+                className="h-8 text-xs"
+                disabled={isLoading || !existingIntegration}
+              />
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                size="sm"
+                onClick={() => {
+                  if (!existingIntegration || parsedRecipients.length === 0) {
+                    return;
+                  }
+                  onTest(existingIntegration, {
+                    recipients: parsedRecipients,
+                  });
+                }}
+                disabled={
+                  isLoading ||
+                  !existingIntegration ||
+                  parsedRecipients.length === 0
+                }
+              >
+                <Play className="size-3.5 mr-1" />
+                Test
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {existingIntegration
+                ? 'Comma-separate multiple addresses. The test uses the SMTP settings you last saved, not unsaved edits above.'
+                : 'Save this integration first to send a test email.'}
+            </p>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            {existingIntegration && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => onDelete(existingIntegration)}
                 disabled={isLoading}
               >
-                Cancel
+                <Trash2 className="size-4 mr-1" />
+                Delete
               </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
-                {existingIntegration
-                  ? 'Save Changes'
-                  : 'Create Email Integration'}
-              </Button>
-            </DialogFooter>
-            {/* Where a failure that named no field of this dialog lands. */}
-            <FormRootError />
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}
+              {existingIntegration
+                ? 'Save Changes'
+                : 'Create Email Integration'}
+            </Button>
+          </DialogFooter>
+          {/* Where a failure that named no field of this dialog lands. */}
+          <FormRootError />
+        </form>
+      </Form>
+    </>
   );
 }
