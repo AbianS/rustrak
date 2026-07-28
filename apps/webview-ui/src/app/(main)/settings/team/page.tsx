@@ -3,13 +3,13 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { listTeam } from '@/features/user/api/mutations';
 import { getCurrentUser, listInvitations } from '@/features/user/api/queries';
-import { InviteForm } from '@/features/user/ui/invite-form';
-import { PendingInvitations } from '@/features/user/ui/pending-invitations';
-import { TeamMembersList } from '@/features/user/ui/team-members-list';
+import { InviteForm } from '@/features/user/ui/components/invite-form';
+import { PendingInvitations } from '@/features/user/ui/components/pending-invitations';
+import { TeamMembersList } from '@/features/user/ui/components/team-members-list';
 import { loadAll } from '@/shared/lib/results';
-import { LoadFailure } from '@/shared/ui/load-failure';
-import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
-import { Card, CardContent } from '@/shared/ui/shadcn/card';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
+import { Card, CardContent } from '@/shared/ui/components/shadcn/card';
 
 export const metadata: Metadata = {
   title: 'Team | Rustrak',

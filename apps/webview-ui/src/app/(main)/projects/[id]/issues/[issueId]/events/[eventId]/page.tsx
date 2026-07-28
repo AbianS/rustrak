@@ -12,32 +12,32 @@ import {
   parseEventData,
 } from '@/features/event/lib/event-schema';
 import { formatStackTraceAsText } from '@/features/event/lib/format-stack-trace';
-import { Breadcrumbs } from '@/features/event/ui/breadcrumbs';
-import { EventContext } from '@/features/event/ui/event-context';
-import { EventDetails } from '@/features/event/ui/event-details';
-import { EventHighlights } from '@/features/event/ui/event-highlights';
-import { EventNavigationBar } from '@/features/event/ui/event-navigation';
-import { EventTags } from '@/features/event/ui/event-tags';
-import { RawJson } from '@/features/event/ui/raw-json';
-import { StackTrace } from '@/features/event/ui/stack-trace';
-import { ThreadsSection } from '@/features/event/ui/threads-section';
+import { Breadcrumbs } from '@/features/event/ui/components/breadcrumbs';
+import { EventContext } from '@/features/event/ui/components/event-context';
+import { EventDetails } from '@/features/event/ui/components/event-details';
+import { EventHighlights } from '@/features/event/ui/components/event-highlights';
+import { EventNavigationBar } from '@/features/event/ui/components/event-navigation';
+import { EventTags } from '@/features/event/ui/components/event-tags';
+import { RawJson } from '@/features/event/ui/components/raw-json';
+import { StackTrace } from '@/features/event/ui/components/stack-trace';
+import { ThreadsSection } from '@/features/event/ui/components/threads-section';
 import {
   getIssue,
   getIssueActivity,
   getIssueAggregates,
   getIssueStats,
 } from '@/features/issue/api/queries';
-import { IssueActions } from '@/features/issue/ui/issue-actions';
-import { IssueActivity } from '@/features/issue/ui/issue-activity';
-import { StatusIndicator } from '@/features/issue/ui/issue-indicators';
-import { TagDistribution } from '@/features/issue/ui/tag-distribution';
+import { IssueActions } from '@/features/issue/ui/components/issue-actions';
+import { IssueActivity } from '@/features/issue/ui/components/issue-activity';
+import { StatusIndicator } from '@/features/issue/ui/components/issue-indicators';
+import { TagDistribution } from '@/features/issue/ui/components/tag-distribution';
 import { getProject } from '@/features/project/api/queries';
 import { cn } from '@/shared/lib/utils';
-import { CollapsibleRail } from '@/shared/ui/collapsible-rail';
-import { Section } from '@/shared/ui/collapsible-section';
-import { CopyAsDropdown } from '@/shared/ui/copy-as-dropdown';
-import { EventChart } from '@/shared/ui/event-chart';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { CollapsibleRail } from '@/shared/ui/components/collapsible-rail';
+import { Section } from '@/shared/ui/components/collapsible-section';
+import { CopyAsDropdown } from '@/shared/ui/components/copy-as-dropdown';
+import { EventChart } from '@/shared/ui/components/event-chart';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface EventPageProps {
   params: Promise<{ id: string; issueId: string; eventId: string }>;

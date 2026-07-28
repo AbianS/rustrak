@@ -5,10 +5,10 @@ import {
   getCurrentUser,
   listProjectMembers,
 } from '@/features/user/api/queries';
-import { MembersSettings } from '@/features/user/ui/members-settings';
+import { MembersSettings } from '@/features/user/ui/components/members-settings';
 import { loadAll } from '@/shared/lib/results';
-import { LoadFailure } from '@/shared/ui/load-failure';
-import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 
 interface MembersSettingsPageProps {
   params: Promise<{ id: string }>;

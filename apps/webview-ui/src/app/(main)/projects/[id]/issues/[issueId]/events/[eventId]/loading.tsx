@@ -1,4 +1,4 @@
-import { Skeleton } from '@/shared/ui/shadcn/skeleton';
+import { Skeleton } from '@/shared/ui/components/shadcn/skeleton';
 
 /**
  * Loading skeleton for the event detail page — mirrors the new layout:

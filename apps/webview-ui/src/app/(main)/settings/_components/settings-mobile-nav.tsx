@@ -2,14 +2,14 @@
 
 import { Menu } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/shared/ui/shadcn/sheet';
+} from '@/shared/ui/components/shadcn/sheet';
 import { SettingsNav } from './settings-nav';
 
 interface SettingsMobileNavProps {

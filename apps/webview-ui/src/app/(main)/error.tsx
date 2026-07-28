@@ -3,7 +3,7 @@
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface ErrorProps {
   error: Error & { digest?: string };

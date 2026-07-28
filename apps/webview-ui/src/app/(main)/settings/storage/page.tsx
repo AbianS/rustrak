@@ -14,24 +14,24 @@ import {
   getStorageProjects,
   getStorageSummary,
 } from '@/features/storage/api/storage';
-import { SourceMapGc } from '@/features/storage/ui/source-map-gc';
-import { StorageCleanup } from '@/features/storage/ui/storage-cleanup';
+import { SourceMapGc } from '@/features/storage/ui/components/source-map-gc';
+import { StorageCleanup } from '@/features/storage/ui/components/storage-cleanup';
 import {
   CleanupSkeleton,
   ProjectsTableSkeleton,
   SummaryCardsSkeleton,
-} from '@/features/storage/ui/storage-skeletons';
+} from '@/features/storage/ui/components/storage-skeletons';
 import { getCurrentUser } from '@/features/user/api/queries';
 import { formatBytes } from '@/shared/lib/utils';
-import { LoadFailure } from '@/shared/ui/load-failure';
-import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/shared/ui/shadcn/card';
+} from '@/shared/ui/components/shadcn/card';
 import {
   Table,
   TableBody,
@@ -39,7 +39,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/shared/ui/shadcn/table';
+} from '@/shared/ui/components/shadcn/table';
 
 export const metadata: Metadata = {
   title: 'Storage | Rustrak',

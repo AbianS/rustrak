@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/features/user/api/queries';
-import { ServiceUnavailable } from '@/shared/ui/service-unavailable';
+import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import { SettingsMobileNav } from './_components/settings-mobile-nav';
 import { SettingsNav } from './_components/settings-nav';
 

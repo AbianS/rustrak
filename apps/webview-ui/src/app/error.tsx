@@ -2,8 +2,8 @@
 
 import { RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
-import { ErrorScreen } from '@/shared/ui/error-screen';
-import { Button } from '@/shared/ui/shadcn/button';
+import { ErrorScreen } from '@/shared/ui/components/error-screen';
+import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface ErrorProps {
   error: Error & { digest?: string };

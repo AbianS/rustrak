@@ -7,10 +7,10 @@ import {
   getTransactionStatForGroup,
   listTransactions,
 } from '@/features/transaction/api/queries';
-import { TransactionsList } from '@/features/transaction/ui/transactions-list';
+import { TransactionsList } from '@/features/transaction/ui/components/transactions-list';
 import { loadAll } from '@/shared/lib/results';
-import { LoadFailure } from '@/shared/ui/load-failure';
-import { Badge } from '@/shared/ui/shadcn/badge';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Badge } from '@/shared/ui/components/shadcn/badge';
 
 interface SummaryPageProps {
   params: Promise<{ id: string }>;

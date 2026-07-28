@@ -25,7 +25,7 @@ vi.mock('@/features/release/api/queries', () => ({
   getAllReleaseHealthRows: async () => ({ success: true, data: rows }),
   getNewIssuesForRelease: () => getNewIssuesForRelease(),
 }));
-vi.mock('@/features/release/ui/release-environment-cards', () => ({
+vi.mock('@/features/release/ui/components/release-environment-cards', () => ({
   ReleaseEnvironmentCards: () => <div>environment cards</div>,
 }));
 vi.mock('next/navigation', () => ({

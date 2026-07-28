@@ -1,11 +1,11 @@
 import { cookies } from 'next/headers';
 import { getProject, getProjects } from '@/features/project/api/queries';
-import { ProjectSidebar } from '@/features/project/ui/project-sidebar';
+import { ProjectSidebar } from '@/features/project/ui/components/project-sidebar';
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from '@/shared/ui/shadcn/sidebar';
+} from '@/shared/ui/components/shadcn/sidebar';
 
 interface ProjectLayoutProps {
   children: React.ReactNode;

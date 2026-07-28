@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { getProject } from '@/features/project/api/queries';
-import { ProjectHeader } from '@/features/project/ui/project-header';
+import { ProjectHeader } from '@/features/project/ui/components/project-header';
 import { parseOverviewPeriod } from '@/features/release/model/session-health';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { OverviewPeriodFilter } from './_components/overview-period-filter';
 import {
   CounterTiles,

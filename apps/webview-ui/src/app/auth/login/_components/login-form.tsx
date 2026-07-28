@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { login } from '@/features/user/api/mutations';
 import { SERVER_ERROR_PATH } from '@/shared/lib/form-errors';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   Form,
   FormControl,
@@ -18,8 +18,8 @@ import {
   FormLabel,
   FormMessage,
   FormRootError,
-} from '@/shared/ui/shadcn/form';
-import { Input } from '@/shared/ui/shadcn/input';
+} from '@/shared/ui/components/shadcn/form';
+import { Input } from '@/shared/ui/components/shadcn/input';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

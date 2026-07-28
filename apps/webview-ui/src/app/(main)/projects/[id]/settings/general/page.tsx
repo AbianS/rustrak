@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getProject } from '@/features/project/api/queries';
-import { GeneralSettingsForm } from '@/features/project/ui/general-settings-form';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { GeneralSettingsForm } from '@/features/project/ui/components/general-settings-form';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface GeneralSettingsPageProps {
   params: Promise<{ id: string }>;

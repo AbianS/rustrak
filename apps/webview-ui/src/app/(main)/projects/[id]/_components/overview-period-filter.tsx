@@ -6,7 +6,7 @@ import {
   OVERVIEW_PERIODS,
   type OverviewPeriod,
 } from '@/features/release/model/session-health';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface OverviewPeriodFilterProps {
   projectId: number;

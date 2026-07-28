@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { getIssue } from '@/features/issue/api/queries';
 import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/shared/lib/results';
-import { LoadFailure } from '@/shared/ui/load-failure';
-import { Button } from '@/shared/ui/shadcn/button';
-import { Card, CardContent } from '@/shared/ui/shadcn/card';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Button } from '@/shared/ui/components/shadcn/button';
+import { Card, CardContent } from '@/shared/ui/components/shadcn/card';
 
 interface EmptyEventsPageProps {
   params: Promise<{ id: string; issueId: string }>;

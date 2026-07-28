@@ -1,6 +1,6 @@
 import type { RustrakError } from '@rustrak/client';
 import { listIssues } from '@/features/issue/api/queries';
-import { IssueListCard } from '@/features/issue/ui/issue-list-card';
+import { IssueListCard } from '@/features/issue/ui/components/issue-list-card';
 import {
   getProjectEventTimeseries,
   getProjectStatsSummary,
@@ -13,23 +13,23 @@ import {
   type OverviewPeriod,
   overviewInterval,
 } from '@/features/release/model/session-health';
-import { CrashFreeTrend } from '@/features/release/ui/crash-free-trend';
-import { SessionHealthArea } from '@/features/release/ui/session-health-area';
+import { CrashFreeTrend } from '@/features/release/ui/components/crash-free-trend';
+import { SessionHealthArea } from '@/features/release/ui/components/session-health-area';
 import { getTransactionStats } from '@/features/transaction/api/queries';
 import { exactCount } from '@/shared/lib/chart-format';
 import { loadAll } from '@/shared/lib/results';
-import { ErrorVolumeChart } from '@/shared/ui/error-volume-chart';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { ErrorVolumeChart } from '@/shared/ui/components/error-volume-chart';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/shared/ui/shadcn/card';
-import { Skeleton } from '@/shared/ui/shadcn/skeleton';
-import { StatTile } from '@/shared/ui/stat-tile';
-import { TransactionP95Bars } from '@/shared/ui/transaction-p95-bars';
+} from '@/shared/ui/components/shadcn/card';
+import { Skeleton } from '@/shared/ui/components/shadcn/skeleton';
+import { StatTile } from '@/shared/ui/components/stat-tile';
+import { TransactionP95Bars } from '@/shared/ui/components/transaction-p95-bars';
 
 /**
  * Every tile takes the same props so the grid can stream them independently:

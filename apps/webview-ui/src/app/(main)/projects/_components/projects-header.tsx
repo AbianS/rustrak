@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**
  * Creation lives at `/projects/new`, not in a dialog.

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { listAlertRules, listIntegrations } from '@/features/alert/api/queries';
-import { AlertsSettings } from '@/features/alert/ui/alerts-settings';
+import { AlertsSettings } from '@/features/alert/ui/components/alerts-settings';
 import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/shared/lib/results';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface AlertsSettingsPageProps {
   params: Promise<{ id: string }>;

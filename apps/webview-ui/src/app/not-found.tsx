@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ErrorScreen } from '@/shared/ui/error-screen';
-import { Button } from '@/shared/ui/shadcn/button';
+import { ErrorScreen } from '@/shared/ui/components/error-screen';
+import { Button } from '@/shared/ui/components/shadcn/button';
 
 export const metadata: Metadata = {
   title: 'Not found | Rustrak',

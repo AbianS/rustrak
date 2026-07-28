@@ -20,10 +20,10 @@ vi.mock('next/navigation', () => ({ redirect: (to: string) => redirect(to) }));
 vi.mock('@/features/user/api/queries', () => ({
   getCurrentUser: () => getCurrentUser(),
 }));
-vi.mock('@/shared/ui/update-banner-slot', () => ({
+vi.mock('@/shared/ui/components/update-banner-slot', () => ({
   UpdateBannerSlot: () => null,
 }));
-vi.mock('@/features/user/ui/header', () => ({
+vi.mock('@/features/user/ui/components/header', () => ({
   Header: ({ user }: { user: User }) => <div>header for {user.email}</div>,
 }));
 

@@ -6,7 +6,7 @@ import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { acceptInvitation } from '@/features/user/api/mutations';
-import { Button } from '@/shared/ui/shadcn/button';
+import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   Form,
   FormControl,
@@ -14,9 +14,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/shared/ui/shadcn/form';
-import { Input } from '@/shared/ui/shadcn/input';
-import { Label } from '@/shared/ui/shadcn/label';
+} from '@/shared/ui/components/shadcn/form';
+import { Input } from '@/shared/ui/components/shadcn/input';
+import { Label } from '@/shared/ui/components/shadcn/label';
 
 const acceptSchema = z
   .object({

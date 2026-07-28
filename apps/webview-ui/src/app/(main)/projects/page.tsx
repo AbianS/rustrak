@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getProjects } from '@/features/project/api/queries';
-import { ProjectsList } from '@/features/project/ui/projects-list';
-import { LoadFailure } from '@/shared/ui/load-failure';
+import { ProjectsList } from '@/features/project/ui/components/projects-list';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ProjectsHeader } from './_components/projects-header';
 
 export const metadata: Metadata = {

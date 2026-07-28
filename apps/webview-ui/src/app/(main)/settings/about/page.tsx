@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 import { getServerVersion } from '@/shared/api/server-version';
 import { APP_VERSION } from '@/shared/config/constants';
 import { describeError } from '@/shared/lib/error-copy';
-import { RustrakLogoIcon } from '@/shared/ui/rustrak-logo';
+import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/shared/ui/shadcn/card';
+} from '@/shared/ui/components/shadcn/card';
 
 export const metadata: Metadata = {
   title: 'About | Rustrak',
