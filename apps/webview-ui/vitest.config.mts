@@ -20,6 +20,27 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   test: {
+    /**
+     * Sequential files, one shared module registry, and it is a **20x
+     * reduction in work** rather than a scheduling preference.
+     *
+     * archunit resolves the import graph by building a TypeScript program, and
+     * caches it at module scope. Vitest's default is a fresh module registry per
+     * test file, so nine rule files meant nine full extractions of the same
+     * program: 32s of CPU. Sharing the registry means it is built once and the
+     * other eight files read the cache -- 1.6s.
+     *
+     * This surfaced as a CI failure, not as slowness. Locally the 32s spread
+     * across 7 cores and the suite finished in 4.5s; a 2-core GitHub runner has
+     * no such luxury, so individual population tests took 22.8s and tripped the
+     * timeout while every rule they guard passed.
+     *
+     * Safe here because nothing in this suite has mutable state to leak: the
+     * rules read files and assert. A future test that stubs a global would need
+     * to opt back into isolation, and should say so where it does.
+     */
+    isolate: false,
+    fileParallelism: false,
     // Node, not jsdom. Nothing here touches a DOM.
     environment: 'node',
     // `globals` is required by archunit's `toPassAsync` matcher, which the
@@ -29,11 +50,11 @@ export default defineConfig({
     // anywhere else is not silently collected into this suite.
     include: ['src/__tests__/architecture/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/e2e/**'],
-    // The rules walk the tree and build a TypeScript program; the 5s default is
-    // too tight for that on a cold CI runner. A GitHub runner has reported ~70s
-    // for the environment alone, so this is headroom for a slow machine rather
-    // than cover for a slow test.
-    testTimeout: 20_000,
-    hookTimeout: 30_000,
+    // Whichever test runs first pays for the whole graph extraction; the rest
+    // cost milliseconds. That one test needs room on a cold runner, and since
+    // the suite now finishes in under two seconds, a generous ceiling costs
+    // nothing and a tight one costs a red build.
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
   },
 });
