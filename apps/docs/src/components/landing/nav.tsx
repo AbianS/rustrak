@@ -1,12 +1,8 @@
 'use client';
 
 import { X } from 'lucide-react';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValueEvent,
-  useScroll,
-} from 'motion/react';
+import { AnimatePresence, useMotionValueEvent, useScroll } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { GithubIcon } from '@/components/icons/github';
@@ -288,13 +284,13 @@ export function LandingNav() {
            kinder than `inert`: reaching for it brings it back. */
         onFocusCapture={() => setTucked(false)}
       >
-        <motion.div
+        <m.div
           animate={{ y: away ? '-102%' : '0%' }}
           /* Just past 100%, so the border under the bar clears the top edge
              instead of leaving a hairline stuck to it. */
           transition={{ duration: DUR.base, ease: EASE }}
         >
-          <motion.header
+          <m.header
             initial="hidden"
             animate={started ? 'visible' : 'hidden'}
             variants={BAR_VARIANTS}
@@ -306,7 +302,7 @@ export function LandingNav() {
             )}
           >
             <nav className="mx-auto flex h-16 max-w-360 items-center justify-between px-5 sm:px-6 md:px-10">
-              <motion.div variants={ITEM_VARIANTS}>
+              <m.div variants={ITEM_VARIANTS}>
                 <Link
                   href="/"
                   className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
@@ -316,20 +312,20 @@ export function LandingNav() {
                     Rustrak
                   </span>
                 </Link>
-              </motion.div>
+              </m.div>
 
               <div className="hidden items-center gap-8 md:flex">
                 {LINKS.map((link) => (
-                  <motion.div key={link.href} variants={ITEM_VARIANTS}>
+                  <m.div key={link.href} variants={ITEM_VARIANTS}>
                     <Link
                       href={link.href}
                       className="text-[13px] text-white/55 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                     >
                       {link.label}
                     </Link>
-                  </motion.div>
+                  </m.div>
                 ))}
-                <motion.div variants={ITEM_VARIANTS}>
+                <m.div variants={ITEM_VARIANTS}>
                   <Link
                     href={REPO}
                     target="_blank"
@@ -339,20 +335,20 @@ export function LandingNav() {
                     <GithubIcon className="size-3.5" />
                     GitHub
                   </Link>
-                </motion.div>
-                <motion.div variants={ITEM_VARIANTS}>
+                </m.div>
+                <m.div variants={ITEM_VARIANTS}>
                   <Link
                     href="/getting-started/installation"
                     className="rounded-full bg-white px-4 py-1.5 text-[13px] font-medium text-black transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                   >
                     Get started
                   </Link>
-                </motion.div>
+                </m.div>
               </div>
 
               {/* Pulled out into its own margin so the 44px hit area a thumb needs
               does not push the bar's contents apart to get it. */}
-              <motion.button
+              <m.button
                 ref={menuButton}
                 variants={ITEM_VARIANTS}
                 type="button"
@@ -363,10 +359,10 @@ export function LandingNav() {
               >
                 <span className="block h-px w-5 bg-white" />
                 <span className="block h-px w-5 bg-white" />
-              </motion.button>
+              </m.button>
             </nav>
-          </motion.header>
-        </motion.div>
+          </m.header>
+        </m.div>
       </div>
 
       {/* Wrapped so closing is a fade rather than a cut. Opening was already
@@ -376,7 +372,7 @@ export function LandingNav() {
           included — otherwise the button at the bottom sits under the chrome. */}
       <AnimatePresence onExitComplete={onMenuGone}>
         {menuOpen ? (
-          <motion.div
+          <m.div
             ref={menuPanel}
             /* Named as what it is. A full-screen surface that takes the
                keyboard and holds it is a dialog whatever it is drawn as, and
@@ -430,7 +426,7 @@ export function LandingNav() {
                 Get started
               </Link>
             </div>
-          </motion.div>
+          </m.div>
         ) : null}
       </AnimatePresence>
     </>

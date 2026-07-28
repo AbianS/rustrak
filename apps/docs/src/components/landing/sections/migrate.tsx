@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useRef } from 'react';
 import { EASE } from '../motion';
 import { Band, Cell } from '../primitives/grid';
@@ -93,7 +94,7 @@ export function Migrate() {
                   const added = line.state === 'added';
 
                   return (
-                    <motion.div
+                    <m.div
                       // Lines are a fixed authored snippet, never reordered.
                       key={`${index}-${line.state}`}
                       className="relative flex items-center gap-3"
@@ -137,7 +138,7 @@ export function Migrate() {
                         {/* Drawn rather than `line-through`, so it can be timed
                           with the replacement arriving underneath it. */}
                         {removed ? (
-                          <motion.span
+                          <m.span
                             aria-hidden
                             className="absolute inset-y-0 left-0 my-auto block h-px bg-destructive/70"
                             initial={reduced ? { width: '100%' } : { width: 0 }}
@@ -154,7 +155,7 @@ export function Migrate() {
                           />
                         ) : null}
                       </span>
-                    </motion.div>
+                    </m.div>
                   );
                 })}
               </pre>

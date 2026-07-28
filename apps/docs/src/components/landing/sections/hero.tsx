@@ -1,12 +1,12 @@
 'use client';
 
 import {
-  motion,
   useMotionValue,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { GithubIcon } from '@/components/icons/github';
@@ -238,7 +238,7 @@ export function Hero() {
             middle and nothing above it moves.
           */}
           <span ref={claim} className="relative mt-1 block">
-            <motion.span
+            <m.span
               className="inline-block bg-[linear-gradient(105deg,var(--primary)_28%,color-mix(in_oklab,var(--primary)_35%,white)_44%,var(--primary)_60%)] bg-clip-text text-transparent [background-size:260%_100%]"
               initial={
                 reduced
@@ -317,7 +317,7 @@ export function Hero() {
                    condition that grants it, there is nothing to reset. */
                 handedOver={held && caretAway}
               />
-            </motion.span>
+            </m.span>
             <span
               aria-hidden
               className="pointer-events-none absolute inset-x-0 -bottom-2 -z-10 h-10 blur-2xl [background:radial-gradient(50%_100%_at_50%_50%,color-mix(in_oklab,var(--primary)_28%,transparent),transparent_70%)]"
@@ -338,7 +338,7 @@ export function Hero() {
             pair of differently-sized pills reads as an accident. Below `xs`
             they stack full width instead, which is also the shape a thumb
             expects. */}
-        <motion.div
+        <m.div
           className="mx-auto mt-8 flex max-w-xs flex-col items-stretch gap-3 sm:mt-9 sm:max-w-none sm:flex-row sm:flex-wrap sm:items-center sm:justify-center"
           {...enter(1.05)}
         >
@@ -365,7 +365,7 @@ export function Hero() {
             <GithubIcon className="size-4" />
             View on GitHub
           </a>
-        </motion.div>
+        </m.div>
       </div>
 
       {/*
@@ -391,14 +391,14 @@ export function Hero() {
             the whole 1.9s. A deeper scale buys the same sense of a subject
             being approached out of properties the compositor animates for free.
           */}
-          <motion.div
+          <m.div
             initial={reduced ? undefined : { opacity: 0, y: 72, scale: 0.92 }}
             animate={
               reduced || !started ? undefined : { opacity: 1, y: 0, scale: 1 }
             }
             transition={{ duration: 1.9, ease: EASE, delay: 2 }}
           >
-            <motion.div
+            <m.div
               ref={panel}
               className="relative mx-auto w-full max-w-[1160px]"
               style={held ? { scale } : undefined}
@@ -439,8 +439,8 @@ export function Hero() {
                   <MockOverview mode="enter" armed={started} enterDelay={2.3} />
                 </AppFrame>
               )}
-            </motion.div>
-          </motion.div>
+            </m.div>
+          </m.div>
         </div>
       </div>
     </section>

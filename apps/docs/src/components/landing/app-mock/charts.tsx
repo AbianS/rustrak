@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useTransform } from 'motion/react';
+import { useTransform } from 'motion/react';
+import * as m from 'motion/react-m';
 import { Fragment, type ReactNode } from 'react';
 import type { SessionBucket, VolumeBucket } from './fixtures';
 import {
@@ -359,7 +360,7 @@ function MeanLine({
   const opacity = useTransform(p, [0, 0.4], [0, 1]);
 
   return (
-    <motion.g style={{ transformOrigin: `${x1}px ${y}px`, scaleX: p, opacity }}>
+    <m.g style={{ transformOrigin: `${x1}px ${y}px`, scaleX: p, opacity }}>
       <line
         x1={x1}
         x2={x2}
@@ -370,7 +371,7 @@ function MeanLine({
         strokeDasharray="4 4"
         strokeOpacity={0.6}
       />
-    </motion.g>
+    </m.g>
   );
 }
 
@@ -736,7 +737,7 @@ export function TrendSparkline({
   const last = trend.length - 1;
 
   return (
-    <motion.svg
+    <m.svg
       viewBox={`0 0 ${trend.length * (barWidth + gap)} 24`}
       className={className}
       preserveAspectRatio="none"
@@ -768,6 +769,6 @@ export function TrendSparkline({
           );
         })}
       </Grow>
-    </motion.svg>
+    </m.svg>
   );
 }

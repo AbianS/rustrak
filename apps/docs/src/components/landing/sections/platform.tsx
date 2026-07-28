@@ -2,7 +2,7 @@
 
 import { useLenis } from 'lenis/react';
 import { ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
+import * as m from 'motion/react-m';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
@@ -593,7 +593,7 @@ function ChapterRail({ active }: { active: number }) {
             lit segment reads as part of it lighting up rather than as a tick
             that appears next to a word. */}
         <span aria-hidden className="absolute inset-y-0 left-0 w-px bg-rule" />
-        <motion.span
+        <m.span
           aria-hidden
           className="absolute left-0 w-px bg-primary"
           initial={false}

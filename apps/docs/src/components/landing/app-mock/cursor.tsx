@@ -3,10 +3,10 @@
 import {
   AnimatePresence,
   animate,
-  motion,
   useMotionValue,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { POINTER_ORIGIN } from './pointer-origin';
 
@@ -308,7 +308,7 @@ export function Cursor({
 
   return (
     <div ref={ref} aria-hidden className="pointer-events-none absolute inset-0">
-      <motion.div
+      <m.div
         className="absolute left-0 top-0"
         // Applied once, on mount: exactly where the caret is, exactly its size.
         // Nothing fades in, because on this frame this *is* the caret.
@@ -334,7 +334,7 @@ export function Cursor({
             from the point rather than from the graphic. */}
         <AnimatePresence>
           {pressed ? (
-            <motion.span
+            <m.span
               key="ring"
               className="absolute -left-5 -top-5 size-10 rounded-full border border-primary"
               initial={{ scale: 0.25, opacity: 0.8 }}
@@ -345,7 +345,7 @@ export function Cursor({
           ) : null}
         </AnimatePresence>
 
-        <motion.svg
+        <m.svg
           width="40"
           height="40"
           viewBox="0 0 40 40"
@@ -366,7 +366,7 @@ export function Cursor({
           {/* The rim is the same path stroked wider and drawn behind, so the
               two silhouettes are the same shape by construction and cannot
               drift out of register during the morph. */}
-          <motion.path
+          <m.path
             d={d}
             fill="none"
             stroke="oklch(0.12 0 0)"
@@ -375,7 +375,7 @@ export function Cursor({
             strokeLinecap="round"
             style={{ opacity: rimOpacity }}
           />
-          <motion.path
+          <m.path
             d={d}
             fill="var(--primary)"
             stroke="var(--primary)"
@@ -383,8 +383,8 @@ export function Cursor({
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-        </motion.svg>
-      </motion.div>
+        </m.svg>
+      </m.div>
     </div>
   );
 }

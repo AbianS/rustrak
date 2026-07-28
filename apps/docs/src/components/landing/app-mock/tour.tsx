@@ -4,10 +4,10 @@ import {
   AnimatePresence,
   animate,
   type MotionValue,
-  motion,
   useMotionValue,
   useReducedMotion,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type ReactNode, useEffect, useState } from 'react';
 import { EASE } from '../motion';
 import { AppFrame } from './app-frame';
@@ -296,7 +296,7 @@ export function Tour({
         <EventScene active={running}>
           <div className="relative h-full w-full">
             <AnimatePresence initial={false}>
-              <motion.div
+              <m.div
                 key={screen.id}
                 className="absolute inset-0"
                 initial={{ opacity: 0 }}
@@ -310,7 +310,7 @@ export function Tour({
                 <Stage gate={gate} delay={step < 1 ? OPEN_DELAY : 0}>
                   {screen.node}
                 </Stage>
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
         </EventScene>

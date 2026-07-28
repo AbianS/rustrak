@@ -13,7 +13,8 @@ import {
   Navigation,
   Webhook,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
+import * as m from 'motion/react-m';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { EASE } from '../motion';
@@ -640,7 +641,7 @@ export function LogLevelsMini() {
               className="relative h-9 border-b border-border last:border-b-0"
             >
               <AnimatePresence initial={false}>
-                <motion.div
+                <m.div
                   key={log.id}
                   className="absolute inset-0 flex items-center gap-3 px-4"
                   initial={{ opacity: 0, y: 6 }}
@@ -663,7 +664,7 @@ export function LogLevelsMini() {
                   <span className="hidden w-20 shrink-0 whitespace-nowrap text-right text-xs text-muted-foreground sm:block">
                     {slot === 0 ? 'just now' : `${slot * 3 + 1}s ago`}
                   </span>
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </Enter>
           );

@@ -2,13 +2,13 @@
 
 import {
   type MotionValue,
-  motion,
   useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
   useTransform,
 } from 'motion/react';
+import * as m from 'motion/react-m';
 import { type RefObject, useRef, useState } from 'react';
 import { DUR, EASE } from '../motion';
 import { Band, Cell } from '../primitives/grid';
@@ -289,7 +289,7 @@ function Stage() {
             different things: sideways there is the whole frame, downward the
             stage starts immediately under a fixed nav and the drawing lands
             hard against it. */}
-        <motion.div
+        <m.div
           className="absolute inset-0 px-6 py-10 lg:px-8 lg:py-14"
           style={{ x: sceneX, scale: sceneScale }}
         >
@@ -299,19 +299,19 @@ function Stage() {
             label={label}
             className="h-full w-full"
           />
-        </motion.div>
+        </m.div>
 
         {/* The reading panel. Slides in with the leader lines and leaves with
             them, and shows one claim at a time rather than a list — the list
             is the drawing, and repeating it here in words would be asking the
             reader to look at the same five things twice. */}
-        <motion.aside
+        <m.aside
           className="absolute inset-y-0 right-0 flex w-[20rem] items-center border-l border-rule bg-[var(--surface-soft)] px-7 xl:w-[22rem] xl:px-8"
           style={{ x: panelX, opacity: label }}
         >
           <div className="min-w-0">
             {claim ? (
-              <motion.div key={active} {...CLAIM_ENTER}>
+              <m.div key={active} {...CLAIM_ENTER}>
                 <ClaimHeading index={active} />
 
                 <p className="mt-4 text-[19px] font-medium leading-snug tracking-[-0.015em] text-foreground">
@@ -321,12 +321,12 @@ function Stage() {
                 <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
                   {claim.answer}
                 </p>
-              </motion.div>
+              </m.div>
             ) : null}
 
             <Ticks active={active} className="mt-10" />
           </div>
-        </motion.aside>
+        </m.aside>
       </div>
     </div>
   );
@@ -385,10 +385,7 @@ function LegendRow({
   const part = PARTS[index];
 
   return (
-    <motion.li
-      className="flex items-baseline gap-3"
-      style={{ opacity: arrive }}
-    >
+    <m.li className="flex items-baseline gap-3" style={{ opacity: arrive }}>
       <span className="font-mono text-[10.5px] tabular-nums text-primary">
         {String(index + 1).padStart(2, '0')}
       </span>
@@ -396,7 +393,7 @@ function LegendRow({
       <span className="ml-auto font-mono text-[10px] text-muted-foreground/70">
         {part.note}
       </span>
-    </motion.li>
+    </m.li>
   );
 }
 
@@ -512,15 +509,15 @@ function PhoneStage() {
           {/* The two states of the slot, in the same box, cross-faded on the
               panel clock: the parts list while the machine assembles itself,
               then one claim at a time. */}
-          <motion.div
+          <m.div
             className="absolute inset-x-5 top-5 sm:inset-x-8"
             style={{ opacity: legend }}
           >
             <Legend open={open} />
-          </motion.div>
+          </m.div>
 
           {claim ? (
-            <motion.div
+            <m.div
               className="absolute inset-x-5 top-5 sm:inset-x-8"
               key={active}
               {...CLAIM_ENTER}
@@ -536,7 +533,7 @@ function PhoneStage() {
               <p className="mt-2.5 text-[13.5px] leading-relaxed text-muted-foreground">
                 {claim.answer}
               </p>
-            </motion.div>
+            </m.div>
           ) : null}
 
           {/* Pinned to the bottom edge rather than flowing after the prose, so
