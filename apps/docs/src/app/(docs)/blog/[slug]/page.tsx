@@ -78,7 +78,7 @@ export default async function BlogPostPage({ params }: PageProps) {
   }
 
   return (
-    <div className="blog-root mx-auto w-full max-w-[72rem] px-4 py-10 sm:px-6 sm:py-14">
+    <div className="blog-root mx-auto w-full max-w-[76rem] px-4 py-10 sm:px-6 sm:py-14">
       {/*
         `overflow-x-clip`, the same backstop the landing's frame carries: a
         grid item's `min-width` is `auto`, so one wide child — a Mermaid
@@ -101,16 +101,23 @@ export default async function BlogPostPage({ params }: PageProps) {
           the two columns now, and the rail marks its active item with a dot
           instead of a bar — see `reading-rail.tsx`.
         */}
-        <div className="grid border-b border-rule lg:grid-cols-[minmax(0,1fr)_16rem]">
-          <article
-            id={BODY_ID}
-            className="blog-prose min-w-0 px-5 py-12 sm:px-9 sm:py-14"
-          >
+        {/*
+          The padding sits on the grid rather than on the two cells, and that
+          is what makes this the same grid as the masthead above it. With the
+          article carrying its own `px-9` the text track was 36px wider than
+          the header's and the rail started 36px further left, so the byline
+          and the contents list did not line up with each other and neither
+          lined up with the title. One padded container and one `gap-x-10`,
+          repeated in both places, and the page is two columns from top to
+          bottom.
+        */}
+        <div className="grid border-b border-rule px-5 sm:px-9 lg:grid-cols-[minmax(0,1fr)_16rem] lg:gap-x-10">
+          <article id={BODY_ID} className="blog-prose min-w-0 py-12 sm:py-14">
             <MDXContent />
             <MermaidFit bodyId={BODY_ID} />
           </article>
 
-          <div className="min-w-0 lg:py-14 lg:pr-9">
+          <div className="min-w-0 lg:py-14">
             <ReadingRail items={toc} bodyId={BODY_ID} />
           </div>
         </div>

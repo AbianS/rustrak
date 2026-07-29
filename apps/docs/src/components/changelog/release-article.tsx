@@ -17,6 +17,19 @@ import { cn } from '@/lib/utils';
  * one — the version is monospaced, the title is display type, a section is a
  * numbered rule, and the body is prose. Two levels that differ only in font
  * size collapse into one the moment the page is scrolled quickly.
+ *
+ * ── What the redesign changed, and why ─────────────────────────────────────
+ *
+ * The body used to fill its whole track. In the widest layout that came to
+ * around 95 characters a line, set at 14.5px in `--muted-foreground`. Three
+ * separate reasons for the same complaint, which was that the page was hard to
+ * read on a large monitor. All three are fixed below and in `globals.css`: the
+ * column is capped at a measure, the type went up a step, and the body is no
+ * longer painted in the colour reserved for metadata.
+ *
+ * The right-hand track used to hold the tags, which meant eleven rems of a wide
+ * screen were spent on two words. It holds the release's section index now, and
+ * the tags moved to the left rail where the rest of the metadata already was.
  */
 
 const CHANNEL_LABEL: Record<ReleaseChannel, string> = {
@@ -43,6 +56,31 @@ const KIND_TICK: Record<SectionKind, string> = {
   documented: 'bg-foreground/25',
 };
 
+/**
+ * How far below the top of the viewport an anchored element should land.
+ *
+ * It is the pinned strip's height and *not* the navbar's, which is the part
+ * that is easy to get wrong. This file did, and every jump overshot by 64px.
+ * Nextra already sets `scroll-padding-top: var(--nextra-navbar-height)` on
+ * `html`, and `scroll-padding` on the scroll container adds to `scroll-margin`
+ * on the target rather than replacing it. Counting the navbar here counted it
+ * twice, and a release landed a whole navbar below the bar it was supposed to
+ * sit under, far enough that the reading line was still inside the *previous*
+ * release and the strip named that one instead.
+ *
+ * So this covers only what Nextra does not know about, which is the strip.
+ */
+const ANCHOR_OFFSET = 'scroll-mt-[3.5rem]';
+
+/**
+ * A section's own anchor, namespaced by its release. Section titles repeat
+ * across the archive (a dozen entries have an "Improvements"), so the release
+ * anchor has to be part of it or the index in one entry would jump to another.
+ */
+function sectionId(anchor: string, title: string): string {
+  return `${anchor}--${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
+
 function ChannelChip({ channel }: { channel: ReleaseChannel }) {
   return (
     <span
@@ -59,12 +97,17 @@ function ChannelChip({ channel }: { channel: ReleaseChannel }) {
 function Section({
   section,
   index,
+  anchor,
 }: {
   section: Release['sections'][number];
   index: number;
+  anchor: string;
 }) {
   return (
-    <section className="mt-9 first:mt-8">
+    <section
+      id={section.title ? sectionId(anchor, section.title) : undefined}
+      className={cn('mt-10 scroll-mt-[4.5rem] first:mt-8')}
+    >
       {section.title && (
         <div className="flex items-center gap-3">
           <span
@@ -87,7 +130,7 @@ function Section({
         </div>
       )}
       <div
-        className={cn('changelog-prose', section.title && 'mt-3.5 pl-[1.4rem]')}
+        className={cn('changelog-prose', section.title && 'mt-4 pl-[1.4rem]')}
         /* The HTML is this repo's own changelog MDX, parsed by `marked` at
            build time. Nothing user-supplied reaches it: the only inputs are
            files in content/changelog/, which are as trusted as the code. */
@@ -100,10 +143,15 @@ function Section({
 }
 
 export function ReleaseArticle({ release }: { release: Release }) {
+  const titled = release.sections.filter((section) => section.title);
+
   return (
     <article
       id={release.anchor}
-      className="border-b border-rule scroll-mt-[calc(var(--nextra-navbar-height,4rem)+1rem)]"
+      // Read by the feed's observer to work out which release the reader is
+      // inside, which is what lights a column in the spectrum.
+      data-release={release.anchor}
+      className={cn('border-b border-rule', ANCHOR_OFFSET)}
     >
       {/*
         The filename anchor, kept because it is what every link to this page
@@ -113,34 +161,32 @@ export function ReleaseArticle({ release }: { release: Release }) {
       <span
         id={release.slug}
         aria-hidden
-        className="block scroll-mt-[calc(var(--nextra-navbar-height,4rem)+1rem)]"
+        className={cn('block', ANCHOR_OFFSET)}
       />
 
       {/*
-        The same three tracks the blog uses — meta, body, aside — so the two
-        sections of the site are one layout at one width rather than two pages
-        that happen to share a palette.
+        Three tracks: metadata, the document, its index.
 
-        Below `lg` the tracks collapse and the order is set explicitly: the
-        version strip first, then the tags, then the body. In a wide grid the
-        tags belong beside the entry; stacked, they belong under its title,
-        and `order` is what lets one piece of markup be in both places.
+        The middle one is capped at a measure rather than filling the space
+        between the other two. See the header note. The consequence worth
+        naming is that the frame can now be as wide as the composition wants
+        without the prose getting any harder to read, which is what makes the
+        spectrum above it possible at all.
+
+        Below `lg` the tracks collapse into ordinary blocks and the index is
+        dropped: on a phone it would be a list of four links directly above the
+        four things they link to.
       */}
-      <div className="flex flex-col px-5 pb-14 sm:px-9 sm:pb-16 lg:grid lg:grid-cols-[9.5rem_minmax(0,1fr)_12rem] lg:gap-x-10 lg:pt-14">
+      <div className="px-5 pb-14 pt-9 sm:px-9 sm:pb-16 lg:grid lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:gap-x-10 lg:pt-12 xl:grid-cols-[9.5rem_minmax(0,1fr)_11rem]">
         {/*
-          Pinned while the release is on screen. A long entry runs several
-          screens deep, and without this the reader has to scroll back up to
-          find out which version the fix they are reading actually landed in.
-
-          Narrow, it is a bar across the top with a background to scroll under.
-          Wide, it is a block in the left track and needs none of that chrome —
-          it has a column of its own to sit in, so the rule, the tint and the
-          blur all come off and only the pinning survives.
+          Left rail. It no longer pins: the spectrum's strip is pinned across
+          the top of the page and already names the release the reader is in,
+          and two sticky version labels a few pixels apart is one too many.
         */}
-        <div className="sticky top-[var(--nextra-navbar-height,4rem)] z-10 -mx-5 flex items-center gap-2.5 border-b border-rule/70 bg-background/85 px-5 py-3 backdrop-blur sm:-mx-9 sm:px-9 lg:col-start-1 lg:row-start-1 lg:mx-0 lg:block lg:self-start lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none lg:top-[calc(var(--nextra-navbar-height,4rem)+3.5rem)]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5 lg:col-start-1 lg:row-start-1 lg:block lg:self-start">
           <a
             href={`#${release.anchor}`}
-            className="group/anchor font-mono text-[15px] font-medium tracking-tight text-foreground transition-colors hover:text-primary lg:block"
+            className="group/anchor font-mono text-[17px] font-medium tracking-tight text-foreground transition-colors hover:text-primary lg:block"
           >
             {release.version}
             <span
@@ -151,64 +197,103 @@ export function ReleaseArticle({ release }: { release: Release }) {
             </span>
             <span className="sr-only">Permalink to {release.version}</span>
           </a>
-          <span className="lg:mt-2.5 lg:block">
+
+          <span className="lg:mt-3 lg:block">
             <ChannelChip channel={release.channel} />
           </span>
+
           <time
             dateTime={release.date}
-            className="ml-auto font-mono text-[11.5px] tabular-nums text-muted-foreground lg:ml-0 lg:mt-3 lg:block"
+            className="font-mono text-[11.5px] tabular-nums text-muted-foreground lg:mt-3 lg:block"
           >
             {formatReleaseDate(release.date)}
           </time>
-        </div>
 
-        {release.tags.length > 0 && (
-          <ul className="order-1 mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5 lg:order-none lg:col-start-3 lg:row-start-1 lg:mt-1 lg:flex-col lg:items-start lg:gap-1.5">
-            {release.tags.map((tag) => (
-              <li
-                key={tag}
-                className="rounded-sm bg-foreground/[0.055] px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-              >
-                {tag}
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="order-2 lg:order-none lg:col-start-2 lg:row-start-1">
-          <h2 className="pt-8 text-[1.6rem] font-medium leading-[1.15] tracking-[-0.025em] text-foreground sm:text-[1.9rem] lg:pt-0">
-            {release.title}
-          </h2>
-          {release.description && (
-            <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed text-muted-foreground">
-              {release.description}
-            </p>
+          {release.tags.length > 0 && (
+            <ul className="flex w-full flex-wrap items-center gap-1.5 lg:mt-5 lg:w-auto">
+              {release.tags.map((tag) => (
+                <li
+                  key={tag}
+                  className="rounded-sm bg-foreground/[0.055] px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+                >
+                  {tag}
+                </li>
+              ))}
+            </ul>
           )}
-
-          {/*
-            Numbered across the titled sections only. A file that opens with a
-            paragraph produces an untitled lead section, and counting it would
-            make every entry that has one start at 02.
-          */}
-          {(() => {
-            let number = 0;
-            return release.sections.map((section, index) => {
-              if (section.title) number += 1;
-              return (
-                // react-doctor-disable-next-line react-doctor/no-array-index-as-key
-                <Section
-                  // The title is the key wherever there is one. The index is
-                  // reached only by the untitled lead section, of which a
-                  // release has at most one, in a list parsed once from static
-                  // MDX and never reordered.
-                  key={section.title || index}
-                  section={section}
-                  index={number}
-                />
-              );
-            });
-          })()}
         </div>
+
+        <div className="lg:col-start-2 lg:row-start-1">
+          <div className="max-w-[40rem]">
+            <h2 className="mt-7 text-[1.55rem] font-medium leading-[1.2] tracking-[-0.022em] text-foreground sm:text-[1.75rem] lg:mt-0">
+              {release.title}
+            </h2>
+            {release.description && (
+              <p className="changelog-lead mt-3.5">{release.description}</p>
+            )}
+
+            {/*
+              Numbered across the titled sections only. A file that opens with a
+              paragraph produces an untitled lead section, and counting it would
+              make every entry that has one start at 02.
+            */}
+            {(() => {
+              let number = 0;
+              return release.sections.map((section, index) => {
+                if (section.title) number += 1;
+                return (
+                  // react-doctor-disable-next-line react-doctor/no-array-index-as-key
+                  <Section
+                    // The title is the key wherever there is one. The index is
+                    // reached only by the untitled lead section, of which a
+                    // release has at most one, in a list parsed once from static
+                    // MDX and never reordered.
+                    key={section.title || index}
+                    section={section}
+                    index={number}
+                    anchor={release.anchor}
+                  />
+                );
+              });
+            })()}
+          </div>
+        </div>
+
+        {/*
+          The index, and the reason the third track earns its width now. Two
+          sections is the threshold: below it the index would be a link to the
+          only heading in the entry, sitting level with that heading.
+
+          It pins, unlike the left rail, because that is the difference between
+          a list of contents and a way of moving around: a five-section release
+          runs past three screens and the index has to still be there on the
+          third.
+        */}
+        {titled.length > 1 && (
+          <nav
+            aria-label={`Sections of ${release.version}`}
+            className="hidden xl:col-start-3 xl:row-start-1 xl:block xl:self-start xl:sticky xl:top-[calc(var(--nextra-navbar-height,4rem)+4.5rem)]"
+          >
+            <p className="font-mono text-[10.5px] uppercase tracking-[0.18em] text-muted-foreground/70">
+              In this release
+            </p>
+            <ul className="mt-3.5 flex flex-col gap-2 border-l border-rule pl-3.5">
+              {titled.map((section, index) => (
+                <li key={section.title}>
+                  <a
+                    href={`#${sectionId(release.anchor, section.title)}`}
+                    className="group/sec flex gap-2 text-[12px] leading-snug text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <span className="font-mono tabular-nums text-muted-foreground/60">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="min-w-0">{section.title}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
       </div>
     </article>
   );

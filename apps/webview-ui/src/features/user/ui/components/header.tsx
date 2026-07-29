@@ -4,7 +4,7 @@ import type { User } from '@rustrak/client';
 import { LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { type ReactNode, useTransition } from 'react';
 import { logout } from '@/features/user/api/mutations';
 import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -18,9 +18,14 @@ import {
 
 interface HeaderProps {
   user: User;
+  /**
+   * Passed in rather than rendered here: the command bar spans several slices,
+   * and this one only knows about `user`.
+   */
+  commandBar?: ReactNode;
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, commandBar }: HeaderProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -43,8 +48,11 @@ export function Header({ user }: HeaderProps) {
         </Link>
       </div>
 
-      {/* User Menu */}
-      <div className="flex items-center gap-4">
+      {/* Search and account, grouped: both are things you do to the app rather
+          than places in it, and the header reads better with one cluster at
+          each end than with a third floating in the middle. */}
+      <div className="flex items-center gap-2 md:gap-3">
+        {commandBar}
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

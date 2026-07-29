@@ -122,6 +122,18 @@
       "!**/src-tauri"
     ]
   },
+  "overrides": [
+    {
+      "includes": ["**/src/shared/ui/components/shadcn/**"],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useSemanticElements": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "parser": {
       "unsafeParameterDecoratorsEnabled": true
