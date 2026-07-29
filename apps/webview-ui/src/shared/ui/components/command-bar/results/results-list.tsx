@@ -1,7 +1,7 @@
 'use client';
 
 import { PlatformIcon } from 'platformicons';
-import { useEffect, useMemo, useRef } from 'react';
+import { type Ref, useMemo } from 'react';
 import {
   ALL_PROJECT_PAGES,
   type CommandLink,
@@ -34,11 +34,17 @@ import { CommandRow } from './command-row';
 const SEARCH_ROW_LIMIT = 50;
 
 export function ResultsList({
+  ref,
   projects,
   query,
   onNavigate,
   onHighlight,
 }: {
+  /**
+   * The scroll container. Held by the palette so it can put the list back at
+   * the top on each keystroke -- see `CommandBarDialog`.
+   */
+  ref: Ref<HTMLDivElement>;
   projects: CommandProject[];
   query: string;
   onNavigate: (href: string) => void;
@@ -49,13 +55,6 @@ export function ResultsList({
   // the viewer types, at which point every project's pages become candidates
   // and the list only gets long once a query is there to make it short again.
   const searching = query.trim().length > 0;
-
-  const listRef = useRef<HTMLDivElement>(null);
-
-  // Scroll to top on each query change
-  useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = 0;
-  }, [query]);
 
   /**
    * The project pages a query matches, best first and capped.
@@ -125,7 +124,7 @@ export function ResultsList({
     ));
 
   return (
-    <CommandList ref={listRef} className="max-h-none min-w-0 flex-1 p-2">
+    <CommandList ref={ref} className="max-h-none min-w-0 flex-1 p-2">
       <CommandEmpty className="px-4 py-16 text-center text-sm text-muted-foreground">
         No results for “{query.trim()}”
       </CommandEmpty>

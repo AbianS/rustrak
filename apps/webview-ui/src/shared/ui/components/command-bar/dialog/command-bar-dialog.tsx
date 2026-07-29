@@ -42,6 +42,7 @@ export function CommandBarDialog({
 }: CommandBarDialogProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   // The preview column is `md:flex`, and 768px is exactly that breakpoint.
   // Below it the column is `display: none`, where `focus()` is a no-op, so
   // every key the column claims would land nowhere.
@@ -81,6 +82,23 @@ export function CommandBarDialog({
   const go = (href: string) => {
     onOpenChange(false);
     router.push(href);
+  };
+
+  /**
+   * A keystroke replaces the result set, and cmdk will not put the list back
+   * at the top for us: it only ever scrolls the selected row into view, and
+   * that is a no-op whenever the row it settles on already sits inside the
+   * visible box. So a query typed against a scrolled list keeps the old
+   * offset and opens on rows halfway down.
+   *
+   * Reset from here rather than an effect. The scroll is set while the old
+   * rows are still on screen, before React renders the new ones, so they only
+   * ever paint at the top -- an effect runs after the paint and would show one
+   * frame at the stale offset.
+   */
+  const search = (value: string) => {
+    if (listRef.current) listRef.current.scrollTop = 0;
+    setQuery(value);
   };
 
   // Hovering a row moves cmdk's selection, unless the column has focus: the
@@ -194,15 +212,19 @@ export function CommandBarDialog({
               // now that every open is a fresh mount.
               autoFocus
               value={query}
-              onValueChange={setQuery}
+              onValueChange={search}
               onKeyDown={handleKeyDown}
               className="h-10! text-[15px]!"
               placeholder="Search projects, pages and settings..."
             />
           </div>
 
-          <div className="flex h-[30rem] min-h-0 shrink border-t border-foreground/10">
+          {/* Fixed height so the list does not resize under the selection as
+              it shortens with the query. It gives way only when the dialog
+              hits its own cap, which is the short-viewport case. */}
+          <div className="flex h-[30rem] min-h-0 border-t border-foreground/10">
             <ResultsList
+              ref={listRef}
               projects={projects}
               query={query}
               onNavigate={go}
