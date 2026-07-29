@@ -280,10 +280,10 @@ The docs site copies the spec automatically at build time — `apps/docs/public/
 
 Full documentation is available at **[docs](https://rustrak.github.io/rustrak/)**
 
-- [Getting Started](https://rustrak.github.io/rustrak/getting-started)
-- [Configuration](https://rustrak.github.io/rustrak/configuration)
-- [API Reference](https://rustrak.github.io/rustrak/api)
-- [Self-Hosting Guide](https://rustrak.github.io/rustrak/self-hosting)
+- [Getting Started](https://rustrak.github.io/rustrak/getting-started/overview)
+- [Configuration](https://rustrak.github.io/rustrak/configuration/environment)
+- [API Reference](https://rustrak.github.io/rustrak/reference/api)
+- [Self-Hosting Guide](https://rustrak.github.io/rustrak/getting-started/installation)
 
 ## Contributing
 
@@ -301,6 +301,8 @@ pnpm format
 ```
 
 ## License
+
+Copyright (C) 2026 Abian Suarez
 
 GPL-3.0 License - see [LICENSE](LICENSE) for details.
 
