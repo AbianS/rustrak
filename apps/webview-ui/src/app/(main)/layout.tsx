@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/features/user/api/queries';
 import { Header } from '@/features/user/ui/components/header';
 import { OutageScreen } from '@/shared/ui/components/outage-screen';
 import { UpdateBannerSlot } from '@/shared/ui/components/update-banner-slot';
+import { CommandBarSlot } from './_components/command-bar-slot';
 
 export default async function MainLayout({
   children,
@@ -28,7 +29,15 @@ export default async function MainLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header user={session.user} />
+      <Header
+        user={session.user}
+        commandBar={
+          /* Streamed so the projects read never delays the header itself. */
+          <Suspense fallback={null}>
+            <CommandBarSlot />
+          </Suspense>
+        }
+      />
       <main className="flex-1">{children}</main>
       {/* Streamed separately so the feed fetch never holds up the page: the
           banner is fixed-positioned, so arriving late shifts nothing. */}
