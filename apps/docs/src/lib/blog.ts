@@ -13,6 +13,18 @@ export type Post = {
   image?: string;
   readingTime: string;
   draft: boolean;
+  /**
+   * The post's level-two headings, in order.
+   *
+   * This is what the index is built on. A blog of long technical write-ups is
+   * badly served by a two-line standfirst, because the thing a reader is
+   * deciding is whether the piece covers what they came for, and the section
+   * titles answer that far better than a summary of them does. It is also the
+   * only material this blog has to fill a wide frame with: there are no cover
+   * images and there never will be, so the structure of the writing is the
+   * illustration.
+   */
+  outline: string[];
 };
 
 const POSTS_DIR = path.join(process.cwd(), 'content/blog');
@@ -26,48 +38,39 @@ function safeDate(s: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function getPosts(): Post[] {
-  ensurePostsDir();
-  // Runs once at build over a directory of a few files. Fusing the filter
-  // into the map saves one small array and costs the reader the shape of
-  // what this does.
-  // react-doctor-disable-next-line react-doctor/js-combine-iterations
-  return fs
-    .readdirSync(POSTS_DIR)
-    .filter((f) => f.endsWith('.mdx'))
-    .map((filename) => {
-      const raw = fs.readFileSync(path.join(POSTS_DIR, filename), 'utf-8');
-      const { data, content } = matter(raw);
-      return {
-        slug: filename.replace(/\.mdx$/, ''),
-        title: data.title ?? 'Untitled',
-        description: data.description ?? '',
-        date:
-          data.date instanceof Date
-            ? data.date.toISOString().split('T')[0]
-            : String(data.date ?? new Date().toISOString().split('T')[0]),
-        author: data.author ?? 'Rustrak Team',
-        tags: Array.isArray(data.tags) ? data.tags : [],
-        image: data.image,
-        readingTime: readingTime(content).text,
-        draft: data.draft ?? false,
-      };
-    })
-    .filter((p) => process.env.NODE_ENV === 'development' || !p.draft)
-    .sort(
-      (a, b) =>
-        (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0),
-    );
+/**
+ * The `##` headings, skipping anything inside a fenced block.
+ *
+ * The fence tracking is not defensive padding. These posts are about writing
+ * Rust and configuring servers, so they are full of shell and TOML, and `##` is
+ * a comment in both. Without it the source-maps post would list a comment out
+ * of a config sample as one of its sections.
+ */
+function readOutline(body: string): string[] {
+  const headings: string[] = [];
+  let fenced = false;
+
+  for (const line of body.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    const match = /^##\s+(.+?)\s*$/.exec(line);
+    // `###` and deeper are excluded by the `\s` after the second hash, which
+    // is what keeps this an outline rather than a transcript of every heading.
+    if (match) headings.push(match[1]);
+  }
+
+  return headings;
 }
 
-export function getPost(slug: string): { post: Post; content: string } | null {
-  ensurePostsDir();
-  const filePath = path.join(POSTS_DIR, `${slug}.mdx`);
-  if (!fs.existsSync(filePath)) return null;
-  const raw = fs.readFileSync(filePath, 'utf-8');
+function readPost(filename: string): Post {
+  const raw = fs.readFileSync(path.join(POSTS_DIR, filename), 'utf-8');
   const { data, content } = matter(raw);
-  const post: Post = {
-    slug,
+
+  return {
+    slug: filename.replace(/\.mdx$/, ''),
     title: data.title ?? 'Untitled',
     description: data.description ?? '',
     date:
@@ -79,8 +82,51 @@ export function getPost(slug: string): { post: Post; content: string } | null {
     image: data.image,
     readingTime: readingTime(content).text,
     draft: data.draft ?? false,
+    outline: readOutline(content),
   };
-  return { post, content };
+}
+
+export function getPosts(): Post[] {
+  ensurePostsDir();
+  // Runs once at build over a directory of a few files. Fusing the filter
+  // into the map saves one small array and costs the reader the shape of
+  // what this does.
+  // react-doctor-disable-next-line react-doctor/js-combine-iterations
+  return fs
+    .readdirSync(POSTS_DIR)
+    .filter((f) => f.endsWith('.mdx'))
+    .map(readPost)
+    .filter((p) => process.env.NODE_ENV === 'development' || !p.draft)
+    .sort(
+      (a, b) =>
+        (safeDate(b.date)?.getTime() ?? 0) - (safeDate(a.date)?.getTime() ?? 0),
+    );
+}
+
+export function getPost(slug: string): { post: Post; content: string } | null {
+  ensurePostsDir();
+  const filePath = path.join(POSTS_DIR, `${slug}.mdx`);
+  if (!fs.existsSync(filePath)) return null;
+  const { content } = matter(fs.readFileSync(filePath, 'utf-8'));
+  return { post: readPost(`${slug}.mdx`), content };
+}
+
+/**
+ * Every tag in use, most-used first, with how many posts carry it.
+ *
+ * The index header used to be a title in the left half of a 72rem frame and
+ * nothing in the right, which is the same "width taken and not used" failure
+ * the changelog had. This fills it with the one piece of navigation a blog
+ * this size can honestly offer.
+ */
+export function getTagCounts(): { tag: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const post of getPosts()) {
+    for (const tag of post.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
 /**

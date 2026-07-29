@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { ChangelogFeed } from '@/components/changelog/changelog-feed';
 import {
   getChunkCount,
+  getPulse,
   getReleaseChunk,
   getReleases,
   RELEASES_PER_CHUNK,
@@ -16,18 +17,31 @@ export const metadata: Metadata = {
 /**
  * The changelog.
  *
- * Two things shape this page. The first is that it grows forever: it rendered
- * every release in full on one URL, which was 604KB of HTML and climbing by a
- * release a fortnight, so only the first chunk is inlined now and the rest is
- * fetched (see `changelog-feed.tsx`). The second is that a changelog is read by
- * scanning, so the whole page is one ruled column with a fixed rhythm —
- * version strip, title, lead, numbered sections — and every entry is that same
- * shape whether it shipped one fix or five features.
+ * Three things shape this page.
+ *
+ * The first is that it grows forever: it rendered every release in full on one
+ * URL, which was 604KB of HTML and climbing by a release a fortnight, so only
+ * the first chunk is inlined now and the rest is fetched (see
+ * `changelog-feed.tsx`).
+ *
+ * The second is that a changelog is read by scanning, so the whole page is one
+ * ruled column with a fixed rhythm (version strip, title, lead, numbered
+ * sections) and every entry is that same shape whether it shipped one fix or
+ * five features.
+ *
+ * The third is the one this redesign added. Forty-one entries down a single
+ * column is an archive with no map, and the page had nothing to offer a reader
+ * on a wide screen except a longer line of text. So the whole history is drawn
+ * across the top as a band of columns (see `release-spectrum.tsx`), which is
+ * both a picture of how the project moved and the index it never had. The
+ * reading column is capped at a measure underneath it, which is what lets the
+ * frame be wide enough to hold that band without the prose paying for it.
  */
 export default function ChangelogPage() {
   const releases = getReleases();
   const first = getReleaseChunk(1);
   const chunkCount = getChunkCount();
+  const pulse = getPulse();
   const latest = releases[0];
 
   /*
@@ -35,7 +49,8 @@ export default function ChangelogPage() {
     thing on the page that scales with the full list, and it is deliberate: at
     roughly 50 bytes an entry the whole map costs less than a single release
     would, and without it a deep link into an unfetched release silently does
-    nothing.
+    nothing. The spectrum reads it too, for the same reason: it can address
+    releases the page has not fetched.
   */
   const chunkByAnchor: Record<string, number> = {};
   releases.forEach((release, index) => {
@@ -44,9 +59,12 @@ export default function ChangelogPage() {
     chunkByAnchor[release.slug] = chunk;
   });
 
+  const changes = pulse.reduce((sum, entry) => sum + entry.total, 0);
+
   const stats = [
     { value: latest?.version ?? '—', label: 'Current release' },
     { value: String(releases.length), label: 'Releases shipped' },
+    { value: String(changes), label: 'Changes logged' },
     {
       value: latest ? formatReleaseDate(latest.date) : '—',
       label: 'Last published',
@@ -54,14 +72,22 @@ export default function ChangelogPage() {
   ];
 
   return (
-    <div className="changelog-root mx-auto w-full max-w-[72rem] px-4 py-10 sm:px-6 sm:py-14">
+    <div className="changelog-root mx-auto w-full max-w-[76rem] px-4 py-10 sm:px-6 sm:py-14">
       <div className="overflow-x-clip border-x border-t border-rule">
-        <header className="border-b border-rule px-5 py-14 sm:px-9 sm:py-20">
-          <span className="eyebrow">Changelog</span>
-          <h1 className="display-xl mt-6 text-foreground">
-            Every release, in order.
-          </h1>
-          <p className="mt-6 max-w-[56ch] text-[15.5px] leading-relaxed text-muted-foreground">
+        {/*
+          Headline and lead sit side by side from `lg`, rather than the lead
+          hanging under a 72px headline in a column a third as wide as the one
+          above it. Two blocks of type at two sizes, closing against the same
+          baseline, is the header the rest of this frame is drawn in.
+        */}
+        <header className="px-5 py-14 sm:px-9 sm:py-16 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-end lg:gap-x-12">
+          <div>
+            <span className="eyebrow">Changelog</span>
+            <h1 className="display-lg mt-5 max-w-[16ch] text-foreground">
+              Every release, in order.
+            </h1>
+          </div>
+          <p className="mt-6 max-w-[52ch] text-[15.5px] leading-relaxed text-muted-foreground lg:mt-0">
             The server, the dashboard and the client packages ship together
             under one version number. This is what each of those numbers
             carried.
@@ -72,24 +98,21 @@ export default function ChangelogPage() {
           The landing's figure treatment, so the two pages read as one site: a
           short primary rule turns a number into a labelled reading.
 
-          Two up on a phone rather than three stacked, with the date taking the
-          full row it needs. Stacked, the band alone was most of a phone screen
-          and pushed the newest release — the thing the visitor came for —
-          entirely below the fold.
-
-          Each border is written out as a literal class rather than assembled
-          from a variable: Tailwind scans source text, and a class name built
-          from a prefix is never generated.
+          Two up on a phone rather than four stacked, which would have been most
+          of a screen before the visitor reached anything they came for. Each
+          border is written out as a literal class rather than assembled from a
+          variable: Tailwind scans source text, and a class name built from a
+          prefix is never generated.
         */}
-        <dl className="grid grid-cols-2 border-b border-rule sm:grid-cols-3">
+        <dl className="grid grid-cols-2 border-y border-rule sm:grid-cols-4">
           {stats.map((stat, index) => (
             <div
               key={stat.label}
               className={[
                 'border-rule px-5 py-5 sm:px-9 sm:py-6',
-                index === 0 ? 'border-b border-r sm:border-b-0' : '',
-                index === 1 ? 'border-b sm:border-r sm:border-b-0' : '',
-                index === 2 ? 'col-span-2 sm:col-span-1' : '',
+                index < 2 ? 'border-b sm:border-b-0' : '',
+                index % 2 === 0 ? 'border-r' : '',
+                index === 1 ? 'sm:border-r' : '',
               ].join(' ')}
             >
               <div className="border-l-2 border-primary pl-3">
@@ -113,6 +136,7 @@ export default function ChangelogPage() {
           chunkCount={chunkCount}
           total={releases.length}
           perChunk={RELEASES_PER_CHUNK}
+          pulse={pulse}
           chunkByAnchor={chunkByAnchor}
         />
       </div>
