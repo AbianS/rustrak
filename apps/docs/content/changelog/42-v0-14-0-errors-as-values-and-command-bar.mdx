@@ -1,0 +1,72 @@
+---
+version: v0.14.0
+title: Errors as Values, and a Command Bar
+description: The TypeScript client stops throwing and returns a Result instead, the server names the field it rejected, and the dashboard gets a command bar and real failure screens
+date: 2026-07-29
+tags: [client, mcp, server, webview-ui, errors, breaking]
+---
+
+## `@rustrak/client` returns `Result` instead of throwing
+
+The client signalled failure by throwing, so every caller discovered at runtime which of nine error classes a method could raise. Nothing in the type system said a call could fail, guarded and unguarded call sites looked identical, and an exception cannot cross React's server/client boundary, which is what made API errors surface as `[object Object]` in the dashboard.
+
+**This is a breaking change for anyone calling `@rustrak/client` directly.** Taken deliberately while the product is pre-1.0.
+
+- Every public resource method now returns `Result<T, RustrakError>`: `{ success: true, data }` or `{ success: false, error }`, mirroring Zod's `safeParse`
+- `Result` is a plain object with no class instances and no methods, so it survives `structuredClone` and therefore a Server Action's return value. Operations are standalone functions: `Ok`, `Err`, `unwrap`, `unwrapOr`, `mapResult`
+- The nine error classes collapse into one closed union keyed on `kind`, mirroring the server's `error.rs` variant by variant: `validation`, `unauthenticated`, `forbidden`, `not_found`, `conflict`, `gone`, `payload_too_large`, `rate_limited`, `client_error`, `server_error`, `network`, `invalid_response`, `invalid_request`. `status` stays a `number` so an unanticipated status is still representable
+- 5xx is redacted at construction inside the client, so `server_error` never carries a server-supplied message and no consumer can leak one by forgetting to. `network` carries no `cause`, which would embed the resolved host and port, and `invalid_response` carries no Zod issues, which would embed the response body
+- `isRetryable` tells a caller whether a given error is worth retrying, rather than each consumer re-deriving it from the status
+- `getCurrentUser` returns `success: false` with `kind: 'unauthenticated'` when there is no session, the literal reading of the server's 401. An empty collection is still a success with an empty array: absence of results is not failure
+- `throw` is now reserved for programming errors, such as a malformed `baseUrl`
+- `packages/mcp` and `apps/webview-ui` both consume the union directly instead of catching exceptions
+
+## The server names the field it rejected
+
+When the server rejected a form, the wire carried no field: the field name lived inside an English sentence, and the one place that tried to use it string-matched that sentence. Everything else fell back to a toast the reader had to translate back into an edit.
+
+- `ErrorDetail` gains an optional `fields` array of `{field, code, message?}`, additive and safe for an older client to ignore
+- `field` is a dot path matching the request body, not a JSON Pointer, so it feeds `setError` directly. The integration dialogs need this, since everything typed there is packed into one `credentials` object and the path is `credentials.url`
+- `code` comes from one small closed set reused across resources: `required`, `invalid`, `already_exists`, `too_short`, `too_long`, `custom`. A per-endpoint vocabulary would be an unversionable public API
+- `fields` attaches to `Conflict` as well as `Validation`. Twelve of the fourteen sites are 409, so a validation-only design would have missed almost all of them
+- The rejected value is never echoed back, and login gets no per-field errors on purpose: saying "this email exists but the password is wrong" is user enumeration
+- `@rustrak/client` exposes it as `FieldError` and `FIELD_ERROR_CODES` on the error union
+
+## A command bar
+
+Contributed by [@bobbymannino](https://github.com/bobbymannino), then reworked against a real instance where a flat list meant N projects times ten pages each, roughly fifty near-identical rows.
+
+- Two fixed sections, Projects and Settings. The pages of a project live in a preview column that Tab shows and hides, so Enter on a project navigates to it like every other row and its pages stay one keystroke away
+- Searching flattens everything into one relevance-ordered list, with a badge saying whether a row belongs to a project or to the instance
+- Matching requires every term to land on a word boundary. Fuzzy subsequence matching returned most of several hundred rows for a three-letter query
+- Reset is a remount: the dialog is keyed on an open counter, so query, highlight, scroll offset and column visibility all start from initial state rather than being cleared by hand on the way out
+- The search trigger moves into the header's right cluster
+
+## Failure screens and a 404
+
+The outage state was a generic dashed card floating in an otherwise empty viewport on the two screens that have no header at all.
+
+- `ErrorScreen` is a full-viewport shell using the same split as `/auth/login`, for the root auth gate, the main layout and the global error boundary. Those are the only places the reader meets with no header, so the only places the app has to introduce itself
+- `ServiceUnavailable` stays the in-place card for a failure inside a page that otherwise rendered. Handing the whole viewport to one failed sub-request would hide the parts that did load
+- There was no `not-found.tsx` anywhere, so every `notFound()` fell through to Next's default page. One file now covers an unmatched URL, the four in-app `notFound()` calls, and a `not_found` coming back from a load
+
+## A feature-sliced dashboard
+
+`webview-ui` was organised by technical type rather than by domain: `lib/` held a 1398-line SDK snippet table beside a ported Sentry algorithm, and 57 components sat beside their `page.tsx` with no rule.
+
+- Slices by domain with segments by purpose, and one hard dependency rule, enforced by archunit tests that read files as text rather than mounting anything
+- The goal is a portable core, not a tidier tree. 71% of files touch nothing from `next/*` beyond `next/link` and `next/navigation`, and that is now a property CI enforces instead of an accident
+- `webview-ui` sits behind the quality gate in `pnpm run ci`, and react-doctor runs as a turbo task at zero findings so the number cannot drift back up
+
+## Improvements
+
+- react-doctor's findings were cleared as real fixes rather than suppressions: two keyboard-unreachable elements and two labels pointing at nothing, five quadratic lookups now indexed through a `Map` or a `Set`, `Intl.NumberFormat` hoisted out of a function that runs per table cell, and two permanent `willChange` declarations removed
+- Three integration dialogs collapse into one, and dialog forms reset by mounting rather than by effect
+- Dependencies updated to their latest exact versions across the monorepo
+
+## Fixes
+
+- An invitee saw "this invitation link is invalid, has expired, or has already been used" when the API was simply unreachable. The page folded a transport failure into the same verdict as an expired token, so the one action offered, asking an administrator for a new link, was the one action that could not help. Outages, dead tokens and a token that is merely already accepted are now three outcomes rather than one
+- The webhook dialog's test button deleted the webhook instead of sending a test
+- 404 messages were prefixed twice by the client
+- The `test-seams` self dev-dependency did not disable default features, so `cargo clippy --no-default-features --features postgres` still pulled SQLite into the graph and tripped the mutually-exclusive-backends guard. Not caught earlier because turbo runs clippy with default features only
