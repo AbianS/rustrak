@@ -1,5 +1,11 @@
 # docs
 
+## 0.15.0
+
+### Minor Changes
+
+- [`cb62882`](https://github.com/rustrak/rustrak/commit/cb62882c84e421e3d9070a75693e1f6be709cb66) Thanks [@AbianS](https://github.com/AbianS)! - The changelog and the blog are rebuilt. The changelog draws its own release history as a single ruled figure and streams older releases in chunks; the blog index and the post masthead share one grid. The landing components are split and deduplicated, and motion features load lazily so the landing no longer pays for them upfront.
+
 ## 0.14.1
 
 ### Patch Changes
