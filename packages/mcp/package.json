@@ -55,12 +55,12 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@rustrak/client": "workspace:*",
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@types/node": "26.1.1",
+    "@types/node": "26.1.2",
     "tsup": "8.5.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
