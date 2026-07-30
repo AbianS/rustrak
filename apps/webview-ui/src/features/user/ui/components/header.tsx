@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useTransition } from 'react';
 import { logout } from '@/features/user/api/mutations';
-import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
+import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   DropdownMenu,
@@ -39,12 +39,11 @@ export function Header({ user, commandBar }: HeaderProps) {
   return (
     <header className="h-16 flex items-center justify-between px-4 md:px-8 border-b border-border bg-background/80 backdrop-blur-md sticky top-0 z-50">
       <div className="flex items-center gap-4 md:gap-10">
-        {/* Logo */}
-        <Link href="/projects" className="flex items-center gap-2">
-          <RustrakLogoIcon className="size-6" />
-          <span className="text-sm font-extrabold tracking-tight uppercase">
-            Rustrak
-          </span>
+        {/* The wordmark is the whole mark: no icon beside it, and the word is
+            not typed next to itself. 18px because the artwork box is trimmed to
+            the ink, so it reads a size larger than the number suggests. */}
+        <Link href="/projects" className="flex items-center">
+          <RustrakWordmark className="h-[18px] w-auto" />
         </Link>
       </div>
 

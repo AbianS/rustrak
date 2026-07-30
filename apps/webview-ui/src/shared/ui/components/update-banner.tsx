@@ -3,7 +3,7 @@
 import { ArrowRight, ArrowUpRight, X } from 'lucide-react';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { UpdateInfo } from '@/shared/lib/version';
-import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
+import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 
 const DISMISSED_KEY = 'rustrak:update-dismissed';
 
@@ -247,7 +247,11 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
           style={{ left: pillX, height: HEIGHT, width: 'fit-content' }}
           className="pointer-events-auto absolute top-0 z-20 flex items-center gap-2 pr-3 pl-4 text-primary-foreground"
         >
-          <RustrakLogoIcon className="size-4 shrink-0" />
+          {/* 14px is the brand's absolute floor and the pill is the one place
+              in the app that reaches it: any taller and the word crowds out the
+              version it is announcing. `still` because the pill is already lime:
+              a mark that tints to lime on hover would tint to invisible. */}
+          <RustrakWordmark className="h-3.5 w-auto shrink-0" still />
           <span className="text-xs whitespace-nowrap">
             <span className="font-semibold">{info.latest}</span> available
           </span>
