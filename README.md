@@ -1,6 +1,7 @@
 <div align="center">
 
-![Rustrak: your errors, your infrastructure](../../out/readme-v1/hero.webp)
+<img width="2000" height="1080" alt="hero" src="https://github.com/user-attachments/assets/885ce0cf-138e-41c1-9973-c20ef9f7cd6e" />
+
 
 [![CI](https://github.com/rustrak/rustrak/actions/workflows/ci.yml/badge.svg)](https://github.com/rustrak/rustrak/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/rustrak/rustrak)](https://github.com/rustrak/rustrak/releases)
@@ -23,7 +24,7 @@ no vendor library to swap, no code to rewrite. It runs as a single process
 with SQLite by default, which means the whole install is one compose file and
 nothing to provision.
 
-![The Rustrak dashboard](../../out/readme-v1/wp-overview.webp)
+<img width="2000" height="1000" alt="wp-overview" src="https://github.com/user-attachments/assets/807fa637-a111-4e4c-8d16-de9d86b448ee" />
 
 ## Why Rustrak
 
@@ -39,7 +40,7 @@ it to disk and returns `200`; a spawned task then does the database work.
 Accepting an event never waits on the database, which is what stops a traffic
 spike from becoming a timeout inside your app.
 
-![16.5 MB server image, one process, zero external services](../../out/readme-v1/numbers.webp)
+<img width="2000" height="820" alt="numbers" src="https://github.com/user-attachments/assets/e51ca5d2-56ed-4366-966d-24801b47f0f8" />
 
 No per-event pricing, no sampling you did not ask for, and no seat you have to
 justify to anyone.
@@ -91,7 +92,7 @@ Rustrak accepts the standard Sentry envelope, so migrating is a configuration
 change rather than a project. Create a project, copy its DSN, and change one
 line. Your SDK never learns it is talking to something else.
 
-![Change the DSN. Ship.](../../out/readme-v1/dsn.webp)
+<img width="2000" height="700" alt="dsn" src="https://github.com/user-attachments/assets/0efe0ef7-c4e4-481e-99ab-d9dabd56f135" />
 
 ```python
 # Python
@@ -126,7 +127,7 @@ From the list you can triage in bulk, filter by status, and read each issue's
 24-hour trend without opening anything. Upload source maps and a minified frame
 resolves back to the line you actually wrote.
 
-![Errors, grouped by fingerprint](../../out/readme-v1/wp-issues.webp)
+<img width="2000" height="800" alt="wp-issues" src="https://github.com/user-attachments/assets/0402007b-25fe-48a9-adb7-83317f8cf1ca" />
 
 ### AI agent traces
 
@@ -140,7 +141,7 @@ takes standalone OTel-style spans that have no parent transaction. When one agen
 hands off to another mid-run, the trace lists every agent involved, not just the
 first.
 
-![Every LLM call, tool call and handoff, in order](../../out/readme-v1/wp-agents.webp)
+<img width="2000" height="920" alt="wp-agents" src="https://github.com/user-attachments/assets/8867b954-e2bf-41bf-a5b9-2f484e640bba" />
 
 There is no server-side setup. One integration in `Sentry.init` is the whole
 change:
@@ -167,7 +168,7 @@ needs attention is the one that looks wrong.
 
 Open a transaction for its span waterfall and its measurements.
 
-![The slow ones, ranked by p95](../../out/readme-v1/wp-performance.webp)
+<img width="2000" height="840" alt="wp-performance" src="https://github.com/user-attachments/assets/0f05bbdc-0cce-49f0-9926-c8760a60b21b" />
 
 ### Logs
 
@@ -179,7 +180,7 @@ and per-row attributes that keep their types.
 A log emitted inside an active span carries the `trace_id`, so it links back to
 the request it came from.
 
-![Logs and errors, same SDK, same place](../../out/readme-v1/wp-logs.webp)
+<img width="2000" height="760" alt="wp-logs" src="https://github.com/user-attachments/assets/bef1f739-1b45-4dea-8350-72efd89f1a4a" />
 
 Logging is off by default in Sentry SDKs. Opt in once, then use the logger:
 
@@ -201,7 +202,7 @@ release, which turns "is this deploy worse than the last one" into two numbers:
 Both are tiered rather than printed flat: green at 99% or above, amber at 95%,
 red below. A release at 96% is not fine and should not read as if it were.
 
-![Is this deploy worse than the last one?](../../out/readme-v1/wp-releases.webp)
+<img width="2000" height="800" alt="wp-releases" src="https://github.com/user-attachments/assets/db9906a5-e8b5-4ac9-83ce-99f4e61437c7" />
 
 ### Alerts
 
@@ -217,7 +218,7 @@ Destinations are Slack (incoming webhook or bot token), SMTP email, or a plain
 JSON webhook. Credentials belong to the instance and are configured once;
 routing belongs to the rule.
 
-![Configure it once. Route it per rule.](../../out/readme-v1/wp-alerts.webp)
+<img width="2000" height="660" alt="wp-alerts" src="https://github.com/user-attachments/assets/6e677c44-4876-4c9c-ac91-be4e30e0b7f6" />
 
 ### Teams, storage and retention
 
