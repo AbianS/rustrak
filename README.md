@@ -1,7 +1,6 @@
 <div align="center">
 
-<img width="2000" height="1080" alt="hero" src="https://github.com/user-attachments/assets/885ce0cf-138e-41c1-9973-c20ef9f7cd6e" />
-
+<img width="2000" height="1080" alt="hero" src="https://github.com/user-attachments/assets/6be3f33e-c17a-4aa9-a082-656639c3ad29" />
 
 [![CI](https://github.com/rustrak/rustrak/actions/workflows/ci.yml/badge.svg)](https://github.com/rustrak/rustrak/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/rustrak/rustrak)](https://github.com/rustrak/rustrak/releases)
