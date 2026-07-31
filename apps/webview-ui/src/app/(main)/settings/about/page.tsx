@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getServerVersion } from '@/shared/api/server-version';
 import { APP_VERSION } from '@/shared/config/constants';
 import { describeError } from '@/shared/lib/error-copy';
-import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
+import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import {
   Card,
   CardContent,
@@ -52,14 +52,14 @@ export default async function AboutPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-3">
-              <RustrakLogoIcon className="size-10" />
-              <div>
-                <CardTitle>Rustrak</CardTitle>
-                <CardDescription>
-                  Lightweight error tracking system
-                </CardDescription>
-              </div>
+            {/* The wordmark stands in for the card title: it says "Rustrak"
+                already, and setting the name twice beside itself is the one
+                thing the mark is not allowed to do. */}
+            <div className="space-y-1.5">
+              <RustrakWordmark className="h-[26px] w-auto" />
+              <CardDescription>
+                Lightweight error tracking system
+              </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

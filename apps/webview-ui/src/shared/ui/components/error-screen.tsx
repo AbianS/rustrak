@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { APP_VERSION } from '@/shared/config/constants';
-import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
+import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 
 /**
  * The full-viewport failure screen.
@@ -52,11 +52,8 @@ export function ErrorScreen({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_hsl(var(--card)),_transparent_50%)]" />
         <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent z-10" />
 
-        <Link href="/" className="relative z-20 flex items-center gap-2 w-fit">
-          <RustrakLogoIcon className="size-8" />
-          <span className="text-lg font-extrabold tracking-tight uppercase">
-            Rustrak
-          </span>
+        <Link href="/" className="relative z-20 flex items-center w-fit">
+          <RustrakWordmark className="h-[22px] w-auto" />
         </Link>
 
         {/* Brand furniture, not error copy. The right half carries what went
@@ -82,11 +79,8 @@ export function ErrorScreen({
       <div className="w-full lg:w-1/2 bg-card flex items-center justify-center p-8 lg:p-12">
         <div className="w-full max-w-[420px] space-y-8">
           {/* Brand, for the viewports where the left panel is gone. */}
-          <div className="lg:hidden flex items-center gap-2">
-            <RustrakLogoIcon className="size-8" />
-            <span className="text-lg font-extrabold tracking-tight uppercase">
-              Rustrak
-            </span>
+          <div className="lg:hidden flex items-center">
+            <RustrakWordmark className="h-[22px] w-auto" />
           </div>
 
           <div className="space-y-3">

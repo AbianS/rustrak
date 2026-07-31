@@ -2,7 +2,7 @@ import type { RustrakError } from '@rustrak/client';
 import type { Metadata } from 'next';
 import { getInvitation } from '@/features/user/api/queries';
 import { OutageScreen } from '@/shared/ui/components/outage-screen';
-import { RustrakLogoIcon } from '@/shared/ui/components/rustrak-logo';
+import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { AcceptInvitationForm } from './_components/accept-invitation-form';
 import { InvitationUnavailable } from './_components/invitation-unavailable';
 
@@ -69,11 +69,8 @@ export default async function InvitePage({ params }: InvitePageProps) {
   return (
     <div className="min-h-screen bg-card flex items-center justify-center p-8 lg:p-12">
       <div className="w-full max-w-[420px] space-y-10">
-        <div className="flex items-center gap-2">
-          <RustrakLogoIcon className="size-8" />
-          <span className="text-lg font-extrabold tracking-tight uppercase">
-            Rustrak
-          </span>
+        <div className="flex items-center">
+          <RustrakWordmark className="h-[22px] w-auto" />
         </div>
 
         <AcceptInvitationForm token={token} email={invitation.email} />
