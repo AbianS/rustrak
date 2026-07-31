@@ -1,0 +1,23 @@
+---
+version: v0.14.1
+title: The Wordmark
+description: The bolt icon leaves the dashboard and the Rustrak wordmark takes its place, drawn rather than typed
+date: 2026-07-31
+tags: [webview-ui, brand, docs, ci]
+---
+
+## The wordmark replaces the bolt icon
+
+The app introduced itself with a generic bolt glyph and the word "Rustrak" typed beside it, which made the mark depend on which font the browser resolved, at which weight, and on the network not failing. There is now a single drawing, the word set in Outfit 700 and converted to outlines, and it is the whole mark: no symbol, no monogram, no icon next to it.
+
+- It appears in the header, on `/auth/login`, on the invitation page, on the About card, in the update banner and on the full-screen failure states, which are the surfaces where the app has to say who it is
+- The word is never typed and never sits in a box. `RustrakLogoIcon` is gone rather than kept around as an alternative
+- Sizing is set against the surrounding cap height, not against the box: the artwork is trimmed to the ink, so 18px of wordmark has 18px letters while 18px of text beside it has letters of about 13px. The sizes in use are 18px in the header, 22px on brand panels and 26px on the About card
+- Clear space belongs to the container rather than to a wrapper inside the link. The wrapper version put padding inside the anchor, which took clicks while doing nothing on hover: a dead border you could press
+- Square slots get the poster asset instead of a shrunken wordmark. `favicon.ico` gives way to `icon.png` and `apple-icon.png`, since below 14px the word stops being readable
+
+## Improvements
+
+- The README is rewritten around what Rustrak actually does, with a new hero image and image links served externally rather than from the repository
+- `LICENSE` ships the full GPL-3.0 text instead of a pointer to it, and the documentation links that had gone stale now resolve
+- The generated "chore: version packages" PR is no longer reviewed. It carries only version bumps and changelogs written by changesets from commits that already passed review on their own PRs, so CI, CodeQL and rust-security skip the `changeset-release/main` head branch, and a `skip-review` label plus a title guard keep CodeRabbit and Greptile off it. The label is a general opt-out: put it on any PR by hand and both bots stay quiet
