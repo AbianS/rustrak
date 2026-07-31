@@ -21,6 +21,8 @@ on:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Skip the automated "chore: version packages" PR - see ci.yml.
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     permissions:
       security-events: write

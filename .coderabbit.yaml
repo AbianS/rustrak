@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+reviews:
+  auto_review:
+    # `skip-review` is the general opt-out: label any PR with it and CodeRabbit
+    # stays quiet. The leading `!` negates, so everything else is still
+    # reviewed. release.yml applies it automatically to the "chore: version
+    # packages" PR.
+    labels:
+      - "!skip-review"
+
+    # Second guard for that same PR. The label can only be applied after the PR
+    # exists, so a review can start before it lands; the title is set at
+    # creation time and cannot race. release.yml pins the title literally.
+    ignore_title_keywords:
+      - "version packages"

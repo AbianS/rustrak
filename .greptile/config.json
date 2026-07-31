@@ -1,0 +1,4 @@
+{
+  "disabledLabels": ["skip-review"],
+  "ignoreKeywords": "version packages"
+}

@@ -46,14 +46,43 @@ jobs:
             echo "📝 Found $CHANGESETS changeset(s)"
           fi
 
-      # If there ARE changesets, create/update the Version Packages PR
+      # If there ARE changesets, create/update the Version Packages PR.
+      #
+      # Nothing reviews this PR. It carries only version bumps and generated
+      # changelogs, written by changesets from commits that were already
+      # reviewed on their own PRs. Three separate mechanisms enforce that:
+      #   - CI, CodeQL and rust-security skip on the head branch
+      #     `changeset-release/main` (changesets/action's default name).
+      #   - The `skip-review` label below silences CodeRabbit and Greptile.
+      #     Neither bot can filter by head branch, and the PR is authored by a
+      #     real account through PAT_TOKEN, so author filtering is out too.
+      #   - The title keyword "version packages" is a second, race-free guard
+      #     for the same two bots: the label can only be applied after the PR
+      #     exists, and a bot may already have picked it up by then.
+      # Changing the title or the label name re-enables the bots here.
       - name: Create Release Pull Request
+        id: changesets
         if: steps.check.outputs.has_changesets == 'true'
         uses: changesets/action@v1.7.0
         with:
           version: pnpm version-packages
           title: "chore: version packages"
           commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+
+      # `skip-review` is a general opt-out, not a release-only one: put it on
+      # any PR by hand and the AI reviewers stay quiet. Created here with
+      # --force so the label never has to exist as manual repo state.
+      - name: Label the version PR as skip-review
+        if: steps.changesets.outputs.pullRequestNumber
+        run: |
+          gh label create skip-review \
+            --color ededed \
+            --description "Skip the AI code reviewers (CodeRabbit, Greptile)" \
+            --force
+          gh pr edit "${{ steps.changesets.outputs.pullRequestNumber }}" \
+            --add-label skip-review
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
 

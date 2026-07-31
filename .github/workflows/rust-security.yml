@@ -18,6 +18,8 @@ on:
 jobs:
   cargo-deny:
     name: "cargo-deny (advisories + licenses)"
+    # Skip the automated "chore: version packages" PR - see ci.yml.
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +31,7 @@ jobs:
 
   cargo-audit:
     name: "cargo audit (RustSec)"
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +43,7 @@ jobs:
 
   clippy:
     name: "clippy (security + correctness lints)"
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
