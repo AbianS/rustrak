@@ -1,4 +1,4 @@
-import { Field } from '../primitives/field';
+import { Field } from '@/components/frame/field';
 import { Heading } from '../primitives/heading';
 import { Pinned } from '../primitives/pinned';
 

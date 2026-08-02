@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { Band, Cell } from '@/components/frame/grid';
 import { cn } from '@/lib/utils';
 import { DESIGN_HEIGHT, DESIGN_WIDTH } from '../app-mock/design';
 import {
@@ -26,7 +27,6 @@ import { Bare } from '../app-mock/mock-shell';
 import { EASE } from '../motion';
 import { Bleed, type Fade } from '../primitives/bleed';
 import { Deferred } from '../primitives/deferred';
-import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 import { useSmoothScrolling } from '../smooth-scroll';
 

@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import { Field } from '@/components/frame/field';
+import { Band } from '@/components/frame/grid';
 import { GithubIcon } from '@/components/icons/github';
 import { GITHUB } from '../links';
-import { Field } from '../primitives/field';
-import { Band } from '../primitives/grid';
 import { Heading } from '../primitives/heading';
 
 /**

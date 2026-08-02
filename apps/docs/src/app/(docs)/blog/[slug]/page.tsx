@@ -4,6 +4,7 @@ import { MermaidFit } from '@/components/blog/mermaid-fit';
 import { PostHeader } from '@/components/blog/post-header';
 import { PostNeighbours } from '@/components/blog/post-neighbours';
 import { ReadingRail, type TocItem } from '@/components/blog/reading-rail';
+import { GridFrame } from '@/components/frame/grid';
 import { getNeighbourPosts, getPost, getPosts } from '@/lib/blog';
 
 type PageProps = {
@@ -78,15 +79,16 @@ export default async function BlogPostPage({ params }: PageProps) {
   }
 
   return (
-    <div className="blog-root mx-auto w-full max-w-[76rem] px-4 py-10 sm:px-6 sm:py-14">
+    <div className="blog-root">
       {/*
-        `overflow-x-clip`, the same backstop the landing's frame carries: a
-        grid item's `min-width` is `auto`, so one wide child — a Mermaid
-        diagram at its natural 1530px, a long line in a code block — widens
-        the track, then the frame, then the document, and the whole page
-        slides sideways on a phone. The children below cap themselves with
-        `min-w-0`; this guarantees a mistake stays inside the frame. */}
-      <div className="overflow-x-clip border-x border-t border-rule">
+        The `overflow-x-clip` this used to spell out is the backstop `GridFrame`
+        already carries, and it matters more on a post than anywhere else on the
+        site: a grid item's `min-width` is `auto`, so one wide child — a Mermaid
+        diagram at its natural 1530px, a long line in a code block — widens the
+        track, then the frame, then the document, and the whole page slides
+        sideways on a phone. The children below cap themselves with `min-w-0`;
+        the frame guarantees a mistake stays inside it. */}
+      <GridFrame measure="reading" topRule className="py-10 sm:py-14">
         <PostHeader post={post} />
 
         {/*
@@ -123,7 +125,7 @@ export default async function BlogPostPage({ params }: PageProps) {
         </div>
 
         <PostNeighbours older={older} newer={newer} />
-      </div>
+      </GridFrame>
     </div>
   );
 }

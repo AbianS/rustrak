@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { PostEntry } from '@/components/blog/post-list';
+import { Band, GridFrame } from '@/components/frame/grid';
 import { getPosts, getTagCounts } from '@/lib/blog';
 
 export const metadata: Metadata = {
@@ -22,14 +23,20 @@ export const metadata: Metadata = {
  * side by side and closes on a band of the tags actually in use, which is the
  * only navigation a blog this size can honestly offer. And every post gets the
  * same block, filled with its own outline: see `post-list.tsx`.
+ *
+ * The frame is `components/frame/grid` rather than the same four utility
+ * classes written out here for the third time. `reading` is the cap this page
+ * always had and `topRule` the border it always drew — the component only gave
+ * them names. The page still lives inside the documentation shell, which the
+ * frame has no opinion about.
  */
 export default function BlogPage() {
   const posts = getPosts();
   const tags = getTagCounts();
 
   return (
-    <div className="blog-root mx-auto w-full max-w-[76rem] px-4 py-10 sm:px-6 sm:py-14">
-      <div className="overflow-x-clip border-x border-t border-rule">
+    <div className="blog-root">
+      <GridFrame measure="reading" topRule className="py-10 sm:py-14">
         <header className="px-5 py-14 sm:px-9 sm:py-16 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-end lg:gap-x-12">
           <div>
             <span className="eyebrow">Blog</span>
@@ -60,7 +67,10 @@ export default function BlogPage() {
           real navigation on its own as posts accumulate.
         */}
         {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5 border-y border-rule px-5 py-4 sm:px-9">
+          <Band
+            as="div"
+            className="flex flex-wrap items-center gap-x-5 gap-y-2.5 border-t border-rule px-5 py-4 sm:px-9"
+          >
             <span className="font-mono text-[10.5px] uppercase tracking-[0.2em] text-muted-foreground/70">
               Subjects
             </span>
@@ -75,7 +85,7 @@ export default function BlogPage() {
                 </span>
               </span>
             ))}
-          </div>
+          </Band>
         )}
 
         {posts.length > 0 ? (
@@ -92,7 +102,7 @@ export default function BlogPage() {
             No posts yet. Check back soon.
           </p>
         )}
-      </div>
+      </GridFrame>
     </div>
   );
 }

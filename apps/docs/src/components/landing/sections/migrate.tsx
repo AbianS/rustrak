@@ -3,8 +3,8 @@
 import { useReducedMotion } from 'motion/react';
 import * as m from 'motion/react-m';
 import { useRef } from 'react';
+import { Band, Cell } from '@/components/frame/grid';
 import { EASE } from '../motion';
-import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 import { useOnScreen } from '../use-on-screen';
 

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { ChangelogFeed } from '@/components/changelog/changelog-feed';
+import { Band, GridFrame } from '@/components/frame/grid';
 import {
   getChunkCount,
   getPulse,
@@ -36,6 +37,11 @@ export const metadata: Metadata = {
  * both a picture of how the project moved and the index it never had. The
  * reading column is capped at a measure underneath it, which is what lets the
  * frame be wide enough to hold that band without the prose paying for it.
+ *
+ * The frame itself is `components/frame/grid`, shared with the landing and the
+ * blog rather than redrawn here from the same four utility classes. It says
+ * nothing about which shell the page sits in: this one is still inside the
+ * documentation theme.
  */
 export default function ChangelogPage() {
   const releases = getReleases();
@@ -72,8 +78,8 @@ export default function ChangelogPage() {
   ];
 
   return (
-    <div className="changelog-root mx-auto w-full max-w-[76rem] px-4 py-10 sm:px-6 sm:py-14">
-      <div className="overflow-x-clip border-x border-t border-rule">
+    <div className="changelog-root">
+      <GridFrame measure="reading" topRule className="py-10 sm:py-14">
         {/*
           Headline and lead sit side by side from `lg`, rather than the lead
           hanging under a 72px headline in a column a third as wide as the one
@@ -104,7 +110,10 @@ export default function ChangelogPage() {
           variable: Tailwind scans source text, and a class name built from a
           prefix is never generated.
         */}
-        <dl className="grid grid-cols-2 border-y border-rule sm:grid-cols-4">
+        <Band
+          as="dl"
+          className="grid grid-cols-2 border-t border-rule sm:grid-cols-4"
+        >
           {stats.map((stat, index) => (
             <div
               key={stat.label}
@@ -129,7 +138,7 @@ export default function ChangelogPage() {
               </div>
             </div>
           ))}
-        </dl>
+        </Band>
 
         <ChangelogFeed
           initial={first.releases}
@@ -139,7 +148,7 @@ export default function ChangelogPage() {
           pulse={pulse}
           chunkByAnchor={chunkByAnchor}
         />
-      </div>
+      </GridFrame>
     </div>
   );
 }

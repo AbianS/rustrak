@@ -2,9 +2,9 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { Band } from '@/components/frame/grid';
 import { AppFrame } from '../app-mock/app-frame';
 import { Deferred } from '../primitives/deferred';
-import { Band } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 
 /**

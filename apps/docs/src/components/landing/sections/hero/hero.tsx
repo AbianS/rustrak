@@ -9,11 +9,11 @@ import {
 import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { Field } from '@/components/frame/field';
 import { GithubIcon } from '@/components/icons/github';
 import StaggerFromCenter from '@/components/smoothui/stagger-from-center';
 import { GITHUB } from '../../links';
 import { EASE } from '../../motion';
-import { Field } from '../../primitives/field';
 import { Typewriter } from '../../primitives/typewriter';
 import { DESKTOP, useMediaQuery } from '../../use-media-query';
 import { useOnScreen } from '../../use-on-screen';
