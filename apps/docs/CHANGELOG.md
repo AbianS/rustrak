@@ -1,5 +1,21 @@
 # docs
 
+## 0.15.1
+
+### Patch Changes
+
+- [#244](https://github.com/rustrak/rustrak/pull/244) [`d7d0b92`](https://github.com/rustrak/rustrak/commit/d7d0b922d5b1c6af425e82554b55b678317cb820) Thanks [@AbianS](https://github.com/AbianS)! - The landing drops the three ASCII-rendered paintings and the 846 lines that
+  drew them, and wears the brand's own lime field instead: the same five blobs
+  the brandbook specifies, animated on transform and opacity so the whole
+  surface runs off the main thread. The scrims that existed only to hold type
+  above a picture go with them.
+
+  The retired bolt is gone from the docs entirely. The tab icon was still the
+  lime tile with the lightning glyph and a letter R set as text over the top of
+  it; both are replaced by the wordmark image the dashboard ships. The ruled
+  frame every page draws is one shared component now rather than the same four
+  utility classes copied into four files.
+
 ## 0.15.0
 
 ### Minor Changes
