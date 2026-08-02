@@ -1,8 +1,10 @@
 /**
  * The Rustrak wordmark: `rustrak` set in Outfit 700 and converted to outlines.
  * Source of truth is `rustrak-brand`, `brand/assets/logo/wordmark.svg`, generated
- * by `tools/build_logo.py`. Ported verbatim from
- * `apps/webview-ui/src/shared/ui/components/rustrak-wordmark.tsx`.
+ * by `tools/build_logo.py`. The letterforms are
+ * `apps/webview-ui/src/shared/ui/components/rustrak-wordmark.tsx`'s, verbatim;
+ * the app's hover fill and press are not ported, and this copy carries a
+ * `decorative` escape the app's does not need.
  *
  * The word is never typed. Typed, the mark depends on which font the browser
  * resolved, at which weight, and on the network not failing — so the drawing is
@@ -34,14 +36,32 @@ const LETTERS = [
   'M3214.00 0.00 3044.00 -252.00 3213.00 -486.00H3384.00L3180.00 -222.50L3185.00 -286.00L3394.00 0.00ZM2903.00 0.00V-726.00H3056.00V0.00Z',
 ];
 
-export function RustrakWordmark({ className }: { className?: string }) {
+export function RustrakWordmark({
+  className,
+  decorative,
+}: {
+  className?: string;
+  /**
+   * Drop the label and hide the mark from assistive tech. For the one placement
+   * where the word is already said beside it: the licence line in the footer
+   * sets `Rustrak · GPL-3.0` as text, so a labelled mark in front of it reads
+   * out as "Rustrak, Rustrak · GPL-3.0".
+   *
+   * Off by default, and it has to be. Everywhere else the mark is the only
+   * thing in its box — in the nav and in the docs header it is the whole
+   * accessible name of a link to `/`, and unlabelled that link announces as
+   * nothing at all.
+   */
+  decorative?: boolean;
+}) {
   return (
     <svg
       className={className}
       viewBox="54 -726 3340 738.5"
       xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="Rustrak"
+      {...(decorative
+        ? { 'aria-hidden': true }
+        : { role: 'img', 'aria-label': 'Rustrak' })}
     >
       {LETTERS.map((d) => (
         <path key={d} d={d} className="fill-current" />

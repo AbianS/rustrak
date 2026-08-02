@@ -62,10 +62,12 @@ export function Closing() {
             </Link>
             <a
               href={GITHUB}
-              /* Matched to the hero's pair, and for the hero's own reason: this
-                 band has a painting behind it too, and a hairline has no chance
-                 over an ASCII field. See the note in `sections/hero.tsx`. */
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/18 bg-white/6 px-4 py-3 text-[15px] font-medium text-white/90 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white sm:py-2.5 sm:text-[14px]"
+              /* Matched to the hero's pair, and for the hero's own reason: the
+                 painting this sat over is gone, and a field has no detail at
+                 the frequency a 1px edge lives at — so the border holds on its
+                 own and the fill it needed is the louder of the two options for
+                 no remaining reason. See the note in `sections/hero.tsx`. */
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-[15px] font-medium text-white/70 transition-colors hover:border-white/30 hover:text-white sm:py-2.5 sm:text-[14px]"
             >
               <GithubIcon className="size-4" />
               Star on GitHub

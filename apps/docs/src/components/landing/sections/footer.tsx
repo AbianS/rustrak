@@ -137,10 +137,15 @@ export function SiteFooter() {
           there and its left edge was doing nothing. */}
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-rule px-5 py-6 text-[12.5px] text-white/35 sm:gap-3 sm:px-10">
         <p className="flex items-center gap-2.5">
-          <RustrakWordmark className="h-3.5 w-auto text-white/45" />
+          <RustrakWordmark className="h-3.5 w-auto text-white/45" decorative />
           {/* `Rustrak` as text here is the one case the brand allows: inside a
               sentence it is a word, not the mark. The mark is the drawing beside
-              it. */}
+              it.
+
+              Which is also why the drawing is `decorative`: the word is already
+              said, in the sentence, so a labelled mark in front of it announces
+              "Rustrak, Rustrak · GPL-3.0". This is the only placement on the
+              page where that is true. */}
           <span>Rustrak · GPL-3.0</span>
         </p>
         <p>Not affiliated with Sentry. Compatible with its SDKs.</p>
