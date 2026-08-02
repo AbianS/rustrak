@@ -1,6 +1,6 @@
 import { getPageMap } from 'nextra/page-map';
 import { Footer, Layout, Navbar } from 'nextra-theme-docs';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
+import { RustrakWordmark } from '@/components/icons/rustrak-wordmark';
 
 /**
  * The documentation shell: navbar, sidebar, search, table of contents, footer.
@@ -22,14 +22,10 @@ import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
  * inside keeps the path it always had.
  */
 
-const logo = (
-  <span className="flex items-center gap-2 font-bold">
-    <RustrakLogoIcon className="size-6" />
-    <span className="text-sm font-extrabold tracking-tight uppercase">
-      Rustrak
-    </span>
-  </span>
-);
+/* Placed, not typed. See the note at the top of `icons/rustrak-wordmark.tsx`:
+   the word is a drawing, and typing it makes the mark depend on which font the
+   browser resolved. 20px is the brand's floor for a product header. */
+const logo = <RustrakWordmark className="h-5 w-auto" />;
 
 export default async function DocsLayout({
   children,

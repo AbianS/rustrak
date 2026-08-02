@@ -3,7 +3,7 @@
 import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { GithubIcon } from '@/components/icons/github';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
+import { RustrakWordmark } from '@/components/icons/rustrak-wordmark';
 import { cn } from '@/lib/utils';
 import { DUR, EASE, STAGGER } from '../motion';
 import { HANDHELD, useMediaQuery } from '../use-media-query';
@@ -94,12 +94,22 @@ export function LandingNav() {
               <m.div variants={ITEM_VARIANTS}>
                 <Link
                   href="/"
-                  className="flex items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+                  className="flex items-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
                 >
-                  <RustrakLogoIcon className="size-6" />
-                  <span className="text-[13px] font-semibold uppercase tracking-[0.16em]">
-                    Rustrak
-                  </span>
+                  {/* The mark, placed rather than typed.
+
+                      This was the bolt tile beside the word set in `font-semibold
+                      uppercase tracking-[0.16em]`, and the brand rules that out by
+                      name: typed, the mark depends on which font the browser
+                      resolved, at which weight, and on the network not failing. The
+                      only place `rustrak` is written as text is inside a prose
+                      sentence, where it is a word and not the mark.
+
+                      18px, not the 24 the box wants. The artwork is trimmed to the
+                      ink, so an 18px wordmark has 18px letters while 18px *text*
+                      beside it has letters of about 13 — matched by box height the
+                      mark always over-powers its neighbours. */}
+                  <RustrakWordmark className="h-[18px] w-auto text-foreground" />
                 </Link>
               </m.div>
 

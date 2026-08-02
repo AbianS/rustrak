@@ -1,7 +1,25 @@
-import { Geist, Geist_Mono, Instrument_Serif } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
 import { Head } from 'nextra/components';
 import './globals.css';
 
+/**
+ * Geist and Geist Mono, the two families the brand assigns to everything that is not
+ * the logo. Outfit is not here on purpose: it is the wordmark's typeface, the wordmark
+ * is placed as outlines (`icons/rustrak-wordmark.tsx`), and loading a face to draw a
+ * shape that is already drawn would be paying for it twice.
+ *
+ * `next/font/google` does not fetch at runtime. Next downloads the files during the
+ * build and serves them from our own origin, so there is no request to Google from a
+ * visitor's browser and no third-party in the critical path — which is what
+ * `rustrak-brand`, `brand/assets/fonts/README.md` is really guarding against when it
+ * says the type is never loaded from a CDN.
+ *
+ * What it does mean is that this is a second copy of Geist, versioned by Google rather
+ * than by the brand repo. If the two ever diverge the symptom is metrics moving by a
+ * hair between the docs site and every other Rustrak surface, with nothing failing. If
+ * that ever matters, the fix is `next/font/local` pointed at
+ * `rustrak-brand/brand/assets/fonts/`, whose hashes the brandbook records.
+ */
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -10,16 +28,6 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
-});
-
-// Display accent, used only on the landing: one or two words per headline set
-// in italic serif at the same size as the surrounding sans. The texture change
-// is what keeps the big type from reading as another dev-tool template.
-const instrumentSerif = Instrument_Serif({
-  variable: '--font-instrument-serif',
-  subsets: ['latin'],
-  weight: '400',
-  style: ['normal', 'italic'],
 });
 
 export const metadata = {
@@ -51,9 +59,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <Head faviconGlyph="R" />
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} font-sans`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
         {children}
       </body>
     </html>
