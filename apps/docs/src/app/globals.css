@@ -33,7 +33,6 @@
   --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-instrument-serif);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -251,7 +250,15 @@ html.dark {
 
   --primary: oklch(0.91 0.18 127);
   --primary-foreground: oklch(0.2 0 0);
-  --background: oklch(0.14 0 0);
+  /* Lifted from 0.14.
+     
+     Not because 0.14 was wrong as a value — the brand's own `surface-canvas` is
+     darker still, at #0c0c0c — but because fifteen screens of one flat value reads
+     as darker than the value is. Anything at 0.14 on 0.14 has no ground to sit on,
+     so the cards, the rules and the recreated screens all had to carry the whole
+     separation themselves. Two hundredths is not a colour change anyone will name;
+     it is enough for the surfaces above it to have somewhere to be. */
+  --background: oklch(0.16 0 0);
   --foreground: oklch(0.98 0 0);
   --card: oklch(0.18 0 0);
   --card-foreground: oklch(0.98 0 0);
@@ -311,79 +318,7 @@ html.dark {
    to undo. That is the part of this change worth noticing: it did not just move
    weight off the page, it removed a whole category of fighting. */
 body:has(.landing-root) {
-  background: oklch(0.14 0 0);
-}
-
-/* The two pools of darkness the hero's painting is read through. See the
-   `scrim` block in `landing/ascii-field.tsx` for what each one protects.
-
-   The phone case is not the desktop one scaled down. The headline is four
-   lines rather than two, so the pool has to be much taller; and the painting
-   is overscanned far harder at that width, so what is behind those lines is
-   the brightly lit centre of the table rather than the dim edge of the room.
-   Both call for a wider, deeper, lower-centred radial. */
-.landing-root .ascii-scrim {
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(10, 10, 10, 0.82),
-      rgba(10, 10, 10, 0.5) 64px,
-      transparent 190px
-    ),
-    radial-gradient(
-      46% 26% at 50% 23%,
-      rgba(10, 10, 10, 0.86),
-      rgba(10, 10, 10, 0.45) 55%,
-      transparent 78%
-    );
-}
-
-/* On a phone it is not a pool at all, and that is the whole difference between
-   these two rules.
-
-   ── Why the shape changes ──────────────────────────────────────────────────
-
-   A radial that leaves the picture showing around the type is right on a
-   monitor, where the headline is a block in the middle of a wide screen with
-   painting either side of it to leave alone. On a phone the type *is* the
-   screen: the headline sets to 350 of 390 available pixels and the paragraph to
-   the same. There is no "either side" to protect — there are only the ends of
-   every line, which is exactly where a radial centred on the column has already
-   fallen to half strength. Measured at 390 x 844 the old one covered the ends
-   of the headline at about 0.5 and the buttons at effectively nothing, which is
-   what put the outline of "View on GitHub" into a lit patch of tablecloth.
-
-   ── Why the stops are in pixels ────────────────────────────────────────────
-
-   Because the thing being protected is. The hero opens at `pt-32`, a fixed
-   128px, and the headline and paragraph follow at their own fixed leading — so
-   the type block sits at the same absolute offsets on every phone. A gradient
-   sized in percentages of the viewport does not: at 844 tall the paragraph fell
-   inside the dark part and at 667 the same paragraph fell outside it, because
-   the pool had shrunk by a quarter while the text had not moved at all.
-
-   This is also why it can be one gradient rather than two. The scrim is pinned
-   to the viewport, not to the page, so what it has to be is dark at the top of
-   the screen and clear by the bottom — which serves the nav at every scroll
-   position and the headline at the top, and those were the two pools.
-
-   The dip at 72px is deliberate and is the one non-monotonic part: it is the
-   strip between the bar and the headline, and letting the painting through
-   there is what stops a phone visitor being told there is a picture only by the
-   parts of it around the product panel four hundred pixels further down. */
-@media (max-width: 639px) {
-  .landing-root .ascii-scrim {
-    background: linear-gradient(
-      to bottom,
-      rgba(10, 10, 10, 0.9) 0,
-      rgba(10, 10, 10, 0.68) 72px,
-      rgba(10, 10, 10, 0.85) 150px,
-      rgba(10, 10, 10, 0.82) 380px,
-      rgba(10, 10, 10, 0.5) 470px,
-      rgba(10, 10, 10, 0.18) 550px,
-      transparent 620px
-    );
-  }
+  background: oklch(0.16 0 0);
 }
 
 /* One display scale for the whole page. `clamp` does the responsive work so no
@@ -436,16 +371,6 @@ body:has(.landing-root) {
   font-weight: 500;
 }
 
-/* The serif accent sits on the same baseline at the same optical size, so it
-   needs a nudge up in size and a looser tracking to match the sans. */
-.landing-root .accent-serif {
-  font-family: var(--font-serif), Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  font-size: 1.08em;
-}
-
 .landing-root .eyebrow,
 .changelog-root .eyebrow,
 .blog-root .eyebrow {
@@ -478,8 +403,8 @@ body:has(.landing-root) {
   /* Two lifts off the page, mirroring the two tints the reference uses to
      separate a showcase cell from a plain one. Both are deliberately shallow:
      the rules do the dividing, the tint only says which kind of cell this is. */
-  --surface: oklch(0.172 0 0);
-  --surface-soft: oklch(0.153 0 0);
+  --surface: oklch(0.192 0 0);
+  --surface-soft: oklch(0.173 0 0);
 }
 
 /* Used as `border-x border-rule`, `lg:border-r-0` and so on — see the
@@ -504,45 +429,246 @@ body:has(.landing-root) {
    parsing it, hydrating it and serialising it into the HTML — a superset, on
    the axis that actually costs a visitor something. So the weaker one goes. */
 
-/* The hero painting's drift. Deliberately CSS rather than a Motion animation:
-   Motion's frame loop only sleeps when nothing at all is animating, and a
-   `repeat: Infinity` here kept the whole scheduler awake for the life of the
-   page. This runs on the compositor and asks nothing of the main thread.
+/* ── The field's drift ─────────────────────────────────────────────────────────
+   The moving surface behind the hero, the manifesto and the closing band. See
+   `landing/primitives/field.tsx` for what the five blobs are and where they come
+   from; this is only how they move.
 
-   It sits on a wrapper rather than on the canvas itself, so the canvas stays a
-   static masked layer and this stays a bare transform over it — see the note in
-   `ascii-field.tsx`. */
-/* Scale only, from the centre. No pan.
+   ## What makes a shape change
 
-   There used to be a `translate3d(2.5%, 0, 0)` riding along with the zoom, and
-   the two together did not read as a camera move — they read as the picture
-   being stretched sideways. A pan and a zoom sharing one axis is the problem: a
-   horizontal drift over a static image gives the eye a fixed edge to measure
-   against, and once it has one, the widening is the only thing it sees.
+   Three channels per blob, and it needs all three at once. Each is a `transform`
+   channel, so all of it stays composited.
 
-   A centred scale has no direction to notice. It breathes.
+   | | range | what it does |
+   |---|---|---|
+   | `translate` | 14–24% of the blob's box | moves the light |
+   | `scale`, **per axis** | 0.84 → 1.34, X and Y independently | changes the silhouette from a wide smear to a tall column |
+   | `rotate` | ±22° | swings the bright part of a lopsided ellipse around |
+   | `opacity` | 0.58 → 1 | swells and recedes |
 
-   The floor is 1.01 rather than 1, and that is load-bearing now that the canvas
-   is `object-fit: cover`: the element fills its box exactly, so a scale of 1
-   leaves nothing in reserve and a subpixel rounding error can expose a hairline
-   of background at an edge. A hundredth of overscan costs nothing and
-   guarantees there is always something to crop. */
-@keyframes ascii-drift {
-  0%,
+   The per-axis scale is the one that carries it. A uniform scale is the same shape at
+   a different size, which the eye reads as distance; scaling one axis against the
+   other changes the proportion of the thing, which the eye reads as the shape itself
+   deforming. Rotation only pays off because the gradient inside each blob is
+   off-centre — rotating a centred radial gradient is work the compositor performs for
+   no visible result.
+
+   Every channel has its waypoints at *different* percentages from the others, so a
+   blob reaches its widest somewhere in the middle of a move and its brightest
+   somewhere else again. That decorrelation is what stops five loops reading as five
+   loops.
+
+   ## The loops are closed
+
+   Each ends where it began, so there is no `alternate` and nothing retraces its own
+   path — it wanders out and comes home by a different route. The waypoints are not on
+   a circle and the intervals between them are not equal, because a regular polygon at
+   regular intervals is an orbit, and an orbit is something the eye locks onto and
+   predicts.
+
+   Five periods with no shared factor worth speaking of: 15, 18, 21, 25 and 29
+   seconds. Equal durations would resync every cycle and the field would breathe on a
+   beat.
+
+   Distances are in percent of each blob's own box, so everything scales with the
+   viewport. */
+@keyframes landing-drift-a {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1, 1);
+    opacity: 0.85;
+  }
+  18% {
+    transform: translate3d(9%, 7%, 0) rotate(15deg) scale(1.3, 0.86);
+  }
+  31% {
+    opacity: 1;
+  }
+  39% {
+    transform: translate3d(20%, -4%, 0) rotate(-10deg) scale(0.86, 1.3);
+  }
+  57% {
+    transform: translate3d(7%, -13%, 0) rotate(22deg) scale(1.24, 1.06);
+  }
+  74% {
+    opacity: 0.6;
+  }
+  79% {
+    transform: translate3d(-8%, -5%, 0) rotate(-17deg) scale(0.92, 1.14);
+  }
   100% {
-    transform: scale(1.01);
-  }
-  50% {
-    transform: scale(1.06);
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1, 1);
+    opacity: 0.85;
   }
 }
 
-.landing-root .ascii-drift {
-  animation: ascii-drift 54s ease-in-out infinite;
+@keyframes landing-drift-b {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(-8deg) scale(1.06, 0.96);
+    opacity: 0.72;
+  }
+  21% {
+    transform: translate3d(-12%, 9%, 0) rotate(12deg) scale(0.88, 1.32);
+  }
+  36% {
+    opacity: 1;
+  }
+  44% {
+    transform: translate3d(-22%, -5%, 0) rotate(-20deg) scale(1.34, 0.9);
+  }
+  62% {
+    transform: translate3d(-6%, -15%, 0) rotate(6deg) scale(1.1, 1.22);
+  }
+  81% {
+    transform: translate3d(10%, -3%, 0) rotate(-14deg) scale(0.9, 1.04);
+    opacity: 0.58;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-8deg) scale(1.06, 0.96);
+    opacity: 0.72;
+  }
 }
 
+@keyframes landing-drift-c {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(6deg) scale(0.98, 1.04);
+    opacity: 0.8;
+  }
+  24% {
+    transform: translate3d(16%, -8%, 0) rotate(-16deg) scale(1.32, 0.92);
+  }
+  41% {
+    opacity: 1;
+  }
+  49% {
+    transform: translate3d(24%, 6%, 0) rotate(18deg) scale(0.9, 1.28);
+  }
+  68% {
+    transform: translate3d(11%, 14%, 0) rotate(-6deg) scale(1.16, 1.1);
+  }
+  77% {
+    opacity: 0.64;
+  }
+  86% {
+    transform: translate3d(-5%, 5%, 0) rotate(14deg) scale(1.02, 0.94);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(6deg) scale(0.98, 1.04);
+    opacity: 0.8;
+  }
+}
+
+/* The ink pair: the same channels at a wider range, because these two are the largest
+   shapes on the surface and what they do is carve. No opacity on either — ink that
+   fades is lime bleeding through the dark side of the field, which is the one thing
+   the two of them exist to prevent. */
+@keyframes landing-drift-d {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1.04, 1);
+  }
+  22% {
+    transform: translate3d(-11%, -8%, 0) rotate(-13deg) scale(0.9, 1.26);
+  }
+  47% {
+    transform: translate3d(-19%, 5%, 0) rotate(16deg) scale(1.28, 0.94);
+  }
+  64% {
+    transform: translate3d(-7%, 14%, 0) rotate(-5deg) scale(1.1, 1.16);
+  }
+  85% {
+    transform: translate3d(8%, 4%, 0) rotate(11deg) scale(0.96, 1.02);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1.04, 1);
+  }
+}
+
+@keyframes landing-drift-e {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(9deg) scale(1, 1.06);
+  }
+  26% {
+    transform: translate3d(12%, -11%, 0) rotate(-12deg) scale(1.3, 0.9);
+  }
+  44% {
+    transform: translate3d(21%, 3%, 0) rotate(19deg) scale(0.88, 1.24);
+  }
+  67% {
+    transform: translate3d(6%, 12%, 0) rotate(-7deg) scale(1.14, 1.12);
+  }
+  88% {
+    transform: translate3d(-9%, 3%, 0) rotate(13deg) scale(0.98, 0.96);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(9deg) scale(1, 1.06);
+  }
+}
+
+.landing-root .drift-a,
+.landing-root .drift-b,
+.landing-root .drift-c,
+.landing-root .drift-d,
+.landing-root .drift-e {
+  /* Eased *between every pair of waypoints*, not once across the whole loop. Linear
+     makes the legs read as separate moves with corners between them; easing each one
+     in and out gives every waypoint a moment of near-stillness, which is what a swell
+     does at the top of its travel. */
+  animation-timing-function: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+  animation-iteration-count: infinite;
+
+  /* Promoted up front. Without this the first frame of the animation is what creates
+     the layer, and the promotion itself is a visible hitch on an element the size of
+     the screen. */
+  will-change: transform, opacity;
+}
+
+/* Gentler than the lights: a sharp ease on a shape this large reads as a shadow being
+   swung rather than as one settling. */
+.landing-root .drift-d,
+.landing-root .drift-e {
+  animation-timing-function: ease-in-out;
+}
+
+.landing-root .drift-a {
+  animation-name: landing-drift-a;
+  animation-duration: 15s;
+  animation-delay: -4s;
+}
+.landing-root .drift-b {
+  animation-name: landing-drift-b;
+  animation-duration: 18s;
+  animation-delay: -11s;
+}
+.landing-root .drift-c {
+  animation-name: landing-drift-c;
+  animation-duration: 21s;
+  animation-delay: -17s;
+}
+.landing-root .drift-d {
+  animation-name: landing-drift-d;
+  animation-duration: 25s;
+  animation-delay: -6s;
+}
+.landing-root .drift-e {
+  animation-name: landing-drift-e;
+  animation-duration: 29s;
+  animation-delay: -22s;
+}
+
+/* The negative delays above are not decoration. Without them all five blobs start
+   from waypoint zero together, which is the one arrangement of the field that is
+   symmetrical and static — the visitor's first impression would be the only frame of
+   the animation that looks composed by accident, and the movement would then take
+   seconds to become visible. */
+
+/* The drift never stops, so it is the animation that most needs switching off. A
+   reader who asked for less motion should not get a surface that moves for as long as
+   the page is open. */
 @media (prefers-reduced-motion: reduce) {
-  .landing-root .ascii-drift {
+  .landing-root .drift-a,
+  .landing-root .drift-b,
+  .landing-root .drift-c,
+  .landing-root .drift-d,
+  .landing-root .drift-e {
     animation: none;
   }
 }

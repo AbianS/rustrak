@@ -1,5 +1,5 @@
 import { Heart } from 'lucide-react';
-import { Band, Cell } from '../primitives/grid';
+import { Band, Cell } from '@/components/frame/grid';
 import { Heading, Pill } from '../primitives/heading';
 import { fetchSponsors } from '../sponsors';
 

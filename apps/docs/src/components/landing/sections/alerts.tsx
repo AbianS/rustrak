@@ -8,8 +8,8 @@ import {
 } from 'motion/react';
 import * as m from 'motion/react-m';
 import { useRef } from 'react';
+import { Band, Cell } from '@/components/frame/grid';
 import { cn } from '@/lib/utils';
-import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 
 /**

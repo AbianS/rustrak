@@ -1,5 +1,5 @@
+import { GridFrame } from '@/components/frame/grid';
 import { LandingNav } from './nav/nav';
-import { GridFrame } from './primitives/grid';
 import { Cover } from './primitives/pinned';
 import { Alerts } from './sections/alerts';
 import { Closing } from './sections/closing';

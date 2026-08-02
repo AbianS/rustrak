@@ -10,8 +10,8 @@ import {
 } from 'motion/react';
 import * as m from 'motion/react-m';
 import { type RefObject, useRef, useState } from 'react';
+import { Band, Cell } from '@/components/frame/grid';
 import { DUR, EASE } from '../motion';
-import { Band, Cell } from '../primitives/grid';
 import { Heading, Pill } from '../primitives/heading';
 import { COMPACT, DESKTOP, useMediaQuery } from '../use-media-query';
 import { EngineScene } from './engine-scene/engine-scene';

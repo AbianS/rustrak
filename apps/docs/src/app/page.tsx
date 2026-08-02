@@ -11,9 +11,15 @@ import { LandingPage } from '@/components/landing/landing-page';
  * negation.
  *
  * As a plain route it opts in to nothing, so there is nothing to opt out of.
+ *
+ * The title used to read "everything Sentry does, on a server you own". That is the
+ * one phrasing `rustrak-brand`, `brand/guidelines/voice-and-tone.md` rules out by
+ * name: it invites a comparison Rustrak loses and spends the actual differentiator
+ * to do it. Compatibility is claimed where it is true — in the SDK strip and the
+ * migration band — and nowhere as parity.
  */
 export const metadata = {
-  title: 'Rustrak: everything Sentry does, on a server you own',
+  title: 'Rustrak: error tracking on a server you own',
   description:
     'Self-hosted, Sentry-compatible error tracking. Point any official Sentry SDK at a binary you run yourself. Open source under GPL-3.0, in under 100MB of RAM.',
 };

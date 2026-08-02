@@ -9,9 +9,9 @@ import {
 import * as m from 'motion/react-m';
 import Link from 'next/link';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { Field } from '@/components/frame/field';
 import { GithubIcon } from '@/components/icons/github';
 import StaggerFromCenter from '@/components/smoothui/stagger-from-center';
-import { AsciiField } from '../../ascii-field/ascii-field';
 import { GITHUB } from '../../links';
 import { EASE } from '../../motion';
 import { Typewriter } from '../../primitives/typewriter';
@@ -182,34 +182,28 @@ export function Hero() {
   return (
     <section className="relative overflow-x-clip">
       {/*
-        The painting, pinned. One that stays rather than several handing off
-        down the section: the seams between stacked paintings never read as
-        anything but seams.
+        The surface, pinned. One that stays rather than several handing off down the
+        section: the seams between stacked backgrounds never read as anything but
+        seams.
 
         The track is the whole section rather than a fixed height, so `inset-0`
-        follows whatever the section measures and nothing is left bare once the
-        pinned panel has scrolled past. Sticky rather than fixed, so it lets go
-        on its own without a scroll listener.
+        follows whatever the section measures and nothing is left bare once the pinned
+        panel has scrolled past. Sticky rather than fixed, so it lets go on its own
+        without a scroll listener.
 
-        There is deliberately no tint over it. A wash colours the space
-        *between* the glyphs as well as the glyphs, so any strength of green
-        stops the painting being lime marks on black and makes it a lime area;
-        and doing it in the page's own near-black has nothing to add over a
-        near-black background. The join into the ruled frame is carried by the
-        canvas's own bottom mask instead.
+        This is where the ASCII painting used to be. The field needs far less
+        protecting against than a picture did — it is smooth, it has no glyph-frequency
+        detail for type to get lost in, and its lit corner is the only part that
+        competes at all. So one top-down wash under the type replaces the two
+        viewport-sized radial scrims that used to be tuned per breakpoint.
       */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="sticky top-0 h-svh">
-          <AsciiField
-            source="/last-supper.txt"
-            active={started}
-            className="top-0 h-full"
-            /* Matched to the manifesto band. The hero had always been on the
-               default of 1, which is why it read so much greener than every
-               other painting on the page: same lime, twice the alpha. */
-            intensity={1}
-            scrim
-          />
+        <div className="sticky top-0 h-svh overflow-hidden">
+          <Field />
+          <div className="absolute inset-x-0 top-0 h-[62%] bg-linear-to-b from-[oklch(0.05_0_0)]/90 via-[oklch(0.05_0_0)]/66 to-transparent" />
+          {/* The join into the ruled frame below. The field is opaque, so without
+              this its bottom edge is a hard horizontal line across the page. */}
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-b from-transparent to-background" />
         </div>
       </div>
 
@@ -350,16 +344,16 @@ export function Hero() {
           <a
             href={GITHUB}
             /*
-              A fill, not a louder outline. This sits over the painting, and an
-              ASCII field is texture at exactly the frequency a 1px edge lives
-              at, so a hairline border competes with thousands of glyphs of the
-              same weight. `bg-white/6` is not visible as a colour; it gives the
-              label a consistent ground so the edge reads as a shape rather than
-              one more line in the noise. Deliberately not `backdrop-blur` — the
-              background here repaints, and a backdrop filter over a repainting
-              canvas is re-read every frame.
+              An outline, now that there is nothing behind it.
+
+              It used to be a fill: this button sat over the ASCII painting, which
+              is texture at exactly the frequency a 1px edge lives at, so a
+              hairline border competed with thousands of glyphs of the same
+              weight and `bg-white/6` was there to give the label a ground to be
+              a shape against. On plain black a border is legible on its own, and
+              the fill was the louder of the two options for no remaining reason.
             */
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/18 bg-white/6 px-4 py-3 text-[15px] font-medium text-white/90 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white sm:py-2.5 sm:text-[14px]"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 px-4 py-3 text-[15px] font-medium text-white/70 transition-colors hover:border-white/30 hover:text-white sm:py-2.5 sm:text-[14px]"
           >
             <GithubIcon className="size-4" />
             View on GitHub

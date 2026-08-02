@@ -13,7 +13,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { createContext, type ReactNode, useContext } from 'react';
-import { RustrakLogoIcon } from '@/components/icons/rustrak-logo';
+import { RustrakWordmark } from '@/components/icons/rustrak-wordmark';
 import { cn } from '@/lib/utils';
 import { useCompact } from './design';
 import { Sheen } from './stage';
@@ -228,10 +228,12 @@ export function MockShell({
           {compact ? (
             <Menu className="mr-1 size-5 text-muted-foreground" />
           ) : null}
-          <RustrakLogoIcon className="size-6" />
-          <span className="text-sm font-extrabold uppercase tracking-tight">
-            Rustrak
-          </span>
+          {/* The recreation wears the mark the real app wears. It had the
+              retired bolt tile with the word set in type beside it, which on a
+              page that now opens with the wordmark is the one detail that gives
+              away that these screens are a recreation. 15px, one step under the
+              app's own 18, because the whole frame is scaled down to its band. */}
+          <RustrakWordmark className="h-[15px] w-auto" />
         </div>
         <div className="flex items-center gap-2">
           {/* The project switcher moves into the header once the rail that

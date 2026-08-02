@@ -1,4 +1,4 @@
-import { Band, Cell } from '../primitives/grid';
+import { Band, Cell } from '@/components/frame/grid';
 import { Heading, Pill } from '../primitives/heading';
 
 /**

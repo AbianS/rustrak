@@ -2,7 +2,7 @@
 
 import { Check, Copy } from 'lucide-react';
 import { useState } from 'react';
-import { Band } from '../primitives/grid';
+import { Band } from '@/components/frame/grid';
 import { Heading, Pill } from '../primitives/heading';
 
 /** Verbatim from content/getting-started/installation.mdx. */

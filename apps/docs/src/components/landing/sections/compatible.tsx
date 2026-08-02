@@ -1,4 +1,4 @@
-import { Band } from '../primitives/grid';
+import { Band } from '@/components/frame/grid';
 
 /**
  * The SDK strip. Names set in type rather than a wall of vendor logos: none of
