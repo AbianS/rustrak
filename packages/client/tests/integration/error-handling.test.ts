@@ -174,10 +174,7 @@ describe('Error Handling', () => {
     it('should map 500 to server_error', async () => {
       server.use(
         http.get('http://localhost:8080/api/projects', () =>
-          appErrorResponse(
-            'InternalError',
-            'Internal server error: Database pool not configured',
-          ),
+          appErrorResponse('InternalError'),
         ),
       );
 
@@ -185,7 +182,53 @@ describe('Error Handling', () => {
 
       expect(error.kind).toBe('server_error');
       expect(isRetryable(error)).toBe(true);
-      expect(error).toMatchObject({ status: 500 });
+      // `message` is pinned, not just `status`. `appErrorResponse` throws when
+      // a fixture hands it a 5xx message, but msw turns a resolver that throws
+      // into a 500 of its own, which is the exact status this test asserts: a
+      // fixture rejected for being the old leaky shape would otherwise sail
+      // through here green.
+      expect(error).toMatchObject({
+        status: 500,
+        message: SERVER_ERROR_MESSAGE,
+      });
+    });
+
+    it('should surface the incident id a 500 body carries', async () => {
+      server.use(
+        http.get('http://localhost:8080/api/projects', () =>
+          appErrorResponse('DatabaseError', undefined, undefined, {
+            incidentId: '0b3f1c1e-2a4d-4b8e-9f1a-6c7d8e9f0a1b',
+          }),
+        ),
+      );
+
+      const error = expectErr(await client.projects.list());
+
+      expect(error.kind).toBe('server_error');
+      // The message stays redacted. The id is the only thing the server is
+      // willing to say about a 500, and it is what a user quotes in a bug
+      // report to point the operator at the `log::error!` line.
+      expect(error).toMatchObject({
+        status: 500,
+        message: SERVER_ERROR_MESSAGE,
+        incidentId: '0b3f1c1e-2a4d-4b8e-9f1a-6c7d8e9f0a1b',
+      });
+    });
+
+    // A 5xx from a proxy has no Rustrak body, and an older server predates the
+    // field. Neither may produce `incidentId: undefined`: `structuredClone`
+    // round-trips it, but `'incidentId' in error` would start lying.
+    it('should omit incidentId entirely when the 5xx body has none', async () => {
+      server.use(
+        http.get('http://localhost:8080/api/projects', () =>
+          appErrorResponse('InternalError'),
+        ),
+      );
+
+      const error = expectErr(await client.projects.list());
+
+      expect(error.kind).toBe('server_error');
+      expect('incidentId' in error).toBe(false);
     });
 
     // 502 and 503 are the deliberate exception: `AppError::status_code` cannot
@@ -698,10 +741,7 @@ describe('Error Handling', () => {
         http.get('http://localhost:8080/api/projects', () => {
           attempts++;
           if (attempts < 2) {
-            return appErrorResponse(
-              'DatabaseError',
-              'Database error: connection closed',
-            );
+            return appErrorResponse('DatabaseError');
           }
           return HttpResponse.json({
             items: [],
@@ -771,10 +811,7 @@ describe('Error Handling', () => {
       server.use(
         http.get('http://localhost:8080/api/projects', () => {
           attempts++;
-          return appErrorResponse(
-            'DatabaseError',
-            'Database error: connection closed',
-          );
+          return appErrorResponse('DatabaseError');
         }),
       );
 
@@ -887,7 +924,7 @@ describe('Error Handling', () => {
 
       server.use(
         http.get('http://localhost:8080/api/projects', () =>
-          appErrorResponse('InternalError', 'Internal server error: boom'),
+          appErrorResponse('InternalError'),
         ),
       );
       cases.push(expectErr(await client.projects.list()));

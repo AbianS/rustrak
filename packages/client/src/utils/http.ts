@@ -134,6 +134,27 @@ function warnUnknownFieldErrorCode(code: string, field: string): void {
  * consumer would render. Dropping it here makes the rule true of the value, not
  * only of its producer.
  */
+/**
+ * Read `error.incident_id` out of a 5xx `AppError` body.
+ *
+ * The one thing a 500 is willing to say about itself. `error_response` replaced
+ * its `Display` with a fixed string so a `sqlx::Error`'s constraint and column
+ * names stay off the wire (gh-233), and logged the detail under this id; a user
+ * quoting it is what lets an operator find that line.
+ *
+ * Returns `undefined`, never `null` or `''`, for the three bodies that carry no
+ * id: a proxy-generated 502/503, a server older than gh-233, and a 500 whose
+ * body is not JSON at all. The caller omits the key entirely in that case, so
+ * `'incidentId' in error` stays an honest test.
+ */
+function readIncidentId(error: HTTPError): string | undefined {
+  const body = error.data as { error?: { incident_id?: unknown } } | null;
+  const raw =
+    body && typeof body === 'object' ? body.error?.incident_id : undefined;
+
+  return typeof raw === 'string' && raw.length > 0 ? raw : undefined;
+}
+
 function readFieldErrors(error: HTTPError): FieldError[] | undefined {
   const body = error.data as { error?: { fields?: unknown } } | null;
   const raw = body && typeof body === 'object' ? body.error?.fields : undefined;
@@ -225,13 +246,24 @@ export function transformHttpError(error: HTTPError): RustrakError {
   const { response } = error;
   const status = response.status;
 
-  // 5xx never carries a server-supplied message. `AppError::Internal` and
-  // `AppError::Database` interpolate arbitrary internal text (a pool error, an
-  // OS errno, a filesystem path), and every consumer of this client renders
-  // `error.message` somewhere. Discard it here, once, rather than trusting 128
-  // call sites to remember.
+  // 5xx never carries a server-supplied message. The server redacts its own
+  // `Display` now (gh-233), but this stays: a 502 from a reverse proxy and a
+  // server older than that fix both still send prose, and every consumer of
+  // this client renders `error.message` somewhere. Discard it here, once,
+  // rather than trusting 128 call sites to remember.
+  //
+  // `incidentId` is the exception, and the reason the redaction is no longer
+  // lossy: it names the log line carrying what the body dropped, and is
+  // omitted entirely when the body has none.
   if (status >= 500) {
-    return { kind: 'server_error', status, message: SERVER_ERROR_MESSAGE };
+    const base = {
+      kind: 'server_error',
+      status,
+      message: SERVER_ERROR_MESSAGE,
+    } as const;
+    const incidentId = readIncidentId(error);
+
+    return incidentId === undefined ? base : { ...base, incidentId };
   }
 
   const message = readErrorMessage(error, status);

@@ -6,6 +6,7 @@ import {
   APP_ERROR_PREFIXES,
   APP_ERROR_STATUS,
   type AppErrorType,
+  INTERNAL_ERROR_MESSAGE,
 } from '../mocks/handlers.js';
 
 /**
@@ -148,6 +149,41 @@ describe.skipIf(source === null)(
           `${variant}'s #[error(...)] must end with {0}, got "${display}"`,
         ).toBe(true);
       }
+    });
+
+    // -----------------------------------------------------------------------
+    // The 5xx redaction (gh-233)
+    //
+    // A `Display` string is no longer what a 5xx puts on the wire. The tables
+    // above still describe `#[error(...)]` faithfully, and still must: that
+    // text is what `log::error!` carries, so it is what an operator greps.
+    // What changed is which bodies it reaches. These two pin the split itself,
+    // because every fixture in this suite now builds a 500 body out of a
+    // constant declared in TypeScript, and nothing else would notice the Rust
+    // side rewording or dropping it.
+    // -----------------------------------------------------------------------
+
+    it('INTERNAL_ERROR_MESSAGE matches the Rust constant', () => {
+      const match = rust.match(
+        /pub const INTERNAL_ERROR_MESSAGE: &str = "([^"]*)";/,
+      );
+
+      expect(match, 'INTERNAL_ERROR_MESSAGE must exist in error.rs').not.toBe(
+        null,
+      );
+      expect(match?.[1]).toBe(INTERNAL_ERROR_MESSAGE);
+    });
+
+    it('error_response redacts on the status, not on the variant', () => {
+      // Anchored on `is_server_error()` rather than on a variant list: the
+      // rule has to keep holding for a ninth variant nobody has written yet,
+      // and a `match` naming `Database` and `Internal` would silently exempt
+      // it. `_ = INTERNAL_ERROR_MESSAGE;` somewhere unrelated would satisfy a
+      // grep for the constant alone, so both halves are asserted together.
+      const body = rust.slice(rust.indexOf('fn error_response'));
+
+      expect(body).toContain('is_server_error()');
+      expect(body).toContain('INTERNAL_ERROR_MESSAGE');
     });
 
     it('APP_ERROR_PREFIXES matches the #[error(...)] Display prefixes', () => {

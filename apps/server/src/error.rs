@@ -1,6 +1,30 @@
 use actix_web::{http::StatusCode, HttpResponse, ResponseError};
 use serde::Serialize;
 
+/// The `message` every 5xx body carries, in place of the error's `Display`.
+///
+/// Fixed on purpose. `AppError::Database` renders `sqlx::Error`, whose
+/// Postgres arm names the constraint, table and column of the failed query,
+/// and `AppError::Internal` interpolates whatever string its call site had to
+/// hand. Neither is safe on a wire that a caller holding nothing but a public
+/// DSN can read.
+pub const INTERNAL_ERROR_MESSAGE: &str = "Internal server error";
+
+/// Response header echoing [`ErrorDetail::incident_id`].
+///
+/// Duplicates the body on purpose. `middleware::Logger` is the only place that
+/// knows the method and path of the request that failed, and a response header
+/// is the only part of the response it can read, so this is what lets one
+/// `grep <id>` return both the access-log line naming the route and the
+/// `log::error!` line carrying the detail.
+pub const INCIDENT_ID_HEADER: &str = "X-Rustrak-Incident";
+
+/// The `log::error!` line that carries what [`INTERNAL_ERROR_MESSAGE`] took
+/// out of the response body.
+fn incident_log_line(incident_id: &str, error: &AppError) -> String {
+    format!("incident {incident_id}: {error}")
+}
+
 /// JSON error response structure
 #[derive(Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -20,6 +44,17 @@ pub struct ErrorDetail {
     /// before this existed keeps seeing exactly the body it saw before.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fields: Vec<FieldError>,
+    /// Correlates this response with the `log::error!` line that carries the
+    /// detail [`INTERNAL_ERROR_MESSAGE`] replaced.
+    ///
+    /// Present on every 5xx and on nothing else: a 4xx says what went wrong in
+    /// `message`, logs nothing, and so has no line for an id to point at.
+    ///
+    /// `nullable = false`: `skip_serializing_if` means the key is *absent* on
+    /// a 4xx, never `null`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(nullable = false))]
+    pub incident_id: Option<String>,
 }
 
 /// One rejected input, named as data rather than buried in the prose of
@@ -280,15 +315,32 @@ impl ResponseError for AppError {
     }
 
     fn error_response(&self) -> HttpResponse {
-        let response = ErrorResponse {
-            error: ErrorDetail {
-                error_type: self.error_type().to_string(),
-                message: self.to_string(),
-                fields: self.field_errors().to_vec(),
-            },
+        let status = self.status_code();
+        let incident_id = status
+            .is_server_error()
+            .then(|| uuid::Uuid::new_v4().to_string());
+
+        let message = match &incident_id {
+            Some(id) => {
+                log::error!("{}", incident_log_line(id, self));
+                INTERNAL_ERROR_MESSAGE.to_string()
+            }
+            None => self.to_string(),
         };
 
-        HttpResponse::build(self.status_code()).json(response)
+        let mut builder = HttpResponse::build(status);
+        if let Some(id) = &incident_id {
+            builder.insert_header((INCIDENT_ID_HEADER, id.as_str()));
+        }
+
+        builder.json(ErrorResponse {
+            error: ErrorDetail {
+                error_type: self.error_type().to_string(),
+                message,
+                fields: self.field_errors().to_vec(),
+                incident_id,
+            },
+        })
     }
 }
 
@@ -298,6 +350,151 @@ pub type AppResult<T> = Result<T, AppError>;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reads the JSON body an `AppError` actually puts on the wire.
+    async fn body_of(error: &AppError) -> serde_json::Value {
+        let response = error.error_response();
+        let bytes = actix_web::body::to_bytes(response.into_body())
+            .await
+            .expect("the error body must be readable");
+        serde_json::from_slice(&bytes).expect("the error body must be JSON")
+    }
+
+    /// A 500 must never put `Display` on the wire. `sqlx::Error` renders the
+    /// constraint, table and column names of whatever query failed, and
+    /// `Internal` interpolates arbitrary internal text, so the message a
+    /// caller receives has to be a fixed string chosen here.
+    #[actix_web::test]
+    async fn a_server_error_redacts_its_display_message() {
+        let error = AppError::Internal(
+            "duplicate key value violates unique constraint \"users_email_key\"".to_string(),
+        );
+
+        let body = body_of(&error).await;
+
+        assert_eq!(body["error"]["message"], INTERNAL_ERROR_MESSAGE);
+        assert_eq!(body["error"]["type"], "InternalError");
+    }
+
+    /// `ResponseError::error_response` never sees the request, so the incident
+    /// line cannot name the route. The access log can: it is the one place
+    /// that has the method and path, and headers are the only part of a
+    /// response it can read. Echoing the id there is what turns one `grep`
+    /// into both the route and the detail.
+    #[actix_web::test]
+    async fn a_server_error_echoes_its_incident_id_in_a_header() {
+        let error = AppError::Database(sqlx::Error::PoolClosed);
+        let response = error.error_response();
+
+        let header = response
+            .headers()
+            .get(INCIDENT_ID_HEADER)
+            .expect("a 5xx must echo its incident id as a header")
+            .to_str()
+            .expect("the header must be ASCII")
+            .to_string();
+
+        let body = actix_web::body::to_bytes(response.into_body())
+            .await
+            .expect("the error body must be readable");
+        let body: serde_json::Value =
+            serde_json::from_slice(&body).expect("the error body must be JSON");
+
+        assert_eq!(
+            body["error"]["incident_id"], header,
+            "the header and the body must name the same incident"
+        );
+    }
+
+    /// Nothing was logged for a 4xx, so there is no incident to point at and
+    /// the header would be a promise the log cannot keep.
+    #[actix_web::test]
+    async fn a_client_error_sets_no_incident_header() {
+        let response = AppError::Validation("slug is required".to_string()).error_response();
+
+        assert!(response.headers().get(INCIDENT_ID_HEADER).is_none());
+    }
+
+    /// The detail the body no longer carries has to land somewhere, keyed by
+    /// the id the caller was given. Asserted on the formatted line rather than
+    /// on a captured logger: `log` is global state, and the property that
+    /// matters is what the line says.
+    #[test]
+    fn the_log_line_pairs_the_incident_id_with_the_unredacted_detail() {
+        let error = AppError::Database(sqlx::Error::RowNotFound);
+        let incident_id = "0b3f1c1e-2a4d-4b8e-9f1a-6c7d8e9f0a1b";
+
+        let line = incident_log_line(incident_id, &error);
+
+        assert!(line.contains(incident_id), "line must quote the id: {line}");
+        assert!(
+            line.contains(&error.to_string()),
+            "line must carry the detail the body dropped: {line}"
+        );
+    }
+
+    /// Redacting without a correlation id would trade a leak for an outage
+    /// nobody can diagnose: the caller has a 500 with no handle, and the
+    /// operator has a log line with nothing to match it against. Every 5xx
+    /// carries an id, and the log line carries the same one.
+    #[actix_web::test]
+    async fn a_server_error_carries_an_incident_id() {
+        let body = body_of(&AppError::Internal("pool exhausted".to_string())).await;
+
+        let incident_id = body["error"]["incident_id"]
+            .as_str()
+            .expect("a 5xx body must carry an incident_id");
+        assert!(
+            uuid::Uuid::parse_str(incident_id).is_ok(),
+            "incident_id must be a UUID, got {incident_id:?}"
+        );
+    }
+
+    /// Two 500s are two incidents. Reusing an id, or deriving it from the
+    /// error's contents, would collapse unrelated failures into one line in
+    /// whatever the operator greps.
+    #[actix_web::test]
+    async fn each_server_error_gets_its_own_incident_id() {
+        let error = AppError::Internal("pool exhausted".to_string());
+
+        let first = body_of(&error).await;
+        let second = body_of(&error).await;
+
+        assert_ne!(
+            first["error"]["incident_id"], second["error"]["incident_id"],
+            "each response must be its own incident"
+        );
+    }
+
+    /// A 4xx is not an incident: it is the caller's input being rejected, the
+    /// message already says everything, and nothing was logged for an id to
+    /// point at. The key is absent, never null, matching how `fields` and
+    /// `FieldError::message` already behave.
+    #[actix_web::test]
+    async fn a_client_error_carries_no_incident_id() {
+        let body = body_of(&AppError::NotFound("project".to_string())).await;
+
+        assert!(
+            body["error"].get("incident_id").is_none(),
+            "a 4xx body must omit incident_id entirely, got {body}"
+        );
+    }
+
+    /// The split is on the status, not on the variant. A 4xx message describes
+    /// the caller's own input, is written by hand at the call site, and is the
+    /// only thing that makes a 409 actionable, so redacting it would be a
+    /// regression dressed as hardening.
+    #[actix_web::test]
+    async fn a_client_error_keeps_its_display_message() {
+        let error = AppError::Conflict("Project with slug 'api' already exists".to_string());
+
+        let body = body_of(&error).await;
+
+        assert_eq!(
+            body["error"]["message"],
+            "Conflict: Project with slug 'api' already exists"
+        );
+    }
 
     /// The no-nesting invariant is what makes `field_errors()` (which reads
     /// one level) agree with `kind()`/`error_type()`/`status_code()` (which

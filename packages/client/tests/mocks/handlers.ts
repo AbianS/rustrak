@@ -56,38 +56,78 @@ export const APP_ERROR_STATUS = {
 } as const satisfies Record<AppErrorType, number>;
 
 /**
+ * The fixed `message` every 5xx body carries, mirroring
+ * `INTERNAL_ERROR_MESSAGE` in `apps/server/src/error.rs`.
+ *
+ * `tests/unit/app-error-contract.test.ts` reads that constant out of the Rust
+ * file and asserts it still equals this one, so rewording it on either side is
+ * a failing test rather than a fixture that quietly stops matching the server.
+ */
+export const INTERNAL_ERROR_MESSAGE = 'Internal server error';
+
+/**
  * Build the nested body every `AppError` produces:
  * `{"error": {"type": ..., "message": ...}}`, with the status derived from the
  * variant.
  *
- * `message` is `AppError`'s `Display`, so it always carries the thiserror
- * prefix: a 404 reads `Resource not found: <detail>`, never a bare detail.
- * Passing a message without its prefix throws here rather than producing a body
- * the server could never send.
+ * **4xx**: `message` is `AppError`'s `Display`, so it always carries the
+ * thiserror prefix: a 404 reads `Resource not found: <detail>`, never a bare
+ * detail. Passing a message without its prefix throws here rather than
+ * producing a body the server could never send.
  *
- * `fields` is optional and mirrors the server exactly: `ErrorDetail.fields` is
+ * **5xx**: there is no caller-supplied message at all. `error_response`
+ * replaces `Display` with {@link INTERNAL_ERROR_MESSAGE} so a `sqlx::Error`'s
+ * constraint and column names never reach the wire (gh-233), which means a
+ * fixture that passed its own 500 message would be testing a body the server
+ * stopped emitting. Passing one throws. `incidentId` is what a 500 carries
+ * instead, and it is optional here because a proxy-generated 5xx and a server
+ * older than gh-233 both send a body without one.
+ *
+ * `fields` mirrors the server exactly: `ErrorDetail.fields` is
  * `#[serde(skip_serializing_if = "Vec::is_empty")]`, so an absent or empty list
  * means the key is absent from the body, never `[]` and never `null`. Fixtures
  * go through here rather than inlining a body precisely so that this stays true
- * in one place.
+ * in one place. `incident_id` is skipped the same way.
  */
 export function appErrorResponse(
   type: AppErrorType,
-  message: string,
+  message?: string,
   fields?: FieldError[],
+  options?: { incidentId?: string },
 ) {
+  const status = APP_ERROR_STATUS[type];
+  const isServerError = status >= 500;
+
+  if (isServerError && message !== undefined) {
+    throw new Error(
+      `appErrorResponse('${type}', ...) takes no message: every 5xx body is ` +
+        `${JSON.stringify(INTERNAL_ERROR_MESSAGE)}, fixed by the server.`,
+    );
+  }
+  if (!isServerError && message === undefined) {
+    throw new Error(`appErrorResponse('${type}', ...) requires a message.`);
+  }
+
   const prefix = APP_ERROR_PREFIXES[type];
-  if (!message.startsWith(prefix)) {
+  if (message !== undefined && !message.startsWith(prefix)) {
     throw new Error(
       `appErrorResponse('${type}', ...) expects the server's Display prefix: ` +
         `message must start with ${JSON.stringify(prefix)}, got ${JSON.stringify(message)}`,
     );
   }
+
   return HttpResponse.json(
-    fields === undefined || fields.length === 0
-      ? { error: { type, message } }
-      : { error: { type, message, fields } },
-    { status: APP_ERROR_STATUS[type] },
+    {
+      error: {
+        type,
+        message: isServerError ? INTERNAL_ERROR_MESSAGE : message,
+        ...(fields !== undefined && fields.length > 0 ? { fields } : {}),
+        ...(options?.incidentId !== undefined
+          ? { incident_id: options.incidentId }
+          : {}),
+      },
+    },
+    { status },
   );
 }
 
@@ -488,16 +528,10 @@ export const handlers = [
     rateLimitResponse(59),
   ),
   http.get(`${BASE_URL}/__status-transform/database-error`, () =>
-    appErrorResponse(
-      'DatabaseError',
-      'Database error: pool timed out while waiting for an open connection',
-    ),
+    appErrorResponse('DatabaseError'),
   ),
   http.get(`${BASE_URL}/__status-transform/internal-error`, () =>
-    appErrorResponse(
-      'InternalError',
-      'Internal server error: failed to store source file: No space left on device (os error 28)',
-    ),
+    appErrorResponse('InternalError'),
   ),
   // 410 and the catch-all have no `AppError` producer at all: `status_code`
   // cannot return either. They exist for a retired endpoint and for whatever a
