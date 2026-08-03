@@ -105,7 +105,7 @@ packages/mcp/
 ```typescript
 // src/server.ts
 export function createServer(client: RustrakClient): McpServer {
-  const server = new McpServer({ name: 'rustrak-mcp-server', version: '0.1.0' });
+  const server = new McpServer({ name: 'rustrak-mcp', version: VERSION });
   registerProjectTools(server, client);
   registerIssueTools(server, client);
   registerEventTools(server, client);
@@ -114,6 +114,13 @@ export function createServer(client: RustrakClient): McpServer {
   return server;
 }
 ```
+
+`VERSION` is read from `package.json` at module load, never written down in
+source. `packages/mcp` is in the `fixed` group in `.changeset/config.json`, so
+every release bumps package.json; a hardcoded copy would go stale between
+releases without anything failing. `../package.json` resolves to the package
+root from both `src/` and the bundled `dist/`, and npm always ships
+package.json regardless of the `files` list.
 
 **Why factory pattern?**
 - Decouples env config from server construction
