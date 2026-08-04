@@ -101,7 +101,7 @@ sha1 = "0.11"
 tempfile = "3.27.0"
 
 # Email sending
-lettre = { version = "0.11.22", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
+lettre = { version = "0.11.23", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 
 # OpenAPI spec generation (optional, behind `openapi` feature flag)
 utoipa = { version = "5.5.0", features = ["actix_extras", "uuid", "chrono"], optional = true }
@@ -126,7 +126,7 @@ testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 
 # Sentry SDK for E2E tests
-sentry = { version = "0.48.5", features = ["test"] }
+sentry = { version = "0.49.1", features = ["test"] }
 
 # Property-based testing
 proptest = "1.11.0"

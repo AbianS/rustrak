@@ -197,12 +197,12 @@ async fn test_sentry_sdk_capture_message() {
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
     // Configure Sentry SDK with test transport
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        release: Some("test-release@1.0.0".into()),
-        environment: Some("test".into()),
-        ..Default::default()
-    });
+    let _guard = sentry::init(
+        sentry::ClientOptions::new()
+            .dsn(&dsn)
+            .release("test-release@1.0.0")
+            .environment("test"),
+    );
 
     // Capture a message
     sentry::capture_message("Test message from Sentry SDK", Level::Info);
@@ -252,10 +252,7 @@ async fn test_sentry_sdk_capture_error() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Capture an error event manually
     let event = Event {
@@ -320,10 +317,7 @@ async fn test_sentry_sdk_with_custom_fingerprint() {
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
     // Initialize Sentry client
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Send two events with different error types but same fingerprint
     for i in 0..2 {
@@ -399,11 +393,11 @@ async fn test_sentry_sdk_with_stacktrace() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        attach_stacktrace: true,
-        ..Default::default()
-    });
+    let _guard = sentry::init(
+        sentry::ClientOptions::new()
+            .dsn(&dsn)
+            .attach_stacktrace(true),
+    );
 
     // Create event with stacktrace
     let stacktrace = Stacktrace {
@@ -482,10 +476,7 @@ async fn test_sentry_sdk_different_levels() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Send events with different levels
     let levels = vec![
@@ -541,10 +532,7 @@ async fn test_sentry_sdk_with_tags() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     sentry::configure_scope(|scope| {
         scope.set_tag("environment", "test");
@@ -594,10 +582,7 @@ async fn test_sentry_sdk_with_user_context() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     sentry::configure_scope(|scope| {
         scope.set_user(Some(sentry::User {
@@ -650,10 +635,7 @@ async fn test_sentry_sdk_with_breadcrumbs() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Add breadcrumbs
     sentry::add_breadcrumb(sentry::Breadcrumb {
@@ -724,10 +706,7 @@ async fn test_sentry_sdk_groups_similar_errors() {
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
     // Initialize Sentry client
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Send multiple events with the same error type and explicit fingerprint
     // We use an explicit fingerprint to ensure consistent grouping
@@ -804,10 +783,7 @@ async fn test_sentry_sdk_separates_different_errors() {
 
     let dsn = server.dsn(&project.sentry_key.to_string(), project.id);
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn: dsn.parse().ok(),
-        ..Default::default()
-    });
+    let _guard = sentry::init(sentry::ClientOptions::new().dsn(&dsn));
 
     // Send events with different error types
     let errors = vec![
