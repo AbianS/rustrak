@@ -182,7 +182,16 @@ async fn main() -> std::io::Result<()> {
             .app_data(session_aggregator_data.clone())
             .app_data(processors_data.clone())
             // Middleware
-            .wrap(middleware::Logger::default())
+            // `Logger::default()`'s format, plus the incident id a 5xx echoes
+            // in `INCIDENT_ID_HEADER`. `error_response` never sees the request
+            // and so cannot name the route in its own log line; this is the
+            // line that has the method and path, so the id has to appear here
+            // for the two to be greppable as one incident. Reads `-` on every
+            // response that is not a 5xx.
+            .wrap(middleware::Logger::new(&format!(
+                "%a \"%r\" %s %b \"%{{Referer}}i\" \"%{{User-Agent}}i\" %T incident=%{{{}}}o",
+                rustrak::error::INCIDENT_ID_HEADER
+            )))
             .wrap(middleware::Compress::default())
             .wrap(cors) // CORS must be before SessionMiddleware
             .wrap(

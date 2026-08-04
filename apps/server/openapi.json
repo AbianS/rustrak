@@ -7817,6 +7817,10 @@
             },
             "description": "Machine-readable annotations naming the inputs that were rejected.\n\nOmitted from the JSON entirely when empty, so every consumer written\nbefore this existed keeps seeing exactly the body it saw before."
           },
+          "incident_id": {
+            "type": "string",
+            "description": "Correlates this response with the `log::error!` line that carries the\ndetail [`INTERNAL_ERROR_MESSAGE`] replaced.\n\nPresent on every 5xx and on nothing else: a 4xx says what went wrong in\n`message`, logs nothing, and so has no line for an id to point at.\n\n`nullable = false`: `skip_serializing_if` means the key is *absent* on\na 4xx, never `null`."
+          },
           "message": {
             "type": "string"
           },
