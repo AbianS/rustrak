@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestEnv } from '../setup.js';
 
@@ -136,6 +137,21 @@ describe('MCP server integration', () => {
 
   afterEach(async () => {
     await testEnv.mcpClient.close();
+  });
+
+  // The version an MCP client sees comes from the handshake, so this is the
+  // only place the advertised number is observable. Read package.json here
+  // rather than importing the server's own constant: comparing the constant to
+  // itself would pass no matter how stale it got.
+  it('advertises the published package version', () => {
+    const pkg = JSON.parse(
+      readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+    ) as { version: string };
+
+    const info = testEnv.mcpClient.getServerVersion();
+
+    expect(info?.name).toBe('rustrak-mcp');
+    expect(info?.version).toBe(pkg.version);
   });
 
   it(`registers all ${EXPECTED_TOOLS.length} tools`, async () => {

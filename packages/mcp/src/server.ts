@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RustrakClient } from '@rustrak/client';
 import { registerAgentTools } from './tools/agents.js';
@@ -15,10 +16,27 @@ import { registerTeamTools } from './tools/team.js';
 import { registerTokenTools } from './tools/tokens.js';
 import { registerTransactionTools } from './tools/transactions.js';
 
+/**
+ * The version advertised in the MCP handshake, read from package.json.
+ *
+ * It is derived rather than written down because `packages/mcp` is in the
+ * `fixed` group in `.changeset/config.json`: every release bumps package.json,
+ * and a second copy of the number would silently go stale between releases.
+ *
+ * `../package.json` resolves to the package root from both `src/server.ts` and
+ * the bundled `dist/index.js`, since both sit one level down. npm always ships
+ * package.json regardless of the `files` list, so it is there at runtime.
+ */
+const VERSION = (
+  JSON.parse(
+    readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version: string }
+).version;
+
 export function createServer(client: RustrakClient): McpServer {
   const server = new McpServer({
     name: 'rustrak-mcp',
-    version: '0.1.0',
+    version: VERSION,
   });
 
   registerProjectTools(server, client);
