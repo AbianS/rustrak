@@ -54,10 +54,12 @@ const helper = createAppColumnHelper<Issue>();
  * two drifting apart once already; here a header and its cells read one
  * declaration, so there is nothing left to keep in step.
  *
- * Only `event_count` and `last_seen` sort, because those are the two values
- * `IssuesResource.list` accepts for `sort` (the third, `digest_order`, is not
- * a column). The ids are those exact strings so the URL, the API and the
- * column agree without a lookup table in between.
+ * No column sorts: the table registers no sorting feature, and the order is
+ * whatever the request asked the server for. The ids of `event_count` and
+ * `last_seen` are nonetheless the exact strings `IssuesResource.list` accepts
+ * for `sort` (the third, `digest_order`, is not a column), so if sorting is
+ * added the URL, the API and the column already agree without a lookup table
+ * in between.
  */
 export function issueColumns(
   projectId: number,
@@ -136,8 +138,8 @@ export function issueColumns(
 
     helper.accessor('event_count', {
       header: 'Events',
-      // Wider than the number needs: a sortable header spends part of its
-      // width on the sort indicator, and "EVENTS" was truncating to "EVEN…".
+      // Wider than the number needs, so "EVENTS" stops truncating to "EVEN…"
+      // and so the header still fits once it has a sort indicator to carry.
       size: 116,
       minSize: 100,
       meta: { align: 'end', hideBelow: 'sm' },

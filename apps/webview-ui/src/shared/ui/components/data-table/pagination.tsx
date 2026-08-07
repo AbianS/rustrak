@@ -39,17 +39,15 @@ export function DataTablePagination<TData extends RowData>({
 
   return (
     <div className="flex shrink-0 flex-col items-center justify-between gap-2 pt-3 sm:flex-row">
+      {/* No empty case to handle: `pageCount <= 1` returned above, and under
+          `manualPagination` no rows means no pages. An empty list says so
+          through the shell's `empty` slot, where the message can be about what
+          was being looked for. */}
       <p className="text-xs text-muted-foreground tabular-nums">
-        {rowCount > 0 ? (
-          <>
-            <span className="font-medium text-foreground">
-              {first.toLocaleString()}-{last.toLocaleString()}
-            </span>{' '}
-            of {rowCount.toLocaleString()}
-          </>
-        ) : (
-          'No results'
-        )}
+        <span className="font-medium text-foreground">
+          {first.toLocaleString()}-{last.toLocaleString()}
+        </span>{' '}
+        of {rowCount.toLocaleString()}
       </p>
 
       <div className="flex items-center gap-1">

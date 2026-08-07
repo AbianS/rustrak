@@ -18,11 +18,13 @@ export interface DataTableColumnMeta {
   /**
    * Absorbs the width left over once the fixed columns have taken theirs.
    *
-   * At most one column per table should set it. The moment the user drags this
-   * column's resize handle the flag stops applying, because an explicit entry
-   * in `columnSizing` wins over `columnDef.size` inside `column.getSize()` and
-   * the shell reads the same state to decide. That is the behaviour AG Grid
-   * and MUI DataGrid both settled on: resizing a flex column pins it.
+   * At most one column per table should set it.
+   *
+   * (Once `columnResizingFeature` is registered, dragging this column's handle
+   * will stop the flag applying: an explicit entry in `columnSizing` wins over
+   * `columnDef.size` inside `column.getSize()`, and the shell reads the same
+   * state. That is the behaviour AG Grid and MUI DataGrid both settled on.
+   * There is no handle to drag today.)
    */
   grow?: boolean;
   /** Aligns header and cells together, so the two cannot disagree. */

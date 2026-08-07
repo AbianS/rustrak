@@ -82,9 +82,10 @@ export function selectionColumn<TData extends RowData>() {
 /**
  * The disclosure chevron, for tables whose rows open a detail panel.
  *
- * Deliberately not a button: the whole row is the control, wired through the
- * shell's `onRowClick`, and a nested button would put a second tab stop on
- * every row that does the same thing as the first.
+ * Deliberately not a button: the whole row is the control. The shell gives a
+ * row with `onRowClick` its own tab stop and its own Enter/Space handler, so a
+ * button here would be a second tab stop on every row doing what the first
+ * already does.
  */
 export function expandColumn<TData extends RowData>() {
   const helper = createAppColumnHelper<TData>();

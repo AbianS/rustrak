@@ -1,7 +1,7 @@
 'use client';
 
 import type { RowData } from '@tanstack/react-table';
-import { type RefObject, useEffect, useLayoutEffect, useState } from 'react';
+import { type RefObject, useLayoutEffect, useState } from 'react';
 import type { DataTableInstance } from './use-app-table';
 
 /**
@@ -42,13 +42,18 @@ const TIERS: readonly HideBelow[] = ['sm', 'md', 'lg', 'xl'];
  *
  * Starts as "all of them", matching what the server rendered, and corrects on
  * mount.
+ *
+ * The correction is a layout effect, like the measurement below: on a narrow
+ * viewport every tier is wrong on the first render, so the width arithmetic
+ * counts columns that CSS is hiding and the table lays out wider than its
+ * container. Running after paint would show that frame.
  */
 export function useVisibleTiers(): ReadonlySet<HideBelow> {
   const [visible, setVisible] = useState<ReadonlySet<HideBelow>>(
     () => new Set(TIERS),
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const queries = TIERS.map(
       (tier) =>
         [

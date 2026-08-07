@@ -226,7 +226,9 @@ export function LogsList({
             variant={!activeLevel ? 'secondary' : 'ghost'}
             size="sm"
             className="h-7 px-3"
-            onClick={() => router.push(buildUrl(1, undefined))}
+            onClick={() =>
+              urlState.run(() => router.push(buildUrl(1, undefined)))
+            }
             disabled={urlState.isPending}
           >
             All
@@ -237,7 +239,9 @@ export function LogsList({
               variant={activeLevel === level ? 'secondary' : 'ghost'}
               size="sm"
               className="h-7 px-3 capitalize"
-              onClick={() => router.push(buildUrl(1, level))}
+              onClick={() =>
+                urlState.run(() => router.push(buildUrl(1, level)))
+              }
               disabled={urlState.isPending}
             >
               {level}

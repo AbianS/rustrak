@@ -226,6 +226,11 @@ export function DataTable<TData extends RowData>({
                     {index === 0 && bulkActions && (
                       <div
                         aria-hidden={!showBulk}
+                        // `pointer-events-none` would stop the pointer and
+                        // leave the buttons in the tab order, which is a
+                        // focusable control inside an `aria-hidden` subtree.
+                        // `inert` takes both away at once.
+                        inert={!showBulk}
                         style={{
                           left: widths.get(header.column.id) ?? 0,
                           width:
@@ -247,7 +252,7 @@ export function DataTable<TData extends RowData>({
                           SWAP,
                           showBulk
                             ? 'translate-y-0 opacity-100'
-                            : 'pointer-events-none -translate-y-full opacity-0',
+                            : '-translate-y-full opacity-0',
                         )}
                       >
                         <div className="flex h-full items-center gap-2 bg-muted/40 pr-3 text-foreground">
@@ -279,8 +284,29 @@ export function DataTable<TData extends RowData>({
                   data-state={row.getIsSelected() ? 'selected' : undefined}
                   aria-expanded={renderDetail ? isExpanded : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  // The row is the control, so the row is the tab stop: this is
+                  // what the chevron in `expandColumn` is decorative *on the
+                  // basis of*. Without it `aria-expanded` announces a
+                  // disclosure that nothing can operate.
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={
+                    onRowClick
+                      ? (event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ')
+                            return;
+                          // A key pressed inside a cell's own control -- a
+                          // checkbox, a link -- belongs to that control.
+                          if (event.target !== event.currentTarget) return;
+                          // Or Space scrolls the page out from under the row it
+                          // just expanded.
+                          event.preventDefault();
+                          onRowClick(row);
+                        }
+                      : undefined
+                  }
                   className={cn(
-                    onRowClick && 'cursor-pointer',
+                    onRowClick &&
+                      'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                     isExpanded && 'bg-muted/40 hover:bg-muted/40',
                     getRowClassName?.(row),
                   )}
