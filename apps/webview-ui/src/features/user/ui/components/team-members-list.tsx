@@ -10,6 +10,7 @@ import {
   removeTeamMember,
   updateUserRole,
 } from '@/features/user/api/mutations';
+import { TeamMembersTable } from '@/features/user/ui/components/team-members-table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,14 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/components/shadcn/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/components/shadcn/table';
 
 interface TeamMembersListProps {
   members: TeamMember[];
@@ -210,80 +203,20 @@ export function TeamMembersList({
         </div>
 
         {/* Desktop: table */}
-        <Table className="hidden md:table">
-          <TableHeader>
-            <TableRow>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead className="w-36">Change Role</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {members.map((member) => {
-              const isSelf = member.id === currentUserId;
-              const isPrimary = member.is_primary === true;
-              const locked = isSelf || isPrimary;
-              return (
-                <TableRow key={member.id}>
-                  <TableCell>
-                    <span className="text-sm font-medium">
-                      {member.email}
-                      {isSelf && (
-                        <span className="text-muted-foreground"> (you)</span>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <RoleBadge role={member.role} />
-                  </TableCell>
-                  <TableCell>
-                    {member.is_active ? (
-                      <span className="text-sm">Active</span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Inactive
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {member.last_login ? (
-                      <span className="text-sm">
-                        {format(new Date(member.last_login), 'MMM d, yyyy')}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">
-                        Never
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <RoleSelect
-                      member={member}
-                      disabled={isPending || locked}
-                      onChange={(role) => handleRoleChange(member, role)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {!locked && (
-                      <Button
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => setMemberToDelete(member)}
-                        disabled={isPending}
-                        aria-label={`Remove ${member.email}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <TeamMembersTable
+          members={members}
+          currentUserId={currentUserId}
+          disabled={isPending}
+          renderRoleBadge={(role) => <RoleBadge role={role} />}
+          renderRoleSelect={(member, locked) => (
+            <RoleSelect
+              member={member}
+              disabled={isPending || locked}
+              onChange={(role) => handleRoleChange(member, role)}
+            />
+          )}
+          onRemove={setMemberToDelete}
+        />
       </CardContent>
 
       <AlertDialog

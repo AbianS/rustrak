@@ -1,7 +1,7 @@
 'use client';
 
 import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
-import { Bell, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Bell, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -10,11 +10,8 @@ import {
   deleteAlertRule,
   updateAlertRule,
 } from '@/features/alert/api/mutations';
-import { alertTypeInfo } from '@/features/alert/model/alert-types';
 import { AlertRuleFormDialog } from '@/features/alert/ui/components/alert-rule-dialog/alert-rule-dialog';
-import { AlertTypeIcon } from '@/features/alert/ui/components/alert-type-icon';
-import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
-import { cn } from '@/shared/lib/utils';
+import { AlertRulesTable } from '@/features/alert/ui/components/alert-rules-table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,17 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/components/shadcn/alert-dialog';
-import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
-import { Switch } from '@/shared/ui/components/shadcn/switch';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/components/shadcn/table';
 
 interface AlertsSettingsProps {
   project: Project;
@@ -142,94 +129,14 @@ export function AlertsSettings({
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rule</TableHead>
-                <TableHead>Trigger</TableHead>
-                <TableHead>Channels</TableHead>
-                <TableHead>Enabled</TableHead>
-                <TableHead className="w-24 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {alertRules.map((rule) => {
-                const typeInfo = alertTypeInfo(rule.alert_type);
-                return (
-                  <TableRow
-                    key={rule.id}
-                    className={cn(!rule.is_enabled && 'opacity-50')}
-                  >
-                    <TableCell className="font-medium">{rule.name}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <AlertTypeIcon
-                          type={rule.alert_type}
-                          className="size-3.5"
-                        />
-                        {typeInfo.name}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {rule.integration_ids.map((integrationId) => {
-                          const integration = getIntegrationById(integrationId);
-                          if (!integration) return null;
-                          return (
-                            <Badge
-                              key={integrationId}
-                              variant="outline"
-                              className="gap-1 py-0 text-[10px]"
-                            >
-                              <ProviderIcon
-                                type={integration.provider_type}
-                                className="size-3"
-                              />
-                              {integration.name}
-                            </Badge>
-                          );
-                        })}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={rule.is_enabled}
-                        onCheckedChange={() => handleToggleEnabled(rule)}
-                        disabled={isPending}
-                        size="sm"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Edit rule"
-                          className="size-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => setEditingRule(rule)}
-                          disabled={isPending}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          aria-label="Delete rule"
-                          className="size-7"
-                          onClick={() => setDeletingRule(rule)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <AlertRulesTable
+          rules={alertRules}
+          getIntegrationById={getIntegrationById}
+          disabled={isPending}
+          onToggleEnabled={handleToggleEnabled}
+          onEdit={setEditingRule}
+          onDelete={setDeletingRule}
+        />
       )}
 
       {/* Form dialog — create */}
