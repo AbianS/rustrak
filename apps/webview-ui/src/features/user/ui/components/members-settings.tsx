@@ -1,7 +1,7 @@
 'use client';
 
 import type { ProjectMember, ProjectRole, TeamMember } from '@rustrak/client';
-import { Loader2, Trash2, UserPlus, Users } from 'lucide-react';
+import { Loader2, UserPlus, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -10,6 +10,8 @@ import {
   removeProjectMember,
   upsertProjectMember,
 } from '@/features/user/api/mutations';
+import { PROJECT_ROLES, roleLabel } from '@/features/user/model/roles';
+import { ProjectMembersTable } from '@/features/user/ui/components/project-members-table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +22,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/shared/ui/components/shadcn/alert-dialog';
-import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   Dialog,
@@ -37,30 +38,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/components/shadcn/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/components/shadcn/table';
-
-const PROJECT_ROLES: { value: ProjectRole; label: string }[] = [
-  { value: 'viewer', label: 'Viewer' },
-  { value: 'editor', label: 'Editor' },
-  { value: 'admin', label: 'Admin' },
-];
 
 interface MembersSettingsProps {
   projectId: number;
   members: ProjectMember[];
   currentUserId?: number;
   canManage: boolean;
-}
-
-function roleLabel(role: ProjectRole): string {
-  return PROJECT_ROLES.find((r) => r.value === role)?.label ?? role;
 }
 
 export function MembersSettings({
@@ -184,84 +167,14 @@ export function MembersSettings({
           <p className="text-sm text-muted-foreground">No members yet</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                {canManage && <TableHead className="w-16 text-right" />}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {members.map((member) => {
-                const isSelf = member.user_id === currentUserId;
-                return (
-                  <TableRow key={member.user_id}>
-                    <TableCell className="font-medium">
-                      {member.email}
-                      {isSelf && (
-                        <span className="font-normal text-muted-foreground">
-                          {' '}
-                          (you)
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {canManage ? (
-                        <Select
-                          value={member.role}
-                          onValueChange={(value) => {
-                            if (value)
-                              handleRoleChange(member, value as ProjectRole);
-                          }}
-                          disabled={isPending}
-                        >
-                          <SelectTrigger
-                            size="sm"
-                            className="w-28"
-                            aria-label={`Change role for ${member.email}`}
-                          >
-                            <SelectValue>
-                              {(value) => roleLabel(value as ProjectRole)}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PROJECT_ROLES.map((role) => (
-                              <SelectItem key={role.value} value={role.value}>
-                                {role.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge variant="secondary">
-                          {roleLabel(member.role)}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    {canManage && (
-                      <TableCell>
-                        <div className="flex justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => setRemovingMember(member)}
-                            disabled={isPending}
-                            aria-label={`Remove ${member.email}`}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <ProjectMembersTable
+          members={members}
+          currentUserId={currentUserId}
+          canManage={canManage}
+          disabled={isPending}
+          onRoleChange={handleRoleChange}
+          onRemove={setRemovingMember}
+        />
       )}
 
       <AddMemberDialog

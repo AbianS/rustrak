@@ -2,14 +2,12 @@
 
 import type { AuthToken } from '@rustrak/client';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useMemo } from 'react';
+import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/shared/ui/components/shadcn/table';
+  createAppColumnHelper,
+  useAppTable,
+} from '@/shared/ui/components/data-table/use-app-table';
 import { TokenActions } from './token-actions';
 
 /** When a token was last used, or that it never has been. */
@@ -32,8 +30,9 @@ export interface TokenListProps {
 /**
  * The phone layout: one card per token, facts stacked rather than columned.
  *
- * Created and last-used share a line here because at this width four columns
- * would each be too narrow to read, and neither number is worth its own row.
+ * Kept rather than folded into the table's responsive column hiding. A table
+ * narrowed to two columns is a worse phone layout than a card, and the table
+ * is what would have to give way here, not the other way round.
  */
 export function TokenCards({
   tokens,
@@ -73,6 +72,8 @@ export function TokenCards({
   );
 }
 
+const helper = createAppColumnHelper<AuthToken>();
+
 /** The desktop layout: the same tokens as a table. */
 export function TokenTable({
   tokens,
@@ -80,55 +81,86 @@ export function TokenTable({
   onCopy,
   onDelete,
 }: TokenListProps) {
-  return (
-    <Table className="hidden md:table">
-      <TableHeader>
-        <TableRow>
-          <TableHead>Token</TableHead>
-          <TableHead>Description</TableHead>
-          <TableHead>Created</TableHead>
-          <TableHead>Last Used</TableHead>
-          <TableHead className="w-24" />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tokens.map((token) => (
-          <TableRow key={token.id}>
-            <TableCell>
-              <code className="text-sm font-mono bg-muted px-2 py-1 rounded">
-                {token.token_prefix}
-              </code>
-            </TableCell>
-            <TableCell>
-              {token.description || (
-                <span className="text-muted-foreground">-</span>
-              )}
-            </TableCell>
-            <TableCell>
-              <span className="text-sm">{created(token)}</span>
-            </TableCell>
-            <TableCell>
-              <span
-                className={
-                  token.last_used_at
-                    ? 'text-sm'
-                    : 'text-sm text-muted-foreground'
-                }
-              >
-                {lastUsed(token)}
-              </span>
-            </TableCell>
-            <TableCell>
-              <TokenActions
-                token={token}
-                busy={isBusy(token)}
-                onCopy={onCopy}
-                onDelete={onDelete}
-              />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+  const columns = useMemo(
+    () =>
+      helper.columns([
+        helper.accessor('token_prefix', {
+          header: 'Token',
+          size: 160,
+          minSize: 120,
+          cell: ({ getValue }) => (
+            <code className="rounded bg-muted px-2 py-1 font-mono text-sm">
+              {getValue()}
+            </code>
+          ),
+        }),
+        helper.accessor('description', {
+          header: 'Description',
+          minSize: 200,
+          meta: { grow: true },
+          cell: ({ getValue }) =>
+            getValue() || <span className="text-muted-foreground">-</span>,
+        }),
+        helper.accessor('created_at', {
+          id: 'created',
+          header: 'Created',
+          size: 150,
+          minSize: 120,
+          cell: ({ row }) => (
+            <span className="text-sm whitespace-nowrap">
+              {created(row.original)}
+            </span>
+          ),
+        }),
+        helper.accessor('last_used_at', {
+          id: 'last_used',
+          header: 'Last used',
+          size: 160,
+          minSize: 120,
+          cell: ({ row }) => (
+            <span
+              className={
+                row.original.last_used_at
+                  ? 'text-sm whitespace-nowrap'
+                  : 'text-sm whitespace-nowrap text-muted-foreground'
+              }
+            >
+              {lastUsed(row.original)}
+            </span>
+          ),
+        }),
+        helper.display({
+          id: 'actions',
+          // Two 36px icon buttons, a 4px gap and the cell's own 8px of padding
+          // either side. Sized to the controls rather than guessed, because a
+          // fixed column that is too narrow clips rather than wraps.
+          size: 96,
+          minSize: 96,
+          maxSize: 96,
+          header: () => <span className="sr-only">Actions</span>,
+          cell: ({ row }) => (
+            <TokenActions
+              token={row.original}
+              busy={isBusy(row.original)}
+              onCopy={onCopy}
+              onDelete={onDelete}
+            />
+          ),
+        }),
+      ]),
+    // Rebuilt when the handlers change identity, which is the honest
+    // dependency. Issues reaches for a ref to avoid exactly this, because its
+    // column model is large enough for a resize drag to feel it; a settings
+    // table with a handful of rows is not.
+    [isBusy, onCopy, onDelete],
   );
+
+  const table = useAppTable({
+    data: tokens,
+    columns,
+    getRowId: (token) => String(token.id),
+    rowCount: tokens.length,
+  });
+
+  return <DataTable table={table} className="hidden md:block" />;
 }
