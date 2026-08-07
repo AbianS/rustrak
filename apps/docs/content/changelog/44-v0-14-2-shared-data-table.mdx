@@ -1,0 +1,38 @@
+---
+version: v0.14.2
+title: A Shared Data Table, and Quieter 5xx
+description: Six dashboard lists move onto one shared table, server errors stop putting their internals on the wire, and the MCP handshake reports the version it is actually running
+date: 2026-08-07
+tags: [webview-ui, server, client, mcp, tables, errors]
+---
+
+## One table behind six lists
+
+Every list in the dashboard drew its own table. Issues kept a map of Tailwind widths that the header row and the row component each applied by hand, and its own docblock recorded the two having drifted apart once already.
+
+A shell in `shared/ui/components/data-table/`, built on TanStack Table v9, now backs issues, logs, tokens, alert rules, project members and team members. `issue-row.tsx` and the `ISSUE_COLUMNS` map are gone: a header and its cells read one column declaration, so there is nothing left to keep in step.
+
+- A column either declares a fixed size in pixels or is marked `meta.grow` and takes what is left over. The distribution is computed once and handed to the browser as explicit numbers, because under `table-layout: fixed` a browser spreads any surplus across every column and declared widths stop meaning anything
+- Batch actions live inside the header row. Ticking a row slides the column titles down and drops the actions in from above, in the same space, with the tick column keeping its head so select-all survives the swap. The old bar above the table pushed everything below it down by its own height
+- Five features are registered. Sorting, filtering, resizing, pinning and grouping are absent because no table asks for them, and v9 features are opt-in and tree-shakable, so leaving them out is a bundle decision rather than a config one. Logs in particular cannot sort at all, since the API accepts only page, per_page, level and trace_id
+- A clickable row is a real tab stop with Enter, Space and a focus ring, and the hidden bulk bar is out of the tab order, so the row-is-the-control model holds for the keyboard too
+- `settings/storage` is deliberately left alone: it is a Server Component rendering five unpaginated rows with no client JavaScript, and converting it to gain a shared shell is a straight downgrade
+
+## A 5xx stops describing itself
+
+The body of a server error carried the error's own `Display`. `AppError::Database` renders `sqlx::Error`, whose Postgres arm names the constraint, table and column of the failed query, and `AppError::Internal` interpolates whatever string its call site had to hand. Neither is safe on a wire that a caller holding nothing but a public DSN can read.
+
+- Every 5xx body now carries a fixed message, and the detail goes to a `log::error!` line keyed by an incident id
+- The id travels in the body as `incident_id` and in an `X-Rustrak-Incident` response header. The header is what lets one `grep` return both the access-log line naming the route and the log line carrying the detail, since the access logger is the only place that knows the method and path
+- It is present on 5xx and on nothing else. A 4xx says what went wrong in `message`, logs nothing, and so has no line for an id to point at
+- `@rustrak/client` exposes it as `incidentId` on `server_error`, omitted entirely when the response carries none: a proxy-generated 502, an older server, or a body that is not JSON at all. The client keeps discarding 5xx prose on its own side rather than trusting the server to have redacted it
+
+## Fixes
+
+- The MCP handshake advertised a hardcoded `0.1.0` while the package was at 0.14.1, so every AI client saw a version thirteen minors stale. It now reads the number from `package.json`, which the fixed group already bumps on every release, making the advertised version a consequence of that machinery rather than a second copy nobody was updating ([#149](https://github.com/rustrak/rustrak/issues/149))
+- A narrow viewport could paint a frame at the wide table's width before correcting itself
+- The log level filter now routes through the pager's transition
+
+## Improvements
+
+- Dependencies updated to their latest exact versions across the monorepo, including the docs site
