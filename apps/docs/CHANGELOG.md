@@ -1,5 +1,12 @@
 # docs
 
+## 0.15.2
+
+### Patch Changes
+
+- [`a0c15fd`](https://github.com/rustrak/rustrak/commit/a0c15fd87222666f11b366afde7dea0f88a12bb4) Thanks [@AbianS](https://github.com/AbianS)! - Docs site dependencies updated to their latest exact versions, Next 16.3.0
+  among them.
+
 ## 0.15.1
 
 ### Patch Changes
