@@ -78,6 +78,7 @@ export const spacingTokens = [
   'dot',
   'dot-sm',
   'meter',
+  'choice',
   'icon-sm',
   'icon-md',
   'icon-lg',

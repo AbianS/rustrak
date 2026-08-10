@@ -405,6 +405,9 @@
   /* Meter track. The design uses 4px and 5px; 5px is the one that survives a
      rounded cap without the fill looking pinched. */
   --spacing-meter: 5px;
+  /* Checkbox and radio. Big enough to hit, small enough not to dominate a
+     44px selection column. */
+  --spacing-choice: 16px;
   --spacing-icon-sm: 13px;
   --spacing-icon-md: 14px;
   --spacing-icon-lg: 16px;

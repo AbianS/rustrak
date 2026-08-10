@@ -53,14 +53,23 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Disabled is not "nothing happens": it is "not here, and for a reason". */
+  /* Disabled is not "nothing happens": it is "not here, and for a reason".
+   *
+   * This list has to stay in step with the pointer one above, and it did not:
+   * `menuitem`, `option` and `tab` were granted a pointer and then left at
+   * `auto` when disabled, so a greyed-out menu entry looked inert and felt like
+   * plain text. Anything that can be pressed can also be unavailable. */
   :where([data-theme])
   :is(
     button,
+    summary,
     [role="button"],
     [role="checkbox"],
     [role="radio"],
     [role="switch"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
     [role="combobox"],
     input,
     textarea,
