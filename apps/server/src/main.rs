@@ -139,6 +139,22 @@ async fn main() -> std::io::Result<()> {
     #[cfg(feature = "openapi")]
     let openapi_scalar_doc = openapi::ApiDoc::openapi();
 
+    // Read once, outside the factory: `HttpServer::new` runs its closure per
+    // worker thread, and an env lookup per worker is noise in the logs.
+    #[cfg(feature = "dashboard")]
+    let serve_dashboard = rustrak::dashboard::is_enabled();
+    // Not compiled in at all, so there is nothing to serve and nothing to
+    // exempt. Declared rather than `#[cfg]`-ed at every use site so the wiring
+    // below reads the same in both builds.
+    #[cfg(not(feature = "dashboard"))]
+    let serve_dashboard = false;
+
+    if serve_dashboard {
+        log::info!("Serving the dashboard at /");
+    } else {
+        log::info!("Dashboard not served; API only");
+    }
+
     let session_aggregator_data = web::Data::new(session_aggregator.clone());
 
     // Processor registry — single dispatch surface for the ingest pipeline.
@@ -202,8 +218,11 @@ async fn main() -> std::io::Result<()> {
                     .cookie_same_site(actix_web::cookie::SameSite::Lax)
                     .build(),
             )
-            // Authentication middleware (must be after SessionMiddleware)
-            .wrap(RequireAuth)
+            // Authentication middleware (must be after SessionMiddleware).
+            // It has to know whether a public SPA is being served: when it is,
+            // the shell and its assets are fetched with no session and must not
+            // 401. When it is not, this stays strict.
+            .wrap(RequireAuth::new(serve_dashboard))
             // Health check routes (no auth required)
             .service(
                 web::scope("/health")
@@ -251,6 +270,16 @@ async fn main() -> std::io::Result<()> {
             .configure(routes::storage::configure)
             // Ingest routes (Sentry SDK auth)
             .configure(routes::ingest::configure);
+
+        // The dashboard is registered last, as the fallback: it only ever sees
+        // requests that no API route claimed. That is what makes mounting the
+        // SPA at `/` safe alongside `/api/*`, `/auth/*` and `/health*`.
+        #[cfg(feature = "dashboard")]
+        let app = if serve_dashboard {
+            app.default_service(web::to(rustrak::dashboard::serve))
+        } else {
+            app
+        };
 
         #[cfg(feature = "openapi")]
         let app = {

@@ -61,6 +61,10 @@ rand = "0.10.2"
 # Hex encoding
 hex = "0.4.3"
 
+# Embedded dashboard assets (optional, behind the `dashboard` feature)
+rust-embed = { version = "8.12.0", optional = true }
+mime_guess = { version = "2.0.5", optional = true }
+
 # Compression (for decompressing gzip/deflate/brotli payloads)
 flate2 = "1.1.9"
 brotli = "8.0.4"
@@ -161,10 +165,19 @@ opt-level = 0
 debug = true
 
 [features]
+# `dashboard` is deliberately NOT here. It embeds `apps/dashboard/dist`, which
+# is a build artifact and is gitignored, so a default that included it would
+# make `cargo build` fail on a fresh clone until someone ran the JS build. A
+# Rust contributor should be able to clone and build. The Dockerfile and the
+# release turn it on explicitly.
 default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
 openapi = ["dep:utoipa", "dep:utoipa-scalar"]
+# Embeds the built dashboard (`apps/dashboard/dist`) into the binary and serves
+# it from `/`. Turned off, the crate compiles without `dist/` existing at all,
+# which is what keeps `cargo build` usable on its own.
+dashboard = ["dep:rust-embed", "dep:mime_guess"]
 # Compiles the `ProjectService` test seams (`create_with_stale_slug` and the two
 # race helpers). Never enabled for the shipped binary: the self dev-dependency
 # below turns it on for test targets only, so `cargo test --release` builds

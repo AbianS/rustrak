@@ -11,7 +11,28 @@ use std::rc::Rc;
 use crate::auth;
 
 /// Middleware to require authentication for routes
-pub struct RequireAuth;
+#[derive(Clone, Copy, Default)]
+pub struct RequireAuth {
+    /// Whether a public single-page app is being served from `/`.
+    ///
+    /// Defaults to `false`, which is the strict behaviour: everything outside
+    /// the exempt list demands a session. The permissive branch has to be asked
+    /// for, so nothing widens by accident.
+    public_spa: bool,
+}
+
+impl RequireAuth {
+    /// Build the middleware, saying whether a public SPA is being served.
+    ///
+    /// This is a runtime flag rather than a `#[cfg]` because serving the
+    /// dashboard is itself a runtime decision (`RUSTRAK_DASHBOARD`). Gating the
+    /// exemption at compile time instead meant that turning the dashboard off
+    /// left the exemption on, and an unknown `GET` answered 404 where it used
+    /// to answer 401.
+    pub fn new(public_spa: bool) -> Self {
+        Self { public_spa }
+    }
+}
 
 impl<S, B> Transform<S, ServiceRequest> for RequireAuth
 where
@@ -28,12 +49,14 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(RequireAuthMiddleware {
             service: Rc::new(service),
+            public_spa: self.public_spa,
         }))
     }
 }
 
 pub struct RequireAuthMiddleware<S> {
     service: Rc<S>,
+    public_spa: bool,
 }
 
 impl<S, B> Service<ServiceRequest> for RequireAuthMiddleware<S>
@@ -69,6 +92,23 @@ where
                     false
                 }
             };
+
+        // When a public SPA is being served, it owns every path the API does
+        // not, and its shell and assets are public by design: the login screen
+        // lives inside the bundle, so demanding a session to fetch it would be
+        // a loop. Authorisation is enforced where the data is, by the 401s the
+        // API returns, and the client redirects on those. This is what Grafana
+        // and Sentry do.
+        //
+        // Restricted to safe methods on purpose. Every mutating route is under
+        // `/api/` and already exempt here (its extractor does the checking), so
+        // this widens nothing that writes.
+        let is_exempt = is_exempt
+            || (self.public_spa
+                && matches!(
+                    *req.method(),
+                    actix_web::http::Method::GET | actix_web::http::Method::HEAD
+                ));
 
         if is_exempt {
             let service = Rc::clone(&self.service);

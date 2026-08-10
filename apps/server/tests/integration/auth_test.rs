@@ -614,7 +614,7 @@ async fn test_middleware_blocks_unauthenticated_access() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::default())
             .configure(routes::auth::configure)
             .configure(routes::projects::configure),
     )
@@ -646,7 +646,7 @@ async fn test_middleware_allows_authenticated_access() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::default())
             .configure(routes::auth::configure)
             .configure(routes::projects::configure),
     )
@@ -691,7 +691,7 @@ async fn test_middleware_exempts_auth_routes() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::default())
             .configure(routes::auth::configure),
     )
     .await;
@@ -727,7 +727,7 @@ async fn test_middleware_exempts_health_routes() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::default())
             .service(
                 web::scope("/health")
                     .route("", web::get().to(routes::health::liveness))
@@ -981,4 +981,94 @@ async fn test_logout_invalidates_session() {
         .to_request();
     let me_resp2 = test::call_service(&app, me_req2).await;
     assert_eq!(me_resp2.status(), 401);
+}
+
+// ---------------------------------------------------------------------------
+// RequireAuth and the public SPA
+//
+// These pin the boundary between "the dashboard is served, so its shell and
+// assets must be fetchable without a session" and "it is not, so nothing is".
+//
+// They exist because that boundary already drifted once: the exemption was
+// gated at compile time while the serving was gated at run time, so turning the
+// dashboard off left the exemption on and an unknown GET answered 404 where it
+// used to answer 401. Nothing caught it. Now something does.
+//
+// No database: the middleware never touches one, and a test that needs a
+// container to assert a status code is a test nobody runs.
+// ---------------------------------------------------------------------------
+
+/// An app wrapped in `RequireAuth` with no routes at all, so every request
+/// falls through to the middleware's own decision and nothing else.
+macro_rules! require_auth_app {
+    ($middleware:expr) => {
+        test::init_service(
+            App::new()
+                .wrap($middleware)
+                .wrap(
+                    SessionMiddleware::builder(
+                        CookieSessionStore::default(),
+                        Key::from(&[0u8; 64]),
+                    )
+                    .cookie_secure(false)
+                    .build(),
+                )
+                .default_service(web::to(actix_web::HttpResponse::Ok)),
+        )
+        .await
+    };
+}
+
+#[actix_web::test]
+async fn strict_require_auth_rejects_an_unauthenticated_get() {
+    let app = require_auth_app!(RequireAuth::default());
+
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/issues").to_request()).await;
+
+    // The default is strict on purpose: the permissive branch has to be asked
+    // for, so nothing widens by accident.
+    assert_eq!(resp.status(), 401);
+}
+
+#[actix_web::test]
+async fn public_spa_lets_an_unauthenticated_get_through() {
+    let app = require_auth_app!(RequireAuth::new(true));
+
+    let resp = test::call_service(&app, test::TestRequest::get().uri("/issues").to_request()).await;
+
+    // Reloading on a client-side route has to reach the SPA shell. Demanding a
+    // session first would be a loop: the login screen is inside that bundle.
+    assert_eq!(resp.status(), 200);
+}
+
+#[actix_web::test]
+async fn public_spa_still_rejects_an_unauthenticated_write() {
+    let app = require_auth_app!(RequireAuth::new(true));
+
+    for request in [
+        test::TestRequest::post().uri("/whatever").to_request(),
+        test::TestRequest::delete().uri("/whatever").to_request(),
+    ] {
+        let resp = test::call_service(&app, request).await;
+
+        // The exemption is safe-methods only. Serving a UI must never widen
+        // anything that writes.
+        assert_eq!(resp.status(), 401);
+    }
+}
+
+#[actix_web::test]
+async fn public_spa_does_not_change_the_api_surface() {
+    let app = require_auth_app!(RequireAuth::new(true));
+
+    // `/api/*` is exempt from this middleware either way, because each route
+    // authenticates through its own extractor. Serving the dashboard must not
+    // move that line.
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/api/projects").to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 200);
 }

@@ -5,6 +5,8 @@
 pub mod auth;
 pub mod bootstrap;
 pub mod config;
+#[cfg(feature = "dashboard")]
+pub mod dashboard;
 pub mod db;
 pub mod digest;
 pub mod error;
