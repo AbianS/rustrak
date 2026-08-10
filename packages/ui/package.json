@@ -1,0 +1,70 @@
+{
+  "name": "@rustrak/ui",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles/index.css",
+    "./fonts.css": "./src/styles/fonts.css",
+    "./tokens.css": "./src/styles/tokens.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "storybook": "storybook dev -p 6008 --no-open",
+    "build-storybook": "storybook build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "biome check --formatter-enabled=false --error-on-warnings .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "check-types": "tsc --noEmit",
+    "clean": "rm -rf dist storybook-static"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.7.0",
+    "@fontsource-variable/onest": "5.3.0",
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "clsx": "2.1.1",
+    "lucide-react": "1.31.0",
+    "tailwind-merge": "3.6.0",
+    "tailwind-variants": "3.3.1"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-a11y": "10.5.7",
+    "@storybook/addon-docs": "10.5.7",
+    "@storybook/addon-themes": "10.5.7",
+    "@storybook/addon-vitest": "10.5.7",
+    "@storybook/react-vite": "10.5.7",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.0.5",
+    "@vitest/browser": "4.1.10",
+    "@vitest/browser-playwright": "4.1.10",
+    "playwright": "1.62.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "storybook": "10.5.7",
+    "tailwindcss": "4.3.3",
+    "tsdown": "0.22.14",
+    "typescript": "6.0.3",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

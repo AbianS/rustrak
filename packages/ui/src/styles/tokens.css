@@ -1,0 +1,382 @@
+/*
+ * Rustrak UI · token system
+ * ---------------------------------------------------------------------------
+ * Three layers, in this order, no exceptions:
+ *
+ *   1. PRIMITIVES  --rk-*        raw values. No component uses these; only the
+ *                                semantic layer references them.
+ *   2. SEMANTIC    --surface-*   say what the value is for, not what it looks
+ *                  --fg-*        like. These are the only ones a theme rewrites.
+ *                  --border-*
+ *   3. COMPONENT   published to Tailwind in the @theme blocks below, so that a
+ *                  component writes `bg-surface` or `h-control-md` and never a
+ *                  raw hex or a loose pixel.
+ *
+ * None of this may live inside an @layer: theme overrides would stop winning
+ * against Tailwind's utilities.
+ *
+ * Values come from `Rustrak Rediseno v5`. That design is **dark only**: it
+ * defines no light theme, which is why the semantic layer in `:root` is already
+ * the dark one. Read the note in section 2b before adding another.
+ */
+
+/* A light theme would be explicit, the way the design is: driven by the
+   attribute and not by the operating system, because the app remembers the
+   choice. */
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/* ========================================================================== */
+/* 1 · PRIMITIVES                                                             */
+/* ========================================================================== */
+
+:root {
+  /* --- Accent · lime -------------------------------------------------------
+     The only brand colour. Reserved for the primary action and for what the
+     eye has to follow (the deploy marker, a link). It carries near-black ink,
+     never white: at 13px white on lime is 1.7:1. */
+  --rk-lime: #c5f11e;
+  --rk-lime-bright: #d9fa55;
+  --rk-lime-ink: #1a1d0a;
+
+  /* --- Dark neutrals · from the canvas upwards --------------------------- */
+  --rk-canvas: #08080a;
+  --rk-ink-950: #0e0e11;
+  --rk-ink-900: #101013;
+  --rk-ink-850: #131317;
+  --rk-ink-800: #16161a;
+  --rk-ink-750: #1a1a1f;
+  --rk-ink-700: #1d1d22;
+  --rk-ink-650: #1f1f24;
+  --rk-ink-600: #232329;
+  --rk-ink-550: #26262c;
+  --rk-ink-500: #2a2a31;
+  --rk-ink-450: #2c2c33;
+  --rk-ink-400: #2e2e36;
+  --rk-ink-350: #33333a;
+  --rk-ink-300: #35353d;
+  --rk-ink-250: #3a3a43;
+  --rk-ink-200: #4a4a53;
+  --rk-ink-150: #4e4e58;
+  --rk-ink-100: #5a5a64;
+
+  /* --- Text · the design's five tones (t1..t5) --------------------------- */
+  --rk-text-1: #f2f2f3;
+  --rk-text-2: #c4c4cb;
+  --rk-text-3: #9a9aa2;
+  --rk-text-4: #8b8b94;
+  --rk-text-5: #7b7b85;
+  --rk-text-6: #5c5c66;
+
+  /* --- Severity · the product's own scale ---------------------------------
+     Not a generic status palette: these are the five levels an event can have,
+     and the order matters. `fatal` and `error` are told apart by luminance
+     rather than hue, because they sit next to each other down a list. */
+  --rk-fatal: #f0533c;
+  --rk-error: #e4614e;
+  --rk-warning: #d9a03f;
+  --rk-info: #7690a8;
+  --rk-debug: #5c5c66;
+  --rk-success: #7bc47f;
+}
+
+/* ========================================================================== */
+/* 2 · SEMANTIC · the dark theme, which is the theme                          */
+/* ========================================================================== */
+
+:root {
+  /* --- Surfaces -----------------------------------------------------------
+     The design stacks four planes: canvas, panel, raised, floating. They are
+     two or three points of luminance apart, never more: on a dark ground a big
+     jump reads as a border and breaks the sense of one continuous piece. */
+  --surface-canvas: var(--rk-canvas);
+  --surface: var(--rk-ink-800);
+  --surface-subtle: var(--rk-ink-850);
+  --surface-sunken: var(--rk-ink-900);
+  --surface-raised: var(--rk-ink-650);
+  --surface-hover: var(--rk-ink-700);
+  --surface-active: var(--rk-ink-550);
+  --surface-selected: var(--rk-ink-600);
+  --surface-disabled: var(--rk-ink-750);
+  /* Anything floating goes up a full step: on a dark ground the shadow barely
+     separates, so what says "this is above" is the surface, not the shadow. */
+  --surface-floating: var(--rk-ink-700);
+  --surface-brand: var(--rk-lime);
+  --surface-brand-hover: var(--rk-lime-bright);
+  /* Tinted severity fills: the colour at ~10%, enough to stain a pill without
+     competing with the text inside it. */
+  --surface-fatal: rgb(240 83 60 / 0.12);
+  --surface-error: rgb(228 97 78 / 0.1);
+  --surface-warning: rgb(217 160 63 / 0.1);
+  --surface-info: rgb(118 144 168 / 0.1);
+  --surface-debug: rgb(92 92 102 / 0.12);
+
+  /* --- Borders ------------------------------------------------------------
+     The design contains **not one `border`**: every hairline is a
+     `box-shadow: inset 0 0 0 1px`. That is not incidental. A real border joins
+     the box and shifts the content when it appears on hover or focus; an inset
+     ring is painted on top and moves nothing, so a control can gain and lose
+     its hairline without the whole row relaying out. */
+  --border: var(--rk-ink-600);
+  --border-subtle: var(--rk-ink-500);
+  --border-strong: var(--rk-ink-400);
+  --border-control: var(--rk-ink-300);
+  --border-raised: var(--rk-ink-250);
+  --border-brand: var(--rk-lime);
+  --border-danger: rgb(228 97 78 / 0.3);
+  /* The hairline splitting the two halves of a split button. It is ink over
+     lime, not a neutral: any grey on the accent reads as dirt. */
+  --border-on-brand: rgb(26 29 10 / 0.22);
+
+  /* --- Text --------------------------------------------------------------- */
+  --fg: var(--rk-text-1);
+  --fg-secondary: var(--rk-text-2);
+  --fg-tertiary: var(--rk-text-3);
+  --fg-muted: var(--rk-text-4);
+  --fg-subtle: var(--rk-text-5);
+  --fg-ghost: var(--rk-text-6);
+  --fg-disabled: var(--rk-ink-200);
+  --fg-brand: var(--rk-lime);
+  --fg-on-brand: var(--rk-lime-ink);
+  --fg-fatal: var(--rk-fatal);
+  --fg-error: var(--rk-error);
+  --fg-warning: var(--rk-warning);
+  --fg-info: var(--rk-info);
+  --fg-debug: var(--rk-debug);
+  --fg-success: var(--rk-success);
+
+  /* --- Focus · lime ring ---------------------------------------------------
+     At 40%: at full saturation the focus ring competes with the primary
+     button, which is the same colour, and you stop being able to tell which of
+     the two has focus. */
+  --ring: rgb(197 241 30 / 0.4);
+
+  /* Dialog scrim. The screen behind stays recognisable, which is what says you
+     will be coming back to it. */
+  --scrim: rgb(4 4 6 / 0.66);
+
+  /* --- Shadows ------------------------------------------------------------
+     On a dark ground a shadow separates poorly, so it is kept short and used
+     only where something genuinely moves: the things that float. The rest of
+     the elevation is carried by the surface. */
+  --elevation-raised: 0 1px 2px rgb(0 0 0 / 0.4);
+  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 0.55), 0 1px 2px rgb(0 0 0 / 0.4);
+  --elevation-dialog: 0 24px 60px -18px rgb(0 0 0 / 0.7);
+}
+
+/* ========================================================================== */
+/* 2b · SEMANTIC · light theme                                                */
+/* ========================================================================== */
+
+/*
+ * MISSING, deliberately.
+ *
+ * `Rustrak Rediseno v5` is a dark design and only a dark design: there is not
+ * one light screen in the file. Inventing a light palette here would be work
+ * thrown away the day one is actually decided, and it is not a mechanical
+ * conversion either: the lime accent is 1.4:1 on white, so a light theme
+ * cannot reuse it as the action colour. It needs a design decision (does the
+ * accent darken? does the primary action become ink?), not a translation.
+ *
+ * When it exists it goes here, and it is a thirty-line block:
+ *
+ *   [data-theme="light"] { --surface-canvas: ...; --fg: ...; }
+ *
+ * Not one component changes. That is the reason the three layers exist.
+ */
+
+/* ========================================================================== */
+/* 3 · COMPONENT CONSTANTS · theme-independent                                */
+/* ========================================================================== */
+
+:root {
+  /* Interface icon stroke. Lucide draws at 2px by default, which looks heavy
+     next to Onest at this system's sizes (13-16px). */
+  --stroke-icon: 1.75px;
+}
+
+/* ========================================================================== */
+/* 4 · PUBLISHED TO TAILWIND · what a component author gets to write          */
+/* ========================================================================== */
+
+/*
+ * Closed system: Tailwind's inherited namespaces are reset so that no
+ * `bg-red-500` or `text-sm` exists to smuggle an off-system value through. If a
+ * utility is not here, it does not belong to the design.
+ */
+@theme {
+  --color-*: initial;
+  --shadow-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+}
+
+@theme inline {
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+
+  /* Surfaces */
+  --color-canvas: var(--surface-canvas);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-disabled: var(--surface-disabled);
+  --color-surface-floating: var(--surface-floating);
+  --color-surface-brand: var(--surface-brand);
+  --color-surface-brand-hover: var(--surface-brand-hover);
+  --color-surface-fatal: var(--surface-fatal);
+  --color-surface-error: var(--surface-error);
+  --color-surface-warning: var(--surface-warning);
+  --color-surface-info: var(--surface-info);
+  --color-surface-debug: var(--surface-debug);
+
+  /* Borders */
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
+  --color-border-raised: var(--border-raised);
+  --color-border-brand: var(--border-brand);
+  --color-border-danger: var(--border-danger);
+  --color-border-on-brand: var(--border-on-brand);
+
+  /* Text */
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-tertiary: var(--fg-tertiary);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-ghost: var(--fg-ghost);
+  --color-fg-disabled: var(--fg-disabled);
+  --color-fg-brand: var(--fg-brand);
+  --color-fg-on-brand: var(--fg-on-brand);
+  --color-fg-fatal: var(--fg-fatal);
+  --color-fg-error: var(--fg-error);
+  --color-fg-warning: var(--fg-warning);
+  --color-fg-info: var(--fg-info);
+  --color-fg-debug: var(--fg-debug);
+  --color-fg-success: var(--fg-success);
+
+  /* Focus and scrim */
+  --color-ring: var(--ring);
+  --color-scrim: var(--scrim);
+
+  /* Shadows */
+  --shadow-raised: var(--elevation-raised);
+  --shadow-overlay: var(--elevation-overlay);
+  --shadow-dialog: var(--elevation-dialog);
+}
+
+@theme {
+  /* ---------------------------------------------------------------------- */
+  /* Typography                                                              */
+  /*                                                                         */
+  /* Two families, and the second one is not decorative. This is an error     */
+  /* tracker: issue identifiers, release versions, file paths, timestamps and */
+  /* counters appear in columns and have to be comparable at a glance. Onest  */
+  /* for what you read, IBM Plex Mono for what you cross-check.               */
+  /* ---------------------------------------------------------------------- */
+  --font-sans: "Onest", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  /* Page title · 20 / 600 / -.01em */
+  --text-page-title: 1.25rem;
+  --text-page-title--line-height: 1.2;
+  --text-page-title--font-weight: 600;
+  --text-page-title--letter-spacing: -0.01em;
+
+  /* Section title · 14 / 600 */
+  --text-section: 0.875rem;
+  --text-section--line-height: 1.3;
+  --text-section--font-weight: 600;
+
+  /* Body · 13 / 400 */
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.55;
+  --text-body--font-weight: 400;
+
+  /* Control · 13 / 500 · the label of an md or lg button */
+  --text-control: 0.8125rem;
+  --text-control--line-height: 1.2;
+  --text-control--font-weight: 500;
+
+  /* Small control · 12.5 / 500 · sm button, filter pill */
+  --text-control-sm: 0.78125rem;
+  --text-control-sm--line-height: 1.2;
+  --text-control-sm--font-weight: 500;
+
+  /* Meta · 12.5 / 400 · "3 min ago", row subtitles */
+  --text-meta: 0.78125rem;
+  --text-meta--line-height: 1.35;
+  --text-meta--font-weight: 400;
+
+  /* Label · 11.5 / 500 */
+  --text-label: 0.71875rem;
+  --text-label--line-height: 1.35;
+  --text-label--font-weight: 500;
+
+  /* Overline · 11 / 500 / .2em · mono, block heading */
+  --text-overline: 0.6875rem;
+  --text-overline--line-height: 1.2;
+  --text-overline--font-weight: 500;
+  --text-overline--letter-spacing: 0.2em;
+
+  /* Badge · 12 / 600 / .08em · mono, an issue identifier */
+  --text-badge: 0.75rem;
+  --text-badge--line-height: 1.2;
+  --text-badge--font-weight: 600;
+  --text-badge--letter-spacing: 0.08em;
+
+  /* Code · 12.5 / 400 · paths, versions, technical values */
+  --text-code: 0.78125rem;
+  --text-code--line-height: 1.45;
+  --text-code--font-weight: 400;
+
+  /* ---------------------------------------------------------------------- */
+  /* Motion                                                                  */
+  /*                                                                         */
+  /* The scale is IBM Carbon's "productive" set, the one designed for dense   */
+  /* work software. Material's is rejected: it is calibrated for consumer and */
+  /* mobile apps, and its 225-375ms feels slow when you are working down a    */
+  /* list of issues toggling filters.                                         */
+  /*                                                                         */
+  /* The names state intent, not milliseconds.                               */
+  /* ---------------------------------------------------------------------- */
+  --transition-duration-instant: 70ms; /* colour and hover                  */
+  --transition-duration-fast: 110ms; /* press, tooltip                      */
+  --transition-duration-moderate: 150ms; /* an indicator that slides        */
+  --transition-duration-slow: 240ms; /* panel, sidebar                      */
+
+  --ease-*: initial;
+  --ease-linear: linear;
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /* ---------------------------------------------------------------------- */
+  /* Radii · the design's own: 7 · 8 · 9 · pill                              */
+  /* The radius rises with the control's height rather than staying fixed: at */
+  /* 30px a 9 looks round, and at 36px an 8 looks hard.                       */
+  /* ---------------------------------------------------------------------- */
+  --radius-sm: 7px;
+  --radius-md: 8px;
+  --radius-lg: 9px;
+  --radius-pill: 9999px;
+
+  /* ---------------------------------------------------------------------- */
+  /* Component measurements                                                  */
+  /* They live in the spacing namespace, so they work for h-, w-, size-, p-,  */
+  /* gap- and friends: h-control-md, size-icon-sm.                            */
+  /* ---------------------------------------------------------------------- */
+  --spacing-control-sm: 30px;
+  --spacing-control-md: 34px;
+  --spacing-control-lg: 36px;
+  --spacing-icon-sm: 13px;
+  --spacing-icon-md: 14px;
+  --spacing-icon-lg: 16px;
+}

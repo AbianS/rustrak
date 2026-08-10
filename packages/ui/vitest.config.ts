@@ -1,0 +1,42 @@
+import { fileURLToPath } from 'node:url';
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
+import tailwindcss from '@tailwindcss/vite';
+import { playwright } from '@vitest/browser-playwright';
+import { defineConfig } from 'vitest/config';
+
+const dirname = fileURLToPath(new URL('.', import.meta.url));
+
+export default defineConfig({
+  test: {
+    projects: [
+      {
+        // What needs no browser: `tv` recipes, utilities, tokens.
+        test: {
+          name: 'unit',
+          environment: 'node',
+          include: ['src/**/*.test.ts'],
+        },
+      },
+      {
+        // Every story runs as a component test in a real Chromium: the render,
+        // the `play` function and accessibility are all checked.
+        plugins: [tailwindcss(), storybookTest({ configDir: '.storybook' })],
+        test: {
+          name: 'storybook',
+          browser: {
+            enabled: true,
+            headless: true,
+            provider: playwright(),
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+    ],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.stories.tsx', 'src/**/*.test.ts', 'src/index.ts'],
+    },
+    root: dirname,
+  },
+});

@@ -1,0 +1,10 @@
+@import "tailwindcss";
+@import "../src/styles/fonts.css";
+@import "../src/styles/index.css";
+
+/* Storybook's canvas is not the application's: the decorator puts `data-theme`
+   on a div, not on `<body>`, so the background has to be painted here or the
+   stories float on white. */
+body {
+  background-color: var(--surface-canvas);
+}

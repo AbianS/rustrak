@@ -1,0 +1,16 @@
+/*
+ * Style entry point for @rustrak/ui.
+ *
+ * In the application:
+ *
+ *   @import 'tailwindcss';
+ *   @import '@rustrak/ui/fonts.css';
+ *   @import '@rustrak/ui/styles.css';
+ *   @source '../../node_modules/@rustrak/ui/dist';
+ *
+ * The @source is not optional: Tailwind only generates the utilities it can
+ * see, and this package's classes live in its own bundle.
+ */
+
+@import "./tokens.css";
+@import "./base.css";

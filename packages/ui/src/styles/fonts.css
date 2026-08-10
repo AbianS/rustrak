@@ -1,0 +1,26 @@
+/*
+ * The system's two families, served from the package itself.
+ *
+ * They live here rather than behind a `<link>` to Google Fonts on purpose:
+ * Rustrak is installed on other people's servers, sometimes with no route to
+ * the internet, and the point of the whole migration is a binary that serves
+ * itself. A font that depends on an external CDN turns that install into a
+ * screen with no typography.
+ *
+ * Imported separately from `styles.css` so that anyone already loading Onest
+ * and IBM Plex Mono themselves does not download them twice:
+ *
+ *   @import '@rustrak/ui/fonts.css';
+ *   @import '@rustrak/ui/styles.css';
+ */
+
+/* Onest variable: covers the 400, 500, 600 and 700 weights the design uses in
+   a single file. */
+@import "@fontsource-variable/onest";
+
+/* IBM Plex Mono has no variable build, so only the three weights the design
+   actually uses are pulled in. Each weight is its own download: asking for all
+   nine out of convenience would be 300 KB nobody looks at. */
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";

@@ -21,7 +21,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/storybook-static"
     ]
   },
   "formatter": {
@@ -35,7 +36,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/storybook-static"
     ],
     "enabled": true,
     "formatWithErrors": false,
@@ -119,7 +121,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/storybook-static"
     ]
   },
   "overrides": [

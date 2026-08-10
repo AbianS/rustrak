@@ -1,0 +1,100 @@
+/*
+ * System base styles. Only what cannot live inside a component: the type
+ * family, the canvas background and how figures behave. Everything else is
+ * each component's own responsibility.
+ */
+
+@layer base {
+  /* The :where keeps specificity at zero, so the application can override any
+     of these rules without a fight. */
+  :where([data-theme]) {
+    background-color: var(--surface-canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Event counts, affected users and timestamps: always in column, always
+     comparable at a glance. Down a list of issues the difference between 1,204
+     and 12,431 has to be visible from the length alone. */
+  :where([data-theme] :is(time, [data-numeric])) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Cursor.
+   *
+   * Tailwind 4 dropped `cursor: pointer` from buttons to match the browser. On
+   * a desktop OS that makes sense: the button already looks pressable from its
+   * relief. In a flat dark interface like this one it does not: the hand is the
+   * signal separating "this does something" from "this is a label".
+   *
+   * Keyed on role rather than tag, because Base UI draws the checkbox, the
+   * radio and the switch as a `<span>` carrying the role, not an `<input>`.
+   */
+  :where([data-theme])
+  :is(
+    button,
+    summary,
+    label:has(:is(input, [role="checkbox"], [role="radio"], [role="switch"])),
+    [role="button"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
+    [role="combobox"]
+  ):not(:disabled, [disabled], [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+    /* On mobile this kills double-tap zoom and Safari's grey flash. */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Disabled is not "nothing happens": it is "not here, and for a reason". */
+  :where([data-theme])
+  :is(
+    button,
+    [role="button"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="combobox"],
+    input,
+    textarea,
+    select
+  ):is(:disabled, [disabled], [aria-disabled="true"], [data-disabled]) {
+    cursor: not-allowed;
+  }
+
+  /* Stroke width is imposed by the system in CSS rather than passed as a prop,
+     because a CSS rule beats the `stroke-width` attribute the icon library
+     paints inside the SVG. That way the adapter does not depend on the library
+     accepting any particular prop. */
+  :where([data-theme] svg[data-icon]) {
+    stroke-width: var(--stroke-icon);
+  }
+
+  /* Someone who asked for less motion did not ask for it only for decorative
+     animation: scrolling and transitions count too.
+
+     `!important` is the point here, not an oversight. This selector sits at
+     zero specificity by design, and it has to beat every `transition-*` and
+     `animate-*` utility a component writes plus anything inline. Without it the
+     preference is expressed and then ignored, which is worse than not reading
+     it. It is the one place in the package where the cascade is overridden on
+     purpose, and it is the documented way this override is written. */
+  /* biome-ignore-start lint/complexity/noImportantStyles: a reduced-motion
+     override has to win against every component utility, by definition */
+  @media (prefers-reduced-motion: reduce) {
+    :where([data-theme] *) {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  /* biome-ignore-end lint/complexity/noImportantStyles: end of the override */
+}
