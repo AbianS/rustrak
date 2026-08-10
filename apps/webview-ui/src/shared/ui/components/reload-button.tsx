@@ -1,6 +1,7 @@
 'use client';
 
 import { RefreshCw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**
@@ -11,11 +12,12 @@ import { Button } from '@/shared/ui/components/shadcn/button';
  * same RSC request through the same client. A full document load also drops
  * whatever stale module state the failed render left behind.
  */
-export function ReloadButton({ children = 'Reload' }: { children?: string }) {
+export function ReloadButton({ children }: { children?: string }) {
+  const t = useTranslations('common');
   return (
     <Button onClick={() => window.location.reload()}>
       <RefreshCw className="mr-2 size-4" />
-      {children}
+      {children ?? t('reload')}
     </Button>
   );
 }

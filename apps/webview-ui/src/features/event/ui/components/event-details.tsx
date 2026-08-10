@@ -3,6 +3,7 @@
 import type { EventDetail } from '@rustrak/client';
 import { format } from 'date-fns';
 import { Check, Copy } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -25,18 +26,23 @@ function DetailRow({
   mono = false,
   copyable = false,
 }: DetailRowProps) {
+  const t = useTranslations('events');
+  const common = useTranslations('common');
   const [copied, setCopied] = useState(false);
 
   if (value === null || value === undefined || value === '') return null;
 
   const displayValue =
-    typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
+    typeof value === 'boolean'
+      ? value
+        ? t('details.yes')
+        : t('details.no')
+      : String(value);
 
   const handleCopy = async () => {
     if (!(await copyToClipboard(displayValue))) {
-      toast.info('Clipboard unavailable', {
-        description:
-          'Select the value and copy it manually, or access Rustrak over HTTPS.',
+      toast.info(common('clipboardUnavailable'), {
+        description: t('clipboardValueHint'),
       });
       return;
     }
@@ -92,6 +98,7 @@ function Section({ title, children }: SectionProps) {
 }
 
 export function EventDetails({ event }: EventDetailsProps) {
+  const t = useTranslations('events');
   const eventData = event.data as Record<string, unknown>;
 
   // Extract data from Sentry event
@@ -134,35 +141,48 @@ export function EventDetails({ event }: EventDetailsProps) {
   return (
     <div className="space-y-6">
       {/* Key Info */}
-      <Section title="Key Information">
-        <DetailRow label="Event ID" value={event.event_id} mono copyable />
-        <DetailRow label="Issue ID" value={event.issue_id} mono copyable />
-        <DetailRow label="Transaction" value={transaction} />
+      <Section title={t('details.keyInformation')}>
         <DetailRow
-          label="Timestamp"
+          label={t('details.eventId')}
+          value={event.event_id}
+          mono
+          copyable
+        />
+        <DetailRow
+          label={t('details.issueId')}
+          value={event.issue_id}
+          mono
+          copyable
+        />
+        <DetailRow label={t('details.transaction')} value={transaction} />
+        <DetailRow
+          label={t('details.timestamp')}
           value={format(new Date(event.timestamp), 'PPpp')}
         />
         <DetailRow
-          label="Ingested At"
+          label={t('details.ingestedAt')}
           value={format(new Date(event.ingested_at), 'PPpp')}
         />
-        <DetailRow label="Level" value={event.level} />
+        <DetailRow label={t('details.level')} value={event.level} />
         {mechanism?.handled !== undefined && (
-          <DetailRow label="Handled" value={mechanism.handled} />
+          <DetailRow label={t('details.handled')} value={mechanism.handled} />
         )}
         {mechanism?.type && (
-          <DetailRow label="Mechanism" value={mechanism.type} />
+          <DetailRow label={t('details.mechanism')} value={mechanism.type} />
         )}
       </Section>
 
       {/* Log Entry (if present) */}
       {logentry && (logentry.message || logentry.formatted) && (
-        <Section title="Log Entry">
-          <DetailRow label="Message" value={logentry.message} />
-          <DetailRow label="Formatted" value={logentry.formatted} />
+        <Section title={t('details.logEntry')}>
+          <DetailRow label={t('details.message')} value={logentry.message} />
+          <DetailRow
+            label={t('details.formatted')}
+            value={logentry.formatted}
+          />
           {logentry.params !== undefined && logentry.params !== null && (
             <DetailRow
-              label="Params"
+              label={t('details.params')}
               value={JSON.stringify(logentry.params, null, 2)}
               mono
             />
@@ -171,33 +191,41 @@ export function EventDetails({ event }: EventDetailsProps) {
       )}
 
       {/* Deployment Info */}
-      <Section title="Deployment">
-        <DetailRow label="Platform" value={event.platform} />
-        <DetailRow label="Environment" value={event.environment} />
-        <DetailRow label="Release" value={event.release} mono />
-        <DetailRow label="Server Name" value={event.server_name} />
+      <Section title={t('details.deployment')}>
+        <DetailRow label={t('details.platform')} value={event.platform} />
+        <DetailRow label={t('details.environment')} value={event.environment} />
+        <DetailRow label={t('details.release')} value={event.release} mono />
+        <DetailRow label={t('details.serverName')} value={event.server_name} />
       </Section>
 
       {/* SDK Info */}
       {(event.sdk_name || event.sdk_version) && (
-        <Section title="SDK">
-          <DetailRow label="Name" value={event.sdk_name} />
-          <DetailRow label="Version" value={event.sdk_version} mono />
+        <Section title={t('details.sdk')}>
+          <DetailRow label={t('details.name')} value={event.sdk_name} />
+          <DetailRow
+            label={t('details.version')}
+            value={event.sdk_version}
+            mono
+          />
         </Section>
       )}
 
       {/* Request Info (if present) */}
       {request && (request.method || request.url) && (
-        <Section title="Request">
-          <DetailRow label="Method" value={request.method} />
-          <DetailRow label="URL" value={request.url} mono />
+        <Section title={t('details.request')}>
+          <DetailRow label={t('details.method')} value={request.method} />
+          <DetailRow label={t('details.url')} value={request.url} mono />
           {request.query_string && (
-            <DetailRow label="Query String" value={request.query_string} mono />
+            <DetailRow
+              label={t('details.queryString')}
+              value={request.query_string}
+              mono
+            />
           )}
           {request.headers && Object.keys(request.headers).length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                Headers
+                {t('details.headers')}
               </p>
               {Object.entries(request.headers).map(([key, value]) => (
                 <DetailRow key={key} label={key} value={value} mono />
@@ -207,7 +235,7 @@ export function EventDetails({ event }: EventDetailsProps) {
           {request.env && Object.keys(request.env).length > 0 && (
             <div className="mt-4">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                Environment
+                {t('details.environment')}
               </p>
               {Object.entries(request.env).map(([key, value]) => (
                 <DetailRow key={key} label={key} value={value} mono />
@@ -219,7 +247,7 @@ export function EventDetails({ event }: EventDetailsProps) {
 
       {/* Modules (if present) */}
       {modules && Object.keys(modules).length > 0 && (
-        <Section title="Modules">
+        <Section title={t('details.modules')}>
           <div className="max-h-64 overflow-auto">
             {Object.entries(modules).map(([name, version]) => (
               <DetailRow key={name} label={name} value={version} mono />
@@ -230,7 +258,7 @@ export function EventDetails({ event }: EventDetailsProps) {
 
       {/* Extra Data (if present) */}
       {extra && Object.keys(extra).length > 0 && (
-        <Section title="Extra Data">
+        <Section title={t('details.extraData')}>
           {Object.entries(extra).map(([key, value]) => (
             <DetailRow
               key={key}

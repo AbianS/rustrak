@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -151,10 +152,11 @@ export function StackFrameItem({
 }
 
 function FrameVariables({ vars }: { vars: Record<string, unknown> }) {
+  const t = useTranslations('events');
   return (
     <div className="border-t px-4 py-3 space-y-1.5">
       <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-        Variables
+        {t('stackTrace.variables')}
       </p>
       <dl className="space-y-1">
         {Object.entries(vars).map(([key, value]) => (

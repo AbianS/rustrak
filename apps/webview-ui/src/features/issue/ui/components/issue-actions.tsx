@@ -21,7 +21,7 @@ import {
   Trash2,
   Undo,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -32,6 +32,7 @@ import {
   updateIssueState,
 } from '@/features/issue/api/mutations';
 import { priorityDisplay } from '@/features/issue/model/status';
+import { useRouter } from '@/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -60,6 +61,7 @@ interface IssueActionsProps {
 const PRIORITIES: IssuePriority[] = ['high', 'medium', 'low'];
 
 export function IssueActions({ issue, projectId }: IssueActionsProps) {
+  const t = useTranslations('issues');
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [pending, setPending] = useState<string | null>(null);
@@ -104,7 +106,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
       const result = await deleteIssue(projectId, issue.id);
 
       if (!result.success) {
-        toast.error('Failed to delete issue', {
+        toast.error(t('toasts.deleteOneFailed'), {
           description: result.error.message,
         });
         setPending(null);
@@ -129,7 +131,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             variant={isResolved ? 'outline' : 'default'}
             disabled={busy}
             onClick={() =>
-              run('resolve', 'Failed to update issue', () =>
+              run('resolve', t('toasts.updateFailed'), () =>
                 updateIssueState(projectId, issue.id, {
                   status: isResolved ? 'unresolved' : 'resolved',
                 }),
@@ -141,7 +143,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             ) : (
               <Check className="mr-2 size-4" />
             )}
-            {isResolved ? 'Unresolve' : 'Resolve'}
+            {isResolved ? t('actions.unresolve') : t('actions.resolve')}
           </Button>
           {!isResolved && (
             <DropdownMenu>
@@ -150,7 +152,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                   <Button
                     size="sm"
                     className="rounded-l-none border-l border-primary-foreground/20 px-2"
-                    aria-label="More resolve options"
+                    aria-label={t('moreResolveOptions')}
                   />
                 }
               >
@@ -160,13 +162,13 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                 <DropdownMenuItem
                   disabled={busy}
                   onClick={() =>
-                    run('next-release', 'Failed to update issue', () =>
+                    run('next-release', t('toasts.updateFailed'), () =>
                       resolveIssueInNextRelease(projectId, issue.id),
                     )
                   }
                 >
                   <Rocket className="mr-2 size-4" />
-                  Resolve in next release
+                  {t('actions.resolveInNextRelease')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -179,7 +181,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
           size="sm"
           disabled={busy}
           onClick={() =>
-            run('archive', 'Failed to update issue', () =>
+            run('archive', t('toasts.updateFailed'), () =>
               updateIssueState(projectId, issue.id, {
                 status: isArchived ? 'unresolved' : 'ignored',
               }),
@@ -191,7 +193,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
           ) : (
             <Archive className="mr-2 size-4" />
           )}
-          {isArchived ? 'Unarchive' : 'Archive'}
+          {isArchived ? t('actions.unarchive') : t('actions.archive')}
         </Button>
 
         {/* Overflow */}
@@ -202,7 +204,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                 variant="outline"
                 size="sm"
                 className="size-8 px-0"
-                aria-label="Issue actions"
+                aria-label={t('issueActionsLabel')}
               />
             }
           >
@@ -212,7 +214,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
             <DropdownMenuItem
               disabled={busy}
               onClick={() =>
-                run('bookmark', 'Failed to update bookmark', () =>
+                run('bookmark', t('toasts.bookmarkFailed'), () =>
                   setIssueBookmark(projectId, issue.id, !issue.is_bookmarked),
                 )
               }
@@ -222,12 +224,14 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
               ) : (
                 <Bookmark className="mr-2 size-4" />
               )}
-              {issue.is_bookmarked ? 'Remove bookmark' : 'Bookmark'}
+              {issue.is_bookmarked
+                ? t('actions.removeBookmark')
+                : t('actions.bookmark')}
             </DropdownMenuItem>
             <DropdownMenuItem
               disabled={busy}
               onClick={() =>
-                run('subscribe', 'Failed to update subscription', () =>
+                run('subscribe', t('toasts.subscriptionFailed'), () =>
                   setIssueSubscription(
                     projectId,
                     issue.id,
@@ -241,7 +245,9 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
               ) : (
                 <Bell className="mr-2 size-4" />
               )}
-              {issue.is_subscribed ? 'Unsubscribe' : 'Subscribe'}
+              {issue.is_subscribed
+                ? t('actions.unsubscribe')
+                : t('actions.subscribe')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -250,7 +256,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
               onClick={() => setDeleteDialogOpen(true)}
             >
               <Trash2 className="mr-2 size-4" />
-              Delete issue
+              {t('actions.deleteIssue')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -258,7 +264,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
 
       {/* Right: priority */}
       <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Priority</span>
+        <span className="text-sm text-muted-foreground">{t('priority')}</span>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="outline" size="sm" disabled={busy} />}
@@ -268,10 +274,10 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                 <span
                   className={cn('size-1.5 rounded-full', priorityMeta.dot)}
                 />
-                {priorityMeta.label}
+                {t(priorityMeta.labelKey)}
               </span>
             ) : (
-              <span className="text-muted-foreground">Set</span>
+              <span className="text-muted-foreground">{t('set')}</span>
             )}
             <ChevronDown className="ml-1.5 size-3.5" />
           </DropdownMenuTrigger>
@@ -283,7 +289,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                   key={priority}
                   disabled={busy}
                   onClick={() =>
-                    run('priority', 'Failed to update priority', () =>
+                    run('priority', t('toasts.priorityFailed'), () =>
                       updateIssueState(projectId, issue.id, { priority }),
                     )
                   }
@@ -294,7 +300,7 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
                       meta?.dot ?? 'bg-muted-foreground',
                     )}
                   />
-                  {meta?.label ?? priority}
+                  {meta ? t(meta.labelKey) : priority}
                   {issue.priority === priority && (
                     <Check className="ml-auto size-4 text-muted-foreground" />
                   )}
@@ -309,15 +315,14 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this issue?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteDialog.titleOne')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this issue and all associated events.
-              This action cannot be undone.
+              {t('deleteDialog.descriptionOne')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pending === 'delete'}>
-              Cancel
+              {t('deleteDialog.cancel')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
@@ -327,10 +332,10 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
               {pending === 'delete' ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Deleting...
+                  {t('deleteDialog.deleting')}
                 </>
               ) : (
-                'Delete'
+                t('deleteDialog.confirm')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

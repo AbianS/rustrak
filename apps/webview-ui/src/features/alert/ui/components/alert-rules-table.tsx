@@ -2,6 +2,7 @@
 
 import type { AlertIntegration, AlertRule } from '@rustrak/client';
 import { Pencil, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { alertTypeInfo } from '@/features/alert/model/alert-types';
 import { AlertTypeIcon } from '@/features/alert/ui/components/alert-type-icon';
@@ -39,11 +40,13 @@ export function AlertRulesTable({
   onEdit: (rule: AlertRule) => void;
   onDelete: (rule: AlertRule) => void;
 }) {
+  const t = useTranslations('alerts');
+  const typesT = useTranslations('alertTypes');
   const columns = useMemo(
     () =>
       helper.columns([
         helper.accessor('name', {
-          header: 'Rule',
+          header: t('table.rule'),
           minSize: 180,
           meta: { grow: true },
           cell: ({ getValue }) => (
@@ -52,19 +55,21 @@ export function AlertRulesTable({
         }),
         helper.accessor('alert_type', {
           id: 'trigger',
-          header: 'Trigger',
+          header: t('table.trigger'),
           size: 190,
           minSize: 140,
           cell: ({ getValue }) => (
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <AlertTypeIcon type={getValue()} className="size-3.5" />
-              <span className="truncate">{alertTypeInfo(getValue()).name}</span>
+              <span className="truncate">
+                {typesT(alertTypeInfo(getValue()).nameKey)}
+              </span>
             </span>
           ),
         }),
         helper.accessor('integration_ids', {
           id: 'channels',
-          header: 'Channels',
+          header: t('table.channels'),
           size: 220,
           minSize: 140,
           cell: ({ getValue }) => (
@@ -91,7 +96,7 @@ export function AlertRulesTable({
         }),
         helper.accessor('is_enabled', {
           id: 'enabled',
-          header: 'Enabled',
+          header: t('table.enabled'),
           size: 90,
           minSize: 80,
           cell: ({ row }) => (
@@ -100,7 +105,9 @@ export function AlertRulesTable({
               onCheckedChange={() => onToggleEnabled(row.original)}
               disabled={disabled}
               size="sm"
-              aria-label={`Enable ${row.original.name}`}
+              aria-label={t('table.enableAria', {
+                name: row.original.name,
+              })}
             />
           ),
         }),
@@ -110,13 +117,15 @@ export function AlertRulesTable({
           minSize: 88,
           maxSize: 88,
           meta: { align: 'end' },
-          header: () => <span className="sr-only">Actions</span>,
+          header: () => (
+            <span className="sr-only">{t('table.actionsAria')}</span>
+          ),
           cell: ({ row }) => (
             <div className="flex items-center justify-end gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                aria-label={`Edit ${row.original.name}`}
+                aria-label={t('table.editAria', { name: row.original.name })}
                 className="size-7 text-muted-foreground hover:text-foreground"
                 onClick={() => onEdit(row.original)}
                 disabled={disabled}
@@ -126,7 +135,9 @@ export function AlertRulesTable({
               <Button
                 variant="destructive"
                 size="icon"
-                aria-label={`Delete ${row.original.name}`}
+                aria-label={t('table.deleteAria', {
+                  name: row.original.name,
+                })}
                 className="size-7"
                 onClick={() => onDelete(row.original)}
                 disabled={disabled}
@@ -137,7 +148,15 @@ export function AlertRulesTable({
           ),
         }),
       ]),
-    [getIntegrationById, disabled, onToggleEnabled, onEdit, onDelete],
+    [
+      t,
+      typesT,
+      getIntegrationById,
+      disabled,
+      onToggleEnabled,
+      onEdit,
+      onDelete,
+    ],
   );
 
   const table = useAppTable({

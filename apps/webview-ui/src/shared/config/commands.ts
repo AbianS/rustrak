@@ -23,15 +23,17 @@ import {
 /**
  * A row in the command bar.
  *
- * `description` is the line under the label and the body of the detail panel,
- * so it is written to be read, not to be matched. `keywords` is the opposite:
+ * `labelKey` and `descriptionKey` are message keys resolved at render time,
+ * so the bar reads in the viewer's language. `keywords` is the opposite:
  * never rendered, it only widens what the matcher accepts, so "logout" reaches
- * Account and "apm" reaches Performance without those words on screen.
+ * Account and "apm" reaches Performance without those words on screen. The
+ * search index is English-only by design: platform and product vocabulary,
+ * which is what these aliases carry, does not get translated.
  */
 export type CommandLink = {
-  label: string;
+  labelKey: string;
   href: string;
-  description: string;
+  descriptionKey: string;
   icon: LucideIcon;
   keywords?: string[];
 };
@@ -68,44 +70,44 @@ export const COMMAND_BAR_PROJECT_LIMIT = 100;
 /** Every project's own pages, in the order the bar lists them. */
 const PROJECT_PAGES: ProjectPage[] = [
   {
-    label: 'Overview',
+    labelKey: 'commands.overview',
     segment: '',
-    description: 'Health, volume and the latest issues at a glance.',
+    descriptionKey: 'commands.overviewDescription',
     icon: LayoutDashboardIcon,
     keywords: ['dashboard', 'home'],
   },
   {
-    label: 'Issues',
+    labelKey: 'commands.issues',
     segment: '/issues',
-    description: 'Errors and exceptions, grouped by fingerprint.',
+    descriptionKey: 'commands.issuesDescription',
     icon: BugIcon,
     keywords: ['errors', 'exceptions', 'crashes'],
   },
   {
-    label: 'Releases',
+    labelKey: 'commands.releases',
     segment: '/releases',
-    description: 'Deploys and the health of each version.',
+    descriptionKey: 'commands.releasesDescription',
     icon: RocketIcon,
     keywords: ['deploys', 'versions', 'health', 'sessions'],
   },
   {
-    label: 'Performance',
+    labelKey: 'commands.performance',
     segment: '/performance',
-    description: 'Transaction timings and span waterfalls.',
+    descriptionKey: 'commands.performanceDescription',
     icon: GaugeIcon,
     keywords: ['apm', 'transactions', 'spans', 'traces', 'latency'],
   },
   {
-    label: 'Agents',
+    labelKey: 'commands.agents',
     segment: '/agents',
-    description: 'AI agent traces and the spans inside them.',
+    descriptionKey: 'commands.agentsDescription',
     icon: BotIcon,
     keywords: ['ai', 'llm', 'traces'],
   },
   {
-    label: 'Logs',
+    labelKey: 'commands.logs',
     segment: '/logs',
-    description: 'The raw log stream as it arrives.',
+    descriptionKey: 'commands.logsDescription',
     icon: ScrollTextIcon,
     keywords: ['stream'],
   },
@@ -118,30 +120,30 @@ const PROJECT_PAGES: ProjectPage[] = [
  */
 const PROJECT_SETTINGS_PAGES: ProjectPage[] = [
   {
-    label: 'General',
+    labelKey: 'commands.general',
     segment: '/settings/general',
-    description: 'Name, slug, platform and the danger zone.',
+    descriptionKey: 'commands.generalDescription',
     icon: SettingsIcon,
     keywords: ['rename', 'slug', 'delete'],
   },
   {
-    label: 'Alerts',
+    labelKey: 'commands.alerts',
     segment: '/settings/alerts',
-    description: 'Rules that fire when something breaks.',
+    descriptionKey: 'commands.alertsDescription',
     icon: BellIcon,
     keywords: ['rules', 'notifications'],
   },
   {
-    label: 'Members',
+    labelKey: 'commands.members',
     segment: '/settings/members',
-    description: 'Who has access to this project, and as what.',
+    descriptionKey: 'commands.membersDescription',
     icon: UsersIcon,
     keywords: ['access', 'roles', 'permissions'],
   },
   {
-    label: 'Client keys',
+    labelKey: 'commands.clientKeys',
     segment: '/settings/client-keys',
-    description: 'The DSN and the SDK setup snippet.',
+    descriptionKey: 'commands.clientKeysDescription',
     icon: KeyRoundIcon,
     keywords: ['dsn', 'sdk', 'setup', 'install'],
   },
@@ -159,16 +161,16 @@ export const PROJECT_PAGE_COUNT = ALL_PROJECT_PAGES.length;
 /** Commands about projects in general rather than about one of them. */
 export const PROJECT_COMMANDS: CommandLink[] = [
   {
-    label: 'All projects',
+    labelKey: 'commands.allProjects',
     href: '/projects',
-    description: 'Every project on this instance you can see.',
+    descriptionKey: 'commands.allProjectsDescription',
     icon: FolderIcon,
     keywords: ['list', 'browse'],
   },
   {
-    label: 'New project',
+    labelKey: 'commands.newProject',
     href: '/projects/new',
-    description: 'Pick a platform and create one.',
+    descriptionKey: 'commands.newProjectDescription',
     icon: PlusIcon,
     keywords: ['create', 'add'],
   },
@@ -177,51 +179,51 @@ export const PROJECT_COMMANDS: CommandLink[] = [
 /** The instance-wide settings, which exist regardless of what it contains. */
 export const SETTINGS_COMMANDS: CommandLink[] = [
   {
-    label: 'API tokens',
+    labelKey: 'commands.apiTokens',
     href: '/settings/tokens',
-    description: 'Bearer tokens for the API and for SDK ingestion.',
+    descriptionKey: 'commands.apiTokensDescription',
     icon: KeyIcon,
     keywords: ['auth', 'bearer', 'secret'],
   },
   {
-    label: 'Integrations',
+    labelKey: 'commands.integrations',
     href: '/settings/integrations',
-    description: 'Where alerts get delivered.',
+    descriptionKey: 'commands.integrationsDescription',
     icon: PlugIcon,
     keywords: ['slack', 'webhook', 'email'],
   },
   {
-    label: 'Team',
+    labelKey: 'commands.team',
     href: '/settings/team',
-    description: 'Members of this instance and pending invitations.',
+    descriptionKey: 'commands.teamDescription',
     icon: UsersIcon,
     keywords: ['invite', 'people'],
   },
   {
-    label: 'Storage',
+    labelKey: 'commands.storage',
     href: '/settings/storage',
-    description: 'Retention windows and source map cleanup.',
+    descriptionKey: 'commands.storageDescription',
     icon: DatabaseIcon,
     keywords: ['retention', 'cleanup', 'source maps', 'disk'],
   },
   {
-    label: 'Account',
+    labelKey: 'commands.account',
     href: '/settings/account',
-    description: 'Your own profile and password.',
+    descriptionKey: 'commands.accountDescription',
     icon: UserIcon,
     keywords: ['profile', 'password', 'me', 'logout'],
   },
   {
-    label: 'Appearance',
+    labelKey: 'commands.appearance',
     href: '/settings/appearance',
-    description: 'Light, dark or whatever the system says.',
+    descriptionKey: 'commands.appearanceDescription',
     icon: PaletteIcon,
     keywords: ['theme', 'dark', 'light'],
   },
   {
-    label: 'About',
+    labelKey: 'commands.about',
     href: '/settings/about',
-    description: 'Which version of Rustrak this is.',
+    descriptionKey: 'commands.aboutDescription',
     icon: InfoIcon,
     keywords: ['version', 'build'],
   },

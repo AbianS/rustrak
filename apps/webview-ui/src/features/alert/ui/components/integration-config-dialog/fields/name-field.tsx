@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { type FieldValues, type Path, useFormContext } from 'react-hook-form';
 import {
   FormControl,
@@ -24,6 +25,7 @@ export function NameField<T extends FieldValues & { name: string }>({
   placeholder: string;
   disabled: boolean;
 }) {
+  const t = useTranslations('alerts');
   const { control } = useFormContext<T>();
 
   return (
@@ -33,7 +35,7 @@ export function NameField<T extends FieldValues & { name: string }>({
       render={({ field }) => (
         <FormItem>
           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Name
+            {t('common.name')}
           </FormLabel>
           <FormControl>
             <Input placeholder={placeholder} disabled={disabled} {...field} />

@@ -3,10 +3,11 @@
 import type { Project } from '@rustrak/client';
 import { formatDistanceToNow } from 'date-fns';
 import { MoreVertical, Trash2 } from 'lucide-react';
-import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
 import { ProjectStatsCells } from '@/features/project/ui/components/project-stats-cells';
+import { Link } from '@/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Checkbox } from '@/shared/ui/components/shadcn/checkbox';
 import {
@@ -27,6 +28,8 @@ export function ProjectRow({
   onToggleSelect: () => void;
   onDelete: (project: Project) => void;
 }) {
+  const t = useTranslations('projects');
+
   return (
     <div className="flex items-center gap-4 px-4 py-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors group">
       <Checkbox checked={selected} onCheckedChange={onToggleSelect} />
@@ -79,7 +82,7 @@ export function ProjectRow({
             onClick={() => onDelete(project)}
           >
             <Trash2 className="mr-2 size-4" />
-            Delete
+            {t('actions.delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

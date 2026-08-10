@@ -3,7 +3,7 @@
 import type { GlobalRole, TeamMember } from '@rustrak/client';
 import { format } from 'date-fns';
 import { Loader2, Trash2, Users } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -11,6 +11,7 @@ import {
   updateUserRole,
 } from '@/features/user/api/mutations';
 import { TeamMembersTable } from '@/features/user/ui/components/team-members-table';
+import { useRouter } from '@/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,9 +45,10 @@ interface TeamMembersListProps {
 }
 
 function RoleBadge({ role }: { role: GlobalRole }) {
+  const t = useTranslations('user');
   return (
     <Badge variant={role === 'admin' ? 'default' : 'secondary'}>
-      {role === 'admin' ? 'Admin' : 'Member'}
+      {role === 'admin' ? t('roles.admin') : t('roles.member')}
     </Badge>
   );
 }
@@ -60,6 +62,7 @@ function RoleSelect({
   disabled: boolean;
   onChange: (role: GlobalRole) => void;
 }) {
+  const t = useTranslations('user');
   return (
     <Select
       value={member.role}
@@ -73,15 +76,15 @@ function RoleSelect({
       <SelectTrigger
         size="sm"
         className="w-32"
-        aria-label={`Change role for ${member.email}`}
+        aria-label={t('table.changeRoleAria', { email: member.email })}
       >
         <SelectValue>
-          {(value) => (value === 'admin' ? 'Admin' : 'Member')}
+          {(value) => t(value === 'admin' ? 'roles.admin' : 'roles.member')}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="admin">Admin</SelectItem>
-        <SelectItem value="member">Member</SelectItem>
+        <SelectItem value="admin">{t('roles.admin')}</SelectItem>
+        <SelectItem value="member">{t('roles.member')}</SelectItem>
       </SelectContent>
     </Select>
   );
@@ -92,6 +95,7 @@ export function TeamMembersList({
   currentUserId,
 }: TeamMembersListProps) {
   const router = useRouter();
+  const t = useTranslations('user');
   const [isPending, startTransition] = useTransition();
   const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null);
 
@@ -99,8 +103,11 @@ export function TeamMembersList({
     startTransition(async () => {
       const result = await updateUserRole(member.id, role);
       if (result.success) {
-        toast.success('Role updated', {
-          description: `${member.email} is now ${role === 'admin' ? 'an admin' : 'a member'}.`,
+        toast.success(t('toast.roleUpdated'), {
+          description: t('member.updatedDescription', {
+            email: member.email,
+            role: t(role === 'admin' ? 'roles.admin' : 'roles.member'),
+          }),
         });
         router.refresh();
       } else {
@@ -109,7 +116,7 @@ export function TeamMembersList({
         // this table to bind that to, and its own sentence ("Cannot demote
         // the last admin") is far more use in a toast than "Role is not
         // valid." would be.
-        toast.error('Failed to update role', {
+        toast.error(t('toast.roleUpdateFailed'), {
           description: result.error.message,
         });
       }
@@ -122,11 +129,11 @@ export function TeamMembersList({
     startTransition(async () => {
       const result = await removeTeamMember(member.id);
       if (result.success) {
-        toast.success('Member removed', { description: member.email });
+        toast.success(t('toast.removed'), { description: member.email });
         setMemberToDelete(null);
         router.refresh();
       } else {
-        toast.error('Failed to remove member', {
+        toast.error(t('toast.removeFailed'), {
           description: result.error.message,
         });
       }
@@ -138,7 +145,7 @@ export function TeamMembersList({
       <Card className="border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Users className="size-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground">No team members yet</p>
+          <p className="text-muted-foreground">{t('membersList.empty')}</p>
         </CardContent>
       </Card>
     );
@@ -147,10 +154,8 @@ export function TeamMembersList({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Members</CardTitle>
-        <CardDescription>
-          People with access to this Rustrak instance
-        </CardDescription>
+        <CardTitle>{t('membersList.title')}</CardTitle>
+        <CardDescription>{t('membersList.description')}</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Mobile: card list */}
@@ -166,15 +171,25 @@ export function TeamMembersList({
                     <p className="text-sm font-medium truncate">
                       {member.email}
                       {isSelf && (
-                        <span className="text-muted-foreground"> (you)</span>
+                        <span className="text-muted-foreground">
+                          {' '}
+                          {t('table.you')}
+                        </span>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {member.is_active ? 'Active' : 'Inactive'}
+                      {member.is_active
+                        ? t('table.active')
+                        : t('table.inactive')}
                       {' · '}
                       {member.last_login
-                        ? `Last login ${format(new Date(member.last_login), 'MMM d, yyyy')}`
-                        : 'Never logged in'}
+                        ? t('table.lastLoginAt', {
+                            date: format(
+                              new Date(member.last_login),
+                              'MMM d, yyyy',
+                            ),
+                          })
+                        : t('table.neverLoggedIn')}
                     </p>
                   </div>
                   <RoleBadge role={member.role} />
@@ -191,7 +206,9 @@ export function TeamMembersList({
                       size="icon"
                       onClick={() => setMemberToDelete(member)}
                       disabled={isPending}
-                      aria-label={`Remove ${member.email}`}
+                      aria-label={t('table.removeAria', {
+                        email: member.email,
+                      })}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -228,15 +245,16 @@ export function TeamMembersList({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Remove "{memberToDelete?.email}"?
+              {t('removeMember.title', { email: memberToDelete?.email ?? '' })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently removes the user and their access to all
-              projects. This action cannot be undone.
+              {t('removeMember.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={isPending}
@@ -245,10 +263,10 @@ export function TeamMembersList({
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Removing...
+                  {t('remove.removing')}
                 </>
               ) : (
-                'Remove'
+                t('remove.confirm')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

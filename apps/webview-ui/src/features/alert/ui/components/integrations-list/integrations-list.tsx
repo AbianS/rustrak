@@ -2,7 +2,7 @@
 
 import type { AlertIntegration, ProviderType } from '@rustrak/client';
 import { Bell, ChevronDown } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -12,6 +12,7 @@ import {
 import { alertProviders } from '@/features/alert/model/providers';
 import { IntegrationConfigDialog } from '@/features/alert/ui/components/integration-config-dialog/integration-config-dialog';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
+import { useRouter } from '@/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -40,6 +41,7 @@ interface IntegrationsListProps {
 export function IntegrationsList({
   initialIntegrations,
 }: IntegrationsListProps) {
+  const t = useTranslations('alerts');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [configureType, setConfigureType] = useState<ProviderType | null>(null);
@@ -62,18 +64,20 @@ export function IntegrationsList({
       if (!result.success) {
         // The request itself failed. Distinct from the delivery result below,
         // which is a successful request reporting that the provider refused.
-        toast.error('Failed to send test', {
+        toast.error(t('integrations.testFailed'), {
           description: result.error.message,
         });
         return;
       }
 
       if (result.data.success) {
-        toast.success('Test notification sent', {
+        toast.success(t('integrations.testSent'), {
           description: result.data.message,
         });
       } else {
-        toast.error('Test failed', { description: result.data.message });
+        toast.error(t('integrations.testFailedResult'), {
+          description: result.data.message,
+        });
       }
     });
   };
@@ -84,13 +88,13 @@ export function IntegrationsList({
       const result = await deleteIntegration(deleteIntegrationItem.id);
 
       if (!result.success) {
-        toast.error('Failed to delete integration', {
+        toast.error(t('integrations.deleteFailed'), {
           description: result.error.message,
         });
         return;
       }
 
-      toast.success('Integration deleted');
+      toast.success(t('integrations.deleted'));
       const remaining = initialIntegrations.filter(
         (i) =>
           i.provider_type === deleteIntegrationItem.provider_type &&
@@ -146,10 +150,10 @@ export function IntegrationsList({
               </div>
               <div className="text-left">
                 <p className="text-sm font-semibold leading-none">
-                  Alert Notifications
+                  {t('integrations.title')}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Send alerts to external services when new issues are detected.
+                  {t('integrations.description')}
                 </p>
               </div>
             </div>
@@ -159,7 +163,9 @@ export function IntegrationsList({
                   variant="secondary"
                   className="text-[10px] font-bold uppercase tracking-wider"
                 >
-                  {alertConfiguredCount} configured
+                  {t('integrations.configuredCount', {
+                    count: alertConfiguredCount,
+                  })}
                 </Badge>
               )}
               <ChevronDown className="size-4 text-muted-foreground transition-transform duration-200 group-data-open/section:rotate-180" />
@@ -191,7 +197,9 @@ export function IntegrationsList({
                   )}
                   role="button"
                   tabIndex={0}
-                  aria-label={`Configure ${providerDef.name}`}
+                  aria-label={t('integrations.configureAria', {
+                    name: providerDef.name,
+                  })}
                   onClick={() => handleCardClick(providerDef.type)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -224,12 +232,12 @@ export function IntegrationsList({
                         )}
                       >
                         {count === 0
-                          ? 'Not configured'
+                          ? t('integrations.notConfigured')
                           : count > 1
-                            ? `${count} configured`
+                            ? t('integrations.configuredCount', { count })
                             : isConnected
-                              ? 'Connected'
-                              : 'Disabled'}
+                              ? t('integrations.connected')
+                              : t('integrations.disabled')}
                       </Badge>
                     </div>
                   </div>
@@ -237,7 +245,7 @@ export function IntegrationsList({
                   <div>
                     <h3 className="font-bold text-base">{providerDef.name}</h3>
                     <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {single ? single.name : providerDef.description}
+                      {single ? single.name : t(providerDef.descriptionKey)}
                     </p>
                   </div>
 
@@ -249,7 +257,9 @@ export function IntegrationsList({
                       handleCardClick(providerDef.type);
                     }}
                   >
-                    {count === 0 ? 'Configure' : 'Manage'}
+                    {count === 0
+                      ? t('integrations.configure')
+                      : t('integrations.manage')}
                   </Button>
                 </div>
               );
@@ -290,21 +300,23 @@ export function IntegrationsList({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Integration</AlertDialogTitle>
+            <AlertDialogTitle>{t('integrations.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;
-              {deleteIntegrationItem?.name}&quot;? This action cannot be undone
-              and will stop all alerts using this integration.
+              {t('integrations.deleteDescription', {
+                name: deleteIntegrationItem?.name ?? '',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('common.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending ? t('common.deleting') : t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

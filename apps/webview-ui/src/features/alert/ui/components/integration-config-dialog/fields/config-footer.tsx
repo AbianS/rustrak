@@ -2,6 +2,7 @@
 
 import type { AlertIntegration } from '@rustrak/client';
 import { Loader2, Play, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { DialogFooter } from '@/shared/ui/components/shadcn/dialog';
 
@@ -32,6 +33,8 @@ export function ConfigFooter({
   onDelete: (integration: AlertIntegration) => void;
   onCancel: () => void;
 }) {
+  const t = useTranslations('alerts');
+
   return (
     <DialogFooter className="gap-2 sm:gap-0">
       {existingIntegration && (
@@ -45,7 +48,7 @@ export function ConfigFooter({
               disabled={isLoading}
             >
               <Play className="size-4 mr-1" />
-              Test
+              {t('common.test')}
             </Button>
           )}
           {/* `destructive` rather than the outline-plus-red-text the webhook
@@ -60,7 +63,7 @@ export function ConfigFooter({
             disabled={isLoading}
           >
             <Trash2 className="size-4 mr-1" />
-            Delete
+            {t('common.delete')}
           </Button>
         </div>
       )}
@@ -70,7 +73,7 @@ export function ConfigFooter({
         onClick={onCancel}
         disabled={isLoading}
       >
-        Cancel
+        {t('common.cancel')}
       </Button>
       <Button type="submit" disabled={isLoading}>
         {isLoading && <Loader2 className="size-4 mr-2 animate-spin" />}

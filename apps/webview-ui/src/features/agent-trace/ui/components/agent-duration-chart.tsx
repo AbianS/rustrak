@@ -2,6 +2,7 @@
 
 import type { AgentDurationPoint } from '@rustrak/client';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -31,6 +32,7 @@ function ChartTooltip({
   active?: boolean;
   payload?: Array<{ payload: { t: number; avg: number; p95: number } }>;
 }) {
+  const t = useTranslations('agents');
   if (!active || !payload?.length) {
     return null;
   }
@@ -38,7 +40,10 @@ function ChartTooltip({
   return (
     <div className="rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <p className="font-medium text-popover-foreground">
-        avg {formatMs(point.avg)} · p95 {formatMs(point.p95)}
+        {t('charts.durationTooltip', {
+          avg: formatMs(point.avg),
+          p95: formatMs(point.p95),
+        })}
       </p>
       <p className="text-muted-foreground">
         {format(new Date(point.t), 'PP p')}
@@ -56,6 +61,7 @@ export function AgentDurationChart({
   points,
   height = 130,
 }: AgentDurationChartProps) {
+  const t = useTranslations('agents');
   const chartData = points.map((p) => ({
     t: new Date(p.bucket).getTime(),
     avg: p.avg_ms,
@@ -68,7 +74,7 @@ export function AgentDurationChart({
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No data yet
+        {t('charts.noData')}
       </div>
     );
   }

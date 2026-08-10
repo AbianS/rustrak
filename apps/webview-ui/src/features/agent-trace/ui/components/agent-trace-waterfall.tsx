@@ -2,6 +2,7 @@
 
 import type { Span } from '@rustrak/client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 
@@ -167,6 +168,7 @@ function opBreakdown(tree: TreeNode[]): { color: string; ms: number }[] {
  * plus the gen_ai.* columns needed for the detail panel.
  */
 export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
+  const t = useTranslations('agents');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -199,7 +201,7 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
   if (spans.length === 0) {
     return (
       <p className="text-sm text-muted-foreground px-1 py-4 text-center">
-        This trace has no spans.
+        {t('empty.noSpans')}
       </p>
     );
   }
@@ -281,7 +283,11 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
                       // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
                       <button
                         type="button"
-                        aria-label={isCol ? 'Expand' : 'Collapse'}
+                        aria-label={
+                          isCol
+                            ? t('waterfall.expand')
+                            : t('waterfall.collapse')
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
                           toggle(span.span_id);
@@ -303,7 +309,9 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
                         opColor(span),
                       )}
                     >
-                      {span.gen_ai_operation_type || span.op || 'span'}
+                      {span.gen_ai_operation_type ||
+                        span.op ||
+                        t('waterfall.spanFallback')}
                     </span>
                     <span className="truncate text-muted-foreground">
                       {label || '—'}
@@ -342,46 +350,113 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
 }
 
 function SpanDetail({ span, selfMs }: { span: Span; selfMs: number | null }) {
-  const rows: [string, string][] = [
-    ['op', span.op ?? '—'],
-    ['description', span.description ?? '—'],
-    ['status', span.status ?? '—'],
-    ['duration', formatDuration(span.duration_ms)],
-    ['self time', formatDuration(selfMs)],
-    ['span_id', span.span_id ?? '—'],
-    ['parent_span_id', span.parent_span_id ?? '—'],
+  const t = useTranslations('agents');
+  const rows: { key: string; label: string; value: string }[] = [
+    {
+      key: 'op',
+      label: t('detail.op'),
+      value: span.op ?? '—',
+    },
+    {
+      key: 'description',
+      label: t('detail.description'),
+      value: span.description ?? '—',
+    },
+    {
+      key: 'status',
+      label: t('detail.status'),
+      value: span.status ?? '—',
+    },
+    {
+      key: 'duration',
+      label: t('detail.duration'),
+      value: formatDuration(span.duration_ms),
+    },
+    {
+      key: 'selfTime',
+      label: t('detail.selfTime'),
+      value: formatDuration(selfMs),
+    },
+    {
+      key: 'spanId',
+      label: t('detail.spanId'),
+      value: span.span_id ?? '—',
+    },
+    {
+      key: 'parentSpanId',
+      label: t('detail.parentSpanId'),
+      value: span.parent_span_id ?? '—',
+    },
   ];
 
   const isAiSpan = span.gen_ai_operation_type != null;
-  const genAiRows: [string, string][] = [
-    ['operation type', span.gen_ai_operation_type ?? '—'],
-    ['agent name', span.gen_ai_agent_name ?? '—'],
-    ['tool name', span.gen_ai_tool_name ?? '—'],
-    ['request model', span.gen_ai_request_model ?? '—'],
-    ['response model', span.gen_ai_response_model ?? '—'],
-    ['conversation id', span.gen_ai_conversation_id ?? '—'],
-    ['input tokens', formatTokens(span.gen_ai_usage_input_tokens)],
-    ['output tokens', formatTokens(span.gen_ai_usage_output_tokens)],
-    ['total tokens', formatTokens(span.gen_ai_usage_total_tokens)],
+  const genAiRows: { key: string; label: string; value: string }[] = [
+    {
+      key: 'operationType',
+      label: t('detail.operationType'),
+      value: span.gen_ai_operation_type ?? '—',
+    },
+    {
+      key: 'agentName',
+      label: t('detail.agentName'),
+      value: span.gen_ai_agent_name ?? '—',
+    },
+    {
+      key: 'toolName',
+      label: t('detail.toolName'),
+      value: span.gen_ai_tool_name ?? '—',
+    },
+    {
+      key: 'requestModel',
+      label: t('detail.requestModel'),
+      value: span.gen_ai_request_model ?? '—',
+    },
+    {
+      key: 'responseModel',
+      label: t('detail.responseModel'),
+      value: span.gen_ai_response_model ?? '—',
+    },
+    {
+      key: 'conversationId',
+      label: t('detail.conversationId'),
+      value: span.gen_ai_conversation_id ?? '—',
+    },
+    {
+      key: 'inputTokens',
+      label: t('detail.inputTokens'),
+      value: formatTokens(span.gen_ai_usage_input_tokens),
+    },
+    {
+      key: 'outputTokens',
+      label: t('detail.outputTokens'),
+      value: formatTokens(span.gen_ai_usage_output_tokens),
+    },
+    {
+      key: 'totalTokens',
+      label: t('detail.totalTokens'),
+      value: formatTokens(span.gen_ai_usage_total_tokens),
+    },
   ];
 
   return (
     <dl className="ml-6 mt-0.5 mb-1 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-[11px]">
-      {rows.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt className="text-muted-foreground">{k}</dt>
-          <dd className="truncate break-all text-foreground">{v}</dd>
+      {rows.map((row) => (
+        <div key={row.key} className="contents">
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="truncate break-all text-foreground">{row.value}</dd>
         </div>
       ))}
       {isAiSpan && (
         <>
           <div className="col-span-2 mt-1 border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            gen_ai
+            {t('detail.genAiSection')}
           </div>
-          {genAiRows.map(([k, v]) => (
-            <div key={k} className="contents">
-              <dt className="text-muted-foreground">{k}</dt>
-              <dd className="truncate break-all text-foreground">{v}</dd>
+          {genAiRows.map((row) => (
+            <div key={row.key} className="contents">
+              <dt className="text-muted-foreground">{row.label}</dt>
+              <dd className="truncate break-all text-foreground">
+                {row.value}
+              </dd>
             </div>
           ))}
         </>

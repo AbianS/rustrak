@@ -2,7 +2,7 @@
 
 import type { AuthToken } from '@rustrak/client';
 import { Key, Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -10,6 +10,7 @@ import {
   deleteToken,
   getToken,
 } from '@/features/token/api/mutations';
+import { useRouter } from '@/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import {
   AlertDialog,
@@ -37,6 +38,8 @@ interface TokensListProps {
 }
 
 export function TokensList({ initialTokens }: TokensListProps) {
+  const t = useTranslations('tokens');
+  const commonT = useTranslations('common');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -60,15 +63,15 @@ export function TokensList({ initialTokens }: TokensListProps) {
       });
 
       if (!result.success) {
-        toast.error('Failed to create token', {
+        toast.error(t('toasts.createFailed'), {
           description: result.error.message,
         });
         return;
       }
 
       setNewToken(result.data.token);
-      toast.success('Token created', {
-        description: 'Make sure to copy your token now.',
+      toast.success(t('toasts.created'), {
+        description: t('toasts.createdHint'),
       });
     });
   };
@@ -83,10 +86,10 @@ export function TokensList({ initialTokens }: TokensListProps) {
       const result = await deleteToken(id);
 
       if (result.success) {
-        toast.success('Token deleted');
+        toast.success(t('toasts.deleted'));
         router.refresh();
       } else {
-        toast.error('Failed to delete token', {
+        toast.error(t('toasts.deleteFailed'), {
           description: result.error.message,
         });
       }
@@ -101,7 +104,7 @@ export function TokensList({ initialTokens }: TokensListProps) {
       const result = await getToken(token.id);
 
       if (!result.success) {
-        toast.error('Failed to get token', {
+        toast.error(t('toasts.getFailed'), {
           description: result.error.message,
         });
         setBusyId(null);
@@ -109,11 +112,11 @@ export function TokensList({ initialTokens }: TokensListProps) {
       }
 
       if (await copyToClipboard(result.data.token)) {
-        toast.success('Token copied to clipboard');
+        toast.success(t('toasts.copied'));
       } else {
         // No clipboard (an insecure origin, usually). Showing the value is the
         // fallback: it is the one thing the user came here for.
-        toast.info('Copy the token', { description: result.data.token });
+        toast.info(t('toasts.copyTitle'), { description: result.data.token });
       }
       setBusyId(null);
     });
@@ -123,9 +126,8 @@ export function TokensList({ initialTokens }: TokensListProps) {
     if (!newToken) return false;
     if (await copyToClipboard(newToken)) return true;
 
-    toast.info('Clipboard unavailable', {
-      description:
-        'Select the token and copy it manually, or access Rustrak over HTTPS.',
+    toast.info(commonT('clipboardUnavailable'), {
+      description: commonT('clipboardUnavailableHint'),
     });
     return false;
   };
@@ -153,20 +155,18 @@ export function TokensList({ initialTokens }: TokensListProps) {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Key className="size-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground mb-4">No API tokens yet</p>
+            <p className="text-muted-foreground mb-4">{t('empty.title')}</p>
             <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
               <Plus className="mr-2 size-4" />
-              Create your first token
+              {t('empty.createFirst')}
             </Button>
           </CardContent>
         </Card>
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle>Your Tokens</CardTitle>
-            <CardDescription>
-              Tokens are used to authenticate API requests
-            </CardDescription>
+            <CardTitle>{t('list.title')}</CardTitle>
+            <CardDescription>{t('list.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             <TokenCards {...rowProps} />
@@ -181,20 +181,23 @@ export function TokensList({ initialTokens }: TokensListProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Token?</AlertDialogTitle>
+            <AlertDialogTitle>{t('deleteDialog.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this token. Any services using it
-              will lose access immediately. This action cannot be undone.
+              {t('deleteDialog.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('deleteDialog.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending
+                ? t('deleteDialog.deleting')
+                : t('deleteDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

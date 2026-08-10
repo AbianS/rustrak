@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,9 +34,10 @@ export function DeleteProjectsDialog({
   isPending: boolean;
   onConfirm: () => void;
 }) {
+  const t = useTranslations('projects');
   const subject = targetName
-    ? 'this project'
-    : `${count} project${count > 1 ? 's' : ''}`;
+    ? t('deleteDialog.subjectOne')
+    : t('deleteDialog.subjectMany', { count });
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -43,16 +45,17 @@ export function DeleteProjectsDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>
             {targetName
-              ? `Delete "${targetName}"?`
-              : `Delete ${count} project${count > 1 ? 's' : ''}?`}
+              ? t('deleteDialog.titleNamed', { name: targetName })
+              : t('deleteDialog.titleCount', { count })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete {subject} and all associated issues and
-            events. This action cannot be undone.
+            {t('deleteDialog.description', { subject })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>
+            {t('deleteDialog.cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isPending}
@@ -61,10 +64,10 @@ export function DeleteProjectsDialog({
             {isPending ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Deleting...
+                {t('deleteDialog.deleting')}
               </>
             ) : (
-              'Delete'
+              t('deleteDialog.confirm')
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

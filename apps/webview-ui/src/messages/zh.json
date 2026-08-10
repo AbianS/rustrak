@@ -1,0 +1,1483 @@
+{
+  "locale": {
+    "switch": "切换语言",
+    "en": "English",
+    "zh": "简体中文"
+  },
+  "app": {
+    "title": "Rustrak - 错误跟踪系统",
+    "description": "轻量级、可自托管的错误跟踪系统，兼容 Sentry SDK"
+  },
+  "common": {
+    "reload": "重新加载",
+    "copyAs": "另存为",
+    "clipboardUnavailable": "剪贴板不可用",
+    "clipboardUnavailableHint": "请手动选择内容进行复制，或通过 HTTPS 访问 Rustrak。",
+    "openSidebar": "打开侧边栏",
+    "showSidebar": "显示侧边栏",
+    "closeSidebar": "关闭侧边栏",
+    "hideSidebar": "隐藏侧边栏",
+    "close": "关闭",
+    "sidebar": "侧边栏",
+    "sidebarMobileDescription": "显示移动端侧边栏。",
+    "toggleSidebar": "切换侧边栏"
+  },
+  "theme": {
+    "light": "浅色",
+    "dark": "深色",
+    "system": "跟随系统"
+  },
+  "update": {
+    "srAvailable": "Rustrak {version} 有新版本可用。",
+    "shapeTitle": "更新通知形状",
+    "available": "可用",
+    "dismiss": "关闭 {version} 版本的更新通知",
+    "viewChangelog": "查看更新日志"
+  },
+  "platforms": {
+    "searchPlaceholder": "搜索所有平台",
+    "searchAria": "搜索平台",
+    "categoriesAria": "平台分类",
+    "noSdkFor": "还没有 \"{query}\" 对应的 SDK",
+    "tryGeneric": "尝试更通用的 SDK，如 JavaScript、Python 或 Node；也可以使用 <other>其他</other> 创建通用项目。",
+    "otherPlatform": "其他平台",
+    "otherPlatformDescription": "您的平台不在列表中，或者您想稍后再选择。可与任何 Sentry SDK 配合使用。",
+    "matchingCount": "{count} 个匹配平台",
+    "footerCount": "{count} 个平台 · 搜索可跨所有分类查找",
+    "pickerPlaceholder": "搜索平台...",
+    "pickerAria": "平台",
+    "noResults": "未找到平台。"
+  },
+  "statTile": {
+    "noPriorPeriod": "无前期数据",
+    "noPriorActivity": "前期无活动",
+    "vsPrev": "较上期"
+  },
+  "table": {
+    "showingRange": "显示 {start}-{end}，共 {total} 条",
+    "noResults": "无结果",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "pageOf": "第 {current} 页，共 {total} 页",
+    "ofTotal": "共 {total} 条",
+    "firstPage": "第一页",
+    "lastPage": "最后一页",
+    "selectAllPageRows": "选择本页所有行",
+    "selectRow": "选择此行",
+    "expand": "展开"
+  },
+  "commands": {
+    "overview": "概览",
+    "overviewDescription": "一眼掌握运行状况、事件量与最新问题。",
+    "issues": "问题",
+    "issuesDescription": "按指纹分组的错误与异常。",
+    "releases": "发布",
+    "releasesDescription": "部署记录及各版本的运行状况。",
+    "performance": "性能",
+    "performanceDescription": "事务耗时与 Span 瀑布图。",
+    "agents": "智能体",
+    "agentsDescription": "AI 智能体追踪及其内部 Span。",
+    "logs": "日志",
+    "logsDescription": "实时原始日志流。",
+    "general": "常规",
+    "generalDescription": "名称、slug、平台与危险操作区。",
+    "alerts": "告警",
+    "alertsDescription": "出现异常时触发的规则。",
+    "members": "成员",
+    "membersDescription": "谁能访问此项目，以及以什么身份访问。",
+    "clientKeys": "客户端密钥",
+    "clientKeysDescription": "DSN 与 SDK 接入代码片段。",
+    "allProjects": "所有项目",
+    "allProjectsDescription": "此实例上您可见的全部项目。",
+    "newProject": "新建项目",
+    "newProjectDescription": "选择平台并创建一个项目。",
+    "apiTokens": "API 令牌",
+    "apiTokensDescription": "用于 API 与 SDK 上报的 Bearer 令牌。",
+    "integrations": "集成",
+    "integrationsDescription": "告警的投递目的地。",
+    "team": "团队",
+    "teamDescription": "实例成员与待处理的邀请。",
+    "storage": "存储",
+    "storageDescription": "保留期与源映射清理。",
+    "account": "账户",
+    "accountDescription": "您的个人资料与密码。",
+    "appearance": "外观",
+    "appearanceDescription": "浅色、深色或跟随系统。",
+    "about": "关于",
+    "aboutDescription": "当前 Rustrak 的版本信息。",
+    "noResultsFor": "没有 “{query}” 的相关结果",
+    "resultsHeading": "搜索结果",
+    "projectsHeading": "项目",
+    "settingsHeading": "设置",
+    "generalBadge": "常规",
+    "settingsBadge": "设置",
+    "noPlatform": "未设置平台",
+    "noPlatformSet": "未设置平台",
+    "pages": "个页面",
+    "dialogTitle": "命令面板",
+    "dialogDescription": "搜索项目、页面与设置，按回车打开。",
+    "searchPlaceholder": "搜索项目、页面与设置...",
+    "triggerSearch": "搜索",
+    "navigate": "导航",
+    "open": "打开",
+    "hidePages": "隐藏页面"
+  },
+  "charts": {
+    "errors": "错误",
+    "warnings": "警告",
+    "info": "信息",
+    "total": "总计",
+    "ofWhichFatal": "其中致命",
+    "noEvents": "此时间段内没有事件",
+    "dashedLine": "虚线：每桶平均 {count}",
+    "eventCount": "{count} 个事件",
+    "bucketDays": "{count} 天/桶",
+    "bucketHours": "{count} 小时/桶",
+    "bucketMinutes": "{count} 分钟/桶"
+  },
+  "errorScreen": {
+    "brandStatement": "您的数据是安全的",
+    "brandDescription": "没有任何数据丢失，您的会话也保持完整。此页面与能否访问 Rustrak 有关，与存储的数据无关。"
+  },
+  "formErrors": {
+    "required": "{subject}是必填项。",
+    "invalid": "{subject}格式不正确。",
+    "alreadyExists": "{subject}已被占用。",
+    "tooShort": "{subject}过短。",
+    "tooLong": "{subject}过长。"
+  },
+  "error": {
+    "describe": {
+      "networkTimeout": "Rustrak API 响应超时。",
+      "networkUnreachable": "无法连接到 Rustrak API。",
+      "serverError": "Rustrak API 处理请求时出错，请稍后再试。",
+      "forbidden": "您的账户没有执行此操作的权限。",
+      "rateLimited": "请求过于频繁，请{window}重试。",
+      "invalidResponse": "Rustrak API 返回了本仪表盘无法解析的数据。"
+    },
+    "guidance": {
+      "network": "您仍处于登录状态，API 恢复后请重新加载页面。",
+      "rateLimited": "此限制通常来自 Rustrak 前面的代理，而非 Rustrak 本身。",
+      "forbidden": "如果您认为自己应有访问权限，请联系管理员。",
+      "invalidResponse": "仪表盘与 API 可能运行着不同版本，重新加载无法解决。",
+      "notFound": "服务器响应正常，只是该地址下没有内容。"
+    },
+    "headline": {
+      "network": "Rustrak 无响应",
+      "forbidden": "您没有访问权限",
+      "rateLimited": "请求过于频繁",
+      "invalidResponse": "仪表盘无法读取 API",
+      "notFound": "这里没有内容",
+      "other": "操作未成功"
+    },
+    "retry": {
+      "moments": "稍候",
+      "seconds": "{count} 秒后",
+      "minutes": "约 {count} 分钟后",
+      "hours": "约 {count} 小时后"
+    }
+  },
+  "logs": {
+    "columns": {
+      "level": "级别",
+      "message": "消息",
+      "trace": "追踪",
+      "time": "时间"
+    },
+    "emptyValue": "（空）",
+    "attributes": "属性",
+    "allLevels": "全部",
+    "empty": {
+      "title": "没有符合筛选条件的日志",
+      "hint": "尝试其他级别，或清除筛选条件。"
+    }
+  },
+  "issues": {
+    "columns": {
+      "issue": "问题",
+      "trend": "趋势",
+      "age": "时长",
+      "events": "事件数",
+      "users": "用户数",
+      "lastSeen": "最后出现"
+    },
+    "actionsTitle": "操作",
+    "actionsFor": "{title} 的操作",
+    "actions": {
+      "resolve": "解决",
+      "unresolve": "取消解决",
+      "mute": "静音",
+      "unmute": "取消静音",
+      "delete": "删除",
+      "archive": "归档",
+      "unarchive": "取消归档",
+      "resolveInNextRelease": "在下一版本中解决",
+      "bookmark": "收藏",
+      "removeBookmark": "取消收藏",
+      "subscribe": "订阅",
+      "unsubscribe": "取消订阅",
+      "deleteIssue": "删除问题"
+    },
+    "toasts": {
+      "updateFailed": "更新问题失败",
+      "deleteOneFailed": "删除问题失败",
+      "deleteManyFailed": "批量删除问题失败",
+      "bookmarkFailed": "更新收藏失败",
+      "subscriptionFailed": "更新订阅失败",
+      "priorityFailed": "更新优先级失败"
+    },
+    "selectedCount": "已选择 {count} 项",
+    "clearSelection": "清除选择",
+    "empty": {
+      "title": "未找到问题",
+      "allResolved": "所有问题都已解决或静音",
+      "noFiltered": "没有{filter}的问题"
+    },
+    "filters": {
+      "open": "未解决",
+      "resolved": "已解决",
+      "muted": "已静音",
+      "all": "全部"
+    },
+    "deleteDialog": {
+      "titleOne": "删除此问题？",
+      "titleMany": "删除 {count} 个问题？",
+      "descriptionOne": "这将永久删除此问题及其所有关联事件，且无法撤销。",
+      "descriptionMany": "这将永久删除 {count} 个问题及其所有关联事件，且无法撤销。",
+      "cancel": "取消",
+      "deleting": "正在删除...",
+      "confirm": "删除"
+    },
+    "statusTitle": "状态：{label}",
+    "priorityTitle": "优先级：{label}",
+    "levelTitle": "级别：{level}",
+    "priority": "优先级",
+    "set": "设置",
+    "moreResolveOptions": "更多解决选项",
+    "issueActionsLabel": "问题操作",
+    "activity": {
+      "title": "动态",
+      "placeholder": "发表评论...",
+      "comment": "评论",
+      "empty": "暂无动态。",
+      "commentFailed": "添加评论失败",
+      "statusResolved": "将此问题标记为已解决",
+      "statusReopened": "重新打开了此问题",
+      "statusMuted": "静音了此问题",
+      "statusChanged": "将状态改为 {status}",
+      "priorityChanged": "将优先级设为 {priority}",
+      "regression": "检测到回归",
+      "firstSeen": "首次发现此问题"
+    },
+    "issueStatus": {
+      "new": "新出现",
+      "ongoing": "持续发生",
+      "escalating": "持续升级",
+      "regressed": "已回归",
+      "archived": "已归档",
+      "resolved": "已解决",
+      "ignored": "已忽略",
+      "unresolved": "未解决",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    }
+  },
+  "roles": {
+    "viewer": "查看者",
+    "editor": "编辑者",
+    "admin": "管理员",
+    "member": "成员"
+  },
+  "user": {
+    "header": {
+      "openMenu": "打开用户菜单",
+      "userMenuFor": "{email} 的用户菜单",
+      "settings": "设置",
+      "signingOut": "正在退出登录…",
+      "signOut": "退出登录"
+    },
+    "invite": {
+      "title": "邀请成员",
+      "description": "创建后邀请链接会自动复制到剪贴板。不会发送任何邮件——请自行将链接分享给新成员。",
+      "emailLabel": "邮箱",
+      "roleLabel": "角色",
+      "roleAria": "邀请角色",
+      "fieldEmail": "该邮箱地址",
+      "inviting": "正在邀请…",
+      "submit": "邀请"
+    },
+    "toast": {
+      "createFailed": "创建邀请失败",
+      "created": "邀请已创建",
+      "createdHint": "邀请链接已复制到剪贴板——请分享给新成员。",
+      "copyInviteLink": "复制邀请链接：{link}",
+      "updated": "成员已更新",
+      "updateFailed": "更新成员失败",
+      "removed": "成员已移除",
+      "removeFailed": "移除成员失败",
+      "added": "成员已添加",
+      "addFailed": "添加成员失败",
+      "linkCopied": "邀请链接已复制到剪贴板",
+      "copyLink": "复制邀请链接",
+      "revoked": "邀请已撤销",
+      "revokeFailed": "撤销邀请失败",
+      "roleUpdated": "角色已更新",
+      "roleUpdateFailed": "更新角色失败"
+    },
+    "member": {
+      "updatedDescription": "{email} 现在是{role}。"
+    },
+    "members": {
+      "title": "项目成员",
+      "manageDescription": "管理可以访问此项目的人员及其角色。",
+      "readOnlyDescription": "可以访问此项目的人员。",
+      "addMember": "添加成员",
+      "empty": "还没有成员"
+    },
+    "remove": {
+      "title": "移除成员",
+      "description": "从该项目中移除 {email}？他们将失去访问权限，直到再次被添加。",
+      "removing": "正在移除…",
+      "confirm": "移除"
+    },
+    "cancel": "取消",
+    "addMember": {
+      "title": "添加成员",
+      "description": "授予团队成员对此项目的访问权限。",
+      "userLabel": "用户",
+      "userAria": "选择要添加的用户",
+      "roleLabel": "角色",
+      "teamFailed": "无法加载团队成员列表",
+      "noUsers": "没有可用用户",
+      "selectUser": "选择用户",
+      "roleAria": "新成员的角色",
+      "submit": "添加"
+    },
+    "pending": {
+      "title": "待处理的邀请",
+      "description": "尚未被接受的邀请",
+      "empty": "没有待处理的邀请",
+      "expires": "过期时间 {date}",
+      "copyAria": "复制 {email} 的邀请链接",
+      "revokeAria": "撤销 {email} 的邀请"
+    },
+    "table": {
+      "email": "邮箱",
+      "you": "（我）",
+      "role": "角色",
+      "changeRoleAria": "更改 {email} 的角色",
+      "actionsAria": "操作",
+      "removeAria": "移除 {email}",
+      "status": "状态",
+      "active": "活跃",
+      "inactive": "不活跃",
+      "lastLoginAt": "上次登录 {date}",
+      "neverLoggedIn": "从未登录",
+      "lastLogin": "上次登录",
+      "never": "从未",
+      "changeRole": "更改角色"
+    },
+    "membersList": {
+      "empty": "还没有团队成员",
+      "title": "成员",
+      "description": "可以访问此 Rustrak 实例的人员"
+    },
+    "removeMember": {
+      "title": "移除 “{email}”？",
+      "description": "这将永久移除该用户及其对所有项目的访问权限。此操作无法撤销。"
+    },
+    "roles": {
+      "viewer": "查看者",
+      "editor": "编辑者",
+      "admin": "管理员",
+      "member": "成员"
+    }
+  },
+  "projects": {
+    "platformRequired": "请选择一个平台以继续",
+    "fields": {
+      "platform": "平台",
+      "name": "项目名称",
+      "slug": "Slug",
+      "nameTooShort": "名称至少需要 {min} 个字符",
+      "nameTooLong": "名称最多 {max} 个字符",
+      "slugEmpty": "Slug 不能为空",
+      "slugChars": "请使用小写字母、数字和连字符"
+    },
+    "create": "创建项目",
+    "creating": "正在创建...",
+    "noPlatformSelected": "未选择平台",
+    "pickPlatform": "选择一个平台",
+    "dsnNext": "接下来您将获得 DSN 和配置代码片段。",
+    "slug": {
+      "edit": "编辑 Slug",
+      "reset": "重置 Slug 以跟随名称",
+      "hintAuto": "根据名称自动生成。点击编辑可自定义。",
+      "hintManual": "您可以自定义。已被占用的 Slug 会被拒绝。"
+    },
+    "save": "保存",
+    "toasts": {
+      "createFailed": "创建项目失败",
+      "updateNameFailed": "更新项目失败",
+      "updateSlugFailed": "更新 Slug 失败",
+      "updatePlatformFailed": "更新平台失败",
+      "deleteProjectFailed": "删除项目失败",
+      "deleteFailed": "删除失败",
+      "nameUpdated": "项目已更新",
+      "slugUpdated": "Slug 已更新",
+      "platformUpdated": "平台已更新",
+      "deleted": "已删除 {count} 个项目"
+    },
+    "projectDetails": "项目详情",
+    "nameTitle": "名称",
+    "nameDescription": "此项目在整个仪表盘中的显示名称。",
+    "namePlaceholder": "项目名称",
+    "slugDescription": "此项目的简短标识符。您的 DSN 和仪表盘链接使用的是数字项目 ID，因此重命名不会影响已上报的事件。",
+    "platformDescription": "根据收到的第一个事件自动检测。如果检测结果有误或过于宽泛，可以手动更改。",
+    "dangerZone": {
+      "title": "危险区域",
+      "remove": "删除项目",
+      "removeDescription": "永久删除此项目及其所有问题和事件。此操作无法撤销。",
+      "deleteTitle": "删除 “{name}”？",
+      "deleteDescription": "这将永久删除此项目及其所有关联的问题和事件。此操作无法撤销。",
+      "cancel": "取消",
+      "deleting": "正在删除...",
+      "confirm": "删除"
+    },
+    "deleteDialog": {
+      "subjectOne": "此项目",
+      "subjectMany": "{count} 个项目",
+      "titleNamed": "删除 “{name}”？",
+      "titleCount": "删除 {count} 个项目？",
+      "description": "这将永久删除 {subject} 及其所有关联的问题和事件。此操作无法撤销。",
+      "cancel": "取消",
+      "deleting": "正在删除...",
+      "confirm": "删除"
+    },
+    "selectedCount": "已选择 {count} 项",
+    "empty": {
+      "title": "还没有项目",
+      "hint": "创建您的第一个项目以开始跟踪错误"
+    },
+    "newProject": "新建项目",
+    "delete": "删除",
+    "actions": {
+      "delete": "删除"
+    },
+    "columns": {
+      "project": "项目",
+      "issues": "问题数",
+      "events24h": "24 小时事件",
+      "total": "总计",
+      "issueActivity": "问题动态",
+      "created": "创建时间"
+    },
+    "events": "事件数",
+    "fatalCount": "{count} 个致命错误",
+    "trendLabel": "{label}，最近 24 小时",
+    "health": {
+      "critical": "存在未解决致命错误的问题",
+      "rising": "存在问题，新问题数较上一周期有所增加",
+      "quiet": "存在问题，态势平稳"
+    },
+    "navigation": "导航",
+    "nav": {
+      "overview": "概览",
+      "issues": "问题",
+      "releases": "发布",
+      "performance": "性能",
+      "agents": "智能体",
+      "logs": "日志",
+      "settings": "设置"
+    },
+    "collapse": {
+      "expand": "展开",
+      "collapse": "收起"
+    },
+    "switcher": {
+      "projects": "项目",
+      "fallback": "项目"
+    },
+    "copyUnavailable": "剪贴板不可用",
+    "copyUnavailableHint": "请手动选择{label}进行复制，或通过 HTTPS 访问 Rustrak。",
+    "clientKeys": {
+      "dsn": "DSN",
+      "dsnDescription": "将任意 Sentry SDK 指向此字符串，即可向此项目上报事件。",
+      "copyDsn": "复制 DSN",
+      "install": "安装",
+      "installDescription": "将 SDK 添加到您的项目。",
+      "copyInstallCommand": "复制安装命令",
+      "setup": "配置",
+      "exampleJs": "示例（JavaScript）",
+      "examplePlatform": "示例（{platform}）",
+      "dsnFilled": "您的 DSN 已填入下方代码。",
+      "pointSdk": "将此平台的 SDK 指向上面的 DSN。",
+      "copied": "已复制",
+      "copy": "复制",
+      "compatLead": "此服务器兼容所有官方 Sentry SDK。请查看",
+      "docsPlatform": "{platform} 文档",
+      "docsSentry": "Sentry 文档",
+      "compatFull": "以了解完整配置，包括此示例未涉及的选项。",
+      "compatSteps": "以了解此平台的配置步骤。",
+      "commandLabel": "命令",
+      "exampleLabel": "示例"
+    }
+  },
+  "alerts": {
+    "common": {
+      "name": "名称",
+      "fieldName": "该名称",
+      "cancel": "取消",
+      "delete": "删除",
+      "deleting": "正在删除…",
+      "saveChanges": "保存更改",
+      "test": "测试"
+    },
+    "validation": {
+      "nameRequired": "名称必填",
+      "validHttpUrl": "必须是有效的 http/https URL",
+      "webhookUrlRequired": "必须填写 Webhook URL",
+      "slackWebhookUrl": "必须是有效的 Slack Webhook URL（https://hooks.slack.com/...）",
+      "validUrl": "请输入有效的 URL",
+      "botTokenRequired": "必须填写 Bot token",
+      "botTokenPrefix": "Bot token 必须以 xoxb- 开头",
+      "smtpHostRequired": "必须填写 SMTP 主机",
+      "validEmail": "请输入有效的邮箱地址"
+    },
+    "routing": {
+      "slackChannelRequired": "必须为 “{name}” 指定 Slack 频道",
+      "recipientsRequired": "必须为 “{name}” 指定收件人",
+      "invalidRecipients": "“{name}”的收件人中包含无效的邮箱地址",
+      "webhookUrlRequired": "必须为 “{name}” 提供 Webhook URL（在凭据中设置或作为覆盖 URL）",
+      "invalidOverrideUrl": "“{name}”的覆盖 URL 必须是 http/https",
+      "channelLabel": "频道",
+      "channelHint": "频道名称（例如 <code>#alerts</code>）或频道 ID（例如 <code>C1234567890</code>）",
+      "channelPlaceholder": "#alerts 或 C1234567890",
+      "recipientsLabel": "收件人",
+      "recipientsHint": "逗号分隔的邮箱地址",
+      "recipientsPlaceholder": "alerts@example.com, team@example.com",
+      "overrideUrlLabel": "覆盖 URL",
+      "overrideUrlHint": "覆盖凭据中配置的 URL",
+      "overrideUrlPlaceholder": "https://svc.io/hook",
+      "optional": "（可选）"
+    },
+    "channelCard": {
+      "botToken": "bot token"
+    },
+    "ruleDialog": {
+      "titleNew": "新建告警规则",
+      "titleEdit": "编辑告警规则",
+      "descNew": "定义何时触发告警以及发送到哪里。",
+      "descEdit": "更新此规则何时以及在哪里发送通知。",
+      "name": "规则名称",
+      "namePlaceholder": "例如：新问题时通知团队",
+      "trigger": "触发器",
+      "sendTo": "发送至",
+      "create": "创建规则",
+      "saveChanges": "保存更改",
+      "selectAtLeastOne": "至少选择一个集成",
+      "enable": "启用规则",
+      "enableDescription": "保存后立即开始发送告警",
+      "cooldown": "冷却时间",
+      "decreaseCooldown": "冷却时间减少 {count} 分钟",
+      "increaseCooldown": "冷却时间增加 {count} 分钟",
+      "minutesUnit": "分钟",
+      "noCooldownLimit": "无限制——每次都会触发告警",
+      "cooldownLimit": "{count, plural, =1 {每个问题每分钟最多一条告警} other {每个问题每 # 分钟最多一条告警}}",
+      "fieldAlertType": "该告警类型",
+      "saveFailed": "保存规则失败",
+      "updated": "告警规则已更新",
+      "created": "告警规则已创建"
+    },
+    "integrationDialog": {
+      "name": "名称",
+      "enabled": "已启用",
+      "enabledDescription": "通过此集成接收告警"
+    },
+    "webhook": {
+      "titleNew": "配置 Webhook",
+      "titleEdit": "编辑 Webhook",
+      "description": "将 JSON 负载 POST 到外部 API 端点。在此指定目标 URL（全局默认值），或按告警规则指定覆盖值。",
+      "namePlaceholder": "例如：生产环境告警",
+      "urlLabel": "默认 URL（可选）",
+      "urlPlaceholder": "https://example.com/webhook",
+      "urlDescription": "留空则每个告警规则必须提供 URL 覆盖值。",
+      "secretLabel": "密钥（可选）",
+      "secretPlaceholder": "HMAC 签名密钥",
+      "secretDescription": "用于使用 HMAC-SHA256 对负载签名",
+      "create": "创建 Webhook",
+      "fieldUrl": "该 URL",
+      "fieldSecret": "该密钥",
+      "saveFailed": "保存 Webhook 失败",
+      "updated": "Webhook 已更新",
+      "created": "Webhook 已创建"
+    },
+    "slack": {
+      "titleNew": "添加 Slack 集成",
+      "titleEdit": "编辑 Slack 集成",
+      "description": "在此保存您的 Slack 凭据。创建告警规则时选择目标频道。",
+      "namePlaceholder": "例如：团队告警",
+      "methodLabel": "连接方式",
+      "incomingWebhook": "Incoming Webhook",
+      "botTokenTab": "Bot Token",
+      "webhookUrlLabel": "Webhook URL",
+      "webhookUrlPlaceholder": "https://hooks.slack.com/services/...",
+      "webhookUrlDescription": "在您的 Slack 应用设置中创建 incoming webhook。",
+      "tokenLabelSuffix": "（留空以保留现有值）",
+      "tokenPlaceholder": "xoxb-...",
+      "tokenDescription": "来自您的 Slack 应用、以 xoxb- 开头的 OAuth bot token。",
+      "sendTestTitle": "发送测试",
+      "testChannelPlaceholder": "#alerts",
+      "testChannelHint": "输入测试消息将要发送到的 Slack 频道。",
+      "testWebhookHint": "向已配置的 Webhook 发送测试消息。",
+      "addIntegration": "添加集成",
+      "fieldWebhookUrl": "该 Webhook URL",
+      "fieldToken": "该 bot token",
+      "saveFailed": "保存 Slack 集成失败",
+      "updated": "Slack 集成已更新",
+      "created": "Slack 集成已创建"
+    },
+    "email": {
+      "titleNew": "配置邮件（SMTP）",
+      "titleEdit": "编辑邮件集成",
+      "description": "在此保存 SMTP 凭据。创建告警规则时指定收件人。",
+      "namePlaceholder": "例如：邮件告警",
+      "hostLabel": "SMTP 主机",
+      "hostPlaceholder": "smtp.example.com",
+      "portLabel": "端口",
+      "portPlaceholder": "587",
+      "usernameLabel": "用户名（可选）",
+      "usernamePlaceholder": "username",
+      "passwordLabel": "密码（可选）",
+      "passwordPlaceholder": "••••••••",
+      "fromLabel": "发件地址",
+      "fromPlaceholder": "alerts@rustrak.local",
+      "sendTestTitle": "发送测试",
+      "testRecipientsAria": "测试收件人",
+      "testRecipientsPlaceholder": "test@example.com",
+      "testHintExisting": "多个地址用逗号分隔。测试使用您上次保存的 SMTP 设置，而不是上方未保存的修改。",
+      "testHintNew": "请先保存此集成再发送测试邮件。",
+      "create": "创建邮件集成",
+      "fieldHost": "该 SMTP 主机",
+      "fieldPort": "该 SMTP 端口",
+      "fieldUsername": "该 SMTP 用户名",
+      "fieldPassword": "该 SMTP 密码",
+      "fieldFrom": "该发件地址",
+      "saveFailed": "保存邮件集成失败",
+      "updated": "邮件集成已更新",
+      "created": "邮件集成已创建"
+    },
+    "integrations": {
+      "title": "告警通知",
+      "description": "检测到新问题时向外部服务发送告警。",
+      "configuredCount": "已配置 {count} 个",
+      "notConfigured": "未配置",
+      "connected": "已连接",
+      "disabled": "已禁用",
+      "configure": "配置",
+      "manage": "管理",
+      "configureAria": "配置 {name}",
+      "testFailed": "发送测试失败",
+      "testSent": "测试通知已发送",
+      "testFailedResult": "测试失败",
+      "deleteFailed": "删除集成失败",
+      "deleted": "集成已删除",
+      "deleteTitle": "删除集成",
+      "deleteDescription": "确定要删除 “{name}” 吗？此操作无法撤销，并将停止使用此集成的所有告警。"
+    },
+    "manage": {
+      "configuredCount": "已配置 {count} 个集成",
+      "edit": "编辑",
+      "deleteAria": "删除 {name}",
+      "close": "关闭",
+      "addProvider": "添加 {name}"
+    },
+    "table": {
+      "rule": "规则",
+      "trigger": "触发器",
+      "channels": "渠道",
+      "enabled": "已启用",
+      "actionsAria": "操作",
+      "enableAria": "启用 {name}",
+      "editAria": "编辑 {name}",
+      "deleteAria": "删除 {name}"
+    },
+    "settings": {
+      "title": "告警设置",
+      "description": "配置此项目何时发送通知。",
+      "addRule": "添加告警规则",
+      "noIntegrationsTitle": "尚未配置集成",
+      "noIntegrationsHint": "请先前往<link>设置 → 集成</link>添加集成。",
+      "noRulesTitle": "还没有告警规则",
+      "noRulesHint": "创建一条规则即可开始接收通知。",
+      "updateFailed": "更新规则失败",
+      "deleteFailed": "删除规则失败",
+      "deleted": "告警规则已删除",
+      "deleteRuleTitle": "删除告警规则",
+      "deleteRuleDescription": "确定要删除 “{name}” 吗？此操作无法撤销。"
+    },
+    "providers": {
+      "slack": {
+        "description": "通过 Webhook 或 Bot token 向 Slack 频道发送告警。"
+      },
+      "email": {
+        "description": "通过 SMTP 邮件向任意收件人发送告警。"
+      },
+      "webhook": {
+        "description": "将 JSON 负载 POST 到任意 HTTP 端点。"
+      }
+    },
+    "newIssue": {
+      "name": "新问题",
+      "description": "首次检测到新问题"
+    },
+    "regression": {
+      "name": "回归",
+      "description": "已解决的问题再次出现"
+    },
+    "unmute": {
+      "name": "取消静音",
+      "description": "被静音的问题解除静音"
+    }
+  },
+  "events": {
+    "breadcrumbs": {
+      "defaultCategory": "默认",
+      "empty": "没有可用的面包屑",
+      "viewMore": "查看更多 {count} 条"
+    },
+    "clipboardValueHint": "请手动选择该值进行复制，或通过 HTTPS 访问 Rustrak。",
+    "clipboardJsonHint": "请手动选择 JSON 进行复制，或通过 HTTPS 访问 Rustrak。",
+    "context": {
+      "empty": "没有可用的上下文数据",
+      "user": "用户",
+      "id": "ID",
+      "email": "邮箱",
+      "ipAddress": "IP 地址",
+      "packages": "依赖包"
+    },
+    "details": {
+      "yes": "是",
+      "no": "否",
+      "keyInformation": "关键信息",
+      "eventId": "事件 ID",
+      "issueId": "问题 ID",
+      "transaction": "事务",
+      "timestamp": "时间戳",
+      "ingestedAt": "接收时间",
+      "level": "级别",
+      "handled": "已处理",
+      "mechanism": "机制",
+      "logEntry": "日志条目",
+      "message": "消息",
+      "formatted": "格式化内容",
+      "params": "参数",
+      "deployment": "部署",
+      "platform": "平台",
+      "environment": "环境",
+      "release": "版本",
+      "serverName": "服务器名称",
+      "sdk": "SDK",
+      "name": "名称",
+      "version": "版本",
+      "request": "请求",
+      "method": "方法",
+      "url": "URL",
+      "queryString": "查询字符串",
+      "headers": "请求头",
+      "modules": "模块",
+      "extraData": "附加数据"
+    },
+    "highlights": {
+      "handled": "已处理",
+      "level": "级别",
+      "transaction": "事务",
+      "url": "URL",
+      "environment": "环境",
+      "release": "版本",
+      "runtime": "运行时",
+      "traceId": "追踪 ID"
+    },
+    "navigation": {
+      "previousEvent": "上一个事件",
+      "nextEvent": "下一个事件",
+      "position": "第 {current} 个，共 {total} 个",
+      "first": "最早",
+      "latest": "最新"
+    },
+    "tags": {
+      "emptyTitle": "此事件未找到标签",
+      "emptyHint": "标签是 Sentry SDK 附加到事件上的元数据",
+      "deployment": "部署",
+      "runtime": "运行时",
+      "device": "设备 / 浏览器",
+      "user": "用户",
+      "other": "其他标签",
+      "attachedCount": "此事件附有 {count} 个标签"
+    },
+    "rawJson": {
+      "copied": "已复制",
+      "copyJson": "复制 JSON"
+    },
+    "stackTrace": {
+      "empty": "没有可用的堆栈跟踪",
+      "emptyForThread": "此线程没有可用的堆栈跟踪",
+      "variables": "变量"
+    },
+    "copy": {
+      "plainText": "纯文本",
+      "json": "JSON"
+    },
+    "threads": {
+      "threadLabel": "线程 #{id}",
+      "crashedSuffix": "（已崩溃）",
+      "thread": "线程",
+      "crashed": "已崩溃",
+      "current": "当前",
+      "main": "主线程"
+    }
+  },
+  "releases": {
+    "all": "全部",
+    "empty": {
+      "title": "此时间范围内没有发布版本",
+      "hint": "请尝试更长的时间范围或清除筛选条件。"
+    },
+    "columns": {
+      "release": "版本"
+    },
+    "sessions": "会话",
+    "crashFree": "无崩溃",
+    "crashFreeSessions": "无崩溃会话",
+    "crashFreeUsers": "无崩溃用户",
+    "crashed": "崩溃",
+    "users": "用户",
+    "healthy": "健康",
+    "noSessionData": "没有会话数据",
+    "enableReleaseHealth": "在 SDK 中启用版本健康（release health）以跟踪无崩溃率",
+    "noTrendHistory": "历史数据不足，无法绘制趋势图",
+    "noSessionDataForPeriod": "此时间范围内没有会话数据"
+  },
+  "transactions": {
+    "columns": {
+      "transaction": "事务",
+      "duration": "耗时",
+      "lastSeen": "最近出现",
+      "count": "次数",
+      "failures": "失败"
+    },
+    "unnamed": "（未命名）",
+    "empty": {
+      "title": "暂无事务",
+      "sdkHint": "配置 SDK，设置 <code>tracesSampleRate</code> 即可开始捕获性能数据。"
+    },
+    "measurements": {
+      "lcp": "LCP",
+      "fcp": "FCP",
+      "fid": "FID",
+      "inp": "INP",
+      "ttfb": "TTFB",
+      "cls": "CLS"
+    },
+    "waterfall": {
+      "rootFallback": "事务",
+      "spanFallback": "跨度",
+      "expand": "展开",
+      "collapse": "折叠",
+      "detail": {
+        "op": "op",
+        "description": "描述",
+        "status": "状态",
+        "duration": "耗时",
+        "selfTime": "自身耗时",
+        "spanId": "span_id",
+        "parentSpanId": "parent_span_id"
+      }
+    }
+  },
+  "agents": {
+    "columns": {
+      "agents": "智能体",
+      "duration": "耗时",
+      "tokens": "令牌数",
+      "tools": "工具数"
+    },
+    "unnamedAgent": "（未命名智能体）",
+    "charts": {
+      "noData": "暂无数据",
+      "durationTooltip": "平均 {avg} · p95 {p95}"
+    },
+    "waterfall": {
+      "expand": "展开",
+      "collapse": "折叠",
+      "spanFallback": "跨度"
+    },
+    "empty": {
+      "noSpans": "此追踪没有跨度。"
+    },
+    "detail": {
+      "op": "op",
+      "description": "描述",
+      "status": "状态",
+      "duration": "耗时",
+      "selfTime": "自身耗时",
+      "spanId": "span_id",
+      "parentSpanId": "parent_span_id",
+      "operationType": "操作类型",
+      "agentName": "智能体名称",
+      "toolName": "工具名称",
+      "requestModel": "请求模型",
+      "responseModel": "响应模型",
+      "conversationId": "会话 ID",
+      "inputTokens": "输入令牌",
+      "outputTokens": "输出令牌",
+      "totalTokens": "总令牌数",
+      "genAiSection": "gen_ai"
+    }
+  },
+  "tokens": {
+    "create": {
+      "trigger": "新建令牌",
+      "createdTitle": "令牌已创建",
+      "createdDescription": "现在复制您的令牌，之后仍可从列表中获取。",
+      "copyTokenLabel": "复制新令牌",
+      "copyAgainHint": "您可以随时从令牌列表中再次复制此令牌。",
+      "done": "完成",
+      "title": "创建 API 令牌",
+      "description": "创建用于程序化 API 访问的新令牌。",
+      "descriptionLabel": "描述（可选）",
+      "descriptionPlaceholder": "例如：CI/CD 流水线",
+      "charCount": "{count}/{max} 个字符",
+      "descriptionTooLong": "描述最多只能有 {max} 个字符",
+      "cancel": "取消",
+      "creating": "正在创建...",
+      "submit": "创建令牌"
+    },
+    "copyTokenLabel": "复制令牌 {label}",
+    "deleteTokenLabel": "删除令牌 {label}",
+    "never": "从未",
+    "neverUsed": "从未使用",
+    "createdOn": "创建于 {date}",
+    "usedOn": "使用于 {time}",
+    "columns": {
+      "token": "令牌",
+      "description": "描述",
+      "created": "创建时间",
+      "lastUsed": "上次使用"
+    },
+    "actionsLabel": "操作",
+    "toasts": {
+      "createFailed": "创建令牌失败",
+      "created": "令牌已创建",
+      "createdHint": "请务必立即复制您的令牌。",
+      "deleted": "令牌已删除",
+      "deleteFailed": "删除令牌失败",
+      "getFailed": "获取令牌失败",
+      "copied": "令牌已复制到剪贴板",
+      "copyTitle": "复制令牌"
+    },
+    "empty": {
+      "title": "暂无 API 令牌",
+      "createFirst": "创建您的第一个令牌"
+    },
+    "list": {
+      "title": "您的令牌",
+      "description": "令牌用于对 API 请求进行身份验证"
+    },
+    "deleteDialog": {
+      "title": "删除令牌？",
+      "description": "这将永久删除此令牌，使用它的服务将立即失去访问权限，且无法撤销。",
+      "cancel": "取消",
+      "deleting": "正在删除...",
+      "confirm": "删除"
+    }
+  },
+  "storage": {
+    "period": "早于 {count} 天",
+    "type": {
+      "events": "错误",
+      "transactions": "事务",
+      "logs": "日志"
+    },
+    "line": {
+      "emptyIssues": "空问题",
+      "spans": "跨度"
+    },
+    "allProjects": "所有项目",
+    "retentionPeriodLabel": "保留期",
+    "projectScopeLabel": "项目范围",
+    "dataLabel": "数据",
+    "cleanup": {
+      "title": "清理旧数据",
+      "description": "永久删除早于所选时间段的数据。请先预览——此操作无法撤销。"
+    },
+    "working": "处理中…",
+    "preview": "预览",
+    "nothingMatches": "此选择 {period} 下 {scope} 没有匹配的数据——无需删除。",
+    "wouldRemove": "此清理将删除",
+    "deleteTrigger": "永久删除",
+    "deleteRowsTitle": "删除 {count} 行？",
+    "deleteRowsDescription": "这将永久删除 {scope} 中 {period} 的所选数据，且无法撤销。",
+    "cancel": "取消",
+    "deleting": "正在删除…",
+    "deleteAction": "永久删除",
+    "toasts": {
+      "previewFailed": "无法预览清理",
+      "cleanupFailed": "清理失败",
+      "removed": "已删除 {parts}",
+      "nothingRemoved": "没有匹配的数据——未删除任何数据",
+      "sourceMapPreviewFailed": "无法预览源映射清理",
+      "gcFailed": "源映射清理失败",
+      "sourceMapsRemoved": "已删除 {count} 个孤立源映射（释放 {freed}）"
+    },
+    "unit": {
+      "errors": "{count} 个错误",
+      "transactions": "{count} 个事务",
+      "spans": "{count} 个跨度",
+      "logs": "{count} 条日志",
+      "emptyIssues": "{count} 个空问题"
+    },
+    "sourceMaps": {
+      "title": "孤立源映射",
+      "description": "删除不再被任何上传引用的源映射文件——例如项目删除后遗留的文件。请先预览；被引用的文件绝不会被改动。",
+      "nothingToClean": "没有孤立源映射——无需清理。",
+      "wouldRemove": "此清理将删除：",
+      "fileCount": "{count} 个孤立源映射",
+      "freed": "释放 {bytes}",
+      "removeAction": "删除孤立源映射",
+      "removeTitle": "删除 {count} 个孤立源映射？",
+      "removeDescription": "这将从数据库和磁盘中永久删除 {count} 个未被任何上传引用的源映射文件（{bytes}）。被引用的文件不受影响。"
+    },
+    "removing": "正在删除…",
+    "remove": "删除"
+  },
+  "errors": {
+    "notFound": {
+      "meta": {
+        "title": "未找到 | Rustrak"
+      },
+      "brandStatement": "这里什么都没有",
+      "brandDescription": "到达此页面的过程中没有发生任何故障。服务器响应正常，只是这个地址下没有内容。",
+      "headline": "页面未找到",
+      "description": "此地址与当前 Rustrak 实例中的任何页面都不匹配。",
+      "guidance": "如果您是从 Rustrak 内部的链接跳转过来的，它所指向的项目、问题或事件可能已被删除。"
+    },
+    "goToProjects": "前往项目",
+    "errorId": "错误 ID：{id}",
+    "tryAgain": "重试",
+    "global": {
+      "headline": "出了点问题",
+      "description": "此页面无法渲染。故障发生在仪表盘本身，而非您的数据，数据未受影响。",
+      "guidance": "如果重新加载后再次出现，下方的错误 ID 可用于在日志中定位这次具体的故障。"
+    },
+    "main": {
+      "headline": "此页面无法加载",
+      "description": "故障发生在渲染过程中，而非您的数据。仪表盘中的其他内容仍可通过上方导航访问。"
+    }
+  },
+  "auth": {
+    "meta": {
+      "title": "登录 | Rustrak",
+      "description": "登录您的 Rustrak 账户"
+    },
+    "heroTitle": "欢迎回到 Rustrak",
+    "heroDescription": "轻量级、可自托管的错误跟踪。访问您的仪表盘，监控系统健康状况并解决关键事件。",
+    "statMemoryFootprint": "内存占用",
+    "statIngestionLatency": "摄取延迟",
+    "statEventsPerSecond": "事件数/秒",
+    "form": {
+      "title": "登录",
+      "subtitle": "输入您的凭据以访问平台。",
+      "emailLabel": "电子邮件地址",
+      "emailPlaceholder": "name@company.com",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "请输入密码",
+      "hidePassword": "隐藏密码",
+      "showPassword": "显示密码",
+      "signingIn": "登录中...",
+      "login": "登录",
+      "invalidCredentials": "电子邮件或密码无效",
+      "failureNetwork": "无法连接服务器。请检查您的网络连接后重试。",
+      "failureRateLimited": "登录尝试次数过多。请等待约 {duration} 后再试。",
+      "failureRateLimitedGeneric": "登录尝试次数过多。请等待几分钟后再试。",
+      "failureUnexpected": "发生意外错误，请重试。",
+      "emailInvalid": "请输入有效的电子邮件地址",
+      "passwordRequired": "密码为必填项",
+      "waitSeconds": "{count} 秒",
+      "waitMinutes": "{count} 分钟",
+      "waitHours": "{count} 小时"
+    }
+  },
+  "invite": {
+    "meta": {
+      "title": "接受邀请 | Rustrak",
+      "description": "接受邀请加入 Rustrak"
+    },
+    "form": {
+      "title": "接受邀请",
+      "subtitle": "设置密码以完成账户创建。",
+      "emailLabel": "电子邮件",
+      "passwordLabel": "密码",
+      "passwordPlaceholder": "选择密码",
+      "confirmLabel": "确认密码",
+      "confirmPlaceholder": "重新输入密码",
+      "creating": "正在创建账户...",
+      "accept": "接受并继续",
+      "passwordRequired": "密码为必填项",
+      "confirmRequired": "请确认您的密码",
+      "passwordsMismatch": "两次输入的密码不一致"
+    },
+    "unavailable": {
+      "brandStatement": "链接会过期",
+      "brandDescription": "邀请链接为一次性且限时有效，一旦被接受或超过有效期即失效。到达此处并无故障发生。",
+      "headline": "邀请不可用",
+      "description": "此邀请链接无效、已过期或已被使用。",
+      "guidance": "请联系管理员为您发送新的邀请。如果您已接受过邀请，请直接登录。",
+      "goToLogin": "前往登录"
+    }
+  },
+  "projectPages": {
+    "projectNotFound": "未找到项目 | Rustrak",
+    "projectTitle": "{project} | Rustrak",
+    "loadProjectFailed": "无法加载项目",
+    "loadIssueFailed": "无法加载问题",
+    "spanCount": "{count} 个跨度",
+    "projectsList": {
+      "meta": {
+        "title": "项目 | Rustrak",
+        "description": "管理您的 Rustrak 项目"
+      },
+      "title": "项目",
+      "subtitle": "管理您的错误跟踪项目",
+      "newProject": "新建项目",
+      "loadFailed": "无法加载项目"
+    },
+    "newProject": {
+      "meta": {
+        "title": "新建项目 | Rustrak",
+        "description": "创建新的 Rustrak 项目"
+      },
+      "backToProjects": "返回项目列表",
+      "title": "创建新项目",
+      "subtitle": "选择您要监控的平台。完成后您将立即获得 DSN 和接入代码片段。"
+    },
+    "overview": {
+      "meta": {
+        "description": "{project} 概览"
+      },
+      "periodAll": "全部",
+      "errorVolume": "按严重程度统计的错误量",
+      "events": "事件数",
+      "newIssues": "新问题",
+      "openIssues": "{count} 个未解决",
+      "crashFreeSessions": "无崩溃会话",
+      "sessionHealth": "会话健康",
+      "sessionHealthSubtitle": "健康与崩溃会话随时间的变化",
+      "latency": "延迟",
+      "latencySubtitle": "按 p95 统计的最慢事务（全部时间）",
+      "topIssues": "热门问题",
+      "topIssuesSubtitle": "按事件总数统计的未解决问题（全部时间）",
+      "noIssuesYet": "暂无问题"
+    },
+    "issues": {
+      "meta": {
+        "description": "{project} 的问题"
+      },
+      "title": "问题",
+      "subtitle": "{project} 的未解决问题",
+      "loadFailed": "无法加载问题",
+      "loadLatestEventFailed": "无法加载最新事件"
+    },
+    "logs": {
+      "meta": {
+        "title": "日志 | {project} | Rustrak",
+        "description": "{project} 的结构化日志"
+      },
+      "title": "日志",
+      "subtitle": "{project} 的结构化日志，最新优先",
+      "loadFailed": "无法加载日志",
+      "emptyTitle": "暂无日志",
+      "emptyDescription": "使用您的 SDK 发送结构化日志（例如 <code>Sentry.logger.info(...)</code>），即可在此开始收集。"
+    },
+    "performance": {
+      "meta": {
+        "title": "性能 | {project} | Rustrak",
+        "description": "{project} 的事务性能"
+      },
+      "title": "性能",
+      "subtitle": "{project} 的事务，按名称和操作分组",
+      "loadFailed": "无法加载事务",
+      "emptyTitle": "暂无事务",
+      "emptyDescription": "在 SDK 中配置 <code>tracesSampleRate</code> 以开始采集性能数据。",
+      "backLink": "性能"
+    },
+    "transaction": {
+      "meta": {
+        "title": "{name} | 性能 | Rustrak",
+        "fallbackTitle": "事务 | Rustrak"
+      },
+      "loadFailed": "无法加载事务",
+      "unnamed": "（未命名事务）",
+      "spans": "跨度",
+      "noSpans": "此事务没有跨度。",
+      "tags": "标签",
+      "request": "请求",
+      "user": "用户"
+    },
+    "summary": {
+      "meta": {
+        "title": "{name} | 性能 | Rustrak",
+        "fallbackName": "事务"
+      },
+      "metricCount": "次数",
+      "metricP50": "p50",
+      "metricP95": "p95",
+      "metricP99": "p99",
+      "metricFailureRate": "失败率",
+      "samples": "样本"
+    },
+    "releases": {
+      "meta": {
+        "title": "版本 | {project} | Rustrak",
+        "description": "{project} 的版本健康"
+      },
+      "title": "版本",
+      "subtitle": "{project} 各版本的会话健康",
+      "loadFailed": "无法加载版本健康数据",
+      "emptyTitle": "暂无版本",
+      "emptyDescription": "在事件或会话中附带 <code>release</code> 属性，即可开始跟踪版本健康。"
+    },
+    "releaseDetail": {
+      "meta": {
+        "title": "{release} | {project} | Rustrak",
+        "description": "{release} 的版本健康"
+      },
+      "loadFailed": "无法加载此版本",
+      "subtitle": "{project} 的版本健康",
+      "newIssues": "新问题",
+      "newIssuesEmpty": "此版本未引入新问题",
+      "loadNewIssuesFailed": "无法加载新问题"
+    },
+    "agents": {
+      "meta": {
+        "title": "智能体 | {project} | Rustrak",
+        "description": "{project} 的 AI 智能体监控"
+      },
+      "title": "智能体",
+      "subtitle": "{project} 的 AI 智能体运行、令牌与工具使用情况",
+      "loadFailed": "无法加载智能体活动",
+      "emptyTitle": "暂无智能体活动",
+      "emptyDescription": "使用遵循 OpenTelemetry GenAI 语义约定的 Sentry SDK 为您的 AI 智能体接入监控，即可开始采集智能体运行数据。",
+      "cardRuns": "智能体运行",
+      "cardRunsDescription": "每个时间间隔启动的运行",
+      "cardDuration": "耗时",
+      "cardDurationDescription": "智能体运行的平均耗时与 p95 耗时",
+      "cardModelsByCalls": "各模型的 LLM 调用次数",
+      "cardModelsByCallsDescription": "按调用次数排名靠前的模型",
+      "cardModelsByTokens": "各模型的令牌用量",
+      "cardModelsByTokensDescription": "按令牌用量排名靠前的模型",
+      "cardTools": "各工具的调用次数",
+      "cardToolsDescription": "按调用次数排名靠前的工具",
+      "cardTraces": "追踪",
+      "cardTracesDescription": "每个追踪一行，汇总其包含的所有 AI 跨度"
+    },
+    "trace": {
+      "meta": {
+        "title": "{traceId} | 智能体 | Rustrak"
+      },
+      "loadFailed": "无法加载追踪",
+      "backLink": "智能体",
+      "unnamed": "（未命名智能体）",
+      "tokens": "{count} 个令牌",
+      "toolCalls": "{count} 次工具调用",
+      "spans": "跨度"
+    },
+    "event": {
+      "meta": {
+        "eventNotFound": "未找到事件 | Rustrak",
+        "description": "事件详情",
+        "issueNotFound": "未找到问题 | Rustrak",
+        "noEvents": "无事件 | {issue} | Rustrak"
+      },
+      "loadFailed": "无法加载事件",
+      "loadNavigationFailed": "无法加载此问题中的事件",
+      "lastSeen": "最后出现",
+      "firstSeen": "首次出现",
+      "inRelease": "发布于 <rel>{release}</rel>",
+      "events": "事件数",
+      "users": "用户数",
+      "eventsTotal": "事件数（总计）",
+      "noEventData": "无事件数据",
+      "tags": "标签",
+      "noTags": "无标签",
+      "inThisIssue": "在此问题中",
+      "idLabel": "ID：",
+      "jumpTo": "跳转到：",
+      "details": "详情",
+      "sectionHighlights": "亮点",
+      "sectionStackTrace": "堆栈跟踪",
+      "sectionBreadcrumbs": "面包屑",
+      "sectionContext": "上下文",
+      "sectionDetails": "事件详情",
+      "sectionRawJson": "原始 JSON",
+      "sectionTags": "标签",
+      "formatPlainText": "纯文本",
+      "formatJson": "JSON",
+      "noEventsYet": "暂无事件",
+      "noEventsDescription": "此问题已创建，但尚未记录任何事件。一旦您的应用发送事件，它们就会显示在这里。"
+    }
+  },
+  "settings": {
+    "meta": {
+      "description": "管理您的 Rustrak 设置"
+    },
+    "nav": {
+      "groupProject": "项目",
+      "groupSdkSetup": "SDK 接入",
+      "general": "常规",
+      "alerts": "告警",
+      "members": "成员",
+      "clientKeys": "客户端密钥",
+      "apiTokens": "API 令牌",
+      "integrations": "集成",
+      "team": "团队",
+      "storage": "存储",
+      "account": "账户",
+      "appearance": "外观",
+      "about": "关于",
+      "openProjectSettingsMenu": "打开项目设置菜单",
+      "projectSettingsTitle": "项目设置",
+      "openSettingsMenu": "打开设置菜单",
+      "settingsTitle": "设置"
+    },
+    "loadProjectFailed": "无法加载项目",
+    "loadProjectsFailed": "无法加载项目",
+    "notAuthorized": "未授权",
+    "general": {
+      "meta": {
+        "title": "常规设置 | Rustrak"
+      },
+      "title": "常规设置",
+      "subtitle": "配置您的项目并查看集成详情。"
+    },
+    "clientKeys": {
+      "meta": {
+        "title": "客户端密钥 | Rustrak"
+      },
+      "title": "客户端密钥（DSN）",
+      "subtitle": "将应用连接到该项目。"
+    },
+    "alerts": {
+      "meta": {
+        "title": "告警设置 | Rustrak"
+      },
+      "loadFailed": "无法加载告警设置"
+    },
+    "members": {
+      "meta": {
+        "title": "项目成员 | Rustrak"
+      },
+      "loadFailed": "无法加载项目成员"
+    },
+    "tokens": {
+      "meta": {
+        "title": "API 令牌 | Rustrak",
+        "description": "管理您的 API 令牌"
+      },
+      "title": "API 令牌",
+      "subtitle": "管理用于程序化访问的 API 令牌",
+      "loadFailed": "无法加载 API 令牌",
+      "apiReference": "API 参考",
+      "apiReferenceDescription": "所有端点、身份认证及请求示例的完整文档"
+    },
+    "team": {
+      "meta": {
+        "title": "团队 | Rustrak",
+        "description": "管理您的团队成员和邀请"
+      },
+      "title": "团队",
+      "subtitle": "管理您的团队成员和邀请",
+      "notAuthorizedDescription": "只有实例管理员可以管理团队。如需访问权限，请联系管理员。",
+      "loadFailed": "无法加载团队"
+    },
+    "integrations": {
+      "meta": {
+        "title": "集成 | Rustrak",
+        "description": "将 Rustrak 与您的工具和服务集成"
+      },
+      "title": "集成",
+      "subtitle": "将 Rustrak 与您的工具和服务集成，以自动化工作流并及时掌握错误动态。",
+      "loadFailed": "无法加载集成"
+    },
+    "storage": {
+      "meta": {
+        "title": "存储 | Rustrak",
+        "description": "存储用量与数据保留"
+      },
+      "title": "存储",
+      "subtitle": "查看 Rustrak 存储了哪些数据，并通过清理旧数据释放空间",
+      "notAuthorizedDescription": "只有实例管理员可以查看存储用量并执行清理。如需访问权限，请联系管理员。",
+      "loadSummaryFailed": "无法读取存储用量",
+      "dbSize": "数据库大小",
+      "eventsCount": "{count} 个事件",
+      "transactions": "事务",
+      "spansCount": "{count} 个跨度",
+      "spans": "跨度",
+      "spansSub": "来自事务的索引",
+      "logs": "日志",
+      "logsSub": "结构化日志记录",
+      "sourceMaps": "源映射",
+      "sourceMapsFiles": "{count} 个文件",
+      "loadBreakdownFailed": "无法读取各项目明细",
+      "byProject": "按项目",
+      "byProjectDescription": "各项目持有数据的数量与估算体积",
+      "noProjects": "暂无项目。",
+      "project": "项目",
+      "events": "事件数",
+      "estSize": "估算大小"
+    },
+    "account": {
+      "meta": {
+        "title": "账户 | Rustrak",
+        "description": "管理您的账户设置"
+      },
+      "title": "账户",
+      "subtitle": "管理您的账户信息",
+      "profile": "个人资料",
+      "profileDescription": "您的账户信息",
+      "email": "电子邮件",
+      "role": "角色",
+      "administrator": "管理员"
+    },
+    "appearance": {
+      "meta": {
+        "title": "外观 | Rustrak",
+        "description": "自定义 Rustrak 的外观"
+      },
+      "title": "外观",
+      "subtitle": "自定义 Rustrak 在您设备上的显示效果",
+      "theme": "主题",
+      "themeDescription": "选择您偏好的配色方案"
+    },
+    "about": {
+      "meta": {
+        "title": "关于 | Rustrak",
+        "description": "关于 Rustrak 错误跟踪系统"
+      },
+      "title": "关于",
+      "subtitle": "有关您的 Rustrak 安装的信息",
+      "cardDescription": "轻量级错误跟踪系统",
+      "webviewVersion": "WebView 版本",
+      "serverVersion": "服务器版本",
+      "notReported": "未上报",
+      "couldNotRead": "无法读取",
+      "environment": "环境",
+      "serverVersionUnknown": "在服务器响应之前无法获知版本号；此处不显示任何内容。",
+      "links": "链接",
+      "githubRepository": "GitHub 仓库",
+      "reportAnIssue": "报告问题",
+      "sentryDocs": "Sentry SDK 文档"
+    }
+  }
+}

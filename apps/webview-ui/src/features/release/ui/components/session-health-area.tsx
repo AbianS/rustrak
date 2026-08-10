@@ -2,6 +2,7 @@
 
 import type { SessionTimeseries } from '@rustrak/client';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -29,8 +30,8 @@ import {
 } from '@/shared/ui/components/chart-tooltip';
 
 const SERIES = [
-  { key: 'crashed', label: 'Crashed', color: 'var(--sev-error)' },
-  { key: 'healthy', label: 'Healthy', color: 'var(--chart-3)' },
+  { key: 'crashed', labelKey: 'crashed', color: 'var(--sev-error)' },
+  { key: 'healthy', labelKey: 'healthy', color: 'var(--chart-3)' },
 ] as const;
 
 interface ChartPoint {
@@ -44,6 +45,7 @@ function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
 }) {
+  const t = useTranslations('releases');
   const { active, payload } = props;
   if (!active || !payload?.length) {
     return null;
@@ -52,12 +54,12 @@ function ChartTooltip(props: {
 
   return (
     <ChartTooltipSurface>
-      <ChartTooltipRow label="Sessions" value={exactCount(point.total)} />
+      <ChartTooltipRow label={t('sessions')} value={exactCount(point.total)} />
       {SERIES.map((series) => (
         <ChartTooltipRow
           key={series.key}
           color={series.color}
-          label={series.label}
+          label={t(series.labelKey)}
           value={exactCount(point[series.key])}
         />
       ))}
@@ -85,6 +87,7 @@ export function SessionHealthArea({
   data,
   height = 180,
 }: SessionHealthAreaProps) {
+  const t = useTranslations('releases');
   const chartData: ChartPoint[] = data.map((point) => ({
     t: new Date(point.bucket).getTime(),
     total: point.total,
@@ -98,7 +101,7 @@ export function SessionHealthArea({
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No session data for this period
+        {t('noSessionDataForPeriod')}
       </div>
     );
   }
@@ -150,7 +153,9 @@ export function SessionHealthArea({
           ))}
         </AreaChart>
       </ResponsiveContainer>
-      <ChartLegend items={SERIES.map((s) => ({ ...s }))} />
+      <ChartLegend
+        items={SERIES.map((s) => ({ label: t(s.labelKey), color: s.color }))}
+      />
     </div>
   );
 }

@@ -1,3 +1,5 @@
+import { getTranslations } from 'next-intl/server';
+
 interface EventContextProps {
   contexts?: Record<string, Record<string, unknown>>;
   modules?: Record<string, string>;
@@ -8,7 +10,12 @@ interface EventContextProps {
   };
 }
 
-export function EventContext({ contexts, modules, user }: EventContextProps) {
+export async function EventContext({
+  contexts,
+  modules,
+  user,
+}: EventContextProps) {
+  const t = await getTranslations('events');
   const hasContexts = contexts && Object.keys(contexts).length > 0;
   const hasModules = modules && Object.keys(modules).length > 0;
   const hasUser = user && (user.id || user.email || user.ip_address);
@@ -16,7 +23,7 @@ export function EventContext({ contexts, modules, user }: EventContextProps) {
   if (!hasContexts && !hasModules && !hasUser) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        No context data available
+        {t('context.empty')}
       </div>
     );
   }
@@ -25,12 +32,17 @@ export function EventContext({ contexts, modules, user }: EventContextProps) {
     <div className="space-y-6">
       {/* User Context */}
       {hasUser && (
-        <ContextSection title="User">
+        <ContextSection title={t('context.user')}>
           <div className="grid grid-cols-2 gap-4">
-            {user.id && <ContextItem label="ID" value={user.id} />}
-            {user.email && <ContextItem label="Email" value={user.email} />}
+            {user.id && <ContextItem label={t('context.id')} value={user.id} />}
+            {user.email && (
+              <ContextItem label={t('context.email')} value={user.email} />
+            )}
             {user.ip_address && (
-              <ContextItem label="IP Address" value={user.ip_address} />
+              <ContextItem
+                label={t('context.ipAddress')}
+                value={user.ip_address}
+              />
             )}
           </div>
         </ContextSection>
@@ -54,7 +66,7 @@ export function EventContext({ contexts, modules, user }: EventContextProps) {
 
       {/* Packages (dependency versions running at capture time) */}
       {hasModules && (
-        <ContextSection title="Packages">
+        <ContextSection title={t('context.packages')}>
           <div className="grid grid-cols-2 gap-4">
             {Object.entries(modules)
               .sort(([a], [b]) => a.localeCompare(b))

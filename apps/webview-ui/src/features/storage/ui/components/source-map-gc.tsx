@@ -2,13 +2,14 @@
 
 import type { SourceMapGcResult } from '@rustrak/client';
 import { FileCode2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   gcStorageSourceMaps,
   previewStorageSourceMapGc,
 } from '@/features/storage/api/mutations';
+import { useRouter } from '@/i18n/navigation';
 import { formatBytes } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -31,6 +32,7 @@ import {
 } from '@/shared/ui/components/shadcn/card';
 
 export function SourceMapGc() {
+  const t = useTranslations('storage');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [preview, setPreview] = useState<SourceMapGcResult | null>(null);
@@ -40,7 +42,7 @@ export function SourceMapGc() {
       const result = await previewStorageSourceMapGc();
 
       if (!result.success) {
-        toast.error('Could not preview source-map cleanup', {
+        toast.error(t('toasts.sourceMapPreviewFailed'), {
           description: result.error.message,
         });
         return;
@@ -55,14 +57,17 @@ export function SourceMapGc() {
       const result = await gcStorageSourceMaps();
 
       if (!result.success) {
-        toast.error('Source-map cleanup failed', {
+        toast.error(t('toasts.gcFailed'), {
           description: result.error.message,
         });
         return;
       }
 
       toast.success(
-        `Removed ${result.data.files_removed.toLocaleString()} orphaned source maps (${formatBytes(result.data.bytes_freed)} freed)`,
+        t('toasts.sourceMapsRemoved', {
+          count: result.data.files_removed,
+          freed: formatBytes(result.data.bytes_freed),
+        }),
       );
       setPreview(null);
       router.refresh();
@@ -76,13 +81,9 @@ export function SourceMapGc() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileCode2 className="size-4" />
-          Orphaned source maps
+          {t('sourceMaps.title')}
         </CardTitle>
-        <CardDescription>
-          Remove source-map files no longer referenced by any upload — for
-          example, files left behind when a project was deleted. Preview first;
-          referenced files are never touched.
-        </CardDescription>
+        <CardDescription>{t('sourceMaps.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Button
@@ -91,24 +92,31 @@ export function SourceMapGc() {
           onClick={handlePreview}
           disabled={isPending}
         >
-          {isPending ? 'Working…' : 'Preview'}
+          {isPending ? t('working') : t('preview')}
         </Button>
 
         {preview !== null && (
           <div className="rounded-md border bg-muted/40 p-4 text-sm">
             {nothingToClean ? (
               <p className="text-muted-foreground">
-                No orphaned source maps — nothing to clean up.
+                {t('sourceMaps.nothingToClean')}
               </p>
             ) : (
               <>
-                <p className="font-semibold mb-1">This cleanup would remove:</p>
+                <p className="font-semibold mb-1">
+                  {t('sourceMaps.wouldRemove')}
+                </p>
                 <ul className="text-muted-foreground space-y-0.5 tabular-nums">
                   <li>
-                    {preview.files_removed.toLocaleString()} orphaned source
-                    maps
+                    {t('sourceMaps.fileCount', {
+                      count: preview.files_removed,
+                    })}
                   </li>
-                  <li>{formatBytes(preview.bytes_freed)} freed</li>
+                  <li>
+                    {t('sourceMaps.freed', {
+                      bytes: formatBytes(preview.bytes_freed),
+                    })}
+                  </li>
                 </ul>
 
                 <AlertDialog>
@@ -122,32 +130,32 @@ export function SourceMapGc() {
                     }
                   >
                     <FileCode2 className="mr-2 size-4" />
-                    Remove orphaned source maps
+                    {t('sourceMaps.removeAction')}
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>
-                        Remove {preview.files_removed.toLocaleString()} orphaned
-                        source maps?
+                        {t('sourceMaps.removeTitle', {
+                          count: preview.files_removed,
+                        })}
                       </AlertDialogTitle>
                       <AlertDialogDescription>
-                        This permanently deletes{' '}
-                        {preview.files_removed.toLocaleString()} source-map
-                        files ({formatBytes(preview.bytes_freed)}) that no
-                        upload references, from the database and disk.
-                        Referenced files are not affected.
+                        {t('sourceMaps.removeDescription', {
+                          count: preview.files_removed,
+                          bytes: formatBytes(preview.bytes_freed),
+                        })}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={isPending}>
-                        Cancel
+                        {t('cancel')}
                       </AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleGc}
                         disabled={isPending}
                         className="bg-destructive text-white hover:bg-destructive/90"
                       >
-                        {isPending ? 'Removing…' : 'Remove'}
+                        {isPending ? t('removing') : t('remove')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>

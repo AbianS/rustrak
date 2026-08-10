@@ -1,6 +1,7 @@
 'use client';
 
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -24,6 +25,7 @@ function ChartTooltip(props: {
   payload?: Array<{ payload: { t: number; count: number } }>;
 }) {
   const { active, payload } = props;
+  const t = useTranslations('charts');
   if (!active || !payload?.length) {
     return null;
   }
@@ -31,7 +33,7 @@ function ChartTooltip(props: {
   return (
     <div className="rounded-md border bg-popover px-2.5 py-1.5 text-xs shadow-md">
       <p className="font-medium text-popover-foreground">
-        {point.count.toLocaleString()} event{point.count === 1 ? '' : 's'}
+        {t('eventCount', { count: point.count })}
       </p>
       <p className="text-muted-foreground">{format(new Date(point.t), 'PP')}</p>
     </div>

@@ -1,0 +1,183 @@
+import type {
+  OffsetPaginatedResponse,
+  Result,
+  RustrakError,
+  Span,
+} from '@rustrak/client';
+import { Ok } from '@rustrak/client';
+import { ArrowLeft } from 'lucide-react';
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
+import { listSpans } from '@/features/agent-trace/api/queries';
+import { AgentTraceWaterfall } from '@/features/agent-trace/ui/components/agent-trace-waterfall';
+import { getProject } from '@/features/project/api/queries';
+import { Link } from '@/i18n/navigation';
+import { loadAll } from '@/shared/lib/results';
+import { LoadFailure } from '@/shared/ui/components/load-failure';
+import { Badge } from '@/shared/ui/components/shadcn/badge';
+
+interface AgentTraceDetailPageProps {
+  params: Promise<{ id: string; traceId: string }>;
+}
+
+export async function generateMetadata({
+  params,
+}: AgentTraceDetailPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
+  const { traceId } = await params;
+  return { title: t('trace.meta.title', { traceId }) };
+}
+
+const PER_PAGE = 100;
+
+/**
+ * A trace can hold more spans than one page: the totals and the waterfall are
+ * only correct over the whole trace, so pull the remaining pages too.
+ */
+async function collectAllSpans(
+  projectId: number,
+  traceId: string,
+  firstPage: OffsetPaginatedResponse<Span>,
+): Promise<Result<Span[], RustrakError>> {
+  if (firstPage.total_pages <= 1) {
+    return Ok(firstPage.items);
+  }
+
+  const rest = await Promise.all(
+    Array.from({ length: firstPage.total_pages - 1 }, (_, i) =>
+      listSpans(projectId, {
+        trace_id: traceId,
+        per_page: PER_PAGE,
+        page: i + 2,
+      }),
+    ),
+  );
+
+  const spans = [...firstPage.items];
+
+  for (const page of rest) {
+    // A missing page is not an empty page: the waterfall's timings are only
+    // correct over the whole trace, so a partial set would draw a plausible
+    // and wrong picture.
+    if (!page.success) {
+      return page;
+    }
+    spans.push(...page.data.items);
+  }
+
+  return Ok(spans);
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms == null) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+export default async function AgentTraceDetailPage({
+  params,
+}: AgentTraceDetailPageProps) {
+  const t = await getTranslations('projectPages');
+  const { id, traceId } = await params;
+  const projectId = parseInt(id, 10);
+
+  const loaded = await loadAll([
+    getProject(projectId),
+    listSpans(projectId, { trace_id: traceId, per_page: PER_PAGE }),
+  ]);
+
+  if (!loaded.success) {
+    return <LoadFailure error={loaded.error} title={t('trace.loadFailed')} />;
+  }
+
+  const [, spansResponse] = loaded.data;
+  const collected = await collectAllSpans(projectId, traceId, spansResponse);
+
+  if (!collected.success) {
+    return (
+      <LoadFailure error={collected.error} title={t('trace.loadFailed')} />
+    );
+  }
+
+  const spans = collected.data;
+
+  if (spans.length === 0) {
+    notFound();
+  }
+
+  const agentName = spans.find((s) => s.gen_ai_agent_name)?.gen_ai_agent_name;
+  const starts = spans
+    .map((s) => (s.start_timestamp ? Date.parse(s.start_timestamp) : null))
+    .filter((v): v is number => v != null);
+  const ends = spans
+    .map((s) => (s.timestamp ? Date.parse(s.timestamp) : null))
+    .filter((v): v is number => v != null);
+  const duration =
+    starts.length > 0 && ends.length > 0
+      ? Math.max(...ends) - Math.min(...starts)
+      : null;
+  // Agent spans aggregate their children's usage, so including them here
+  // would count the same tokens twice — the Traces query excludes them too.
+  const totalTokens = spans
+    .filter((s) => s.gen_ai_operation_type !== 'agent')
+    .reduce((sum, s) => sum + (s.gen_ai_usage_total_tokens ?? 0), 0);
+  const toolCallCount = spans.filter(
+    (s) => s.gen_ai_operation_type === 'tool',
+  ).length;
+  const startedAt = starts.length > 0 ? Math.min(...starts) : null;
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-64px)]">
+      <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
+        <Link
+          href={`/projects/${projectId}/agents`}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
+        >
+          <ArrowLeft className="size-4" />
+          {t('trace.backLink')}
+        </Link>
+        <h1 className="font-mono text-lg font-semibold break-all">
+          {agentName || t('trace.unnamed')}
+        </h1>
+        <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
+          <span className="font-mono font-semibold">
+            {formatDuration(duration)}
+          </span>
+          <Badge variant="secondary">
+            {t('trace.tokens', { count: totalTokens.toLocaleString() })}
+          </Badge>
+          {toolCallCount > 0 && (
+            <Badge variant="outline">
+              {t('trace.toolCalls', { count: toolCallCount })}
+            </Badge>
+          )}
+          {startedAt != null && (
+            <span className="text-xs text-muted-foreground">
+              {new Date(startedAt).toLocaleString()}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground font-mono truncate">
+          {traceId}
+        </p>
+      </div>
+
+      <div className="flex-1 overflow-auto w-full px-4 md:px-8 py-4 md:py-6">
+        <section className="rounded-lg border">
+          <div className="border-b px-4 py-2.5 flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              {t('trace.spans')}
+            </h2>
+            <span className="text-xs text-muted-foreground">
+              {t('spanCount', { count: spans.length })}
+            </span>
+          </div>
+          <div className="p-3">
+            <AgentTraceWaterfall spans={spans} />
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

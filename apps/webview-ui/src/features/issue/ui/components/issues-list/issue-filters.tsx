@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   Tabs,
   TabsList,
@@ -7,10 +8,10 @@ import {
 } from '@/shared/ui/components/shadcn/tabs';
 
 const FILTERS = [
-  { value: 'open', label: 'Open' },
-  { value: 'resolved', label: 'Resolved' },
-  { value: 'ignored', label: 'Muted' },
-  { value: 'all', label: 'All' },
+  { value: 'open', key: 'filters.open' },
+  { value: 'resolved', key: 'filters.resolved' },
+  { value: 'ignored', key: 'filters.muted' },
+  { value: 'all', key: 'filters.all' },
 ];
 
 /**
@@ -30,6 +31,7 @@ export function IssueFilters({
   onFilterChange: (filter: string) => void;
   disabled: boolean;
 }) {
+  const t = useTranslations('issues');
   return (
     <div className="mb-4 shrink-0">
       <Tabs value={currentFilter} onValueChange={onFilterChange}>
@@ -40,7 +42,7 @@ export function IssueFilters({
               value={filter.value}
               disabled={disabled}
             >
-              {filter.label}
+              {t(filter.key)}
             </TabsTrigger>
           ))}
         </TabsList>

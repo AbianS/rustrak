@@ -3,7 +3,9 @@
 import type { Log, OffsetPaginatedResponse } from '@rustrak/client';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ScrollText } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useMemo } from 'react';
+import { useRouter } from '@/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { expandColumn } from '@/shared/ui/components/data-table/columns';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
@@ -62,69 +64,76 @@ const helper = createAppColumnHelper<Log>();
 
 /**
  * Columns live at module scope because none of them closes over a prop.
- *
+ * `t` is passed in by the component: the columns are built there rather than
+ * at module scope because the headers are localized.
  */
-const columns = helper.columns([
-  expandColumn<Log>(),
-  helper.accessor('level', {
-    header: 'Level',
-    size: 92,
-    minSize: 84,
-    cell: ({ getValue }) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          'w-full justify-center text-[10px] uppercase tracking-wide',
-          levelTone(getValue()),
-        )}
-      >
-        {getValue()}
-      </Badge>
-    ),
-  }),
-  helper.accessor('body', {
-    id: 'message',
-    header: 'Message',
-    minSize: 240,
-    meta: { grow: true },
-    cell: ({ getValue }) => (
-      <span className="block truncate font-mono text-sm">
-        {getValue() || '(empty)'}
-      </span>
-    ),
-  }),
-  helper.accessor('trace_id', {
-    id: 'trace',
-    header: 'Trace',
-    size: 150,
-    minSize: 110,
-    meta: { hideBelow: 'md' },
-    cell: ({ getValue }) => {
-      const traceId = getValue();
-      return traceId ? (
-        <span className="font-mono text-xs text-muted-foreground">
-          {traceId.slice(0, 8)}…
+function buildColumns(
+  t: (key: string) => string,
+  tableT: (key: string) => string,
+) {
+  return helper.columns([
+    expandColumn<Log>(tableT),
+    helper.accessor('level', {
+      header: t('columns.level'),
+      size: 92,
+      minSize: 84,
+      cell: ({ getValue }) => (
+        <Badge
+          variant="outline"
+          className={cn(
+            'w-full justify-center text-[10px] uppercase tracking-wide',
+            levelTone(getValue()),
+          )}
+        >
+          {getValue()}
+        </Badge>
+      ),
+    }),
+    helper.accessor('body', {
+      id: 'message',
+      header: t('columns.message'),
+      minSize: 240,
+      meta: { grow: true },
+      cell: ({ getValue }) => (
+        <span className="block truncate font-mono text-sm">
+          {getValue() || t('emptyValue')}
         </span>
-      ) : (
-        <span className="text-xs text-muted-foreground/50">—</span>
-      );
-    },
-  }),
-  helper.accessor('timestamp', {
-    header: 'Time',
-    size: 150,
-    minSize: 120,
-    meta: { align: 'end', hideBelow: 'sm' },
-    cell: ({ getValue }) => (
-      <span className="whitespace-nowrap text-xs text-muted-foreground">
-        {formatDistanceToNow(new Date(getValue()), { addSuffix: true })}
-      </span>
-    ),
-  }),
-]);
+      ),
+    }),
+    helper.accessor('trace_id', {
+      id: 'trace',
+      header: t('columns.trace'),
+      size: 150,
+      minSize: 110,
+      meta: { hideBelow: 'md' },
+      cell: ({ getValue }) => {
+        const traceId = getValue();
+        return traceId ? (
+          <span className="font-mono text-xs text-muted-foreground">
+            {traceId.slice(0, 8)}…
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        );
+      },
+    }),
+    helper.accessor('timestamp', {
+      header: t('columns.time'),
+      size: 150,
+      minSize: 120,
+      meta: { align: 'end', hideBelow: 'sm' },
+      cell: ({ getValue }) => (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {formatDistanceToNow(new Date(getValue()), { addSuffix: true })}
+        </span>
+      ),
+    }),
+  ]);
+}
 
 /** The panel under an expanded row: everything the columns had to leave out. */
 function LogDetail({ log }: { log: Log }) {
+  const t = useTranslations('logs');
   const attributes = Object.entries(log.attributes ?? {});
 
   return (
@@ -158,7 +167,7 @@ function LogDetail({ log }: { log: Log }) {
         <div>
           <Separator className="mb-3" />
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Attributes
+            {t('attributes')}
           </p>
           <div className="grid gap-px overflow-hidden rounded-md border bg-border">
             {attributes.map(([key, raw]) => {
@@ -193,6 +202,8 @@ export function LogsList({
   currentPage,
   activeLevel,
 }: LogsListProps) {
+  const t = useTranslations('logs');
+  const tableT = useTranslations('table');
   const router = useRouter();
   const { items: logs, total_count, per_page } = initialLogs;
 
@@ -208,6 +219,8 @@ export function LogsList({
     perPage: per_page,
     navigate: ({ page }) => router.push(buildUrl(page)),
   });
+
+  const columns = useMemo(() => buildColumns(t, tableT), [t, tableT]);
 
   const table = useAppTable({
     data: logs,
@@ -231,7 +244,7 @@ export function LogsList({
             }
             disabled={urlState.isPending}
           >
-            All
+            {t('allLevels')}
           </Button>
           {LEVELS.map((level) => (
             <Button
@@ -261,11 +274,9 @@ export function LogsList({
         empty={
           <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <ScrollText className="mb-4 size-12 text-muted-foreground/30" />
-            <h2 className="mb-1 text-lg font-semibold">
-              No logs match this filter
-            </h2>
+            <h2 className="mb-1 text-lg font-semibold">{t('empty.title')}</h2>
             <p className="max-w-md text-sm text-muted-foreground">
-              Try a different level or clear the filter.
+              {t('empty.hint')}
             </p>
           </div>
         }

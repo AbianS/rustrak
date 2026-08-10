@@ -2,6 +2,7 @@
 
 import type { AuthToken } from '@rustrak/client';
 import { format, formatDistanceToNow } from 'date-fns';
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import {
@@ -11,10 +12,10 @@ import {
 import { TokenActions } from './token-actions';
 
 /** When a token was last used, or that it never has been. */
-function lastUsed(token: AuthToken): string {
+function lastUsed(token: AuthToken, t: (key: string) => string): string {
   return token.last_used_at
     ? formatDistanceToNow(new Date(token.last_used_at), { addSuffix: true })
-    : 'Never';
+    : t('never');
 }
 
 const created = (token: AuthToken) =>
@@ -40,6 +41,7 @@ export function TokenCards({
   onCopy,
   onDelete,
 }: TokenListProps) {
+  const t = useTranslations('tokens');
   return (
     <div className="md:hidden space-y-3">
       {tokens.map((token) => (
@@ -55,9 +57,11 @@ export function TokenCards({
               <p className="text-sm truncate">{token.description}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Created {created(token)}
+              {t('createdOn', { date: created(token) })}
               {' · '}
-              {token.last_used_at ? `Used ${lastUsed(token)}` : 'Never used'}
+              {token.last_used_at
+                ? t('usedOn', { time: lastUsed(token, t) })
+                : t('neverUsed')}
             </p>
           </div>
           <TokenActions
@@ -81,11 +85,12 @@ export function TokenTable({
   onCopy,
   onDelete,
 }: TokenListProps) {
+  const t = useTranslations('tokens');
   const columns = useMemo(
     () =>
       helper.columns([
         helper.accessor('token_prefix', {
-          header: 'Token',
+          header: t('columns.token'),
           size: 160,
           minSize: 120,
           cell: ({ getValue }) => (
@@ -95,7 +100,7 @@ export function TokenTable({
           ),
         }),
         helper.accessor('description', {
-          header: 'Description',
+          header: t('columns.description'),
           minSize: 200,
           meta: { grow: true },
           cell: ({ getValue }) =>
@@ -103,7 +108,7 @@ export function TokenTable({
         }),
         helper.accessor('created_at', {
           id: 'created',
-          header: 'Created',
+          header: t('columns.created'),
           size: 150,
           minSize: 120,
           cell: ({ row }) => (
@@ -114,7 +119,7 @@ export function TokenTable({
         }),
         helper.accessor('last_used_at', {
           id: 'last_used',
-          header: 'Last used',
+          header: t('columns.lastUsed'),
           size: 160,
           minSize: 120,
           cell: ({ row }) => (
@@ -125,7 +130,7 @@ export function TokenTable({
                   : 'text-sm whitespace-nowrap text-muted-foreground'
               }
             >
-              {lastUsed(row.original)}
+              {lastUsed(row.original, t)}
             </span>
           ),
         }),
@@ -137,7 +142,7 @@ export function TokenTable({
           size: 96,
           minSize: 96,
           maxSize: 96,
-          header: () => <span className="sr-only">Actions</span>,
+          header: () => <span className="sr-only">{t('actionsLabel')}</span>,
           cell: ({ row }) => (
             <TokenActions
               token={row.original}
@@ -152,7 +157,7 @@ export function TokenTable({
     // dependency. Issues reaches for a ref to avoid exactly this, because its
     // column model is large enough for a resize drag to feel it; a settings
     // table with a handful of rows is not.
-    [isBusy, onCopy, onDelete],
+    [isBusy, onCopy, onDelete, t],
   );
 
   const table = useAppTable({

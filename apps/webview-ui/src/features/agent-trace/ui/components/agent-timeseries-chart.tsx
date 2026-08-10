@@ -2,6 +2,7 @@
 
 import type { AgentTimeseriesPoint } from '@rustrak/client';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -51,6 +52,7 @@ export function AgentTimeseriesChart({
   points,
   height = 130,
 }: AgentTimeseriesChartProps) {
+  const t = useTranslations('agents');
   const chartData = points.map((p) => ({
     t: new Date(p.bucket).getTime(),
     value: p.value,
@@ -62,7 +64,7 @@ export function AgentTimeseriesChart({
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No data yet
+        {t('charts.noData')}
       </div>
     );
   }

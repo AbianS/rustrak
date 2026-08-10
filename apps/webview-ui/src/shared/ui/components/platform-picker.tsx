@@ -2,6 +2,7 @@
 
 import { Combobox } from '@base-ui/react/combobox';
 import { CheckIcon, ChevronDownIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { useMemo } from 'react';
 import {
@@ -27,6 +28,7 @@ export function PlatformPicker({
   onValueChange,
   disabled,
 }: PlatformPickerProps) {
+  const t = useTranslations('platforms');
   // Group by language so frameworks sit under the language they belong to,
   // which is what makes ~120 options navigable when not filtering.
   const groups = useMemo(() => {
@@ -63,8 +65,8 @@ export function PlatformPicker({
     >
       <div className="relative w-full">
         <Combobox.Input
-          placeholder="Search platforms..."
-          aria-label="Platform"
+          placeholder={t('pickerPlaceholder')}
+          aria-label={t('pickerAria')}
           className="flex h-9 w-full items-center rounded-md border border-input bg-transparent py-2 pr-8 pl-2.5 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
         />
         <Combobox.Icon
@@ -78,7 +80,7 @@ export function PlatformPicker({
         <Combobox.Positioner className="isolate z-50" sideOffset={4}>
           <Combobox.Popup className="max-h-72 w-(--anchor-width) origin-(--transform-origin) overflow-y-auto rounded-md bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10">
             <Combobox.Empty className="px-2 py-3 text-center text-sm text-muted-foreground">
-              No platforms found.
+              {t('noResults')}
             </Combobox.Empty>
             <Combobox.List>
               {(group: { value: string; items: Platform[] }) => (

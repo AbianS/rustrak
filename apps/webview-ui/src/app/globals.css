@@ -6,6 +6,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* Geist from next/font/google, with the JetBrains faces as fallbacks (see
+     layout.tsx). When Google Fonts is slow or unreachable the browser paints
+     with the next resolvable face in each stack — JetBrains Mono is
+     self-hosted via @fontsource, so that fallback works offline too. */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);

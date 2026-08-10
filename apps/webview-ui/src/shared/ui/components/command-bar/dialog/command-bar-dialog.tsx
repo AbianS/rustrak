@@ -1,7 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useMemo, useRef, useState } from 'react';
+import { useRouter } from '@/i18n/navigation';
 import {
   ALL_PROJECT_PAGES,
   type CommandProject,
@@ -40,6 +41,7 @@ export function CommandBarDialog({
   onOpenChange,
   projects,
 }: CommandBarDialogProps) {
+  const t = useTranslations();
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,7 @@ export function CommandBarDialog({
   // falling back to the first one, so an empty initial value would open the
   // palette with a dead list.
   const [selected, setSelected] = useState(
-    () => projects[0]?.name ?? PROJECT_COMMANDS[0].label,
+    () => projects[0]?.name ?? t(PROJECT_COMMANDS[0].labelKey),
   );
 
   // Only a project row can be previewed, and its row value is its name.
@@ -184,9 +186,11 @@ export function CommandBarDialog({
         className="top-[10vh] flex max-h-[80svh] w-[calc(100%-2rem)] translate-y-0 flex-col gap-0 overflow-hidden rounded-xl! p-0 sm:max-w-[52rem]"
         showCloseButton={false}
       >
-        <DialogTitle className="sr-only">Command bar</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t('commands.dialogTitle')}
+        </DialogTitle>
         <DialogDescription className="sr-only">
-          Search projects, pages and settings, then press enter to open one.
+          {t('commands.dialogDescription')}
         </DialogDescription>
 
         <Command
@@ -215,7 +219,7 @@ export function CommandBarDialog({
               onValueChange={search}
               onKeyDown={handleKeyDown}
               className="h-10! text-[15px]!"
-              placeholder="Search projects, pages and settings..."
+              placeholder={t('commands.searchPlaceholder')}
             />
           </div>
 

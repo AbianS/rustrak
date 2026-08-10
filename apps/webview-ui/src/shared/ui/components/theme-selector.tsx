@@ -1,19 +1,21 @@
 'use client';
 
 import { Monitor, Moon, Sun } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 
-const themes = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'system', label: 'System', icon: Monitor },
-] as const;
-
 export function ThemeSelector() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const t = useTranslations('theme');
+
+  const themes = [
+    { value: 'light', label: t('light'), icon: Sun },
+    { value: 'dark', label: t('dark'), icon: Moon },
+    { value: 'system', label: t('system'), icon: Monitor },
+  ] as const;
 
   // The theme is not knowable on the server: next-themes reads localStorage
   // and the system preference, both of which only exist in the browser. There

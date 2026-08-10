@@ -2,8 +2,7 @@
 
 import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
 import { Bell, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -12,6 +11,7 @@ import {
 } from '@/features/alert/api/mutations';
 import { AlertRuleFormDialog } from '@/features/alert/ui/components/alert-rule-dialog/alert-rule-dialog';
 import { AlertRulesTable } from '@/features/alert/ui/components/alert-rules-table';
+import { Link, useRouter } from '@/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +35,7 @@ export function AlertsSettings({
   alertRules,
   channels,
 }: AlertsSettingsProps) {
+  const t = useTranslations('alerts');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
@@ -54,7 +55,7 @@ export function AlertsSettings({
       if (!result.success) {
         // A switch in a table row, not a form field: the message is the only
         // place this can go.
-        toast.error('Failed to update rule', {
+        toast.error(t('settings.updateFailed'), {
           description: result.error.message,
         });
         return;
@@ -70,13 +71,13 @@ export function AlertsSettings({
       const result = await deleteAlertRule(project.id, deletingRule.id);
 
       if (!result.success) {
-        toast.error('Failed to delete rule', {
+        toast.error(t('settings.deleteFailed'), {
           description: result.error.message,
         });
         return;
       }
 
-      toast.success('Alert rule deleted');
+      toast.success(t('settings.deleted'));
       setDeletingRule(null);
       router.refresh();
     });
@@ -87,16 +88,16 @@ export function AlertsSettings({
       <div className="mb-6 flex items-start justify-between gap-4 md:mb-8">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight md:text-2xl">
-            Alert Settings
+            {t('settings.title')}
           </h1>
           <p className="mt-1 text-muted-foreground">
-            Configure when to send notifications for this project.
+            {t('settings.description')}
           </p>
         </div>
         {enabledIntegrations.length > 0 && (
           <Button onClick={() => setShowAddForm(true)} className="shrink-0">
             <Plus className="mr-2 size-4" />
-            Add Alert Rule
+            {t('settings.addRule')}
           </Button>
         )}
       </div>
@@ -106,16 +107,20 @@ export function AlertsSettings({
           <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
             <Bell className="size-5 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium">No integrations configured</p>
+          <p className="text-sm font-medium">
+            {t('settings.noIntegrationsTitle')}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Go to{' '}
-            <Link
-              href="/settings/integrations"
-              className="text-primary underline"
-            >
-              Settings → Integrations
-            </Link>{' '}
-            to add integrations first.
+            {t.rich('settings.noIntegrationsHint', {
+              link: (chunks) => (
+                <Link
+                  href="/settings/integrations"
+                  className="text-primary underline"
+                >
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         </div>
       ) : alertRules.length === 0 ? (
@@ -123,9 +128,9 @@ export function AlertsSettings({
           <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted">
             <Bell className="size-5 text-muted-foreground" />
           </div>
-          <p className="text-sm font-medium">No alert rules yet</p>
+          <p className="text-sm font-medium">{t('settings.noRulesTitle')}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create one to start receiving notifications.
+            {t('settings.noRulesHint')}
           </p>
         </div>
       ) : (
@@ -174,20 +179,23 @@ export function AlertsSettings({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Alert Rule</AlertDialogTitle>
+            <AlertDialogTitle>{t('settings.deleteRuleTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete &quot;{deletingRule?.name}&quot;?
-              This action cannot be undone.
+              {t('settings.deleteRuleDescription', {
+                name: deletingRule?.name ?? '',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('common.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Deleting...' : 'Delete'}
+              {isPending ? t('common.deleting') : t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

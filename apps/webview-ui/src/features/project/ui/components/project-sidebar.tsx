@@ -12,9 +12,9 @@ import {
   Settings,
   Zap,
 } from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
+import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   DropdownMenu,
@@ -80,11 +80,12 @@ function ProjectSwitcher({
   projectId: number;
   projects: ProjectOption[];
 }) {
+  const t = useTranslations('projects');
   const current =
     projects.find((p) => p.id === projectId) ??
     ({
       id: projectId,
-      name: 'Project',
+      name: t('switcher.fallback'),
       slug: '',
       platform: null,
     } as ProjectOption);
@@ -113,7 +114,7 @@ function ProjectSwitcher({
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="text-xs text-muted-foreground">
-            Projects
+            {t('switcher.projects')}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           {projects.map((p) => (
@@ -142,17 +143,20 @@ function ProjectSwitcher({
 
 function CollapseButton() {
   const { toggleSidebar } = useSidebar();
+  const t = useTranslations('projects');
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
-          tooltip="Expand"
+          tooltip={t('collapse.expand')}
           onClick={toggleSidebar}
           isActive={false}
           className="h-9 justify-center text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
         >
           <ChevronsLeft className="transition-transform group-data-[collapsible=icon]:rotate-180" />
-          <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
+          <span className="group-data-[collapsible=icon]:hidden">
+            {t('collapse.collapse')}
+          </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
@@ -160,43 +164,44 @@ function CollapseButton() {
 }
 
 export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
+  const t = useTranslations('projects');
   const pathname = usePathname();
 
   const navItems = [
     {
       href: `/projects/${projectId}`,
-      label: 'Overview',
+      label: t('nav.overview'),
       icon: LayoutDashboard,
       exact: true,
     },
     {
       href: `/projects/${projectId}/issues`,
-      label: 'Issues',
+      label: t('nav.issues'),
       icon: AlertCircle,
     },
     {
       href: `/projects/${projectId}/releases`,
-      label: 'Releases',
+      label: t('nav.releases'),
       icon: Rocket,
     },
     {
       href: `/projects/${projectId}/performance`,
-      label: 'Performance',
+      label: t('nav.performance'),
       icon: Zap,
     },
     {
       href: `/projects/${projectId}/agents`,
-      label: 'Agents',
+      label: t('nav.agents'),
       icon: Bot,
     },
     {
       href: `/projects/${projectId}/logs`,
-      label: 'Logs',
+      label: t('nav.logs'),
       icon: ScrollText,
     },
     {
       href: `/projects/${projectId}/settings`,
-      label: 'Settings',
+      label: t('nav.settings'),
       icon: Settings,
     },
   ];
@@ -210,7 +215,7 @@ export function ProjectSidebar({ projectId, projects }: ProjectSidebarProps) {
 
         <SidebarContent className="py-1">
           <SidebarGroup>
-            <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+            <SidebarGroupLabel>{t('navigation')}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-1.5">
                 {navItems.map((item) => {

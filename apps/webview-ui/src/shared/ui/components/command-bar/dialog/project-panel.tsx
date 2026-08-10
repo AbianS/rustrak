@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { useEffect, useRef } from 'react';
 import {
@@ -34,6 +35,7 @@ export function ProjectPanel({
   /** Tab, which closes the column and returns focus to the list. */
   onToggle: () => void;
 }) {
+  const t = useTranslations();
   const base = `/projects/${project.id}`;
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -97,7 +99,7 @@ export function ProjectPanel({
             {project.name}
           </p>
           <p className="text-xs text-muted-foreground">
-            {project.platform ?? 'No platform set'}
+            {project.platform ?? t('commands.noPlatformSet')}
           </p>
         </div>
       </div>
@@ -105,7 +107,7 @@ export function ProjectPanel({
       <div className="my-5 h-px shrink-0 bg-foreground/10" />
 
       <p className="mb-2 shrink-0 text-[11px] font-semibold tracking-[0.09em] text-muted-foreground/60 uppercase">
-        {PROJECT_PAGE_COUNT} pages
+        {PROJECT_PAGE_COUNT} {t('commands.pages')}
       </p>
 
       {/* Only the page list scrolls; the identity above it stays put. */}
@@ -124,7 +126,7 @@ export function ProjectPanel({
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 outline-none hover:bg-primary/10 hover:text-primary focus-visible:bg-primary/10 focus-visible:text-primary"
             >
               <page.icon className="size-3.5 shrink-0 opacity-70" />
-              <span className="truncate">{page.label}</span>
+              <span className="truncate">{t(page.labelKey)}</span>
             </button>
           </li>
         ))}

@@ -1,6 +1,7 @@
 'use client';
 
 import type { GenAiBreakdownRow } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -59,13 +60,15 @@ export function AgentBreakdownChart({
   formatValue = defaultFormatValue,
   height = 130,
 }: AgentBreakdownChartProps) {
+  const t = useTranslations('agents');
+
   if (rows.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No data yet
+        {t('charts.noData')}
       </div>
     );
   }

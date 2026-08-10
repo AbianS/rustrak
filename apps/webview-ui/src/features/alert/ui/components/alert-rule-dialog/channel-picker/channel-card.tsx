@@ -1,6 +1,7 @@
 'use client';
 
 import type { AlertIntegration } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 import { getSlackMethod } from '@/features/alert/lib/routing';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
 import { cn } from '@/shared/lib/utils';
@@ -25,6 +26,7 @@ export function ChannelCard({
   disabled: boolean;
   onSelect: (selected: boolean) => void;
 }) {
+  const t = useTranslations('alerts');
   const isSlackBot =
     integration.provider_type === 'slack' &&
     getSlackMethod(integration) === 'bot_token';
@@ -51,7 +53,7 @@ export function ChannelCard({
           <p className="text-sm font-medium leading-none">{integration.name}</p>
           <p className="text-[10px] text-muted-foreground mt-0.5 capitalize">
             {integration.provider_type}
-            {isSlackBot ? ' · bot token' : ''}
+            {isSlackBot ? ` · ${t('channelCard.botToken')}` : ''}
           </p>
         </div>
       </div>

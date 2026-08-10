@@ -2,10 +2,11 @@
 
 import type { User } from '@rustrak/client';
 import { LogOut, Settings } from 'lucide-react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { type ReactNode, useTransition } from 'react';
 import { logout } from '@/features/user/api/mutations';
+import { Link, useRouter } from '@/i18n/navigation';
+import { LocaleSwitcher } from '@/shared/ui/components/locale-switcher';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -27,6 +28,7 @@ interface HeaderProps {
 
 export function Header({ user, commandBar }: HeaderProps) {
   const router = useRouter();
+  const t = useTranslations('user');
   const [isPending, startTransition] = useTransition();
 
   const handleLogout = () => {
@@ -52,26 +54,31 @@ export function Header({ user, commandBar }: HeaderProps) {
           each end than with a third floating in the middle. */}
       <div className="flex items-center gap-2 md:gap-3">
         {commandBar}
+        <LocaleSwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
                 variant="ghost"
                 className="size-8 rounded-full p-0 bg-primary/20 hover:bg-primary/30"
-                aria-label="Open user menu"
+                aria-label={t('header.openMenu')}
               />
             }
           >
             <span className="text-xs font-bold text-primary" aria-hidden="true">
               {user.email.charAt(0).toUpperCase()}
             </span>
-            <span className="sr-only">User menu for {user.email}</span>
+            <span className="sr-only">
+              {t('header.userMenuFor', { email: user.email })}
+            </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
               <p className="text-sm font-medium truncate">{user.email}</p>
               {user.is_admin && (
-                <p className="text-xs text-muted-foreground">Admin</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('roles.admin')}
+                </p>
               )}
             </div>
             <DropdownMenuSeparator />
@@ -79,7 +86,7 @@ export function Header({ user, commandBar }: HeaderProps) {
               render={<Link href="/settings" className="cursor-pointer" />}
             >
               <Settings className="mr-2 size-4" />
-              Settings
+              {t('header.settings')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -88,7 +95,7 @@ export function Header({ user, commandBar }: HeaderProps) {
               disabled={isPending}
             >
               <LogOut className="mr-2 size-4" />
-              {isPending ? 'Signing out...' : 'Sign out'}
+              {isPending ? t('header.signingOut') : t('header.signOut')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

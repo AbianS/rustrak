@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**
@@ -28,6 +29,8 @@ export function TablePagination({
   disabled: boolean;
   onPageChange: (page: number) => void;
 }) {
+  const t = useTranslations('table');
+
   if (totalPages <= 0) return null;
 
   const startIndex = (currentPage - 1) * perPage + 1;
@@ -37,15 +40,19 @@ export function TablePagination({
     <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
       <span className="text-sm text-muted-foreground">
         {totalCount > 0
-          ? `Showing ${startIndex}-${endIndex} of ${totalCount}`
-          : 'No results'}
+          ? t('showingRange', {
+              start: startIndex,
+              end: endIndex,
+              total: totalCount,
+            })
+          : t('noResults')}
       </span>
 
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
           size="sm"
-          aria-label="Previous page"
+          aria-label={t('previousPage')}
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage <= 1 || disabled}
         >
@@ -53,13 +60,13 @@ export function TablePagination({
         </Button>
 
         <span className="text-sm px-2">
-          Page {currentPage} of {totalPages}
+          {t('pageOf', { current: currentPage, total: totalPages })}
         </span>
 
         <Button
           variant="outline"
           size="sm"
-          aria-label="Next page"
+          aria-label={t('nextPage')}
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage >= totalPages || disabled}
         >

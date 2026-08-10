@@ -2,6 +2,7 @@
 
 import type { Project } from '@rustrak/client';
 import { Loader2, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { SettingRow, SettingSection } from '@/shared/ui/components/setting-row';
 import {
@@ -31,6 +32,7 @@ export function DangerZone({
   onRemove: () => Promise<void>;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const t = useTranslations('projects');
   // Its own transition rather than the form's. Saving a name and removing the
   // project are unrelated requests, and sharing one `isPending` meant either
   // one in flight greyed out the other.
@@ -44,10 +46,10 @@ export function DangerZone({
 
   return (
     <>
-      <SettingSection title="Danger Zone" destructive>
+      <SettingSection title={t('dangerZone.title')} destructive>
         <SettingRow
-          title="Remove Project"
-          description="Permanently deletes this project and all of its issues and events. This cannot be undone."
+          title={t('dangerZone.remove')}
+          description={t('dangerZone.removeDescription')}
         >
           <Button
             variant="destructive"
@@ -56,7 +58,7 @@ export function DangerZone({
             className="w-full sm:w-auto"
           >
             <Trash2 className="mr-2 size-4" />
-            Remove Project
+            {t('dangerZone.remove')}
           </Button>
         </SettingRow>
       </SettingSection>
@@ -65,15 +67,16 @@ export function DangerZone({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete &quot;{project.name}&quot;?
+              {t('dangerZone.deleteTitle', { name: project.name })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this project and all associated
-              issues and events. This action cannot be undone.
+              {t('dangerZone.deleteDescription')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('dangerZone.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={remove}
               disabled={isPending}
@@ -82,10 +85,10 @@ export function DangerZone({
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Deleting...
+                  {t('dangerZone.deleting')}
                 </>
               ) : (
-                'Delete'
+                t('dangerZone.confirm')
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -6,25 +6,28 @@ import type { Issue, IssuePriority } from '@rustrak/client';
  * The UI favors restraint over loud color: status and priority are shown as a
  * small leading dot plus a muted text label, the way Sentry surfaces them —
  * color is a quiet signal, not the dominant visual element.
+ *
+ * `labelKey` is a message key resolved by the rendering component, so this
+ * portable module never holds user-facing sentences.
  */
 export interface IssueIndicator {
-  label: string;
+  labelKey: string;
   /** Tailwind `bg-*` class for the small leading dot. */
   dot: string;
 }
 
-const SUBSTATUS_LABELS: Record<string, string> = {
-  new: 'New',
-  ongoing: 'Ongoing',
-  escalating: 'Escalating',
-  regressed: 'Regressed',
-  archived_until_escalating: 'Archived',
-  archived_until_condition_met: 'Archived',
-  archived_forever: 'Archived',
+const SUBSTATUS_KEYS: Record<string, string> = {
+  new: 'issueStatus.new',
+  ongoing: 'issueStatus.ongoing',
+  escalating: 'issueStatus.escalating',
+  regressed: 'issueStatus.regressed',
+  archived_until_escalating: 'issueStatus.archived',
+  archived_until_condition_met: 'issueStatus.archived',
+  archived_forever: 'issueStatus.archived',
 };
 
 /**
- * Resolve the dot color + label for an issue's status.
+ * Resolve the dot color + label key for an issue's status.
  *
  * Prefers a recognized substatus label, falling back to the coarse status.
  * Unresolved (the common case) stays neutral; only resolved earns an accent.
@@ -32,34 +35,34 @@ const SUBSTATUS_LABELS: Record<string, string> = {
 export function statusDisplay(
   issue: Pick<Issue, 'status' | 'substatus'>,
 ): IssueIndicator {
-  const substatusLabel = issue.substatus
-    ? SUBSTATUS_LABELS[issue.substatus]
+  const substatusKey = issue.substatus
+    ? SUBSTATUS_KEYS[issue.substatus]
     : undefined;
 
   switch (issue.status) {
     case 'resolved':
-      return { label: 'Resolved', dot: 'bg-emerald-500' };
+      return { labelKey: 'issueStatus.resolved', dot: 'bg-emerald-500' };
     case 'ignored':
       return {
-        label: substatusLabel ?? 'Ignored',
+        labelKey: substatusKey ?? 'issueStatus.ignored',
         dot: 'bg-muted-foreground/40',
       };
     default:
       return {
-        label: substatusLabel ?? 'Unresolved',
+        labelKey: substatusKey ?? 'issueStatus.unresolved',
         dot: 'bg-muted-foreground',
       };
   }
 }
 
 const PRIORITY_META: Record<IssuePriority, IssueIndicator> = {
-  high: { label: 'High', dot: 'bg-red-500' },
-  medium: { label: 'Medium', dot: 'bg-amber-500' },
-  low: { label: 'Low', dot: 'bg-sky-500' },
+  high: { labelKey: 'issueStatus.high', dot: 'bg-red-500' },
+  medium: { labelKey: 'issueStatus.medium', dot: 'bg-amber-500' },
+  low: { labelKey: 'issueStatus.low', dot: 'bg-sky-500' },
 };
 
 /**
- * Dot color + label for a priority tier, or `null` when unset.
+ * Dot color + label key for a priority tier, or `null` when unset.
  */
 export function priorityDisplay(
   priority: IssuePriority | null | undefined,

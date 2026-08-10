@@ -1,6 +1,7 @@
 'use client';
 
 import type { AlertIntegration } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 import { useId } from 'react';
 import { routingNeedsOf } from '@/features/alert/lib/routing';
 import { Input } from '@/shared/ui/components/shadcn/input';
@@ -28,6 +29,7 @@ function Row({
     'aria-describedby'?: string;
   }) => React.ReactNode;
 }) {
+  const t = useTranslations('alerts');
   const id = useId();
   const hintId = `${id}-hint`;
 
@@ -38,7 +40,10 @@ function Row({
         {required ? (
           <span className="text-destructive"> *</span>
         ) : (
-          <span className="text-muted-foreground/60"> (optional)</span>
+          <span className="text-muted-foreground/60">
+            {' '}
+            {t('routing.optional')}
+          </span>
         )}
       </label>
       {children({ id, 'aria-describedby': hint ? hintId : undefined })}
@@ -71,6 +76,7 @@ export function ChannelRoutingFields({
   disabled: boolean;
   onChange: (field: string, value: string) => void;
 }) {
+  const t = useTranslations('alerts');
   const { needsChannel, needsRecipients, needsUrl } =
     routingNeedsOf(integration);
 
@@ -78,19 +84,16 @@ export function ChannelRoutingFields({
     <div className="mx-3 rounded-b-lg border border-t-0 border-primary/20 bg-muted/40 px-3 py-3 space-y-3">
       {needsChannel && (
         <Row
-          label="Channel"
+          label={t('routing.channelLabel')}
           required
-          hint={
-            <>
-              Channel name (e.g. <code className="font-mono">#alerts</code>) or
-              channel ID (e.g. <code className="font-mono">C1234567890</code>)
-            </>
-          }
+          hint={t.rich('routing.channelHint', {
+            code: (chunks) => <code className="font-mono">{chunks}</code>,
+          })}
         >
           {(a) => (
             <Input
               {...a}
-              placeholder="#alerts or C1234567890"
+              placeholder={t('routing.channelPlaceholder')}
               value={routing.channel ?? ''}
               onChange={(e) => onChange('channel', e.target.value)}
               disabled={disabled}
@@ -102,11 +105,15 @@ export function ChannelRoutingFields({
       )}
 
       {needsRecipients && (
-        <Row label="Recipients" required hint="Comma-separated email addresses">
+        <Row
+          label={t('routing.recipientsLabel')}
+          required
+          hint={t('routing.recipientsHint')}
+        >
           {(a) => (
             <Textarea
               {...a}
-              placeholder="alerts@example.com, team@example.com"
+              placeholder={t('routing.recipientsPlaceholder')}
               value={routing.recipients ?? ''}
               onChange={(e) => onChange('recipients', e.target.value)}
               disabled={disabled}
@@ -119,16 +126,14 @@ export function ChannelRoutingFields({
 
       {integration.provider_type === 'webhook' && (
         <Row
-          label="Override URL"
+          label={t('routing.overrideUrlLabel')}
           required={needsUrl}
-          hint={
-            needsUrl ? undefined : 'Overrides the URL configured in credentials'
-          }
+          hint={needsUrl ? undefined : t('routing.overrideUrlHint')}
         >
           {(a) => (
             <Input
               {...a}
-              placeholder="https://svc.io/hook"
+              placeholder={t('routing.overrideUrlPlaceholder')}
               value={routing.url ?? ''}
               onChange={(e) => onChange('url', e.target.value)}
               disabled={disabled}

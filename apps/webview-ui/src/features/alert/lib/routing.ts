@@ -1,4 +1,30 @@
 import type { AlertIntegration } from '@rustrak/client';
+import type { Translate } from '@/shared/lib/error-copy';
+
+/** The message keys this module resolves, and their English forms. */
+const EN: Record<string, string> = {
+  'routing.slackChannelRequired': 'Slack channel is required for "{name}"',
+  'routing.recipientsRequired': 'Recipients are required for "{name}"',
+  'routing.invalidRecipients':
+    'Invalid email address in recipients for "{name}"',
+  'routing.webhookUrlRequired':
+    'A webhook URL is required for "{name}" (set in credentials or as override URL)',
+  'routing.invalidOverrideUrl': 'Override URL for "{name}" must be http/https',
+};
+
+/** Resolve one key through `t` when present, the English dictionary otherwise. */
+function text(
+  t: Translate | undefined,
+  key: string,
+  values?: Record<string, string | number>,
+): string {
+  if (t) return t(key, values);
+  let message = EN[key] ?? key;
+  for (const [name, value] of Object.entries(values ?? {})) {
+    message = message.replaceAll(`{${name}}`, String(value));
+  }
+  return message;
+}
 
 /**
  * Per-channel `routing_override`, keyed by integration id.
@@ -51,24 +77,31 @@ export function routingNeedsOf(integration: AlertIntegration): {
 export function validateRoutingForIntegration(
   integration: AlertIntegration,
   routing: Record<string, string>,
+  t?: Translate,
 ): string | null {
   if (integration.provider_type === 'slack') {
     if (getSlackMethod(integration) === 'bot_token') {
       if (!routing.channel || routing.channel.trim() === '') {
-        return `Slack channel is required for "${integration.name}"`;
+        return text(t, 'routing.slackChannelRequired', {
+          name: integration.name,
+        });
       }
     }
   }
   if (integration.provider_type === 'email') {
     if (!routing.recipients || routing.recipients.trim() === '') {
-      return `Recipients are required for "${integration.name}"`;
+      return text(t, 'routing.recipientsRequired', {
+        name: integration.name,
+      });
     }
     const addrs = routing.recipients
       .split(',')
       .map((a) => a.trim())
       .filter(Boolean);
     if (addrs.length === 0 || addrs.some((a) => !a.includes('@'))) {
-      return `Invalid email address in recipients for "${integration.name}"`;
+      return text(t, 'routing.invalidRecipients', {
+        name: integration.name,
+      });
     }
   }
   if (integration.provider_type === 'webhook') {
@@ -77,14 +110,18 @@ export function validateRoutingForIntegration(
       | undefined;
     const routeUrl = routing.url?.trim();
     if (!credUrl && !routeUrl) {
-      return `A webhook URL is required for "${integration.name}" (set in credentials or as override URL)`;
+      return text(t, 'routing.webhookUrlRequired', {
+        name: integration.name,
+      });
     }
     if (
       routeUrl &&
       !routeUrl.startsWith('http://') &&
       !routeUrl.startsWith('https://')
     ) {
-      return `Override URL for "${integration.name}" must be http/https`;
+      return text(t, 'routing.invalidOverrideUrl', {
+        name: integration.name,
+      });
     }
   }
   return null;
@@ -101,6 +138,7 @@ export function collectRoutingErrors(
   selectedIds: readonly number[],
   routingMap: RoutingMap,
   integrations: readonly AlertIntegration[],
+  t?: Translate,
 ): Record<number, string> {
   // Indexed once: the loop is over the selection and the lookup is over every
   // configured integration, so the pair is quadratic without it.
@@ -112,6 +150,7 @@ export function collectRoutingErrors(
     const err = validateRoutingForIntegration(
       integration,
       routingMap[id] ?? {},
+      t,
     );
     if (err) errors[id] = err;
   }

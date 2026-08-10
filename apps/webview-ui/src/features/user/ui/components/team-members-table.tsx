@@ -3,6 +3,7 @@
 import type { TeamMember } from '@rustrak/client';
 import { format } from 'date-fns';
 import { Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { type ReactNode, useMemo } from 'react';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import {
@@ -39,6 +40,8 @@ export function TeamMembersTable({
   renderRoleSelect: (member: TeamMember, locked: boolean) => ReactNode;
   onRemove: (member: TeamMember) => void;
 }) {
+  const t = useTranslations('user');
+
   const isLocked = (member: TeamMember) =>
     member.id === currentUserId || member.is_primary === true;
 
@@ -46,38 +49,40 @@ export function TeamMembersTable({
     () =>
       helper.columns([
         helper.accessor('email', {
-          header: 'Email',
+          header: t('table.email'),
           minSize: 200,
           meta: { grow: true },
           cell: ({ row }) => (
             <span className="truncate text-sm font-medium">
               {row.original.email}
               {row.original.id === currentUserId && (
-                <span className="text-muted-foreground"> (you)</span>
+                <span className="text-muted-foreground"> {t('table.you')}</span>
               )}
             </span>
           ),
         }),
         helper.accessor('role', {
-          header: 'Role',
+          header: t('table.role'),
           size: 120,
           minSize: 90,
           cell: ({ getValue }) => renderRoleBadge(getValue()),
         }),
         helper.accessor('is_active', {
           id: 'status',
-          header: 'Status',
+          header: t('table.status'),
           size: 100,
           minSize: 80,
           cell: ({ getValue }) =>
             getValue() ? (
-              <span className="text-sm">Active</span>
+              <span className="text-sm">{t('table.active')}</span>
             ) : (
-              <span className="text-sm text-muted-foreground">Inactive</span>
+              <span className="text-sm text-muted-foreground">
+                {t('table.inactive')}
+              </span>
             ),
         }),
         helper.accessor('last_login', {
-          header: 'Last login',
+          header: t('table.lastLogin'),
           size: 140,
           minSize: 110,
           cell: ({ getValue }) => {
@@ -87,13 +92,15 @@ export function TeamMembersTable({
                 {format(new Date(lastLogin), 'MMM d, yyyy')}
               </span>
             ) : (
-              <span className="text-sm text-muted-foreground">Never</span>
+              <span className="text-sm text-muted-foreground">
+                {t('table.never')}
+              </span>
             );
           },
         }),
         helper.display({
           id: 'change_role',
-          header: 'Change role',
+          header: t('table.changeRole'),
           size: 150,
           minSize: 130,
           cell: ({ row }) =>
@@ -105,7 +112,9 @@ export function TeamMembersTable({
           minSize: 60,
           maxSize: 60,
           meta: { align: 'end' },
-          header: () => <span className="sr-only">Actions</span>,
+          header: () => (
+            <span className="sr-only">{t('table.actionsAria')}</span>
+          ),
           cell: ({ row }) =>
             isLocked(row.original) ? null : (
               <Button
@@ -114,7 +123,9 @@ export function TeamMembersTable({
                 className="size-8"
                 onClick={() => onRemove(row.original)}
                 disabled={disabled}
-                aria-label={`Remove ${row.original.email}`}
+                aria-label={t('table.removeAria', {
+                  email: row.original.email,
+                })}
               >
                 <Trash2 className="size-4" />
               </Button>
@@ -122,7 +133,7 @@ export function TeamMembersTable({
         }),
       ]),
     // `isLocked` closes over `currentUserId`, which is already a dependency.
-    [currentUserId, disabled, renderRoleBadge, renderRoleSelect, onRemove],
+    [t, currentUserId, disabled, renderRoleBadge, renderRoleSelect, onRemove],
   );
 
   const table = useAppTable({

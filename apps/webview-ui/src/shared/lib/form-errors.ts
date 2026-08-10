@@ -1,6 +1,6 @@
 import type { FieldErrorCode, RustrakError } from '@rustrak/client';
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form';
-import { describeError } from '@/shared/lib/error-copy';
+import { describeError, type Translate } from '@/shared/lib/error-copy';
 
 /**
  * The one form-level slot every server failure falls back to.
@@ -32,6 +32,12 @@ export interface ApplyServerFieldErrorsOptions {
    * `slug` -> `'Slug'` turns `already_exists` into "Slug is already taken."
    */
   readonly labels?: Readonly<Record<string, string>>;
+  /**
+   * Resolves the copy sentences. When omitted the messages fall back to their
+   * English forms, so a caller that cannot reach a translator still gets a
+   * sentence rather than a blank slot.
+   */
+  readonly t?: Translate;
 }
 
 export interface AppliedServerFieldErrors {
@@ -67,7 +73,7 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
   error: RustrakError,
   options: ApplyServerFieldErrorsOptions = {},
 ): AppliedServerFieldErrors {
-  const { map = {}, labels = {} } = options;
+  const { map = {}, labels = {}, t } = options;
 
   // A stale form-level message outliving the failure that caused it reads as a
   // second, phantom rejection. Clear before writing, not after.
@@ -84,7 +90,12 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
 
   for (const fieldError of fields) {
     const name = map[fieldError.field] ?? fieldError.field;
-    const message = copyFor(fieldError.code, labels[name], fieldError.message);
+    const message = copyFor(
+      fieldError.code,
+      labels[name],
+      fieldError.message,
+      t,
+    );
 
     // A second entry for a name already marked cannot go on the same input:
     // `setError` replaces rather than appends, so the first reason would
@@ -107,7 +118,7 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
   // toast reading "Failed to create project / Failed to create project" and
   // the user was never told the server was down.
   if (fields.length === 0) {
-    unattributed.push(describeError(error));
+    unattributed.push(describeError(error, t));
   }
 
   if (unattributed.length === 0) {
@@ -194,6 +205,7 @@ function copyFor(
   code: FieldErrorCode,
   label: string | undefined,
   serverMessage: string | undefined,
+  t: Translate | undefined,
 ): string {
   if (code === 'custom') {
     // The one code whose meaning lives in the message. The server sends it
@@ -205,14 +217,33 @@ function copyFor(
 
   switch (code) {
     case 'required':
-      return `${subject} is required.`;
+      return fieldSentence(t, 'formErrors.required', subject);
     case 'invalid':
-      return `${subject} is not valid.`;
+      return fieldSentence(t, 'formErrors.invalid', subject);
     case 'already_exists':
-      return `${subject} is already taken.`;
+      return fieldSentence(t, 'formErrors.alreadyExists', subject);
     case 'too_short':
-      return `${subject} is too short.`;
+      return fieldSentence(t, 'formErrors.tooShort', subject);
     case 'too_long':
-      return `${subject} is too long.`;
+      return fieldSentence(t, 'formErrors.tooLong', subject);
   }
+}
+
+/** "{subject} is required." through `t`, or the English form when `t` is absent. */
+function fieldSentence(
+  t: Translate | undefined,
+  key: string,
+  subject: string,
+): string {
+  const english: Record<string, string> = {
+    'formErrors.required': '{subject} is required.',
+    'formErrors.invalid': '{subject} is not valid.',
+    'formErrors.alreadyExists': '{subject} is already taken.',
+    'formErrors.tooShort': '{subject} is too short.',
+    'formErrors.tooLong': '{subject} is too long.',
+  };
+  const message = t
+    ? t(key, { subject })
+    : english[key].replaceAll('{subject}', subject);
+  return message;
 }

@@ -1,5 +1,6 @@
 import type { RustrakError } from '@rustrak/client';
 import { PlugZap } from 'lucide-react';
+import { getTranslations } from 'next-intl/server';
 import {
   describeError,
   errorGuidance,
@@ -27,7 +28,7 @@ import { Card, CardContent } from '@/shared/ui/components/shadcn/card';
  * was already answering, and an `invalid_response` from a dashboard deployed
  * ahead of its API was told to reload, which can never fix a schema mismatch.
  */
-export function ServiceUnavailable({
+export async function ServiceUnavailable({
   error,
   title,
 }: {
@@ -35,7 +36,8 @@ export function ServiceUnavailable({
   /** Names the read that failed, for a page that does several. */
   title?: string;
 }) {
-  const guidance = errorGuidance(error);
+  const t = await getTranslations();
+  const guidance = errorGuidance(error, t);
 
   return (
     <div className="p-6 md:p-8">
@@ -48,10 +50,10 @@ export function ServiceUnavailable({
             />
           </div>
           <p className="text-base font-bold tracking-tight">
-            {title ?? errorHeadline(error)}
+            {title ?? errorHeadline(error, t)}
           </p>
           <p className="text-muted-foreground mt-2 text-sm leading-relaxed max-w-sm">
-            {describeError(error)}
+            {describeError(error, t)}
           </p>
           {guidance ? (
             <p className="text-muted-foreground/70 mt-4 text-xs leading-relaxed max-w-sm">

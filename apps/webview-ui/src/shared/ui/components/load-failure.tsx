@@ -1,5 +1,6 @@
 import type { RustrakError } from '@rustrak/client';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+import { redirect } from '@/i18n/redirect';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 
 /**
@@ -21,7 +22,7 @@ import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
  * `title` says which fetch failed, so a page that loads several things does not
  * leave the reader guessing which one is missing.
  */
-export function LoadFailure({
+export async function LoadFailure({
   error,
   title,
   notFoundOnMissing = true,
@@ -35,7 +36,7 @@ export function LoadFailure({
   notFoundOnMissing?: boolean;
 }) {
   if (error.kind === 'unauthenticated') {
-    redirect('/auth/login');
+    await redirect('/auth/login');
   }
 
   if (error.kind === 'not_found' && notFoundOnMissing) {

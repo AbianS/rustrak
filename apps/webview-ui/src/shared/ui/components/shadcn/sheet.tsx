@@ -2,6 +2,7 @@
 
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -45,6 +46,8 @@ function SheetContent({
   side?: 'top' | 'right' | 'bottom' | 'left';
   showCloseButton?: boolean;
 }) {
+  const t = useTranslations('common');
+  const closeLabel = t('close');
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -70,7 +73,7 @@ function SheetContent({
             }
           >
             <XIcon />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

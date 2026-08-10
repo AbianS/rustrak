@@ -2,6 +2,7 @@
 
 import type { EventTimeseries } from '@rustrak/client';
 import { format } from 'date-fns';
+import { useTranslations } from 'next-intl';
 import { type ReactElement, useMemo } from 'react';
 // Not loaded through next/dynamic, deliberately.
 //
@@ -34,13 +35,9 @@ import {
  * Stack order, bottom to top. Errors sit on the baseline so the segment that
  * matters most can be read straight off the y-axis without mental arithmetic.
  */
-const SERIES = [
-  { key: 'errors', label: 'Errors', color: 'var(--sev-error)' },
-  { key: 'warning', label: 'Warnings', color: 'var(--sev-warning)' },
-  { key: 'info', label: 'Info', color: 'var(--sev-info)' },
-] as const;
+const SERIES_KEYS = ['errors', 'warning', 'info'] as const;
 
-type SeriesKey = (typeof SERIES)[number]['key'];
+type SeriesKey = (typeof SERIES_KEYS)[number];
 
 interface ChartPoint {
   t: number;
@@ -131,7 +128,7 @@ function makeSegmentShape(dataKey: SeriesKey) {
       return null;
     }
 
-    const topMost = [...SERIES].reverse().find((s) => payload[s.key] > 0)?.key;
+    const topMost = [...SERIES_KEYS].reverse().find((k) => payload[k] > 0);
     const isTop = topMost === dataKey;
 
     // Only inset segments that have something stacked above them, and only
@@ -185,18 +182,25 @@ function mergeBuckets(points: ChartPoint[], groupSize: number): ChartPoint[] {
 }
 
 /** Human-readable width of one bar, for the tooltip. */
-function bucketLabel(ms: number): string {
+function bucketLabel(
+  ms: number,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const hours = Math.round(ms / 3_600_000);
   if (hours >= 48) {
-    return `${Math.round(hours / 24)}d bucket`;
+    return t('bucketDays', { count: Math.round(hours / 24) });
   }
   if (hours >= 1) {
-    return `${hours}h bucket`;
+    return t('bucketHours', { count: hours });
   }
-  return `${Math.round(ms / 60_000)}m bucket`;
+  return t('bucketMinutes', { count: Math.round(ms / 60_000) });
 }
 
-function makeTooltip(bucketMs: number | null) {
+function makeTooltip(
+  bucketMs: number | null,
+  series: Array<{ key: SeriesKey; label: string; color: string }>,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
   return function ChartTooltip(props: {
     active?: boolean;
     payload?: Array<{ payload: ChartPoint }>;
@@ -209,26 +213,26 @@ function makeTooltip(bucketMs: number | null) {
 
     return (
       <ChartTooltipSurface>
-        <ChartTooltipRow label="Total" value={exactCount(point.total)} />
-        {SERIES.map((series) => (
+        <ChartTooltipRow label={t('total')} value={exactCount(point.total)} />
+        {series.map((s) => (
           <ChartTooltipRow
-            key={series.key}
-            color={series.color}
-            label={series.label}
-            value={exactCount(point[series.key])}
+            key={s.key}
+            color={s.color}
+            label={s.label}
+            value={exactCount(point[s.key])}
           />
         ))}
         {point.fatal > 0 ? (
           // Fatal is stacked inside Errors, so the only place it is visible as
           // its own number is here.
           <ChartTooltipRow
-            label="of which fatal"
+            label={t('ofWhichFatal')}
             value={exactCount(point.fatal)}
           />
         ) : null}
         <ChartTooltipCaption>
           {format(new Date(point.t), 'PPp')}
-          {bucketMs ? ` · ${bucketLabel(bucketMs)}` : ''}
+          {bucketMs ? ` · ${bucketLabel(bucketMs, t)}` : ''}
         </ChartTooltipCaption>
       </ChartTooltipSurface>
     );
@@ -252,6 +256,14 @@ export function ErrorVolumeChart({
   data,
   height = 260,
 }: ErrorVolumeChartProps) {
+  const t = useTranslations('charts');
+
+  const series: Array<{ key: SeriesKey; label: string; color: string }> = [
+    { key: 'errors', label: t('errors'), color: 'var(--sev-error)' },
+    { key: 'warning', label: t('warnings'), color: 'var(--sev-warning)' },
+    { key: 'info', label: t('info'), color: 'var(--sev-info)' },
+  ];
+
   const { chartData, mean, bucketMs, detailedShape } = useMemo(() => {
     const raw: ChartPoint[] = data.map((point) => ({
       t: new Date(point.bucket).getTime(),
@@ -279,7 +291,10 @@ export function ErrorVolumeChart({
     };
   }, [data]);
 
-  const Tip = useMemo(() => makeTooltip(bucketMs), [bucketMs]);
+  const Tip = useMemo(
+    () => makeTooltip(bucketMs, series, t),
+    [bucketMs, series, t],
+  );
 
   if (!chartData.some((p) => p.total > 0)) {
     return (
@@ -287,7 +302,7 @@ export function ErrorVolumeChart({
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No events in this period
+        {t('noEvents')}
       </div>
     );
   }
@@ -333,23 +348,23 @@ export function ErrorVolumeChart({
             strokeDasharray="4 4"
             strokeOpacity={0.6}
           />
-          {SERIES.map((series) => (
+          {SERIES_KEYS.map((key) => (
             <Bar
-              key={series.key}
-              dataKey={series.key}
+              key={key}
+              dataKey={key}
               stackId="volume"
-              fill={series.color}
+              fill={series.find((s) => s.key === key)?.color}
               maxBarSize={24}
-              shape={detailedShape ? SEGMENT_SHAPES[series.key] : undefined}
+              shape={detailedShape ? SEGMENT_SHAPES[key] : undefined}
               isAnimationActive={false}
             />
           ))}
         </BarChart>
       </ResponsiveContainer>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <ChartLegend items={SERIES.map((s) => ({ ...s }))} />
+        <ChartLegend items={series} />
         <span className="text-xs text-muted-foreground">
-          Dashed line: {compactCount(Math.round(mean))} avg per bucket
+          {t('dashedLine', { count: Math.round(mean) })}
         </span>
       </div>
     </div>

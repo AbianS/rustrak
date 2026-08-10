@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertCircle, Check, Copy } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -16,13 +17,14 @@ interface TagRowProps {
 }
 
 function TagRow({ tagKey, tagValue }: TagRowProps) {
+  const t = useTranslations('events');
+  const common = useTranslations('common');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     if (!(await copyToClipboard(`${tagKey}:${tagValue}`))) {
-      toast.info('Clipboard unavailable', {
-        description:
-          'Select the value and copy it manually, or access Rustrak over HTTPS.',
+      toast.info(common('clipboardUnavailable'), {
+        description: t('clipboardValueHint'),
       });
       return;
     }
@@ -58,13 +60,15 @@ function TagRow({ tagKey, tagValue }: TagRowProps) {
 }
 
 export function EventTags({ tags }: EventTagsProps) {
+  const t = useTranslations('events');
+
   if (!tags || Object.keys(tags).length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <AlertCircle className="size-12 text-muted-foreground/50 mb-4" />
-        <p className="text-muted-foreground">No tags found for this event</p>
+        <p className="text-muted-foreground">{t('tags.emptyTitle')}</p>
         <p className="text-sm text-muted-foreground/70 mt-1">
-          Tags are metadata attached to events by Sentry SDKs
+          {t('tags.emptyHint')}
         </p>
       </div>
     );
@@ -122,13 +126,17 @@ export function EventTags({ tags }: EventTagsProps) {
   const sections = [
     {
       key: 'deployment',
-      label: 'Deployment',
+      labelKey: 'tags.deployment',
       tags: categorizedTags.deployment,
     },
-    { key: 'runtime', label: 'Runtime', tags: categorizedTags.runtime },
-    { key: 'device', label: 'Device / Browser', tags: categorizedTags.device },
-    { key: 'user', label: 'User', tags: categorizedTags.user },
-    { key: 'other', label: 'Other Tags', tags: categorizedTags.other },
+    { key: 'runtime', labelKey: 'tags.runtime', tags: categorizedTags.runtime },
+    {
+      key: 'device',
+      labelKey: 'tags.device',
+      tags: categorizedTags.device,
+    },
+    { key: 'user', labelKey: 'tags.user', tags: categorizedTags.user },
+    { key: 'other', labelKey: 'tags.other', tags: categorizedTags.other },
   ].filter((section) => Object.keys(section.tags).length > 0);
 
   return (
@@ -136,7 +144,7 @@ export function EventTags({ tags }: EventTagsProps) {
       {sections.map((section) => (
         <div key={section.key} className="space-y-2">
           <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            {section.label}
+            {t(section.labelKey)}
           </h4>
           <div className="bg-card rounded-lg border">
             <div className="px-4">
@@ -150,8 +158,7 @@ export function EventTags({ tags }: EventTagsProps) {
 
       {/* Summary */}
       <p className="text-xs text-muted-foreground">
-        {Object.keys(tags).length} tag
-        {Object.keys(tags).length !== 1 ? 's' : ''} attached to this event
+        {t('tags.attachedCount', { count: Object.keys(tags).length })}
       </p>
     </div>
   );

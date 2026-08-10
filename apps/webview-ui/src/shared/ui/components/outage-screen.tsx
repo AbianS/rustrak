@@ -1,4 +1,5 @@
 import type { RustrakError } from '@rustrak/client';
+import { getTranslations } from 'next-intl/server';
 import {
   describeError,
   errorGuidance,
@@ -19,12 +20,14 @@ import { ReloadButton } from '@/shared/ui/components/reload-button';
  * is down; a `forbidden` reaching this screen is told to ask an administrator,
  * not to wait for a server that is already answering.
  */
-export function OutageScreen({ error }: { error: RustrakError }) {
+export async function OutageScreen({ error }: { error: RustrakError }) {
+  const t = await getTranslations();
+
   return (
     <ErrorScreen
-      headline={errorHeadline(error)}
-      description={describeError(error)}
-      guidance={errorGuidance(error)}
+      headline={errorHeadline(error, t)}
+      description={describeError(error, t)}
+      guidance={errorGuidance(error, t)}
       actions={<ReloadButton />}
     />
   );

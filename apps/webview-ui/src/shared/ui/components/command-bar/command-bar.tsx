@@ -1,6 +1,7 @@
 'use client';
 
 import { SearchIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import type { CommandProject } from '@/shared/config/commands';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -14,6 +15,7 @@ interface CommandBarProps {
 }
 
 export function CommandBar({ projects }: CommandBarProps) {
+  const t = useTranslations();
   const [open, setOpen] = useState(false);
   /**
    * Bumped on every open, and used as the dialog's `key`, so each open gets a
@@ -61,13 +63,15 @@ export function CommandBar({ projects }: CommandBarProps) {
           left phones with no way into it at all. */}
       <Button
         variant="outline"
-        aria-label="Search"
+        aria-label={t('commands.triggerSearch')}
         onClick={openBar}
         className="size-8 justify-center p-0 text-muted-foreground sm:w-56 sm:justify-between sm:px-2.5"
       >
         <span className="flex items-center gap-1.5">
           <SearchIcon className="size-3.5" />
-          <span className="hidden text-[13px] sm:inline">Search</span>
+          <span className="hidden text-[13px] sm:inline">
+            {t('commands.triggerSearch')}
+          </span>
         </span>
         {/* The handler takes either modifier, so the hint has to name the one
             this machine actually has rather than always showing ⌘. */}

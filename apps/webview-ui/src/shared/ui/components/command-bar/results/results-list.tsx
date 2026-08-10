@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { type Ref, useMemo } from 'react';
 import {
@@ -51,6 +52,7 @@ export function ResultsList({
   /** Moves cmdk's selection to a hovered row, when the palette wants it moved. */
   onHighlight: (value: string) => void;
 }) {
+  const t = useTranslations();
   // Collapsed at rest, flattened while searching. A project is one row until
   // the viewer types, at which point every project's pages become candidates
   // and the list only gets long once a query is there to make it short again.
@@ -77,7 +79,7 @@ export function ResultsList({
 
     for (const project of projects) {
       for (const page of ALL_PROJECT_PAGES) {
-        const value = `${project.name} ${page.label}`;
+        const value = `${project.name} ${t(page.labelKey)}`;
         const score = filterCommand(value, query, page.keywords);
         if (score > 0) scored.push({ project, page, value, score });
       }
@@ -85,7 +87,7 @@ export function ResultsList({
 
     // Stable, so projects that score alike stay in the order they arrived.
     return scored.sort((a, b) => b.score - a.score).slice(0, SEARCH_ROW_LIMIT);
-  }, [projects, query]);
+  }, [projects, query, t]);
 
   // Only ever rendered by the search, where every project's pages sit in one
   // list, so the badge is unconditional: without it "Issues" appears once per
@@ -99,8 +101,8 @@ export function ResultsList({
       key={`${project.id}${page.segment}`}
       value={value}
       keywords={page.keywords}
-      label={page.label}
-      description={page.description}
+      label={t(page.labelKey)}
+      description={t(page.descriptionKey)}
       badge={<ProjectBadge project={project} />}
       media={<page.icon className="size-[18px] text-muted-foreground" />}
       onSelect={() => onNavigate(`/projects/${project.id}${page.segment}`)}
@@ -112,44 +114,44 @@ export function ResultsList({
     links.map((link) => (
       <CommandRow
         key={link.href}
-        value={link.label}
+        value={t(link.labelKey)}
         keywords={link.keywords}
-        label={link.label}
-        description={link.description}
+        label={t(link.labelKey)}
+        description={t(link.descriptionKey)}
         badge={badgeLabel ? <ScopeBadge label={badgeLabel} /> : undefined}
         media={<link.icon className="size-[18px] text-muted-foreground" />}
         onSelect={() => onNavigate(link.href)}
-        onHover={() => onHighlight(link.label)}
+        onHover={() => onHighlight(t(link.labelKey))}
       />
     ));
 
   return (
     <CommandList ref={ref} className="max-h-none min-w-0 flex-1 p-2">
       <CommandEmpty className="px-4 py-16 text-center text-sm text-muted-foreground">
-        No results for “{query.trim()}”
+        {t('commands.noResultsFor', { query: query.trim() })}
       </CommandEmpty>
 
       {searching ? (
         // One flat, relevance-ordered list. Grouping by project here spends a
         // heading on every match, which for a query that hits one page per
         // project is three headings for three rows.
-        <Section heading="Results">
+        <Section heading={t('commands.resultsHeading')}>
           {matches.map(({ project, page, value }) =>
             pageRow(project, page, value),
           )}
-          {linkRows(PROJECT_COMMANDS, 'General')}
-          {linkRows(SETTINGS_COMMANDS, 'Settings')}
+          {linkRows(PROJECT_COMMANDS, t('commands.generalBadge'))}
+          {linkRows(SETTINGS_COMMANDS, t('commands.settingsBadge'))}
         </Section>
       ) : (
         <>
-          <Section heading="Projects">
+          <Section heading={t('commands.projectsHeading')}>
             {projects.map((project) => (
               <CommandRow
                 key={project.id}
                 value={project.name}
                 keywords={['project', project.platform ?? '']}
                 label={project.name}
-                description={`${project.platform ?? 'No platform'} · ${PROJECT_PAGE_COUNT} pages`}
+                description={`${project.platform ?? t('commands.noPlatform')} · ${PROJECT_PAGE_COUNT} ${t('commands.pages')}`}
                 media={
                   <PlatformIcon
                     platform={project.platform ?? 'other'}
@@ -175,7 +177,9 @@ export function ResultsList({
             {linkRows(PROJECT_COMMANDS)}
           </Section>
 
-          <Section heading="Settings">{linkRows(SETTINGS_COMMANDS)}</Section>
+          <Section heading={t('commands.settingsHeading')}>
+            {linkRows(SETTINGS_COMMANDS)}
+          </Section>
         </>
       )}
     </CommandList>
