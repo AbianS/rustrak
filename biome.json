@@ -22,6 +22,8 @@
       "!**/playwright-report",
       "!**/test-results",
       "!**/src-tauri",
+      "!**/.tanstack",
+      "!**/routeTree.gen.ts",
       "!**/storybook-static"
     ]
   },
@@ -37,6 +39,8 @@
       "!**/playwright-report",
       "!**/test-results",
       "!**/src-tauri",
+      "!**/.tanstack",
+      "!**/routeTree.gen.ts",
       "!**/storybook-static"
     ],
     "enabled": true,
@@ -122,6 +126,8 @@
       "!**/playwright-report",
       "!**/test-results",
       "!**/src-tauri",
+      "!**/.tanstack",
+      "!**/routeTree.gen.ts",
       "!**/storybook-static"
     ]
   },

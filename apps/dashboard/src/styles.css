@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "@rustrak/ui/fonts.css";
+@import "@rustrak/ui/styles.css";
+
+/* Tailwind only generates the utilities it can see, and the design system's
+   classes live in its own bundle. Without this the whole UI renders unstyled. */
+@source "../node_modules/@rustrak/ui/dist";
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
