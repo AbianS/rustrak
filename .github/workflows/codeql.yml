@@ -8,8 +8,9 @@ on:
       - "apps/webview-ui/**"
       - "packages/**"
       - ".github/workflows/codeql.yml"
+  # Unfiltered by base branch so stacked PRs against a long-lived integration
+  # branch are scanned too. The path filter below is what scopes this.
   pull_request:
-    branches: ["main"]
     paths:
       - "apps/server/**"
       - "apps/webview-ui/**"

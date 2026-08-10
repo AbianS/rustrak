@@ -2,6 +2,14 @@
 
 reviews:
   auto_review:
+    # `base_branches` defaults to `[]`, which means CodeRabbit reviews only PRs
+    # targeting the default branch. The dashboard migration is a long-lived
+    # integration branch collecting stacked PRs that never target `main` until
+    # the end, so without this entry the whole stack goes unreviewed, silently.
+    # Regex, so one pattern covers any future integration branch.
+    base_branches:
+      - "^feat/.*-migration$"
+
     # `skip-review` is the general opt-out: label any PR with it and CodeRabbit
     # stays quiet. The leading `!` negates, so everything else is still
     # reviewed. release.yml applies it automatically to the "chore: version

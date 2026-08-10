@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Deliberately unfiltered by base branch. A long-lived integration branch
+  # collects stacked PRs that never touch `main` until the end, and with a
+  # `branches: [main]` filter none of them ran a single test. There is no PR
+  # that benefits from skipping CI.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
