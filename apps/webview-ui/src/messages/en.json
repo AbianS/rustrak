@@ -120,6 +120,7 @@
     "triggerSearch": "Search",
     "navigate": "navigate",
     "open": "open",
+    "close": "close",
     "hidePages": "hide pages"
   },
   "charts": {
