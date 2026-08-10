@@ -66,6 +66,8 @@ export const textTokens = [
   'label',
   'overline',
   'badge',
+  'column',
+  'tag',
   'code',
 ] as const;
 
@@ -73,12 +75,15 @@ export const spacingTokens = [
   'control-sm',
   'control-md',
   'control-lg',
+  'dot',
+  'dot-sm',
+  'meter',
   'icon-sm',
   'icon-md',
   'icon-lg',
 ] as const;
 
-export const radiusTokens = ['sm', 'md', 'lg', 'pill'] as const;
+export const radiusTokens = ['xs', 'sm', 'md', 'lg', 'pill'] as const;
 
 export const shadowTokens = ['raised', 'overlay', 'dialog'] as const;
 

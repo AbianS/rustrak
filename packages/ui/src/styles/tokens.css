@@ -332,6 +332,22 @@
   --text-badge--font-weight: 600;
   --text-badge--letter-spacing: 0.08em;
 
+  /* Column header · 9.5 / 600 / .14em · mono, uppercase. The heading above a
+     list of issues, releases or logs. Wider tracking than the badge because it
+     is set in caps: at 9.5px, caps without extra tracking read as a smear. */
+  --text-column: 0.59375rem;
+  --text-column--line-height: 1.2;
+  --text-column--font-weight: 600;
+  --text-column--letter-spacing: 0.14em;
+
+  /* Severity tag · 9.5 / 600 / .12em · mono, the FATAL / ERROR / WARNING label.
+     Slightly tighter than a column header so the two do not read as the same
+     kind of thing when they sit in the same row. */
+  --text-tag: 0.59375rem;
+  --text-tag--line-height: 1.2;
+  --text-tag--font-weight: 600;
+  --text-tag--letter-spacing: 0.12em;
+
   /* Code · 12.5 / 400 · paths, versions, technical values */
   --text-code: 0.78125rem;
   --text-code--line-height: 1.45;
@@ -363,6 +379,9 @@
   /* The radius rises with the control's height rather than staying fixed: at */
   /* 30px a 9 looks round, and at 36px an 8 looks hard.                       */
   /* ---------------------------------------------------------------------- */
+  /* The severity marker and the meter track. Below this a corner stops reading
+     as rounded and starts reading as a rendering artefact. */
+  --radius-xs: 2px;
   --radius-sm: 7px;
   --radius-md: 8px;
   --radius-lg: 9px;
@@ -376,6 +395,16 @@
   --spacing-control-sm: 30px;
   --spacing-control-md: 34px;
   --spacing-control-lg: 36px;
+  /* The severity marker: a 8px rounded square, not a circle. The circle means
+     "state" in this design and the square means "level", and they appear in the
+     same row. */
+  --spacing-dot: 8px;
+  /* The separator between two pieces of meta on one line. At 3px it reads as
+     punctuation rather than as a bullet. */
+  --spacing-dot-sm: 3px;
+  /* Meter track. The design uses 4px and 5px; 5px is the one that survives a
+     rounded cap without the fill looking pinched. */
+  --spacing-meter: 5px;
   --spacing-icon-sm: 13px;
   --spacing-icon-md: 14px;
   --spacing-icon-lg: 16px;

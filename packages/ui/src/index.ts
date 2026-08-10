@@ -1,5 +1,8 @@
 /* Foundations ------------------------------------------------------------- */
 
+export type { BadgeProps, BadgeTone } from './components/badge/badge';
+/* Presentation ------------------------------------------------------------ */
+export { Badge } from './components/badge/badge';
 export type {
   ButtonProps,
   ButtonSize,
@@ -23,6 +26,15 @@ export {
   ResolveIcon,
   SpinnerIcon,
 } from './components/icon/icon-catalog';
+export type { MeterProps, MeterTone } from './components/meter/meter';
+export { Meter } from './components/meter/meter';
+export type { SeparatorProps } from './components/separator/separator';
+export { Separator } from './components/separator/separator';
+export type {
+  SeverityDotProps,
+  SeverityLevel,
+} from './components/severity/severity-dot';
+export { SeverityDot } from './components/severity/severity-dot';
 export { cn } from './lib/cn';
 export { focusRing, focusRingWithin } from './lib/focus';
 export {
