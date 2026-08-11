@@ -91,7 +91,7 @@ describe('message dictionaries stay resolvable', () => {
         const hasGlobal = GLOBAL_HOOK.test(file.content);
         if (!named && !hasGlobal) return false;
 
-        const namespace = named ? (named[1] || named[2]) : '';
+        const namespace = named ? named[1] || named[2] : '';
 
         for (const match of file.content.matchAll(T_CALL)) {
           const key = match[1];
