@@ -40,9 +40,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * "Unavailable" used to guarantee.
  */
 export default async function AboutPage() {
-  const t = await getTranslations('settings');
-  const rootT = await getTranslations();
-  const serverVersion = await getServerVersion();
+  const [t, rootT, serverVersion] = await Promise.all([
+    getTranslations('settings'),
+    getTranslations(),
+    getServerVersion(),
+  ]);
 
   return (
     <>

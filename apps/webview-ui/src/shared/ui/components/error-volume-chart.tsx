@@ -258,11 +258,14 @@ export function ErrorVolumeChart({
 }: ErrorVolumeChartProps) {
   const t = useTranslations('charts');
 
-  const series: Array<{ key: SeriesKey; label: string; color: string }> = [
-    { key: 'errors', label: t('errors'), color: 'var(--sev-error)' },
-    { key: 'warning', label: t('warnings'), color: 'var(--sev-warning)' },
-    { key: 'info', label: t('info'), color: 'var(--sev-info)' },
-  ];
+  const series = useMemo(
+    (): Array<{ key: SeriesKey; label: string; color: string }> => [
+      { key: 'errors', label: t('errors'), color: 'var(--sev-error)' },
+      { key: 'warning', label: t('warnings'), color: 'var(--sev-warning)' },
+      { key: 'info', label: t('info'), color: 'var(--sev-info)' },
+    ],
+    [t],
+  );
 
   const { chartData, mean, bucketMs, detailedShape } = useMemo(() => {
     const raw: ChartPoint[] = data.map((point) => ({
