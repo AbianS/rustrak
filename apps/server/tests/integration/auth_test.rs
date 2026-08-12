@@ -982,3 +982,210 @@ async fn test_logout_invalidates_session() {
     let me_resp2 = test::call_service(&app, me_req2).await;
     assert_eq!(me_resp2.status(), 401);
 }
+
+// =============================================================================
+// User Preferences (language, timezone)
+// =============================================================================
+
+/// A user who has never chosen reports no preference, rather than a default.
+///
+/// The distinction is load-bearing: `null` means "has not chosen", which lets
+/// the dashboard fall back to `Accept-Language`. A column defaulting to `'en'`
+/// would force English on a reader who never touched the setting and make that
+/// fallback unreachable.
+#[actix_web::test]
+async fn test_new_user_has_no_language_or_timezone_preference() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    // Seeded rather than registered: `/auth/register` is invite-only and always
+    // answers 403.
+    create_test_user(&db.pool, "prefs@example.com", "password123", false).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let login = test::TestRequest::post()
+        .uri("/auth/login")
+        .set_json(json!({ "email": "prefs@example.com", "password": "password123" }))
+        .to_request();
+    let resp = test::call_service(&app, login).await;
+    assert_eq!(resp.status(), 200);
+    let cookie = resp.response().cookies().next().unwrap().into_owned();
+
+    let me = test::TestRequest::get()
+        .uri("/auth/me")
+        .cookie(cookie)
+        .to_request();
+    let body: Value = test::call_and_read_body_json(&app, me).await;
+
+    // Presence first, then the value. `body["missing"]` is `Null` in
+    // serde_json, so asserting only the value would pass on a response that
+    // carries no such field at all -- which is exactly the state this test was
+    // written to reject.
+    assert!(
+        body.get("language").is_some(),
+        "response carries no `language` field: {body}"
+    );
+    assert!(
+        body.get("timezone").is_some(),
+        "response carries no `timezone` field: {body}"
+    );
+    assert_eq!(body["language"], Value::Null, "language should start unset");
+    assert_eq!(body["timezone"], Value::Null, "timezone should start unset");
+}
+
+/// A chosen preference survives the request that set it.
+///
+/// Asserted by reading it back through `/auth/me` rather than by querying the
+/// table: the endpoint is the contract, and a test that checks the column
+/// directly would keep passing if the read stopped exposing it.
+#[actix_web::test]
+async fn test_patch_me_persists_language_and_timezone() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    create_test_user(&db.pool, "prefs2@example.com", "password123", false).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let login = test::TestRequest::post()
+        .uri("/auth/login")
+        .set_json(json!({ "email": "prefs2@example.com", "password": "password123" }))
+        .to_request();
+    let resp = test::call_service(&app, login).await;
+    let cookie = resp.response().cookies().next().unwrap().into_owned();
+
+    let patch = test::TestRequest::patch()
+        .uri("/auth/me")
+        .cookie(cookie.clone())
+        .set_json(json!({ "language": "zh", "timezone": "Asia/Tokyo" }))
+        .to_request();
+    let resp = test::call_service(&app, patch).await;
+    assert_eq!(resp.status(), 200, "PATCH /auth/me should succeed");
+
+    let me = test::TestRequest::get()
+        .uri("/auth/me")
+        .cookie(cookie)
+        .to_request();
+    let body: Value = test::call_and_read_body_json(&app, me).await;
+
+    assert_eq!(body["language"], "zh");
+    assert_eq!(body["timezone"], "Asia/Tokyo");
+}
+
+/// The server validates the shape of a preference, not its membership.
+///
+/// It deliberately does not know which languages the dashboard ships: the
+/// dashboard is optional in this architecture, and a hard-coded list here
+/// would mean redeploying the API to add a locale to a frontend. What it does
+/// refuse is anything that is not shaped like a language tag or a zone, so the
+/// column cannot fill with junk.
+#[actix_web::test]
+async fn test_patch_me_rejects_malformed_preferences() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    create_test_user(&db.pool, "prefs3@example.com", "password123", false).await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let login = test::TestRequest::post()
+        .uri("/auth/login")
+        .set_json(json!({ "email": "prefs3@example.com", "password": "password123" }))
+        .to_request();
+    let resp = test::call_service(&app, login).await;
+    let cookie = resp.response().cookies().next().unwrap().into_owned();
+
+    // Long enough to be a payload rather than a tag, and with characters no
+    // language tag carries.
+    let patch = test::TestRequest::patch()
+        .uri("/auth/me")
+        .cookie(cookie.clone())
+        .set_json(json!({ "language": "<script>alert(1)</script>" }))
+        .to_request();
+    let resp = test::call_service(&app, patch).await;
+    assert_eq!(
+        resp.status(),
+        400,
+        "a malformed language should be rejected"
+    );
+
+    // And an unknown-but-well-formed tag is accepted, because membership is
+    // the consumer's business.
+    let patch = test::TestRequest::patch()
+        .uri("/auth/me")
+        .cookie(cookie)
+        .set_json(json!({ "language": "pt-BR" }))
+        .to_request();
+    let resp = test::call_service(&app, patch).await;
+    assert_eq!(
+        resp.status(),
+        200,
+        "a well-formed unknown tag should be stored"
+    );
+}
+
+/// Preferences belong to a session, not to whoever can reach the port.
+#[actix_web::test]
+async fn test_patch_me_unauthenticated_is_rejected() {
+    let db = TestDb::new().await;
+    let config = create_test_config();
+    let session_key = Key::from(&[0u8; 64]);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .wrap(
+                SessionMiddleware::builder(CookieSessionStore::default(), session_key.clone())
+                    .cookie_secure(false)
+                    .build(),
+            )
+            .configure(routes::auth::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::patch()
+        .uri("/auth/me")
+        .set_json(json!({ "language": "zh" }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 401);
+}

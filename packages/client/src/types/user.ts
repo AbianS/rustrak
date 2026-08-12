@@ -4,6 +4,7 @@ import type {
   loginRequestSchema,
   loginResultSchema,
   registerRequestSchema,
+  updatePreferencesRequestSchema,
   userSchema,
 } from '../schemas/user.js';
 
@@ -11,6 +12,15 @@ import type {
  * User - authenticated user information
  */
 export type User = z.infer<typeof userSchema>;
+
+/**
+ * UpdatePreferencesRequest - how a reader wants the dashboard presented.
+ *
+ * A key left out leaves the stored value alone; a key sent as `null` clears it.
+ */
+export type UpdatePreferencesRequest = z.infer<
+  typeof updatePreferencesRequestSchema
+>;
 
 /**
  * AuthResponse - returned after successful login or registration

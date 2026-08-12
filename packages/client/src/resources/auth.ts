@@ -8,6 +8,7 @@ import {
   authResponseSchema,
   loginRequestSchema,
   registerRequestSchema,
+  updatePreferencesRequestSchema,
   userSchema,
 } from '../schemas/user.js';
 import type { AcceptInvitation, InvitationInfo } from '../types/invitation.js';
@@ -15,6 +16,7 @@ import type {
   LoginRequest,
   LoginResult,
   RegisterRequest,
+  UpdatePreferencesRequest,
   User,
 } from '../types/user.js';
 import { BaseResource, discardBody } from './base.js';
@@ -121,6 +123,28 @@ export class AuthResource extends BaseResource {
    */
   async getCurrentUser(): Promise<Result<User, RustrakError>> {
     return this.request(() => this.http.get('auth/me'), userSchema);
+  }
+
+  /**
+   * Stores how this reader wants the dashboard presented to them.
+   *
+   * A key left out is left alone; a key sent as `null` is cleared. That is why
+   * the request type is optional *and* nullable rather than one or the other:
+   * "do not touch" and "forget my choice" are different instructions.
+   */
+  async updatePreferences(
+    preferences: UpdatePreferencesRequest,
+  ): Promise<Result<User, RustrakError>> {
+    const validatedInput = this.validateInput(
+      preferences,
+      updatePreferencesRequestSchema,
+    );
+    if (!validatedInput.success) return validatedInput;
+
+    return this.request(
+      () => this.http.patch('auth/me', { json: validatedInput.data }),
+      userSchema,
+    );
   }
 
   /**

@@ -1105,6 +1105,25 @@ export const handlers = [
     return HttpResponse.json(mockUser);
   }),
 
+  // Preferences: echoes what it was given, merged onto the current user, which
+  // is what the real endpoint does after writing.
+  http.patch(`${BASE_URL}/auth/me`, async ({ request }) => {
+    const cookieHeader = request.headers.get('Cookie');
+    if (!cookieHeader?.includes('session=mock-session-cookie')) {
+      return appErrorResponse(
+        'Unauthorized',
+        'Unauthorized: Not authenticated',
+      );
+    }
+
+    const body = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      ...mockUser,
+      language: 'language' in body ? body.language : null,
+      timezone: 'timezone' in body ? body.timezone : null,
+    });
+  }),
+
   // Public invitation lookup (accept page)
   http.get(`${BASE_URL}/auth/invitation/:token`, ({ params }) => {
     const { token } = params;
