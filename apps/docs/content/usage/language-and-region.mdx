@@ -1,0 +1,50 @@
+# Language & Region
+
+The dashboard is available in **English** and **Chinese**. Language and timezone are personal preferences: each person on your instance picks their own, and the choice is stored on their account rather than in the browser. It follows them to any browser they log in from, survives clearing site data, and it means a link shared with a teammate opens in the reader's language rather than the sender's.
+
+## Choosing a language
+
+1. Go to **Settings → Account**
+2. Under **Language and region**, pick a language
+3. The change applies immediately
+
+## Before you choose
+
+A new account has no language set. Until someone picks one, the dashboard follows the language their browser asks for, and falls back to English if it cannot offer it. Regional variants are matched to the language, so a browser set to any variant of Chinese gets Chinese.
+
+This is also what someone sees before they are logged in at all, on the login page, an invitation link or a page that does not exist, since there is no account to read a preference from yet.
+
+Clearing the preference is not the same as choosing English. It returns to following the browser.
+
+## Timezone
+
+The timezone sits in the same card and decides how every date and time in the dashboard is displayed.
+
+- The first time someone loads the dashboard, their browser's timezone is saved to their account, but **only if they have not set one**. A zone chosen deliberately is never overwritten
+- A time shown in UTC is labelled as such. A time in your own zone is not, because a UTC time looks exactly like a local one and can be silently hours out
+- Until a zone is known, times are shown in UTC, which is the zone events arrive in
+
+## Changing it over the API
+
+Both preferences can be set through the API. This endpoint uses your dashboard session rather than an API token, since it changes how the dashboard looks for you:
+
+```bash
+curl -X PATCH -b cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{"language":"zh","timezone":"Asia/Shanghai"}' \
+  http://localhost:8080/auth/me
+```
+
+The two fields are independent, and leaving one out is different from clearing it:
+
+| Body | Effect |
+|---|---|
+| `{"language":"zh"}` | Sets the language, leaves the timezone alone |
+| `{"language":null}` | Clears the language, back to following the browser |
+| `{}` | Changes nothing |
+
+Rustrak accepts any well-formed language tag and any real timezone name, not only the languages this dashboard happens to ship. A language it has no translation for simply falls back, and nothing has to be redeployed on the server to add one.
+
+## Another language
+
+Rustrak ships two languages today and welcomes more. Adding one is a matter of translating a single list of phrases, with no server change involved. See [Contributing](/reference/contributing#adding-a-language).

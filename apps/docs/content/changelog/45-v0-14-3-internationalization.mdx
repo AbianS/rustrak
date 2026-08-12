@@ -1,0 +1,38 @@
+---
+version: v0.14.3
+title: Internationalization, and Language on the Account
+description: The dashboard ships in English and Chinese, and language and timezone are stored on the user account instead of a cookie
+date: 2026-08-12
+tags: [webview-ui, server, client, i18n]
+---
+
+## The dashboard is translated
+
+Built on next-intl and contributed by [@LiJoeAllen](https://github.com/LiJoeAllen).
+
+- 1117 message keys across two locales, English and Chinese, with every UI string extracted from more than 250 files
+- The portable core stays framework-free: `model` and `lib` take a translator parameter rather than reaching for a hook
+
+## Language and timezone belong to the account
+
+Both are chosen in `/settings/account` and stored on the user, not in a cookie, which does not follow a reader to another browser and is lost with site data.
+
+- Two nullable columns, and nullable is the point: NULL means "has not chosen", a different state from "chose English". A `NOT NULL DEFAULT 'en'` would make the `Accept-Language` fallback unreachable and force English on anyone who never opened the setting
+- `PATCH /auth/me` takes either field. Absent leaves the stored value alone, explicit null clears it
+- Validation is by shape, not membership. `pt-BR` is accepted even though no dashboard here renders Portuguese, because this API is usable without the dashboard and hard-coding that dashboard's locale list would mean redeploying the server to add a language to a frontend. Same for zones, which the tz database changes without this server being rebuilt. What it refuses is anything not shaped like a tag or a zone
+- The browser's timezone is adopted onto the account once, only when unset. A reader who deliberately picked UTC while sitting in Madrid must not have it silently overwritten
+- A UTC reading is labelled and a local one is not, since a UTC time looks exactly like a local one and is silently hours out
+- The locale is never in the URL. A shared link opens in the reader's language rather than the sender's, which is what a team tool wants, and an internal dashboard behind a login has no use for indexable per-language URLs or per-locale caching
+- The language control sits with the other preferences rather than in the header, where it would earn permanent space for an annual click
+- `@rustrak/client` exposes both fields on the user
+
+## Dates and numbers follow the reader
+
+- 19 files formatted dates through `date-fns` with no locale, and 13 more called a bare `toLocaleString()`, which resolves the locale of whatever process runs it. A Server Component therefore used the container's and disagreed with the browser that hydrated it
+- All of it now goes through next-intl's `useFormatter` and `getFormatter`, with the option sets named once
+- `date-fns` is no longer a dependency
+
+## Improvements
+
+- Messages are split into a shell set and a dashboard set, so a route is served only the namespaces it renders rather than all thirty
+- Two architecture suites keep the translation from rotting: `locale-completeness` fails on a file that formats without the request locale, and `message-keys` fails on a translator bound to a namespace that does not exist, on a second English dictionary living in a `.ts` file, and on a key that no dictionary resolves

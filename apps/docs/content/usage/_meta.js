@@ -8,4 +8,5 @@ export default {
   team: 'Team & Access',
   tokens: 'API Tokens',
   storage: 'Storage',
+  'language-and-region': 'Language & Region',
 };

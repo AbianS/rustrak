@@ -106,6 +106,21 @@ pnpm test
 pnpm lint
 ```
 
+### Strings and translations
+
+Every user-facing sentence lives in `src/shared/i18n/messages/`, one JSON dictionary per locale, and nowhere else. A new string goes into **both** `en.json` and `zh.json`, and is read through a translator rather than written inline.
+
+Dates, numbers and percentages are never formatted by hand. `toLocaleString()` resolves the locale of whatever process runs it, which on a Server Component is the container's, so it disagrees with the browser that hydrates it. Use next-intl's `useFormatter` or `getFormatter` with one of the named formats. The architecture suites fail the build on all of this.
+
+### Adding a language
+
+The server needs no change: it accepts any well-formed language tag, so a locale is added entirely in the dashboard.
+
+1. Copy `src/shared/i18n/messages/en.json` to your locale's tag, for example `fr.json`, and translate the values. Keep every key: a missing one renders as the raw key, not as English
+2. Add the tag to `LOCALES` in `src/shared/i18n/routing.ts`
+3. Extend the dictionary parity check in `src/__tests__/architecture/message-keys.test.ts`, which today compares English against Chinese, so your locale is held to the same rule
+4. Run `pnpm test`
+
 ## Documentation
 
 ### Run locally
