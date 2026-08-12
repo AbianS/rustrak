@@ -2,7 +2,7 @@
 
 import type { Issue, OffsetPaginatedResponse } from '@rustrak/client';
 import { AlertCircle, Check, Trash2, VolumeX, X } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -11,7 +11,7 @@ import {
   deleteIssue,
 } from '@/features/issue/api/mutations';
 import { type IssueAction, STATUS_FOR } from '@/features/issue/model/actions';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import { DataTablePagination } from '@/shared/ui/components/data-table/pagination';
 import { useAppTable } from '@/shared/ui/components/data-table/use-app-table';
@@ -36,6 +36,7 @@ export function IssuesList({
 }: IssuesListProps) {
   const t = useTranslations('issues');
   const tableT = useTranslations('table');
+  const format = useFormatter();
   const router = useRouter();
   const { items: issues, total_count, per_page } = initialIssues;
 
@@ -72,8 +73,8 @@ export function IssuesList({
   });
 
   const columns = useMemo(
-    () => issueColumns(projectId, handlers, t, tableT),
-    [projectId, t, tableT],
+    () => issueColumns(projectId, handlers, t, tableT, format),
+    [projectId, t, tableT, format],
   );
 
   const table = useAppTable({

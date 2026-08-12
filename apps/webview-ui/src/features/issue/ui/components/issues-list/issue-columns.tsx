@@ -1,7 +1,6 @@
 'use client';
 
 import type { Issue } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
   Bookmark,
@@ -11,6 +10,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import { useFormatter } from 'next-intl';
 import type { RefObject } from 'react';
 import type { IssueAction } from '@/features/issue/model/actions';
 import {
@@ -18,7 +18,7 @@ import {
   PriorityIndicator,
   StatusIndicator,
 } from '@/features/issue/ui/components/issue-indicators';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { selectionColumn } from '@/shared/ui/components/data-table/columns';
 import { createAppColumnHelper } from '@/shared/ui/components/data-table/use-app-table';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -65,11 +65,21 @@ const helper = createAppColumnHelper<Issue>();
  * inside the list's `useMemo`, and a hook called there would break the rules
  * of hooks.
  */
+/**
+ * The formatter is passed in, exactly like `t`.
+ *
+ * `useFormatter` is a hook, and this is a builder rather than a component, so
+ * it cannot reach for one itself. The component that calls it already threads
+ * the translator through for the same reason.
+ */
+type Formatter = ReturnType<typeof useFormatter>;
+
 export function issueColumns(
   projectId: number,
   handlers: RefObject<IssueRowHandlers>,
   t: (key: string, values?: Record<string, string | number>) => string,
   tableT: (key: string) => string,
+  format: Formatter,
 ) {
   return helper.columns([
     selectionColumn<Issue>(tableT),
@@ -111,9 +121,7 @@ export function issueColumns(
                   block so "when did this last happen" survives the narrow
                   layout. */}
               <span className="sm:hidden">
-                {formatDistanceToNow(new Date(issue.last_seen), {
-                  addSuffix: true,
-                })}
+                {format.relativeTime(new Date(issue.last_seen))}
               </span>
             </div>
           </Link>
@@ -137,7 +145,7 @@ export function issueColumns(
       meta: { align: 'end', hideBelow: 'lg' },
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(getValue()))}
+          {format.relativeTime(new Date(getValue()))}
         </span>
       ),
     }),
@@ -151,7 +159,7 @@ export function issueColumns(
       meta: { align: 'end', hideBelow: 'sm' },
       cell: ({ getValue }) => (
         <span className="font-mono text-sm tabular-nums">
-          {getValue().toLocaleString()}
+          {format.number(getValue())}
         </span>
       ),
     }),
@@ -163,7 +171,7 @@ export function issueColumns(
       meta: { align: 'end', hideBelow: 'lg' },
       cell: ({ getValue }) => (
         <span className="font-mono text-sm tabular-nums">
-          {(getValue() ?? 0).toLocaleString()}
+          {format.number(getValue() ?? 0)}
         </span>
       ),
     }),
@@ -175,7 +183,7 @@ export function issueColumns(
       meta: { align: 'end', hideBelow: 'sm' },
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(getValue()), { addSuffix: true })}
+          {format.relativeTime(new Date(getValue()))}
         </span>
       ),
     }),

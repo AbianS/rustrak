@@ -10,7 +10,7 @@ import {
   deleteToken,
   getToken,
 } from '@/features/token/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import {
   AlertDialog,

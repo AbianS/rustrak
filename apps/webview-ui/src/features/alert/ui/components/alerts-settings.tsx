@@ -11,7 +11,7 @@ import {
 } from '@/features/alert/api/mutations';
 import { AlertRuleFormDialog } from '@/features/alert/ui/components/alert-rule-dialog/alert-rule-dialog';
 import { AlertRulesTable } from '@/features/alert/ui/components/alert-rules-table';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

@@ -2,9 +2,9 @@
 
 import type { TransactionStats } from '@rustrak/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -57,6 +57,7 @@ export function TransactionStatsTable({
   totalCount,
   perPage,
 }: TransactionStatsTableProps) {
+  const format = useFormatter();
   const t = useTranslations('transactions');
   const tableT = useTranslations('table');
   const router = useRouter();
@@ -104,7 +105,7 @@ export function TransactionStatsTable({
                   )}
                 </div>
                 <span className="hidden sm:block w-20 text-right font-mono tabular-nums text-muted-foreground">
-                  {s.count.toLocaleString()}
+                  {format.number(s.count)}
                 </span>
                 <span
                   className={cn(

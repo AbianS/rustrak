@@ -8,11 +8,11 @@ import { Ok } from '@rustrak/client';
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { listSpans } from '@/features/agent-trace/api/queries';
 import { AgentTraceWaterfall } from '@/features/agent-trace/ui/components/agent-trace-waterfall';
 import { getProject } from '@/features/project/api/queries';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
@@ -79,6 +79,7 @@ export default async function AgentTraceDetailPage({
   params,
 }: AgentTraceDetailPageProps) {
   const t = await getTranslations('projectPages');
+  const format = await getFormatter();
   const { id, traceId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -145,7 +146,7 @@ export default async function AgentTraceDetailPage({
             {formatDuration(duration)}
           </span>
           <Badge variant="secondary">
-            {t('trace.tokens', { count: totalTokens.toLocaleString() })}
+            {t('trace.tokens', { count: format.number(totalTokens) })}
           </Badge>
           {toolCallCount > 0 && (
             <Badge variant="outline">
@@ -154,7 +155,7 @@ export default async function AgentTraceDetailPage({
           )}
           {startedAt != null && (
             <span className="text-xs text-muted-foreground">
-              {new Date(startedAt).toLocaleString()}
+              {format.dateTime(new Date(startedAt), 'precise')}
             </span>
           )}
         </div>

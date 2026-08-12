@@ -12,7 +12,7 @@ import {
 } from '@/features/user/api/mutations';
 import { PROJECT_ROLES, roleLabel } from '@/features/user/model/roles';
 import { ProjectMembersTable } from '@/features/user/ui/components/project-members-table';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

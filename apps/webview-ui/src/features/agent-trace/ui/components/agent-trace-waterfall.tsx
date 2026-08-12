@@ -2,7 +2,7 @@
 
 import type { Span } from '@rustrak/client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 
@@ -62,9 +62,18 @@ function formatDuration(ms: number | null): string {
   return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function formatTokens(n: number | null): string {
+/**
+ * The formatter is passed in, exactly like `t`.
+ *
+ * `useFormatter` is a hook, and this is a builder rather than a component, so
+ * it cannot reach for one itself. The component that calls it already threads
+ * the translator through for the same reason.
+ */
+type Formatter = ReturnType<typeof useFormatter>;
+
+function formatTokens(n: number | null, format: Formatter): string {
   if (n == null) return '—';
-  return n.toLocaleString();
+  return format.number(n);
 }
 
 /**
@@ -351,6 +360,7 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
 
 function SpanDetail({ span, selfMs }: { span: Span; selfMs: number | null }) {
   const t = useTranslations('agents');
+  const format = useFormatter();
   const rows: { key: string; label: string; value: string }[] = [
     {
       key: 'op',
@@ -424,17 +434,17 @@ function SpanDetail({ span, selfMs }: { span: Span; selfMs: number | null }) {
     {
       key: 'inputTokens',
       label: t('detail.inputTokens'),
-      value: formatTokens(span.gen_ai_usage_input_tokens),
+      value: formatTokens(span.gen_ai_usage_input_tokens, format),
     },
     {
       key: 'outputTokens',
       label: t('detail.outputTokens'),
-      value: formatTokens(span.gen_ai_usage_output_tokens),
+      value: formatTokens(span.gen_ai_usage_output_tokens, format),
     },
     {
       key: 'totalTokens',
       label: t('detail.totalTokens'),
-      value: formatTokens(span.gen_ai_usage_total_tokens),
+      value: formatTokens(span.gen_ai_usage_total_tokens, format),
     },
   ];
 

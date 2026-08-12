@@ -1,6 +1,5 @@
-import { formatDistanceToNow } from 'date-fns';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import {
   getEventDetail,
   getEventNavigation,
@@ -66,6 +65,7 @@ const compact = (n: number) =>
   }).format(n);
 
 export default async function EventPage({ params }: EventPageProps) {
+  const format = await getFormatter();
   const t = await getTranslations('projectPages');
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
@@ -159,18 +159,14 @@ export default async function EventPage({ params }: EventPageProps) {
       <div className="p-4 space-y-1.5 border-b">
         <div className="flex items-baseline justify-between gap-2 text-sm">
           <span className="text-muted-foreground">{t('event.lastSeen')}</span>
-          <span title={new Date(issue.last_seen).toLocaleString()}>
-            {formatDistanceToNow(new Date(issue.last_seen), {
-              addSuffix: true,
-            })}
+          <span title={format.dateTime(new Date(issue.last_seen), 'precise')}>
+            {format.relativeTime(new Date(issue.last_seen))}
           </span>
         </div>
         <div className="flex items-baseline justify-between gap-2 text-sm">
           <span className="text-muted-foreground">{t('event.firstSeen')}</span>
-          <span title={new Date(issue.first_seen).toLocaleString()}>
-            {formatDistanceToNow(new Date(issue.first_seen), {
-              addSuffix: true,
-            })}
+          <span title={format.dateTime(new Date(issue.first_seen), 'precise')}>
+            {format.relativeTime(new Date(issue.first_seen))}
           </span>
         </div>
         {issue.last_release && (
@@ -279,11 +275,7 @@ export default async function EventPage({ params }: EventPageProps) {
                     </span>
                   </span>
                   <span className="text-muted-foreground/40">·</span>
-                  <span>
-                    {formatDistanceToNow(new Date(event.timestamp), {
-                      addSuffix: true,
-                    })}
-                  </span>
+                  <span>{format.relativeTime(new Date(event.timestamp))}</span>
                   {event.platform && (
                     <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
                       {event.platform}

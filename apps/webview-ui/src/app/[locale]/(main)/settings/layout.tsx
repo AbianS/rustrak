@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { getCurrentUser } from '@/features/user/api/queries';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import { SettingsMobileNav } from './_components/settings-mobile-nav';
 import { SettingsNav } from './_components/settings-nav';

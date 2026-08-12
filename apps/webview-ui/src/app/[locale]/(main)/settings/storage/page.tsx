@@ -7,7 +7,7 @@ import {
   ShieldX,
 } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { Suspense } from 'react';
 import { getProjects } from '@/features/project/api/queries';
 import {
@@ -22,7 +22,7 @@ import {
   SummaryCardsSkeleton,
 } from '@/features/storage/ui/components/storage-skeletons';
 import { getCurrentUser } from '@/features/user/api/queries';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { formatBytes } from '@/shared/lib/utils';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
@@ -68,8 +68,11 @@ async function PageHeader() {
  * a skeleton without blocking the rest of the page.
  */
 async function SummaryCards() {
-  const t = await getTranslations('settings');
-  const result = await getStorageSummary();
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('settings'),
+    getStorageSummary(),
+  ]);
 
   if (!result.success) {
     return (
@@ -89,30 +92,30 @@ async function SummaryCards() {
       label: t('storage.dbSize'),
       value: formatBytes(summary.total_db_size_bytes),
       sub: t('storage.eventsCount', {
-        count: summary.events_count.toLocaleString(),
+        count: format.number(summary.events_count),
       }),
       icon: Database,
     },
     {
       id: 'transactions',
       label: t('storage.transactions'),
-      value: summary.transactions_count.toLocaleString(),
+      value: format.number(summary.transactions_count),
       sub: t('storage.spansCount', {
-        count: summary.spans_count.toLocaleString(),
+        count: format.number(summary.spans_count),
       }),
       icon: ListTree,
     },
     {
       id: 'spans',
       label: t('storage.spans'),
-      value: summary.spans_count.toLocaleString(),
+      value: format.number(summary.spans_count),
       sub: t('storage.spansSub'),
       icon: Layers,
     },
     {
       id: 'logs',
       label: t('storage.logs'),
-      value: summary.logs_count.toLocaleString(),
+      value: format.number(summary.logs_count),
       sub: t('storage.logsSub'),
       icon: ScrollText,
     },
@@ -121,7 +124,7 @@ async function SummaryCards() {
       label: t('storage.sourceMaps'),
       value: formatBytes(summary.source_maps.total_bytes),
       sub: t('storage.sourceMapsFiles', {
-        count: summary.source_maps.file_count.toLocaleString(),
+        count: format.number(summary.source_maps.file_count),
       }),
       icon: FileCode2,
     },
@@ -157,8 +160,11 @@ async function SummaryCards() {
  * streams in independently of the cards above.
  */
 async function ProjectsTable() {
-  const t = await getTranslations('settings');
-  const result = await getStorageProjects();
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('settings'),
+    getStorageProjects(),
+  ]);
 
   if (!result.success) {
     return (
@@ -197,31 +203,31 @@ async function ProjectsTable() {
                     {t('storage.events')}
                   </span>
                   <span className="tabular-nums text-right">
-                    {p.events_count.toLocaleString()}
+                    {format.number(p.events_count)}
                   </span>
                   <span className="text-muted-foreground">
                     {t('storage.transactions')}
                   </span>
                   <span className="tabular-nums text-right">
-                    {p.transactions_count.toLocaleString()}
+                    {format.number(p.transactions_count)}
                   </span>
                   <span className="text-muted-foreground">
                     {t('storage.spans')}
                   </span>
                   <span className="tabular-nums text-right">
-                    {p.spans_count.toLocaleString()}
+                    {format.number(p.spans_count)}
                   </span>
                   <span className="text-muted-foreground">
                     {t('storage.logs')}
                   </span>
                   <span className="tabular-nums text-right">
-                    {p.logs_count.toLocaleString()}
+                    {format.number(p.logs_count)}
                   </span>
                   <span className="text-muted-foreground">
                     {t('storage.sourceMaps')}
                   </span>
                   <span className="tabular-nums text-right">
-                    {p.source_maps_count.toLocaleString()}
+                    {format.number(p.source_maps_count)}
                   </span>
                   <span className="text-muted-foreground">
                     {t('storage.estSize')}
@@ -273,19 +279,19 @@ async function ProjectsTable() {
                     {p.project_name}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.events_count.toLocaleString()}
+                    {format.number(p.events_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.transactions_count.toLocaleString()}
+                    {format.number(p.transactions_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.spans_count.toLocaleString()}
+                    {format.number(p.spans_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.logs_count.toLocaleString()}
+                    {format.number(p.logs_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.source_maps_count.toLocaleString()}
+                    {format.number(p.source_maps_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatBytes(p.estimated_bytes)}

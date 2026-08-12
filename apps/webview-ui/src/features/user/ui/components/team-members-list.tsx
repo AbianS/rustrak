@@ -1,9 +1,8 @@
 'use client';
 
 import type { GlobalRole, TeamMember } from '@rustrak/client';
-import { format } from 'date-fns';
 import { Loader2, Trash2, Users } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -11,7 +10,7 @@ import {
   updateUserRole,
 } from '@/features/user/api/mutations';
 import { TeamMembersTable } from '@/features/user/ui/components/team-members-table';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,6 +95,7 @@ export function TeamMembersList({
 }: TeamMembersListProps) {
   const router = useRouter();
   const t = useTranslations('user');
+  const format = useFormatter();
   const [isPending, startTransition] = useTransition();
   const [memberToDelete, setMemberToDelete] = useState<TeamMember | null>(null);
 
@@ -184,9 +184,9 @@ export function TeamMembersList({
                       {' · '}
                       {member.last_login
                         ? t('table.lastLoginAt', {
-                            date: format(
+                            date: format.dateTime(
                               new Date(member.last_login),
-                              'MMM d, yyyy',
+                              'date',
                             ),
                           })
                         : t('table.neverLoggedIn')}

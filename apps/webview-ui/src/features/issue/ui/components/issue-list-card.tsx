@@ -1,8 +1,8 @@
 import type { Issue } from '@rustrak/client';
 import { AlertCircle, Users } from 'lucide-react';
-import Link from 'next/link';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { LevelBadge } from '@/features/issue/ui/components/issue-indicators';
-import { compactCount, exactCount } from '@/shared/lib/chart-format';
+import { Link } from '@/shared/i18n/navigation';
 import {
   Card,
   CardContent,
@@ -21,13 +21,15 @@ interface IssueListCardProps {
   emptyMessage: string;
 }
 
-export function IssueListCard({
+export async function IssueListCard({
   projectId,
   issues,
   title,
   subtitle,
   emptyMessage,
 }: IssueListCardProps) {
+  const format = await getFormatter();
+  const t = await getTranslations('issues');
   return (
     <Card size="sm">
       <CardHeader>
@@ -74,18 +76,18 @@ export function IssueListCard({
                 {issue.user_count !== undefined ? (
                   <span
                     className="hidden shrink-0 items-center gap-1 font-mono text-xs text-muted-foreground sm:flex"
-                    title={`${exactCount(issue.user_count)} users affected`}
+                    title={t('card.usersAffected', { count: issue.user_count })}
                   >
                     <Users className="size-3.5" aria-hidden />
-                    {compactCount(issue.user_count)}
+                    {format.number(issue.user_count, 'compact')}
                   </span>
                 ) : null}
 
                 <span
                   className="w-12 shrink-0 text-right font-mono text-sm text-muted-foreground"
-                  title={`${exactCount(issue.event_count)} events`}
+                  title={t('card.eventCount', { count: issue.event_count })}
                 >
-                  {compactCount(issue.event_count)}
+                  {format.number(issue.event_count, 'compact')}
                 </span>
               </Link>
             ))}

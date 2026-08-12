@@ -1,7 +1,6 @@
 'use client';
 
-import { format } from 'date-fns';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -24,6 +23,7 @@ function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: { t: number; count: number } }>;
 }) {
+  const format = useFormatter();
   const { active, payload } = props;
   const t = useTranslations('charts');
   if (!active || !payload?.length) {
@@ -35,7 +35,9 @@ function ChartTooltip(props: {
       <p className="font-medium text-popover-foreground">
         {t('eventCount', { count: point.count })}
       </p>
-      <p className="text-muted-foreground">{format(new Date(point.t), 'PP')}</p>
+      <p className="text-muted-foreground">
+        {format.dateTime(new Date(point.t), 'date')}
+      </p>
     </div>
   );
 }
@@ -45,6 +47,7 @@ function ChartTooltip(props: {
  * it shares the chart language used across the dashboard.
  */
 export function EventChart({ data, height = 130 }: EventChartProps) {
+  const format = useFormatter();
   const chartData = data.map(([t, count]) => ({ t: t * 1000, count }));
 
   return (
@@ -58,7 +61,7 @@ export function EventChart({ data, height = 130 }: EventChartProps) {
           type="number"
           scale="time"
           domain={['dataMin', 'dataMax']}
-          tickFormatter={(v) => format(new Date(v), 'MMM d')}
+          tickFormatter={(v) => format.dateTime(new Date(v), 'axisDay')}
           tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
           axisLine={false}
           tickLine={false}

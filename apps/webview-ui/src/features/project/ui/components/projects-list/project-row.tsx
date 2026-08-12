@@ -1,13 +1,12 @@
 'use client';
 
 import type { Project } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { MoreVertical, Trash2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
 import { ProjectStatsCells } from '@/features/project/ui/components/project-stats-cells';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Checkbox } from '@/shared/ui/components/shadcn/checkbox';
 import {
@@ -28,6 +27,7 @@ export function ProjectRow({
   onToggleSelect: () => void;
   onDelete: (project: Project) => void;
 }) {
+  const format = useFormatter();
   const t = useTranslations('projects');
 
   return (
@@ -64,9 +64,7 @@ export function ProjectRow({
 
       <div className={PROJECT_COLUMNS.created}>
         <span className="text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(project.created_at), {
-            addSuffix: true,
-          })}
+          {format.relativeTime(new Date(project.created_at))}
         </span>
       </div>
 

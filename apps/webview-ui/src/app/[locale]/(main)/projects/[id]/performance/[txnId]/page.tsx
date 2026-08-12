@@ -1,12 +1,12 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
 import type { Span, TraceContext } from '@/features/transaction/model/span';
 import { MeasurementsCard } from '@/features/transaction/ui/components/measurements-card';
 import { SpanWaterfall } from '@/features/transaction/ui/components/span-waterfall';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
@@ -83,6 +83,7 @@ export default async function TransactionDetailPage({
   params,
 }: TransactionDetailPageProps) {
   const t = await getTranslations('projectPages');
+  const format = await getFormatter();
   const { id, txnId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -152,7 +153,7 @@ export default async function TransactionDetailPage({
             </span>
           )}
           <span className="text-xs text-muted-foreground">
-            {new Date(txn.timestamp).toLocaleString()}
+            {format.dateTime(new Date(txn.timestamp), 'precise')}
           </span>
         </div>
       </div>

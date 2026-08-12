@@ -1,11 +1,10 @@
 'use client';
 
 import type { Log, OffsetPaginatedResponse } from '@rustrak/client';
-import { format, formatDistanceToNow } from 'date-fns';
 import { ScrollText } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { expandColumn } from '@/shared/ui/components/data-table/columns';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
@@ -67,9 +66,19 @@ const helper = createAppColumnHelper<Log>();
  * `t` is passed in by the component: the columns are built there rather than
  * at module scope because the headers are localized.
  */
+/**
+ * The formatter is passed in, exactly like `t`.
+ *
+ * `useFormatter` is a hook, and this is a builder rather than a component, so
+ * it cannot reach for one itself. The component that calls it already threads
+ * the translator through for the same reason.
+ */
+type Formatter = ReturnType<typeof useFormatter>;
+
 function buildColumns(
   t: (key: string) => string,
   tableT: (key: string) => string,
+  format: Formatter,
 ) {
   return helper.columns([
     expandColumn<Log>(tableT),
@@ -124,7 +133,7 @@ function buildColumns(
       meta: { align: 'end', hideBelow: 'sm' },
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(getValue()), { addSuffix: true })}
+          {format.relativeTime(new Date(getValue()))}
         </span>
       ),
     }),
@@ -133,6 +142,7 @@ function buildColumns(
 
 /** The panel under an expanded row: everything the columns had to leave out. */
 function LogDetail({ log }: { log: Log }) {
+  const format = useFormatter();
   const t = useTranslations('logs');
   const attributes = Object.entries(log.attributes ?? {});
 
@@ -141,7 +151,7 @@ function LogDetail({ log }: { log: Log }) {
       <dl className="grid grid-cols-[5.5rem_1fr] gap-x-4 gap-y-1.5 text-sm">
         <dt className="text-muted-foreground">timestamp</dt>
         <dd className="font-mono text-xs">
-          {format(new Date(log.timestamp), 'PPpp')}
+          {format.dateTime(new Date(log.timestamp), 'precise')}
         </dd>
         {log.trace_id && (
           <>
@@ -204,6 +214,7 @@ export function LogsList({
 }: LogsListProps) {
   const t = useTranslations('logs');
   const tableT = useTranslations('table');
+  const format = useFormatter();
   const router = useRouter();
   const { items: logs, total_count, per_page } = initialLogs;
 
@@ -220,7 +231,10 @@ export function LogsList({
     navigate: ({ page }) => router.push(buildUrl(page)),
   });
 
-  const columns = useMemo(() => buildColumns(t, tableT), [t, tableT]);
+  const columns = useMemo(
+    () => buildColumns(t, tableT, format),
+    [t, tableT, format],
+  );
 
   const table = useAppTable({
     data: logs,

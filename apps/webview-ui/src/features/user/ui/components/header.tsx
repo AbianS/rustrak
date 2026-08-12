@@ -5,8 +5,7 @@ import { LogOut, Settings } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { type ReactNode, useTransition } from 'react';
 import { logout } from '@/features/user/api/mutations';
-import { Link, useRouter } from '@/i18n/navigation';
-import { LocaleSwitcher } from '@/shared/ui/components/locale-switcher';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -54,7 +53,6 @@ export function Header({ user, commandBar }: HeaderProps) {
           each end than with a third floating in the middle. */}
       <div className="flex items-center gap-2 md:gap-3">
         {commandBar}
-        <LocaleSwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

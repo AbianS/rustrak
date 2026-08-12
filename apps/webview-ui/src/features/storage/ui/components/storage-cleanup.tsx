@@ -2,14 +2,14 @@
 
 import type { CleanupCounts } from '@rustrak/client';
 import { AlertTriangle, Trash2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
   executeStorageCleanup,
   previewStorageCleanup,
 } from '@/features/storage/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +72,7 @@ const periodLabel = (
 };
 
 export function StorageCleanup({ projects }: StorageCleanupProps) {
+  const format = useFormatter();
   const t = useTranslations('storage');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -268,7 +269,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
                   >
                     <dt className="text-muted-foreground">{line.label}</dt>
                     <dd className="tabular-nums font-medium">
-                      {line.count.toLocaleString()}
+                      {format.number(line.count)}
                     </dd>
                   </div>
                 ))}

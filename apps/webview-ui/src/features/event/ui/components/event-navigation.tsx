@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { EventNavigation } from '@/features/event/api/queries';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface EventNavigationBarProps {

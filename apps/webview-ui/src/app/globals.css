@@ -9,9 +9,22 @@
   /* Geist from next/font/google, with the JetBrains faces as fallbacks (see
      layout.tsx). When Google Fonts is slow or unreachable the browser paints
      with the next resolvable face in each stack — JetBrains Mono is
-     self-hosted via @fontsource, so that fallback works offline too. */
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+     self-hosted via @fontsource, so that fallback works offline too.
+
+     Then the CJK stack, which matters now that `zh` is a locale: Geist ships
+     `latin` only, so every Chinese glyph on the page falls past it to whatever
+     the browser picks by itself. That default is not consistent across
+     platforms and on Windows it is often a face designed for Japanese, which
+     renders a set of hanzi with visibly wrong shapes to a Chinese reader.
+     Naming the system UI faces per platform costs nothing (they are already
+     installed; nothing is downloaded) and makes the fallback deliberate:
+     PingFang on Apple, Microsoft YaHei on Windows, Noto on Linux. */
+  --font-sans:
+    var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  --font-mono:
+    var(--font-geist-mono), "PingFang SC", "Microsoft YaHei",
+    "Noto Sans Mono CJK SC", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);

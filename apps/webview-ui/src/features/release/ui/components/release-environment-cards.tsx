@@ -1,5 +1,5 @@
 import type { ReleaseHealthRow } from '@rustrak/client';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { crashFreeClass, pct } from '@/features/release/model/session-health';
 import { cn } from '@/shared/lib/utils';
 import {
@@ -16,6 +16,7 @@ interface ReleaseEnvironmentCardsProps {
 export async function ReleaseEnvironmentCards({
   rows,
 }: ReleaseEnvironmentCardsProps) {
+  const format = await getFormatter();
   const t = await getTranslations('releases');
 
   return (
@@ -33,9 +34,7 @@ export async function ReleaseEnvironmentCards({
                 <p className="text-[10px] text-muted-foreground">
                   {t('sessions')}
                 </p>
-                <p className="text-xl font-bold">
-                  {row.total.toLocaleString()}
-                </p>
+                <p className="text-xl font-bold">{format.number(row.total)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">
@@ -75,7 +74,7 @@ export async function ReleaseEnvironmentCards({
                       : 'text-muted-foreground',
                   )}
                 >
-                  {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
+                  {row.crashed > 0 ? format.number(row.crashed) : '—'}
                 </p>
               </div>
             </div>

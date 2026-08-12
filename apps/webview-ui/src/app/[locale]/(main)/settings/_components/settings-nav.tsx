@@ -2,7 +2,7 @@
 
 import { Database, Info, Key, Palette, Plug, User, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Link, usePathname } from '@/i18n/navigation';
+import { Link, usePathname } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 
 const navItems = [

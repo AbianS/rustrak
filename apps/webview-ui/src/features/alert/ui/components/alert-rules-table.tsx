@@ -41,7 +41,6 @@ export function AlertRulesTable({
   onDelete: (rule: AlertRule) => void;
 }) {
   const t = useTranslations('alerts');
-  const typesT = useTranslations('alertTypes');
   const columns = useMemo(
     () =>
       helper.columns([
@@ -62,7 +61,7 @@ export function AlertRulesTable({
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <AlertTypeIcon type={getValue()} className="size-3.5" />
               <span className="truncate">
-                {typesT(alertTypeInfo(getValue()).nameKey)}
+                {t(alertTypeInfo(getValue()).nameKey)}
               </span>
             </span>
           ),
@@ -148,15 +147,7 @@ export function AlertRulesTable({
           ),
         }),
       ]),
-    [
-      t,
-      typesT,
-      getIntegrationById,
-      disabled,
-      onToggleEnabled,
-      onEdit,
-      onDelete,
-    ],
+    [t, getIntegrationById, disabled, onToggleEnabled, onEdit, onDelete],
   );
 
   const table = useAppTable({

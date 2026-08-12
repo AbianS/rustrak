@@ -7,7 +7,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import type { DataTableInstance } from './use-app-table';
 
@@ -29,6 +29,7 @@ export function DataTablePagination<TData extends RowData>({
   table: DataTableInstance<TData>;
   disabled?: boolean;
 }) {
+  const format = useFormatter();
   const { pageIndex, pageSize } = table.state.pagination;
   const pageCount = table.getPageCount();
   const rowCount = table.getRowCount();
@@ -47,9 +48,9 @@ export function DataTablePagination<TData extends RowData>({
           was being looked for. */}
       <p className="text-xs text-muted-foreground tabular-nums">
         <span className="font-medium text-foreground">
-          {first.toLocaleString()}-{last.toLocaleString()}
+          {format.number(first)}-{format.number(last)}
         </span>{' '}
-        {t('ofTotal', { total: rowCount.toLocaleString() })}
+        {t('ofTotal', { total: format.number(rowCount) })}
       </p>
 
       <div className="flex items-center gap-1">
@@ -77,7 +78,7 @@ export function DataTablePagination<TData extends RowData>({
         <span className="px-2 text-xs text-muted-foreground tabular-nums">
           {t('pageOf', {
             current: pageIndex + 1,
-            total: pageCount.toLocaleString(),
+            total: format.number(pageCount),
           })}
         </span>
 

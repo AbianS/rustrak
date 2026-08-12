@@ -1,8 +1,9 @@
 {
   "locale": {
-    "switch": "Switch language",
     "en": "English",
-    "zh": "简体中文"
+    "zh": "简体中文",
+    "label": "Language",
+    "storedOnDevice": "Saved in this browser, not on your account."
   },
   "app": {
     "title": "Rustrak - Error Tracking System",
@@ -105,7 +106,7 @@
     "appearanceDescription": "Light, dark or whatever the system says.",
     "about": "About",
     "aboutDescription": "Which version of Rustrak this is.",
-    "noResultsFor": "No results for \u201c{query}\u201d",
+    "noResultsFor": "No results for “{query}”",
     "resultsHeading": "Results",
     "projectsHeading": "Projects",
     "settingsHeading": "Settings",
@@ -145,7 +146,9 @@
     "invalid": "{subject} is not valid.",
     "alreadyExists": "{subject} is already taken.",
     "tooShort": "{subject} is too short.",
-    "tooLong": "{subject} is too long."
+    "tooLong": "{subject} is too long.",
+    "rejected": "This value was rejected.",
+    "defaultSubject": "This value"
   },
   "error": {
     "describe": {
@@ -241,13 +244,11 @@
       "all": "All"
     },
     "deleteDialog": {
-      "titleOne": "Delete this issue?",
-      "titleMany": "Delete {count} issues?",
-      "descriptionOne": "This will permanently delete this issue and all associated events. This action cannot be undone.",
-      "descriptionMany": "This will permanently delete {count} issues and all associated events. This action cannot be undone.",
       "cancel": "Cancel",
       "deleting": "Deleting...",
-      "confirm": "Delete"
+      "confirm": "Delete",
+      "title": "{count, plural, =1 {Delete this issue?} other {Delete # issues?}}",
+      "description": "{count, plural, =1 {This will permanently delete this issue and all associated events. This action cannot be undone.} other {This will permanently delete # issues and all associated events. This action cannot be undone.}}"
     },
     "statusTitle": "Status: {label}",
     "priorityTitle": "Priority: {label}",
@@ -282,6 +283,10 @@
       "high": "High",
       "medium": "Medium",
       "low": "Low"
+    },
+    "card": {
+      "usersAffected": "{count, plural, =1 {# user affected} other {# users affected}}",
+      "eventCount": "{count, plural, =1 {# event} other {# events}}"
     }
   },
   "roles": {
@@ -447,14 +452,13 @@
       "confirm": "Delete"
     },
     "deleteDialog": {
-      "subjectOne": "this project",
-      "subjectMany": "{count} projects",
       "titleNamed": "Delete \"{name}\"?",
       "titleCount": "{count, plural, =1 {Delete # project?} other {Delete # projects?}}",
       "description": "This will permanently delete {subject} and all associated issues and events. This action cannot be undone.",
       "cancel": "Cancel",
       "deleting": "Deleting...",
-      "confirm": "Delete"
+      "confirm": "Delete",
+      "subject": "{count, plural, =1 {this project} other {# projects}}"
     },
     "selectedCount": "{count, plural, =1 {# selected} other {# selected}}",
     "empty": {
@@ -895,6 +899,11 @@
         "spanId": "span_id",
         "parentSpanId": "parent_span_id"
       }
+    },
+    "p95": {
+      "barTitle": "{name} — {count, plural, =1 {# event} other {# events}}",
+      "empty": "No transaction data yet",
+      "failing": "{rate} failing"
     }
   },
   "agents": {
@@ -1449,7 +1458,9 @@
       "profileDescription": "Your account information",
       "email": "Email",
       "role": "Role",
-      "administrator": "Administrator"
+      "administrator": "Administrator",
+      "regional": "Language and region",
+      "regionalDescription": "How Rustrak reads to you on this device"
     },
     "appearance": {
       "meta": {

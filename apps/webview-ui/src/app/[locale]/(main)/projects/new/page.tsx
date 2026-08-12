@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { getProjects } from '@/features/project/api/queries';
 import { CreateProjectForm } from '@/features/project/ui/components/create-project-form/create-project-form';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('projectPages');

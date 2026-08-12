@@ -1,4 +1,4 @@
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 
 interface ProjectSettingsIndexPageProps {
   params: Promise<{ id: string }>;

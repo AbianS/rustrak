@@ -3,7 +3,7 @@ import { CircleAlert } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { IssueActions } from '@/features/issue/ui/components/issue-actions';
 import { StatusIndicator } from '@/features/issue/ui/components/issue-indicators';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 
 /** Shorthand for the counters in the header strip. */

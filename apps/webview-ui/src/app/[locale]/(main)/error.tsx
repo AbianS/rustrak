@@ -3,7 +3,7 @@
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface ErrorProps {

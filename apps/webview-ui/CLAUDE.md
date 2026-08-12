@@ -22,9 +22,14 @@ were deleted on purpose. See "Architecture" below before adding a file.
 - **Styling**: Tailwind CSS 4.3
 - **UI Components**: Base UI + shadcn/ui
 - **Theme**: next-themes (dark/light/system)
+- **i18n**: next-intl 4 (`en`, `zh`), every route under `/[locale]`
 - **Icons**: Lucide React
 - **API Client**: `@rustrak/client` (workspace package)
 - **Architecture tests**: [archunit](https://github.com/lukasniessen/archunitts)
+
+There is no date or number formatting library. Dates, relative times, numbers
+and percentages all go through next-intl's `useFormatter` / `getFormatter`; see
+"Internationalisation" below.
 
 ## Architecture
 
@@ -35,10 +40,12 @@ upward.** This is enforced, not merely documented.
 apps/webview-ui/
 ├── components.json              shadcn CLI config; its aliases point into shared/
 └── src/
+    ├── proxy.ts                 the locale middleware, and the only thing at src root
     ├── app/                     routing + composition. Next lives here.
-    │   └── <route>/
-    │       ├── page.tsx         and the other Next special files
-    │       └── _components/     everything else, unconditionally
+    │   └── [locale]/            every route is under it. See "Internationalisation"
+    │       └── <route>/
+    │           ├── page.tsx     and the other Next special files
+    │           └── _components/ everything else, unconditionally
     ├── features/                the domain, one slice per business concept
     │   └── <slice>/
     │       ├── ui/
@@ -53,10 +60,17 @@ apps/webview-ui/
         ├── ui/
         │   ├── components/      primitives, and shadcn/ under components/shadcn/
         │   └── hooks/
-        ├── lib/                 pure helpers: cn, clipboard, chart formatting
+        ├── lib/                 pure helpers: cn, clipboard, arithmetic
         ├── api/                 client construction + the cookie adapter
+        ├── i18n/                next-intl wiring, and messages/ under it
         └── config/              constants and static tables
 ```
+
+`i18n` is a segment of `shared`, not a fourth thing at the root of `src`. It
+was written as `src/i18n/` first, which put it outside all three layers and
+therefore outside every rule that governs them -- `shared/ui/components/locale-switcher.tsx`
+imported from it and no rule could see the edge. Under `shared/` it is covered
+by `layer-direction` for free.
 
 ### The eleven features
 
@@ -91,13 +105,15 @@ them, not invented. The non-obvious groupings are the point:
 | A read called from a Server Component | `features/<that>/api/queries.ts` |
 | A mutation called from the browser | `features/<that>/api/mutations.ts` |
 | A type two features both need | it moves **down** into `shared`, never sideways |
+| A new user-facing sentence | `shared/i18n/messages/en.json` **and** `zh.json` |
+| A date, a number, a percentage | nowhere: format it at the call site through `useFormatter` |
 
 **Decide by the type it renders, not by who imports it.** A component used by
 five routes still belongs to the feature whose type it names.
 
 ## Rules the CI enforces
 
-`src/__tests__/architecture/` holds nine rule files, 35 assertions, written on
+`src/__tests__/architecture/` holds eleven rule files, 44 assertions, written on
 archunit. They run in `pnpm test`. **Read the rule before working around it** --
 each file documents why it exists and what it is protecting.
 
@@ -112,6 +128,8 @@ each file documents why it exists and what it is protecting.
 | `use-server-placement` | a file in `api/` that is not `queries.ts` (`server-only`) or `mutations.ts` (`'use server'`) |
 | `result-shape` | minting a `success: false` literal outside `@rustrak/client` |
 | `client-error-kinds` | a new client error `kind` slipping in unhandled (compile-time) |
+| `message-keys` | `en`/`zh` drifting apart, a translator bound to a namespace that does not exist, a key that resolves to nothing, or a second English dictionary living in a `.ts` file |
+| `locale-completeness` | formatting a date or number without the request locale (`toLocaleString`, `new Intl.*`, a date library), and navigating through `next/link` or `next/navigation`, which drops the locale prefix |
 
 Two conventions in that folder that exist for a reason:
 
@@ -213,7 +231,92 @@ export function DeleteButton({ id }: { id: number }) {
 }
 ```
 
+## Internationalisation
+
+Two locales, `en` and `zh`, on next-intl 4. **Every route is under `/[locale]`
+and the prefix is always present** (`localePrefix: 'always'`), so `/projects`
+does not exist -- `/en/projects` and `/zh/projects` do. `proxy.ts` adds the
+prefix and remembers the choice in a cookie.
+
+### The five things to know before touching it
+
+1. **Copy lives in `shared/i18n/messages/{en,zh}.json`, and nowhere else.**
+   Six modules once carried their own English tables behind an optional
+   translator parameter, unreachable because every call site passed one. They
+   are gone and `message-keys` forbids the shape. A module in the portable core
+   names keys and takes a `Translate`; it does not hold sentences.
+
+2. **Never format a date or a number yourself.** No `toLocaleString()`, no
+   `new Intl.NumberFormat`, no date library -- `locale-completeness` fails the
+   build on all three. `toLocaleString()` in particular is not
+   locale-*neutral*, it is locale-*of-whatever-process-ran-it*, which on a
+   Server Component means the container's. Use `useFormatter()` in a client
+   component, `await getFormatter()` in a server one, and name the option set:
+
+   ```tsx
+   const format = useFormatter();
+   format.dateTime(new Date(x), 'date');   // Jan 5, 2026 / 2026年1月5日
+   format.relativeTime(new Date(x));       // 3 weeks ago / 3周前
+   format.number(n, 'compact');            // 12.4K / 1.2万
+   format.number(rate, 'percent');
+   ```
+
+   The named formats (`date`, `dateTime`, `precise`, `time`, `axisDay`,
+   `axisTime`, `compact`, `percent`, `percentChange`) are defined once in
+   `shared/i18n/request.ts`. Add there, not at the call site.
+
+   **A builder is not a component.** Column definitions and tooltip factories
+   take `format` as a parameter, exactly as they already take `t`.
+
+3. **Timestamps render in the reader's timezone, and this copies Sentry.**
+   `timezoneProvider.tsx` in `getsentry/sentry` resolves
+   `user.options.timezone ?? browserTimezone` and never defaults to UTC. Their
+   frontend can read `Intl` directly because it renders in the browser; ours
+   renders on the server, where the zone arrives in no header. So
+   `TimeZoneCookie` writes it from an inline script and `shared/i18n/timezone.ts`
+   reads it back, validated, falling back to UTC.
+
+   **A UTC reading is labelled, a local one is not.** Also Sentry's rule, from
+   `dateTime.tsx`: the zone is shown only when the time is UTC, "in which case
+   the user would want to know that it's UTC and not their own time zone". A
+   local time matches the reader's own clock and needs no caption; a UTC time
+   looks identical and is silently hours out. `request.ts` switches
+   `timeStyle` on that condition.
+
+   Not ported: Sentry's persisted `user.options.timezone` and `clock24Hours`,
+   which need a column and an endpoint on the Rust side. The 12/24-hour clock
+   is the smaller loss, since `Intl` already picks it from the locale.
+
+4. **Navigate through `shared/i18n/navigation.ts`**, never `next/link` or
+   `next/navigation`. `notFound()` is the one exception -- it produces no URL.
+   `shared/i18n/redirect.ts` is the server-side `redirect`, and is server-only
+   by construction.
+
+5. **Messages are split by where they render.** `shared/i18n/client-messages.ts`
+   holds two namespace sets: the shell's, and the dashboard's. One provider at
+   the root shipping all 30 namespaces made `/auth/login` a 113KB document
+   carrying the copy for source-map cleanup. Adding a namespace means deciding
+   which set it belongs to.
+
+### Adding a string
+
+Add the key to **both** dictionaries, resolve it with `t`, run `pnpm test`.
+`message-keys` fails if `zh` is missing it, if the namespace does not exist, or
+if the key resolves to nothing.
+
+### The 404s
+
+`app/[locale]/[...rest]/page.tsx` exists so that an unmatched URL raises
+`notFound()` from *inside* the locale segment, which is what lets
+`[locale]/not-found.tsx` render it: translated, branded, with prefixed links.
+Without that route Next answers with its own unstyled page, because a
+`not-found.tsx` only renders for a `notFound()` raised in its segment and an
+unmatched URL never reaches one. Read that file before deleting it; it looks
+like it does nothing.
+
 ## Routes
+
+Every path below is prefixed with the locale: `/en/projects`, `/zh/settings`.
 
 | Route | Description |
 |-------|-------------|
@@ -249,9 +352,11 @@ export function DeleteButton({ id }: { id: number }) {
 | `/settings/appearance` | Theme selector |
 | `/settings/about` | Version info |
 
-Failure surfaces: `app/error.tsx` (full screen, with brand panel),
-`app/(main)/error.tsx` (below the header, no brand panel), `app/not-found.tsx`
-(one 404 for every route, including every `notFound()` raised inside the app).
+Failure surfaces: `app/[locale]/error.tsx` (full screen, with brand panel),
+`app/[locale]/(main)/error.tsx` (below the header, no brand panel), and
+`app/[locale]/not-found.tsx`, which answers every `notFound()` raised inside the
+app **and**, through the `[...rest]` catch-all, every unmatched URL. It did not
+answer unmatched URLs before that route existed; see "The 404s" above.
 
 ## UI Components
 

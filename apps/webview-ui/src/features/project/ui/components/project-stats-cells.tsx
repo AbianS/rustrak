@@ -1,9 +1,8 @@
 'use client';
 
 import type { ProjectListStats } from '@rustrak/client';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
-import { compactCount, exactCount } from '@/shared/lib/chart-format';
 import { cn } from '@/shared/lib/utils';
 import { MetricDeltaText } from '@/shared/ui/components/metric-delta';
 import { TrendSparkline } from '@/shared/ui/components/trend-sparkline';
@@ -68,6 +67,7 @@ export function ProjectStatsCells({
   stats,
   totalEvents,
 }: ProjectStatsCellsProps) {
+  const format = useFormatter();
   const t = useTranslations('projects');
   const health = stats ? projectHealth(stats) : 'quiet';
 
@@ -82,7 +82,7 @@ export function ProjectStatsCells({
                 stats.open_issues === 0 && 'text-muted-foreground',
               )}
             >
-              {exactCount(stats.open_issues)}
+              {format.number(stats.open_issues)}
             </div>
             {stats.fatal_issues > 0 && (
               <div className="text-xs font-medium text-red-600 dark:text-red-400 tabular-nums">
@@ -103,9 +103,9 @@ export function ProjectStatsCells({
                 'text-sm font-medium tabular-nums',
                 stats.events.current === 0 && 'text-muted-foreground',
               )}
-              title={exactCount(stats.events.current)}
+              title={format.number(stats.events.current)}
             >
-              {compactCount(stats.events.current)}
+              {format.number(stats.events.current, 'compact')}
             </div>
             {/* More errors than the period before is bad news, so the arrow
                 is coloured against the direction of travel. */}
@@ -119,9 +119,9 @@ export function ProjectStatsCells({
       <div className={PROJECT_COLUMNS.total}>
         <span
           className="text-sm text-muted-foreground tabular-nums"
-          title={exactCount(totalEvents)}
+          title={format.number(totalEvents)}
         >
-          {compactCount(totalEvents)}
+          {format.number(totalEvents, 'compact')}
         </span>
       </div>
 

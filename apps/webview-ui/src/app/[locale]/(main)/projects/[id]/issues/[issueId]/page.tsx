@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { getLastEvent } from '@/features/event/api/queries';
 import { getIssue } from '@/features/issue/api/queries';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface IssuePageProps {

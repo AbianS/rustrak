@@ -7,7 +7,7 @@ import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deleteProject } from '@/features/project/api/mutations';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Checkbox } from '@/shared/ui/components/shadcn/checkbox';

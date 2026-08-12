@@ -16,7 +16,7 @@ import {
   emailDefaults,
   emailFormSchema,
 } from '@/features/alert/model/integration-forms';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {

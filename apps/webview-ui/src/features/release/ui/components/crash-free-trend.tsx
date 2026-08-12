@@ -1,8 +1,7 @@
 'use client';
 
 import type { SessionTimeseries } from '@rustrak/client';
-import { format } from 'date-fns';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 // Not loaded through next/dynamic, deliberately.
 //
@@ -24,7 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 import { crashFreeColor, pct } from '@/features/release/model/session-health';
-import { exactCount } from '@/shared/lib/chart-format';
 import {
   ChartTooltipCaption,
   ChartTooltipRow,
@@ -86,6 +84,7 @@ function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
 }) {
+  const format = useFormatter();
   const t = useTranslations('releases');
   const { active, payload } = props;
   if (!active || !payload?.length) {
@@ -96,10 +95,16 @@ function ChartTooltip(props: {
   return (
     <ChartTooltipSurface>
       <ChartTooltipRow label={t('crashFree')} value={pct(point.rate)} />
-      <ChartTooltipRow label={t('sessions')} value={exactCount(point.total)} />
-      <ChartTooltipRow label={t('crashed')} value={exactCount(point.crashed)} />
+      <ChartTooltipRow
+        label={t('sessions')}
+        value={format.number(point.total)}
+      />
+      <ChartTooltipRow
+        label={t('crashed')}
+        value={format.number(point.crashed)}
+      />
       <ChartTooltipCaption>
-        {format(new Date(point.t), 'PPp')}
+        {format.dateTime(new Date(point.t), 'dateTime')}
       </ChartTooltipCaption>
     </ChartTooltipSurface>
   );
@@ -133,6 +138,7 @@ export function CrashFreeTrend({
   data,
   height = 132,
 }: CrashFreeTrendProps) {
+  const format = useFormatter();
   const t = useTranslations('releases');
   const { chartData, floor } = useMemo(() => {
     const points: ChartPoint[] = data.map((point) => ({
@@ -197,7 +203,7 @@ export function CrashFreeTrend({
           <div className="flex items-baseline gap-2">
             <dt className="text-muted-foreground">{t('sessions')}</dt>
             <dd className="font-semibold tabular-nums">
-              {exactCount(totalSessions)}
+              {format.number(totalSessions)}
             </dd>
           </div>
         </dl>
@@ -215,7 +221,7 @@ export function CrashFreeTrend({
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
-                tickFormatter={(v) => format(new Date(v), 'MMM d')}
+                tickFormatter={(v) => format.dateTime(new Date(v), 'axisDay')}
                 tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                 axisLine={false}
                 tickLine={false}

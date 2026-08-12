@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { getCurrentUser } from '@/features/user/api/queries';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
+import { LanguageSelector } from '@/shared/ui/components/language-selector';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import {
   Card,
@@ -68,6 +69,21 @@ export default async function AccountPage() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* The home for everything that is "how I want this read to me" rather
+            than "who I am". Language today; the timezone preference in
+            rustrak/rustrak#258 belongs in this card, not in a second one. */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('account.regional')}</CardTitle>
+            <CardDescription>
+              {t('account.regionalDescription')}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LanguageSelector />
           </CardContent>
         </Card>
       </div>

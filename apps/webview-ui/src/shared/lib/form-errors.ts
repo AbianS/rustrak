@@ -33,11 +33,14 @@ export interface ApplyServerFieldErrorsOptions {
    */
   readonly labels?: Readonly<Record<string, string>>;
   /**
-   * Resolves the copy sentences. When omitted the messages fall back to their
-   * English forms, so a caller that cannot reach a translator still gets a
-   * sentence rather than a blank slot.
+   * Resolves the copy sentences.
+   *
+   * Required, like `describeError`'s. It was optional with an English table
+   * standing in below, which is a second dictionary keyed by the same message
+   * keys as `messages/en.json` and reachable from nowhere: every call site
+   * passes a translator.
    */
-  readonly t?: Translate;
+  readonly t: Translate;
 }
 
 export interface AppliedServerFieldErrors {
@@ -71,7 +74,9 @@ export interface AppliedServerFieldErrors {
 export function applyServerFieldErrors<TFieldValues extends FieldValues>(
   form: UseFormReturn<TFieldValues>,
   error: RustrakError,
-  options: ApplyServerFieldErrorsOptions = {},
+  // No default: `t` is required, so an omitted options object would be an
+  // options object missing it.
+  options: ApplyServerFieldErrorsOptions,
 ): AppliedServerFieldErrors {
   const { map = {}, labels = {}, t } = options;
 
@@ -205,45 +210,26 @@ function copyFor(
   code: FieldErrorCode,
   label: string | undefined,
   serverMessage: string | undefined,
-  t: Translate | undefined,
+  t: Translate,
 ): string {
   if (code === 'custom') {
     // The one code whose meaning lives in the message. The server sends it
     // precisely because the code set could not express the reason.
-    return serverMessage ?? 'This value was rejected.';
+    return serverMessage ?? t('formErrors.rejected');
   }
 
-  const subject = label ?? 'This value';
+  const subject = label ?? t('formErrors.defaultSubject');
 
   switch (code) {
     case 'required':
-      return fieldSentence(t, 'formErrors.required', subject);
+      return t('formErrors.required', { subject });
     case 'invalid':
-      return fieldSentence(t, 'formErrors.invalid', subject);
+      return t('formErrors.invalid', { subject });
     case 'already_exists':
-      return fieldSentence(t, 'formErrors.alreadyExists', subject);
+      return t('formErrors.alreadyExists', { subject });
     case 'too_short':
-      return fieldSentence(t, 'formErrors.tooShort', subject);
+      return t('formErrors.tooShort', { subject });
     case 'too_long':
-      return fieldSentence(t, 'formErrors.tooLong', subject);
+      return t('formErrors.tooLong', { subject });
   }
-}
-
-/** "{subject} is required." through `t`, or the English form when `t` is absent. */
-function fieldSentence(
-  t: Translate | undefined,
-  key: string,
-  subject: string,
-): string {
-  const english: Record<string, string> = {
-    'formErrors.required': '{subject} is required.',
-    'formErrors.invalid': '{subject} is not valid.',
-    'formErrors.alreadyExists': '{subject} is already taken.',
-    'formErrors.tooShort': '{subject} is too short.',
-    'formErrors.tooLong': '{subject} is too long.',
-  };
-  const message = t
-    ? t(key, { subject })
-    : english[key].replaceAll('{subject}', subject);
-  return message;
 }

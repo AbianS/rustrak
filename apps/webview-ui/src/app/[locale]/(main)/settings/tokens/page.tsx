@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { listTokens } from '@/features/token/api/queries';
 import { TokensList } from '@/features/token/ui/components/tokens-list/tokens-list';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 export async function generateMetadata(): Promise<Metadata> {

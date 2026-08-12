@@ -40,14 +40,10 @@ export function DeleteIssuesDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {count > 1
-              ? t('deleteDialog.titleMany', { count })
-              : t('deleteDialog.titleOne')}
+            {t('deleteDialog.title', { count })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {count > 1
-              ? t('deleteDialog.descriptionMany', { count })
-              : t('deleteDialog.descriptionOne')}
+            {t('deleteDialog.description', { count })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -1,8 +1,9 @@
 {
   "locale": {
-    "switch": "切换语言",
     "en": "English",
-    "zh": "简体中文"
+    "zh": "简体中文",
+    "label": "语言",
+    "storedOnDevice": "保存在此浏览器中，不会保存到您的账户。"
   },
   "app": {
     "title": "Rustrak - 错误跟踪系统",
@@ -145,7 +146,9 @@
     "invalid": "{subject}格式不正确。",
     "alreadyExists": "{subject}已被占用。",
     "tooShort": "{subject}过短。",
-    "tooLong": "{subject}过长。"
+    "tooLong": "{subject}过长。",
+    "rejected": "该值被拒绝。",
+    "defaultSubject": "该值"
   },
   "error": {
     "describe": {
@@ -241,13 +244,11 @@
       "all": "全部"
     },
     "deleteDialog": {
-      "titleOne": "删除此问题？",
-      "titleMany": "删除 {count} 个问题？",
-      "descriptionOne": "这将永久删除此问题及其所有关联事件，且无法撤销。",
-      "descriptionMany": "这将永久删除 {count} 个问题及其所有关联事件，且无法撤销。",
       "cancel": "取消",
       "deleting": "正在删除...",
-      "confirm": "删除"
+      "confirm": "删除",
+      "title": "{count, plural, other {删除 # 个问题？}}",
+      "description": "{count, plural, other {这将永久删除 # 个问题及其所有关联事件。此操作无法撤销。}}"
     },
     "statusTitle": "状态：{label}",
     "priorityTitle": "优先级：{label}",
@@ -282,6 +283,10 @@
       "high": "高",
       "medium": "中",
       "low": "低"
+    },
+    "card": {
+      "usersAffected": "影响 {count} 位用户",
+      "eventCount": "{count} 个事件"
     }
   },
   "roles": {
@@ -447,14 +452,13 @@
       "confirm": "删除"
     },
     "deleteDialog": {
-      "subjectOne": "此项目",
-      "subjectMany": "{count} 个项目",
       "titleNamed": "删除 “{name}”？",
       "titleCount": "删除 {count} 个项目？",
       "description": "这将永久删除 {subject} 及其所有关联的问题和事件。此操作无法撤销。",
       "cancel": "取消",
       "deleting": "正在删除...",
-      "confirm": "删除"
+      "confirm": "删除",
+      "subject": "{count, plural, other {# 个项目}}"
     },
     "selectedCount": "已选择 {count} 项",
     "empty": {
@@ -895,6 +899,11 @@
         "spanId": "span_id",
         "parentSpanId": "parent_span_id"
       }
+    },
+    "p95": {
+      "barTitle": "{name} — {count} 个事件",
+      "empty": "暂无事务数据",
+      "failing": "{rate} 失败"
     }
   },
   "agents": {
@@ -1449,7 +1458,9 @@
       "profileDescription": "您的账户信息",
       "email": "电子邮件",
       "role": "角色",
-      "administrator": "管理员"
+      "administrator": "管理员",
+      "regional": "语言与地区",
+      "regionalDescription": "Rustrak 在此设备上以何种方式呈现给您"
     },
     "appearance": {
       "meta": {
@@ -1457,7 +1468,7 @@
         "description": "自定义 Rustrak 的外观"
       },
       "title": "外观",
-      "subtitle": "自定义 Rustrak 在您设备上的显示效果",
+      "subtitle": "自定义 Rustrak 在此设备上的外观",
       "theme": "主题",
       "themeDescription": "选择您偏好的配色方案"
     },

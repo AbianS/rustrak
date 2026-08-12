@@ -3,7 +3,7 @@
 import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { ErrorScreen } from '@/shared/ui/components/error-screen';
 import { Button } from '@/shared/ui/components/shadcn/button';
 

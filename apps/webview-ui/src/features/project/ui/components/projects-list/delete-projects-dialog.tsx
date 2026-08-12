@@ -35,9 +35,9 @@ export function DeleteProjectsDialog({
   onConfirm: () => void;
 }) {
   const t = useTranslations('projects');
-  const subject = targetName
-    ? t('deleteDialog.subjectOne')
-    : t('deleteDialog.subjectMany', { count });
+  // A named target is always exactly one, whatever `count` says: the dialog is
+  // then confirming that project rather than a selection.
+  const subject = t('deleteDialog.subject', { count: targetName ? 1 : count });
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

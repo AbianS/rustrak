@@ -1,11 +1,10 @@
 'use client';
 
 import type { OffsetPaginatedResponse, Transaction } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -60,6 +59,7 @@ export function TransactionsList({
   basePath,
   filters,
 }: TransactionsListProps) {
+  const format = useFormatter();
   const t = useTranslations('transactions');
   const tableT = useTranslations('table');
   const router = useRouter();
@@ -171,9 +171,7 @@ export function TransactionsList({
 
                 <div className="hidden md:block w-28 text-right">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDistanceToNow(new Date(txn.timestamp), {
-                      addSuffix: true,
-                    })}
+                    {format.relativeTime(new Date(txn.timestamp))}
                   </span>
                 </div>
               </Link>

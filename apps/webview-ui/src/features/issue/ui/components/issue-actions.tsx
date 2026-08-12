@@ -32,7 +32,7 @@ import {
   updateIssueState,
 } from '@/features/issue/api/mutations';
 import { priorityDisplay } from '@/features/issue/model/status';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -315,9 +315,11 @@ export function IssueActions({ issue, projectId }: IssueActionsProps) {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('deleteDialog.titleOne')}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('deleteDialog.title', { count: 1 })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {t('deleteDialog.descriptionOne')}
+              {t('deleteDialog.description', { count: 1 })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,5 +1,5 @@
 import type { RustrakError } from '@rustrak/client';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { listIssues } from '@/features/issue/api/queries';
 import { IssueListCard } from '@/features/issue/ui/components/issue-list-card';
 import {
@@ -17,7 +17,6 @@ import {
 import { CrashFreeTrend } from '@/features/release/ui/components/crash-free-trend';
 import { SessionHealthArea } from '@/features/release/ui/components/session-health-area';
 import { getTransactionStats } from '@/features/transaction/api/queries';
-import { exactCount } from '@/shared/lib/chart-format';
 import { loadAll } from '@/shared/lib/results';
 import { ErrorVolumeChart } from '@/shared/ui/components/error-volume-chart';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
@@ -118,8 +117,11 @@ export async function ErrorVolumeTile({ projectId, period }: TileProps) {
 }
 
 export async function CounterTiles({ projectId, period }: TileProps) {
-  const t = await getTranslations('projectPages');
-  const result = await getProjectStatsSummary(projectId, period);
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('projectPages'),
+    getProjectStatsSummary(projectId, period),
+  ]);
 
   if (!result.success) {
     // One fetch fills two grid cells, so it has to fail as two. Returning a
@@ -147,7 +149,7 @@ export async function CounterTiles({ projectId, period }: TileProps) {
         metric={summary.new_issues}
         polarity="up-is-bad"
         footnote={t('overview.openIssues', {
-          count: exactCount(summary.open_issues),
+          count: format.number(summary.open_issues),
         })}
       />
     </>

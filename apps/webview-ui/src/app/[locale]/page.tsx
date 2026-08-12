@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/features/user/api/queries';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { OutageScreen } from '@/shared/ui/components/outage-screen';
 
 export default async function Home() {

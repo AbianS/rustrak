@@ -6,7 +6,7 @@ import {
   listProjectMembers,
 } from '@/features/user/api/queries';
 import { MembersSettings } from '@/features/user/ui/components/members-settings';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';

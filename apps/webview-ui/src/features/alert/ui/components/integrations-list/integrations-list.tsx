@@ -12,7 +12,7 @@ import {
 import { alertProviders } from '@/features/alert/model/providers';
 import { IntegrationConfigDialog } from '@/features/alert/ui/components/integration-config-dialog/integration-config-dialog';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,

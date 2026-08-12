@@ -1,13 +1,12 @@
 'use client';
 
 import type { ActivityEntry } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { Loader2, MessageSquare } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { addIssueComment } from '@/features/issue/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Textarea } from '@/shared/ui/components/shadcn/textarea';
 
@@ -66,6 +65,7 @@ export function IssueActivity({
   issueId,
   activity,
 }: IssueActivityProps) {
+  const format = useFormatter();
   const t = useTranslations('issues');
   const router = useRouter();
   const [text, setText] = useState('');
@@ -150,9 +150,7 @@ export function IssueActivity({
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      {formatDistanceToNow(new Date(entry.created_at), {
-                        addSuffix: true,
-                      })}
+                      {format.relativeTime(new Date(entry.created_at))}
                     </p>
                   </div>
                 </li>

@@ -30,7 +30,6 @@ export function TriggerField({
   locked: boolean;
 }) {
   const t = useTranslations('alerts');
-  const typesT = useTranslations('alertTypes');
   const { control, setValue, watch } = useFormContext<AlertRuleFormData>();
   const selected = watch('alert_type');
   const inert = disabled || locked;
@@ -78,12 +77,10 @@ export function TriggerField({
                         isSelected ? 'text-primary' : 'text-foreground',
                       )}
                     >
-                      {typesT(entry.nameKey)}
+                      {t(entry.nameKey)}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
-                      {entry.descriptionKey
-                        ? typesT(entry.descriptionKey)
-                        : null}
+                      {entry.descriptionKey ? t(entry.descriptionKey) : null}
                     </p>
                   </div>
                 </button>

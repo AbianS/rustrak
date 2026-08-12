@@ -1,8 +1,7 @@
 'use client';
 
 import type { EventTimeseries } from '@rustrak/client';
-import { format } from 'date-fns';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { type ReactElement, useMemo } from 'react';
 // Not loaded through next/dynamic, deliberately.
 //
@@ -23,7 +22,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { compactCount, exactCount } from '@/shared/lib/chart-format';
 import {
   ChartLegend,
   ChartTooltipCaption,
@@ -196,10 +194,20 @@ function bucketLabel(
   return t('bucketMinutes', { count: Math.round(ms / 60_000) });
 }
 
+/**
+ * The formatter is passed in, exactly like `t`.
+ *
+ * `useFormatter` is a hook, and this is a builder rather than a component, so
+ * it cannot reach for one itself. The component that calls it already threads
+ * the translator through for the same reason.
+ */
+type Formatter = ReturnType<typeof useFormatter>;
+
 function makeTooltip(
   bucketMs: number | null,
   series: Array<{ key: SeriesKey; label: string; color: string }>,
   t: (key: string, values?: Record<string, string | number>) => string,
+  format: Formatter,
 ) {
   return function ChartTooltip(props: {
     active?: boolean;
@@ -213,13 +221,16 @@ function makeTooltip(
 
     return (
       <ChartTooltipSurface>
-        <ChartTooltipRow label={t('total')} value={exactCount(point.total)} />
+        <ChartTooltipRow
+          label={t('total')}
+          value={format.number(point.total)}
+        />
         {series.map((s) => (
           <ChartTooltipRow
             key={s.key}
             color={s.color}
             label={s.label}
-            value={exactCount(point[s.key])}
+            value={format.number(point[s.key])}
           />
         ))}
         {point.fatal > 0 ? (
@@ -227,11 +238,11 @@ function makeTooltip(
           // its own number is here.
           <ChartTooltipRow
             label={t('ofWhichFatal')}
-            value={exactCount(point.fatal)}
+            value={format.number(point.fatal)}
           />
         ) : null}
         <ChartTooltipCaption>
-          {format(new Date(point.t), 'PPp')}
+          {format.dateTime(new Date(point.t), 'dateTime')}
           {bucketMs ? ` · ${bucketLabel(bucketMs, t)}` : ''}
         </ChartTooltipCaption>
       </ChartTooltipSurface>
@@ -256,6 +267,7 @@ export function ErrorVolumeChart({
   data,
   height = 260,
 }: ErrorVolumeChartProps) {
+  const format = useFormatter();
   const t = useTranslations('charts');
 
   const series = useMemo(
@@ -295,8 +307,8 @@ export function ErrorVolumeChart({
   }, [data]);
 
   const Tip = useMemo(
-    () => makeTooltip(bucketMs, series, t),
-    [bucketMs, series, t],
+    () => makeTooltip(bucketMs, series, t, format),
+    [bucketMs, series, t, format],
   );
 
   if (!chartData.some((p) => p.total > 0)) {
@@ -326,14 +338,14 @@ export function ErrorVolumeChart({
             type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={(v) => format(new Date(v), 'MMM d, HH:mm')}
+            tickFormatter={(v) => format.dateTime(new Date(v), 'axisTime')}
             tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}
             minTickGap={64}
           />
           <YAxis
-            tickFormatter={compactCount}
+            tickFormatter={(v) => format.number(v, 'compact')}
             tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}

@@ -1,6 +1,6 @@
 import type { TransactionStats } from '@rustrak/client';
-import Link from 'next/link';
-import { exactCount } from '@/shared/lib/chart-format';
+import { getFormatter, getTranslations } from 'next-intl/server';
+import { Link } from '@/shared/i18n/navigation';
 
 interface TransactionP95BarsProps {
   projectId: number;
@@ -54,15 +54,17 @@ function summaryHref(projectId: number, row: TransactionStats): string {
  * much worse is the worst" rather than against an absolute scale that would
  * mean nothing without knowing the app.
  */
-export function TransactionP95Bars({
+export async function TransactionP95Bars({
   projectId,
   rows,
   limit = 5,
 }: TransactionP95BarsProps) {
+  const format = await getFormatter();
+  const t = await getTranslations('transactions');
   if (rows.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
-        No transaction data yet
+        {t('p95.empty')}
       </p>
     );
   }
@@ -79,7 +81,10 @@ export function TransactionP95Bars({
           <li key={`${row.transaction_name}-${row.op ?? ''}`}>
             <Link
               href={summaryHref(projectId, row)}
-              title={`${row.transaction_name} — ${exactCount(row.count)} events`}
+              title={t('p95.barTitle', {
+                name: row.transaction_name,
+                count: row.count,
+              })}
               className="group block"
             >
               <div className="flex items-baseline gap-2">
@@ -110,7 +115,9 @@ export function TransactionP95Bars({
                   so only the failing ones say why they are red. */}
               {failing ? (
                 <p className="mt-1 text-[11px] tabular-nums text-[color:var(--sev-error)]">
-                  {(row.failure_rate * 100).toFixed(1)}% failing
+                  {t('p95.failing', {
+                    rate: format.number(row.failure_rate, 'percent'),
+                  })}
                 </p>
               ) : null}
             </Link>

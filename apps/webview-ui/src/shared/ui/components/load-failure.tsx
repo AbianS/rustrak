@@ -1,6 +1,6 @@
 import type { RustrakError } from '@rustrak/client';
 import { notFound } from 'next/navigation';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 
 /**

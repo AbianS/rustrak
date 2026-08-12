@@ -1,9 +1,8 @@
 'use client';
 
 import type { EventDetail } from '@rustrak/client';
-import { format } from 'date-fns';
 import { Check, Copy } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -98,6 +97,7 @@ function Section({ title, children }: SectionProps) {
 }
 
 export function EventDetails({ event }: EventDetailsProps) {
+  const format = useFormatter();
   const t = useTranslations('events');
   const eventData = event.data as Record<string, unknown>;
 
@@ -157,11 +157,11 @@ export function EventDetails({ event }: EventDetailsProps) {
         <DetailRow label={t('details.transaction')} value={transaction} />
         <DetailRow
           label={t('details.timestamp')}
-          value={format(new Date(event.timestamp), 'PPpp')}
+          value={format.dateTime(new Date(event.timestamp), 'precise')}
         />
         <DetailRow
           label={t('details.ingestedAt')}
-          value={format(new Date(event.ingested_at), 'PPpp')}
+          value={format.dateTime(new Date(event.ingested_at), 'precise')}
         />
         <DetailRow label={t('details.level')} value={event.level} />
         {mechanism?.handled !== undefined && (

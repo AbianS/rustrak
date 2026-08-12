@@ -9,7 +9,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { createInvitation } from '@/features/user/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { Button } from '@/shared/ui/components/shadcn/button';

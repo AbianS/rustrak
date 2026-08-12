@@ -5,14 +5,14 @@ import type {
   ReleaseHealthRow,
 } from '@rustrak/client';
 import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import {
   crashFreeClass,
   pct,
   RELEASE_PERIODS,
 } from '@/features/release/model/session-health';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -37,6 +37,7 @@ export function ReleasesList({
   currentPage,
   activePeriod,
 }: ReleasesListProps) {
+  const format = useFormatter();
   const t = useTranslations('releases');
   const tableT = useTranslations('table');
   const router = useRouter();
@@ -125,7 +126,7 @@ export function ReleasesList({
                   </Badge>
                 </div>
                 <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                  {row.total.toLocaleString()}
+                  {format.number(row.total)}
                 </span>
                 <span
                   className={cn(
@@ -151,7 +152,7 @@ export function ReleasesList({
                       : 'text-muted-foreground',
                   )}
                 >
-                  {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
+                  {row.crashed > 0 ? format.number(row.crashed) : '—'}
                 </span>
               </Link>
             ))}

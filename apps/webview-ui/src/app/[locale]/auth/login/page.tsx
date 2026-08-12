@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { Link } from '@/i18n/navigation';
 import { APP_VERSION } from '@/shared/config/constants';
+import { Link } from '@/shared/i18n/navigation';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { LoginForm } from './_components/login-form';
 

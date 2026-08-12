@@ -1,11 +1,12 @@
 import type { Project } from '@rustrak/client';
-import { getTranslations } from 'next-intl/server';
+import { getFormatter, getTranslations } from 'next-intl/server';
 
 interface ProjectHeaderProps {
   project: Project;
 }
 
 export async function ProjectHeader({ project }: ProjectHeaderProps) {
+  const format = await getFormatter();
   const t = await getTranslations('projects');
 
   return (
@@ -24,7 +25,7 @@ export async function ProjectHeader({ project }: ProjectHeaderProps) {
           {t('events')}
         </p>
         <p className="text-xl font-bold text-primary">
-          {project.digested_event_count.toLocaleString()}
+          {format.number(project.digested_event_count)}
         </p>
       </div>
     </div>

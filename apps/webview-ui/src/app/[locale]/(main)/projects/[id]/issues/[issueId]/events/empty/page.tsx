@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { getIssue } from '@/features/issue/api/queries';
 import { getProject } from '@/features/project/api/queries';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { Button } from '@/shared/ui/components/shadcn/button';

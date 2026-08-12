@@ -1,13 +1,12 @@
 'use client';
 
 import type { Invitation } from '@rustrak/client';
-import { format } from 'date-fns';
 import { Copy, Mail, X } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { revokeInvitation } from '@/features/user/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { type Translate } from '@/shared/lib/error-copy';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
@@ -42,6 +41,7 @@ async function handleCopy(invitation: Invitation, t: Translate) {
 export function PendingInvitations({ invitations }: PendingInvitationsProps) {
   const router = useRouter();
   const t = useTranslations('user');
+  const format = useFormatter();
   const [isPending, startTransition] = useTransition();
 
   const handleRevoke = (invitation: Invitation) => {
@@ -98,9 +98,9 @@ export function PendingInvitations({ invitations }: PendingInvitationsProps) {
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {t('pending.expires', {
-                      date: format(
+                      date: format.dateTime(
                         new Date(invitation.expires_at),
-                        'MMM d, yyyy',
+                        'date',
                       ),
                     })}
                   </p>

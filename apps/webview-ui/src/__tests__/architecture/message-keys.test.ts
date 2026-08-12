@@ -1,8 +1,8 @@
 import { projectFiles } from 'archunit';
 import { describe, expect, it } from 'vitest';
-import en from '../../messages/en.json';
-import zh from '../../messages/zh.json';
-import { isTestFile } from './predicates';
+import en from '../../shared/i18n/messages/en.json';
+import zh from '../../shared/i18n/messages/zh.json';
+import { isTestFile, withoutComments } from './predicates';
 
 /**
  * The message dictionaries can drift apart in three ways, and each one
@@ -55,12 +55,51 @@ function hasKey(obj: Messages, path: string): boolean {
   return typeof current === 'string';
 }
 
-const NAMED_HOOK =
-  /useTranslations\('([a-zA-Z]+)'\)|getTranslations\('([a-zA-Z]+)'\)/;
+/**
+ * Every translator a file binds, with the namespace it was bound to.
+ *
+ * Covers the three call shapes in use: `useTranslations('ns')`,
+ * `getTranslations('ns')` and the object form
+ * `getTranslations({locale, namespace: 'ns'})` that the layouts need. A
+ * translator bound with no argument is global, and its namespace is the empty
+ * string, which makes each of its keys a full path.
+ */
+const TRANSLATOR_BINDING =
+  /(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*(?:'([a-zA-Z]+)'|\{[^}]*namespace:\s*'([a-zA-Z]+)'[^}]*\})?\s*\)/g;
 
-const GLOBAL_HOOK = /useTranslations\(\)|getTranslations\(\)/;
+/** A call on a named translator: `typesT('newIssue.name')`, `t.rich('x')`. */
+const callsOf = (binding: string) =>
+  new RegExp(
+    `(?<![A-Za-z0-9_$])${binding}(?:\\.rich)?\\('([a-zA-Z][a-zA-Z0-9.]*)'`,
+    'g',
+  );
 
-const T_CALL = /(?<![a-zA-Z])t(?:\.rich)?\('([a-zA-Z][a-zA-Z0-9.]*)'/g;
+/**
+ * A message key mapped to a sentence, which is what a second dictionary looks
+ * like: `'error.headline.network': 'Rustrak is not responding'`.
+ *
+ * **Both halves are load-bearing, and the first version had neither right.**
+ *
+ * It required three dotted segments, which found the 21-entry table in
+ * `error-copy.ts` and missed three more: `form-errors.ts` and the two Zod
+ * schemas in `features/alert/model/` keyed their tables on two segments
+ * (`formErrors.required`, `validation.nameRequired`). Loosening it to one dot
+ * finds all four.
+ *
+ * And it matched any quoted key before a colon, which made
+ * `t(isEdit ? 'ruleDialog.titleEdit' : 'ruleDialog.titleNew')` a violation:
+ * that colon belongs to a ternary. So the value has to be a **string literal**
+ * -- a dictionary maps a key to a sentence, a ternary maps it to an
+ * identifier or another key.
+ *
+ * A record whose values are not sentences is untouched by design.
+ * `WEBHOOK_FIELD_MAP` maps `'credentials.url'` to `'url'`, which is a field
+ * path, not copy; it matches the shape and is not a dictionary, so the rule
+ * would fire on it. That is why the value must also *look* like a sentence:
+ * more than one word, or ending in punctuation.
+ */
+const DICTIONARY_ENTRY =
+  /'[a-z][a-zA-Z]*(?:\.[a-zA-Z]+)+'\s*:\s*\n?\s*'[^']*(?:\s[^']+|[.!?])'/;
 
 describe('message dictionaries stay resolvable', () => {
   it('en and zh expose exactly the same keys', () => {
@@ -77,7 +116,23 @@ describe('message dictionaries stay resolvable', () => {
     expect(enKeys.length).toBeGreaterThanOrEqual(1000);
   });
 
-  it('every t() call resolves to an existing message key', async () => {
+  /**
+   * **Per translator, not per file.**
+   *
+   * The first version of this resolved one namespace for the whole file -- the
+   * first `useTranslations('x')` it found -- and only looked at calls on a
+   * translator literally named `t`. Both halves of that were wrong, and they
+   * hid a live bug between them: `alert-rules-table.tsx` bound a second
+   * translator, `const typesT = useTranslations('alertTypes')`, to a namespace
+   * that has never existed in `en.json`. The keys it resolved live under
+   * `alerts`. Every alert rule's trigger column rendered
+   * `alertTypes.newIssue.name`.
+   *
+   * The rule below binds each translator to its own namespace and checks the
+   * calls made on that binding, so a file may hold as many as it likes and an
+   * aliased one is no longer invisible.
+   */
+  it('every translator call resolves to an existing message key', async () => {
     const rule = projectFiles()
       .inFolder('src/**')
       .shouldNot()
@@ -87,21 +142,110 @@ describe('message dictionaries stay resolvable', () => {
           return false;
         }
 
-        const named = NAMED_HOOK.exec(file.content);
-        const hasGlobal = GLOBAL_HOOK.test(file.content);
-        if (!named && !hasGlobal) return false;
+        for (const binding of file.content.matchAll(TRANSLATOR_BINDING)) {
+          const [, name, quoted, fromObject] = binding;
+          const namespace = quoted ?? fromObject ?? '';
 
-        const namespace = named ? named[1] || named[2] : '';
-
-        for (const match of file.content.matchAll(T_CALL)) {
-          const key = match[1];
-          const full = namespace ? `${namespace}.${key}` : key;
-          if (!hasKey(en as Messages, full)) {
-            return true;
+          for (const call of file.content.matchAll(callsOf(name))) {
+            const key = call[1];
+            const full = namespace ? `${namespace}.${key}` : key;
+            if (!hasKey(en as Messages, full)) return true;
           }
         }
         return false;
-      }, 'calls t() with a message key that does not exist in en.json');
+      }, 'calls a translator with a message key that does not exist in en.json');
+
+    await expect(rule).toPassAsync();
+  });
+
+  /**
+   * The namespace itself has to exist.
+   *
+   * The rule above can only judge a call whose key is a string literal, and the
+   * codebase deliberately has calls whose key is not: `commands.ts` emits
+   * `labelKey`, `alert-types.ts` emits `nameKey`, and the component resolves
+   * whatever it is handed. That is a good pattern -- it keeps the static tables
+   * free of copy -- and it means the key is unavailable to a content rule.
+   *
+   * What is always a literal is the namespace. `alert-rules-table.tsx` bound
+   * `useTranslations('alertTypes')` and fed it `nameKey` values, so every
+   * trigger cell rendered `alertTypes.newIssue.name`: the keys were real, the
+   * namespace was not, and no assertion in this file could see either half.
+   * Checking the namespace catches the whole class, cheaply.
+   */
+  it('binds every translator to a namespace that exists', async () => {
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo((file) => {
+        if (isTestFile(file.path)) return false;
+
+        for (const binding of file.content.matchAll(TRANSLATOR_BINDING)) {
+          const namespace = binding[2] ?? binding[3];
+          // A global translator resolves full paths and names no namespace.
+          if (!namespace) continue;
+          if (!(namespace in (en as Messages))) return true;
+        }
+        return false;
+      }, 'binds a translator to a namespace that does not exist in en.json');
+
+    await expect(rule).toPassAsync();
+  });
+
+  /**
+   * The floor for the rule above.
+   *
+   * It is a negative over whatever `TRANSLATOR_BINDING` happens to match, so a
+   * regex that stops matching turns it into a rule that checks nothing while
+   * still reporting success. This counts the files it found at least one
+   * translator in.
+   */
+  it('finds the translators it claims to check', async () => {
+    const withTranslator = await projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo(
+        (file) =>
+          !isTestFile(file.path) &&
+          // `matchAll` over a fresh iterator rather than `.test`, which would
+          // advance `lastIndex` on the shared /g regex and make every other
+          // file read as having no translator at all.
+          [...file.content.matchAll(TRANSLATOR_BINDING)].length > 0,
+        'counted',
+      )
+      .check();
+
+    // 150 files bind a translator after the i18n pass.
+    expect(withTranslator.length).toBeGreaterThanOrEqual(140);
+  });
+
+  /**
+   * There is one dictionary, and it is `messages/`.
+   *
+   * `error-copy.ts` shipped with its own copy of 21 English sentences, keyed by
+   * the same message keys, behind an optional translator parameter: pass `t`
+   * and you get the JSON, omit it and you get the copy baked into the module.
+   * All eleven call sites pass `t`, so the second table was unreachable, and
+   * the two were only in sync because nothing had edited either yet. The test
+   * above could not see the drift: it looks for `t('key')`, and those keys were
+   * read through a `text(t, 'key')` helper instead.
+   *
+   * The fix a rule like this forces is the right one anyway. A module in the
+   * portable core should not hold English; it should name keys and let the
+   * caller resolve them, which is what `commands.ts` already does with
+   * `labelKey`.
+   */
+  it('keeps the English copy in one place', async () => {
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo(
+        (file) =>
+          !isTestFile(file.path) &&
+          !file.path.split('\\').join('/').includes('/messages/') &&
+          DICTIONARY_ENTRY.test(withoutComments(file.content)),
+        'holds a second copy of the message dictionary: the sentences belong in messages/*.json, and this module should name keys instead',
+      );
 
     await expect(rule).toPassAsync();
   });

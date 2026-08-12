@@ -8,7 +8,7 @@ import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { login } from '@/features/user/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { SERVER_ERROR_PATH } from '@/shared/lib/form-errors';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {

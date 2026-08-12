@@ -1,8 +1,7 @@
 'use client';
 
 import type { SessionTimeseries } from '@rustrak/client';
-import { format } from 'date-fns';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -21,7 +20,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { compactCount, exactCount } from '@/shared/lib/chart-format';
 import {
   ChartLegend,
   ChartTooltipCaption,
@@ -45,6 +43,7 @@ function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
 }) {
+  const format = useFormatter();
   const t = useTranslations('releases');
   const { active, payload } = props;
   if (!active || !payload?.length) {
@@ -54,17 +53,20 @@ function ChartTooltip(props: {
 
   return (
     <ChartTooltipSurface>
-      <ChartTooltipRow label={t('sessions')} value={exactCount(point.total)} />
+      <ChartTooltipRow
+        label={t('sessions')}
+        value={format.number(point.total)}
+      />
       {SERIES.map((series) => (
         <ChartTooltipRow
           key={series.key}
           color={series.color}
           label={t(series.labelKey)}
-          value={exactCount(point[series.key])}
+          value={format.number(point[series.key])}
         />
       ))}
       <ChartTooltipCaption>
-        {format(new Date(point.t), 'PPp')}
+        {format.dateTime(new Date(point.t), 'dateTime')}
       </ChartTooltipCaption>
     </ChartTooltipSurface>
   );
@@ -87,6 +89,7 @@ export function SessionHealthArea({
   data,
   height = 180,
 }: SessionHealthAreaProps) {
+  const format = useFormatter();
   const t = useTranslations('releases');
   const chartData: ChartPoint[] = data.map((point) => ({
     t: new Date(point.bucket).getTime(),
@@ -120,14 +123,14 @@ export function SessionHealthArea({
             type="number"
             scale="time"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={(v) => format(new Date(v), 'MMM d')}
+            tickFormatter={(v) => format.dateTime(new Date(v), 'axisDay')}
             tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}
             minTickGap={48}
           />
           <YAxis
-            tickFormatter={compactCount}
+            tickFormatter={(v) => format.number(v, 'compact')}
             tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
             axisLine={false}
             tickLine={false}

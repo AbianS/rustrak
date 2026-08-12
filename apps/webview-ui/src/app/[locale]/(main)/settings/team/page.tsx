@@ -6,7 +6,7 @@ import { getCurrentUser, listInvitations } from '@/features/user/api/queries';
 import { InviteForm } from '@/features/user/ui/components/invite-form';
 import { PendingInvitations } from '@/features/user/ui/components/pending-invitations';
 import { TeamMembersList } from '@/features/user/ui/components/team-members-list';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';

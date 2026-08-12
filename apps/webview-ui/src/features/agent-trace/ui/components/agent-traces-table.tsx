@@ -2,9 +2,9 @@
 
 import type { AgentTraceSummary } from '@rustrak/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
-import { Link, useRouter } from '@/i18n/navigation';
+import { Link, useRouter } from '@/shared/i18n/navigation';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -37,6 +37,7 @@ export function AgentTracesTable({
   totalCount,
   perPage,
 }: AgentTracesTableProps) {
+  const format = useFormatter();
   const t = useTranslations('agents');
   const tableT = useTranslations('table');
   const router = useRouter();
@@ -93,10 +94,10 @@ export function AgentTracesTable({
                 {formatMs(trace.duration_ms)}
               </span>
               <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                {trace.total_tokens.toLocaleString()}
+                {format.number(trace.total_tokens)}
               </span>
               <span className="w-16 text-right font-mono tabular-nums text-muted-foreground">
-                {trace.tool_call_count.toLocaleString()}
+                {format.number(trace.tool_call_count)}
               </span>
             </Link>
           ))}

@@ -12,7 +12,7 @@ import {
   projectNameField,
   projectSlugField,
 } from '@/features/project/model/fields';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import type { Translate } from '@/shared/lib/error-copy';
 import { describeError } from '@/shared/lib/error-copy';
 import {

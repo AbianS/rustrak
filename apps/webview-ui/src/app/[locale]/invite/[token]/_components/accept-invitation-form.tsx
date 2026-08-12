@@ -6,7 +6,7 @@ import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { acceptInvitation } from '@/features/user/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   Form,

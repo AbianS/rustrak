@@ -6,7 +6,7 @@ import {
   OVERVIEW_PERIODS,
   type OverviewPeriod,
 } from '@/features/release/model/session-health';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 interface OverviewPeriodFilterProps {

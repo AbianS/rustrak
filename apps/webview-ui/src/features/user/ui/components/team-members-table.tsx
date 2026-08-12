@@ -1,9 +1,8 @@
 'use client';
 
 import type { TeamMember } from '@rustrak/client';
-import { format } from 'date-fns';
 import { Trash2 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { type ReactNode, useMemo } from 'react';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import {
@@ -40,6 +39,7 @@ export function TeamMembersTable({
   renderRoleSelect: (member: TeamMember, locked: boolean) => ReactNode;
   onRemove: (member: TeamMember) => void;
 }) {
+  const format = useFormatter();
   const t = useTranslations('user');
 
   const isLocked = (member: TeamMember) =>
@@ -89,7 +89,7 @@ export function TeamMembersTable({
             const lastLogin = getValue();
             return lastLogin ? (
               <span className="text-sm whitespace-nowrap">
-                {format(new Date(lastLogin), 'MMM d, yyyy')}
+                {format.dateTime(new Date(lastLogin), 'date')}
               </span>
             ) : (
               <span className="text-sm text-muted-foreground">
@@ -133,7 +133,15 @@ export function TeamMembersTable({
         }),
       ]),
     // `isLocked` closes over `currentUserId`, which is already a dependency.
-    [t, currentUserId, disabled, renderRoleBadge, renderRoleSelect, onRemove],
+    [
+      t,
+      format,
+      currentUserId,
+      disabled,
+      renderRoleBadge,
+      renderRoleSelect,
+      onRemove,
+    ],
   );
 
   const table = useAppTable({

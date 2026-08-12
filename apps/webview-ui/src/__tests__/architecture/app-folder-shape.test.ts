@@ -29,9 +29,10 @@ import { isTestFile } from './predicates';
  * renaming `page.tsx` unroutes the page, so these cannot move into
  * `_components/` and are not violations.
  *
- * Metadata routes (`icon`, `opengraph-image`, ...) are included because Next
- * resolves them the same way, even though none exists here yet. Listing them
- * now costs nothing and stops the rule from firing on the first one added.
+ * Names Next resolves but this app does not use yet are included too:
+ * `forbidden`, `unauthorized`, `global-not-found`, and the metadata routes
+ * (`opengraph-image`, ...). Listing them costs nothing and stops the rule from
+ * firing on the first one added.
  */
 const NEXT_SPECIAL = new Set([
   'page',
@@ -40,6 +41,7 @@ const NEXT_SPECIAL = new Set([
   'error',
   'global-error',
   'not-found',
+  'global-not-found',
   'forbidden',
   'unauthorized',
   'template',
@@ -80,10 +82,19 @@ describe('AD-9 rule (8): the shape of app/', () => {
       .adhereTo(() => true, 'counted')
       .check();
 
-    // 49 source files under `app/`. It was 53 until the page tests were
-    // deleted, and this floor is what reported that rather than absorbing it:
-    // the four `__tests__` folders under `app/` went with them.
-    expect(underApp.length).toBeGreaterThanOrEqual(49);
+    // 54 source files under `app/`.
+    //
+    // The number this replaced was 49, set when the page tests were deleted and
+    // the four `__tests__` folders under `app/` went with them. It had drifted
+    // five behind since: `main` holds 53, and the `[...rest]` catch-all that
+    // makes `not-found.tsx` reachable for an unmatched URL is the 54th. The
+    // i18n pass itself moved every route under `[locale]` without changing the
+    // count, which is what a rename should do.
+    //
+    // A floor five below the truth still passes while the glob quietly narrows
+    // to 49, which is the failure this assertion exists to catch, so it is
+    // worth re-pinning rather than leaving as headroom.
+    expect(underApp.length).toBeGreaterThanOrEqual(54);
   });
 
   it('has no component sitting loose beside a route', async () => {

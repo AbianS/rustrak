@@ -1,6 +1,6 @@
 import { Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { Link } from '@/i18n/navigation';
+import { Link } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**

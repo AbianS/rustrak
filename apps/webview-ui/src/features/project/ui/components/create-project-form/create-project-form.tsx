@@ -14,8 +14,8 @@ import {
   projectSlugField,
 } from '@/features/project/model/fields';
 import { useProjectSlug } from '@/features/project/ui/hooks/use-project-slug';
-import { useRouter } from '@/i18n/navigation';
 import { platformLabel } from '@/shared/config/platforms';
+import { useRouter } from '@/shared/i18n/navigation';
 import type { Translate } from '@/shared/lib/error-copy';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { PlatformGrid } from '@/shared/ui/components/platform-grid';

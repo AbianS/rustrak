@@ -1,6 +1,7 @@
 import type { MetricDelta } from '@rustrak/client';
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react';
-import { formatPercentChange, percentChange } from '@/shared/lib/chart-format';
+import { useFormatter } from 'next-intl';
+import { percentChange } from '@/shared/lib/chart-format';
 import { deltaTone, type Polarity } from '@/shared/lib/metric-tone';
 import { cn } from '@/shared/lib/utils';
 
@@ -16,6 +17,7 @@ interface MetricDeltaTextProps {
  * "vs prev" caption, which a column header already implies.
  */
 export function MetricDeltaText({ metric, polarity }: MetricDeltaTextProps) {
+  const format = useFormatter();
   const change = percentChange(metric.current, metric.previous);
 
   if (change === null) {
@@ -35,7 +37,7 @@ export function MetricDeltaText({ metric, polarity }: MetricDeltaTextProps) {
       )}
     >
       <Arrow className="size-3" aria-hidden />
-      {formatPercentChange(change)}
+      {format.number(change, 'percentChange')}
     </span>
   );
 }

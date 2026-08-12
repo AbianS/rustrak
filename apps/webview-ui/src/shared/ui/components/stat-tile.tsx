@@ -1,12 +1,7 @@
 import type { MetricDelta } from '@rustrak/client';
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
-import {
-  compactCount,
-  exactCount,
-  formatPercentChange,
-  percentChange,
-} from '@/shared/lib/chart-format';
+import { getFormatter, getTranslations } from 'next-intl/server';
+import { percentChange } from '@/shared/lib/chart-format';
 import { deltaTone, type Polarity } from '@/shared/lib/metric-tone';
 import { cn } from '@/shared/lib/utils';
 import {
@@ -36,6 +31,7 @@ export async function StatTile({
   footnote,
 }: StatTileProps) {
   const t = await getTranslations('statTile');
+  const format = await getFormatter();
   const change = percentChange(metric.current, metric.previous);
   const Arrow =
     change === null || change === 0
@@ -57,9 +53,9 @@ export async function StatTile({
             is for columns that have to align. */}
         <p
           className="text-3xl font-bold leading-none"
-          title={exactCount(metric.current)}
+          title={format.number(metric.current)}
         >
-          {compactCount(metric.current)}
+          {format.number(metric.current, 'compact')}
         </p>
         {change === null ? (
           <span className="text-xs text-muted-foreground">
@@ -75,7 +71,7 @@ export async function StatTile({
             )}
           >
             <Arrow className="size-3.5" aria-hidden />
-            {formatPercentChange(change)}
+            {format.number(change, 'percentChange')}
             <span className="font-normal text-muted-foreground">
               {t('vsPrev')}
             </span>

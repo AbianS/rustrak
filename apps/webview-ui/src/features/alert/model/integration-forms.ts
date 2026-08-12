@@ -38,37 +38,9 @@ export const EMAIL_FIELD_MAP: ServerFieldMap = {
 /* Schemas -- credentials only, no routing fields                              */
 /* -------------------------------------------------------------------------- */
 
-/** The message keys this module resolves, and their English forms. */
-const EN: Record<string, string> = {
-  'validation.nameRequired': 'Name is required',
-  'validation.validHttpUrl': 'Must be a valid http/https URL',
-  'validation.webhookUrlRequired': 'Webhook URL is required',
-  'validation.slackWebhookUrl':
-    'Must be a valid Slack webhook URL (https://hooks.slack.com/...)',
-  'validation.validUrl': 'Please enter a valid URL',
-  'validation.botTokenRequired': 'Bot token is required',
-  'validation.botTokenPrefix': 'Bot token must start with xoxb-',
-  'validation.smtpHostRequired': 'SMTP host is required',
-  'validation.validEmail': 'Please enter a valid email',
-};
-
-/** Resolve one key through `t` when present, the English dictionary otherwise. */
-function text(
-  t: Translate | undefined,
-  key: string,
-  values?: Record<string, string | number>,
-): string {
-  if (t) return t(key, values);
-  let message = EN[key] ?? key;
-  for (const [name, value] of Object.entries(values ?? {})) {
-    message = message.replaceAll(`{${name}}`, String(value));
-  }
-  return message;
-}
-
-export function webhookFormSchema(t?: Translate) {
+export function webhookFormSchema(t: Translate) {
   return z.object({
-    name: z.string().min(1, text(t, 'validation.nameRequired')).max(255),
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
     // url is optional: per-rule routing_override.url can supply it
     url: z
       .string()
@@ -79,17 +51,17 @@ export function webhookFormSchema(t?: Translate) {
           v.trim() === '' ||
           v.startsWith('http://') ||
           v.startsWith('https://'),
-        { message: text(t, 'validation.validHttpUrl') },
+        { message: t('validation.validHttpUrl') },
       ),
     secret: z.string().optional(),
     is_enabled: z.boolean(),
   });
 }
 
-export function slackFormSchema(t?: Translate) {
+export function slackFormSchema(t: Translate) {
   return z
     .object({
-      name: z.string().min(1, text(t, 'validation.nameRequired')).max(255),
+      name: z.string().min(1, t('validation.nameRequired')).max(255),
       method: z.enum(['webhook', 'bot_token']),
       is_edit: z.boolean(),
       webhook_url: z.string().optional(),
@@ -101,7 +73,7 @@ export function slackFormSchema(t?: Translate) {
         if (!data.webhook_url || data.webhook_url.trim() === '') {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: text(t, 'validation.webhookUrlRequired'),
+            message: t('validation.webhookUrlRequired'),
             path: ['webhook_url'],
           });
         } else {
@@ -113,14 +85,14 @@ export function slackFormSchema(t?: Translate) {
             ) {
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: text(t, 'validation.slackWebhookUrl'),
+                message: t('validation.slackWebhookUrl'),
                 path: ['webhook_url'],
               });
             }
           } catch {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: text(t, 'validation.validUrl'),
+              message: t('validation.validUrl'),
               path: ['webhook_url'],
             });
           }
@@ -134,13 +106,13 @@ export function slackFormSchema(t?: Translate) {
         if (tokenEmpty) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: text(t, 'validation.botTokenRequired'),
+            message: t('validation.botTokenRequired'),
             path: ['token'],
           });
         } else if (!data.token!.startsWith('xoxb-')) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: text(t, 'validation.botTokenPrefix'),
+            message: t('validation.botTokenPrefix'),
             path: ['token'],
           });
         }
@@ -148,14 +120,14 @@ export function slackFormSchema(t?: Translate) {
     });
 }
 
-export function emailFormSchema(t?: Translate) {
+export function emailFormSchema(t: Translate) {
   return z.object({
-    name: z.string().min(1, text(t, 'validation.nameRequired')).max(255),
-    smtp_host: z.string().min(1, text(t, 'validation.smtpHostRequired')),
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
+    smtp_host: z.string().min(1, t('validation.smtpHostRequired')),
     smtp_port: z.number().int().min(1).max(65535),
     smtp_username: z.string().optional(),
     smtp_password: z.string().optional(),
-    from_address: z.email(text(t, 'validation.validEmail')),
+    from_address: z.email(t('validation.validEmail')),
     is_enabled: z.boolean(),
   });
 }

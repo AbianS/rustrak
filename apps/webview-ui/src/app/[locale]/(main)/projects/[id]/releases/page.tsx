@@ -5,7 +5,7 @@ import { getProject } from '@/features/project/api/queries';
 import { getReleaseHealth } from '@/features/release/api/queries';
 import { parseReleasePeriod } from '@/features/release/model/session-health';
 import { ReleasesList } from '@/features/release/ui/components/releases-list';
-import { redirect } from '@/i18n/redirect';
+import { redirect } from '@/shared/i18n/redirect';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
 interface ReleasesPageProps {

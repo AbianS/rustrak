@@ -9,7 +9,7 @@ import {
   gcStorageSourceMaps,
   previewStorageSourceMapGc,
 } from '@/features/storage/api/mutations';
-import { useRouter } from '@/i18n/navigation';
+import { useRouter } from '@/shared/i18n/navigation';
 import { formatBytes } from '@/shared/lib/utils';
 import {
   AlertDialog,

@@ -1,6 +1,5 @@
 'use client';
 
-import { format } from 'date-fns';
 import {
   Circle,
   CircleAlert,
@@ -12,7 +11,7 @@ import {
   Navigation,
   Terminal,
 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import type { GroupedBreadcrumb } from '@/features/event/lib/breadcrumbs';
 import { cn } from '@/shared/lib/utils';
 
@@ -58,6 +57,7 @@ export function BreadcrumbTimeline({
 }: {
   grouped: GroupedBreadcrumb[];
 }) {
+  const format = useFormatter();
   const t = useTranslations('events');
 
   return (
@@ -93,7 +93,7 @@ export function BreadcrumbTimeline({
                 </span>
                 {crumb.timestamp && (
                   <span className="shrink-0 font-mono text-xs text-muted-foreground/70">
-                    {format(new Date(crumb.timestamp * 1000), 'HH:mm:ss')}
+                    {format.dateTime(new Date(crumb.timestamp * 1000), 'time')}
                   </span>
                 )}
               </div>

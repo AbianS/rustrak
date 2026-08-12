@@ -10,28 +10,9 @@ import type { Translate } from '@/shared/lib/error-copy';
  * cannot be expressed as a fixed shape here.
  */
 
-/** The message keys this module resolves, and their English forms. */
-const EN: Record<string, string> = {
-  'validation.nameRequired': 'Name is required',
-};
-
-/** Resolve one key through `t` when present, the English dictionary otherwise. */
-function text(
-  t: Translate | undefined,
-  key: string,
-  values?: Record<string, string | number>,
-): string {
-  if (t) return t(key, values);
-  let message = EN[key] ?? key;
-  for (const [name, value] of Object.entries(values ?? {})) {
-    message = message.replaceAll(`{${name}}`, String(value));
-  }
-  return message;
-}
-
-export function alertRuleFormSchema(t?: Translate) {
+export function alertRuleFormSchema(t: Translate) {
   return z.object({
-    name: z.string().min(1, text(t, 'validation.nameRequired')).max(255),
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
     alert_type: z.enum(['new_issue', 'regression', 'unmute']),
     selected_integration_ids: z.array(z.number()),
     routing_map: z

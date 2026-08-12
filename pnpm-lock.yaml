@@ -138,15 +138,12 @@ importers:
       cmdk:
         specifier: 1.1.1
         version: 1.1.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      date-fns:
-        specifier: 4.4.0
-        version: 4.4.0
       lucide-react:
         specifier: 1.28.0
         version: 1.28.0(react@19.2.8)
       next:
         specifier: 16.3.0
-        version: 16.3.0(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: 16.3.0(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       next-intl:
         specifier: 4.13.5
         version: 4.13.5(next@16.3.0(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)(typescript@6.0.3)
@@ -11774,7 +11771,8 @@ snapshots:
 
   dataloader@1.4.0: {}
 
-  date-fns@4.4.0: {}
+  date-fns@4.4.0:
+    optional: true
 
   dayjs@1.11.19: {}
 
@@ -13912,7 +13910,7 @@ snapshots:
       '@swc/core': 1.15.47
       icu-minify: 4.13.5
       negotiator: 1.0.0
-      next: 16.3.0(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      next: 16.3.0(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       next-intl-swc-plugin-extractor: 4.13.5
       po-parser: 2.1.1
       react: 19.2.8
@@ -13937,32 +13935,6 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.8)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 16.3.0
-      '@next/swc-darwin-x64': 16.3.0
-      '@next/swc-linux-arm64-gnu': 16.3.0
-      '@next/swc-linux-arm64-musl': 16.3.0
-      '@next/swc-linux-x64-gnu': 16.3.0
-      '@next/swc-linux-x64-musl': 16.3.0
-      '@next/swc-win32-arm64-msvc': 16.3.0
-      '@next/swc-win32-x64-msvc': 16.3.0
-      '@opentelemetry/api': 1.9.1
-      sharp: 0.35.3(@types/node@26.1.2)
-    transitivePeerDependencies:
-      - '@babel/core'
-      - '@types/node'
-      - babel-plugin-macros
-
-  next@16.3.0(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
-    dependencies:
-      '@next/env': 16.3.0
-      '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.21
-      caniuse-lite: 1.0.30001793
-      postcss: 8.5.23
-      react: 19.2.8
-      react-dom: 19.2.8(react@19.2.8)
-      styled-jsx: 5.1.6(react@19.2.8)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.3.0
       '@next/swc-darwin-x64': 16.3.0
@@ -15340,11 +15312,6 @@ snapshots:
       react: 19.2.8
     optionalDependencies:
       '@babel/core': 7.29.0
-
-  styled-jsx@5.1.6(react@19.2.8):
-    dependencies:
-      client-only: 0.0.1
-      react: 19.2.8
 
   stylis@4.3.6: {}
 
