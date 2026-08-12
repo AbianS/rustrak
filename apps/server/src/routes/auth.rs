@@ -307,7 +307,20 @@ fn is_time_zone_name(value: &str) -> bool {
         })
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    patch,
+    path = "/auth/me",
+    tag = "Auth",
+    request_body = UpdatePreferencesRequest,
+    responses(
+        (status = 200, description = "Updated user", body = UserResponse),
+        (status = 400, description = "Malformed language tag or timezone", body = crate::error::ErrorResponse),
+        (status = 401, description = "Not authenticated", body = crate::error::ErrorResponse),
+    ),
+    security(("session_cookie" = [])),
+))]
 /// PATCH /auth/me
+/// Update the current user's presentation preferences
 pub async fn update_current_user(
     user: AuthenticatedUser,
     pool: web::Data<DbPool>,
@@ -349,7 +362,8 @@ pub async fn update_current_user(
         get_invitation,
         login,
         logout,
-        get_current_user
+        get_current_user,
+        update_current_user
     ),
     components(schemas(
         crate::models::CreateUserRequest,
@@ -357,6 +371,7 @@ pub async fn update_current_user(
         crate::models::AcceptInvitation,
         AuthResponse,
         UserResponse,
+        UpdatePreferencesRequest,
         InvitationInfoResponse,
     ))
 )]
