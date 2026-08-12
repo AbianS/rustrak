@@ -1,6 +1,7 @@
 import { AlertCircle, ChevronLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { getIssue } from '@/features/issue/api/queries';
 import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/shared/lib/results';
@@ -15,6 +16,7 @@ interface EmptyEventsPageProps {
 export async function generateMetadata({
   params,
 }: EmptyEventsPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id, issueId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -24,17 +26,18 @@ export async function generateMetadata({
   ]);
 
   if (!project.success || !issue.success) {
-    return { title: 'Issue Not Found | Rustrak' };
+    return { title: t('event.meta.issueNotFound') };
   }
 
   return {
-    title: `No Events | ${issue.data.title} | Rustrak`,
+    title: t('event.meta.noEvents', { issue: issue.data.title }),
   };
 }
 
 export default async function EmptyEventsPage({
   params,
 }: EmptyEventsPageProps) {
+  const t = await getTranslations('projectPages');
   const { id, issueId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -44,7 +47,7 @@ export default async function EmptyEventsPage({
   ]);
 
   if (!loaded.success) {
-    return <LoadFailure error={loaded.error} title="Could not load issue" />;
+    return <LoadFailure error={loaded.error} title={t('loadIssueFailed')} />;
   }
 
   const [project, issue] = loaded.data;
@@ -75,10 +78,9 @@ export default async function EmptyEventsPage({
       <Card className="border-dashed">
         <CardContent className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="size-12 text-muted-foreground mb-4" />
-          <h2 className="text-xl font-bold mb-2">No Events Yet</h2>
+          <h2 className="text-xl font-bold mb-2">{t('event.noEventsYet')}</h2>
           <p className="text-muted-foreground max-w-md">
-            This issue has been created but no events have been recorded yet.
-            Events will appear here once your application sends them.
+            {t('event.noEventsDescription')}
           </p>
         </CardContent>
       </Card>

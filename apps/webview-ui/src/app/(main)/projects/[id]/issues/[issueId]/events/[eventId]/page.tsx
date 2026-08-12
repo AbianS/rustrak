@@ -1,5 +1,5 @@
-import { formatDistanceToNow } from 'date-fns';
 import type { Metadata } from 'next';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import {
   getEventDetail,
   getEventNavigation,
@@ -31,6 +31,7 @@ interface EventPageProps {
 export async function generateMetadata({
   params,
 }: EventPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -40,12 +41,12 @@ export async function generateMetadata({
   ]);
 
   if (!project.success || !event.success) {
-    return { title: 'Event Not Found | Rustrak' };
+    return { title: t('event.meta.eventNotFound') };
   }
 
   return {
-    title: `${project.data.name} | Rustrak`,
-    description: 'Event details',
+    title: t('projectTitle', { project: project.data.name }),
+    description: t('event.meta.description'),
   };
 }
 
@@ -64,6 +65,8 @@ const compact = (n: number) =>
   }).format(n);
 
 export default async function EventPage({ params }: EventPageProps) {
+  const format = await getFormatter();
+  const t = await getTranslations('projectPages');
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -88,24 +91,24 @@ export default async function EventPage({ params }: EventPageProps) {
   // The four the page cannot render without.
   if (!projectResult.success) {
     return (
-      <LoadFailure error={projectResult.error} title="Could not load project" />
+      <LoadFailure error={projectResult.error} title={t('loadProjectFailed')} />
     );
   }
   if (!issueResult.success) {
     return (
-      <LoadFailure error={issueResult.error} title="Could not load issue" />
+      <LoadFailure error={issueResult.error} title={t('loadIssueFailed')} />
     );
   }
   if (!eventResult.success) {
     return (
-      <LoadFailure error={eventResult.error} title="Could not load event" />
+      <LoadFailure error={eventResult.error} title={t('event.loadFailed')} />
     );
   }
   if (!navigationResult.success) {
     return (
       <LoadFailure
         error={navigationResult.error}
-        title="Could not load the events in this issue"
+        title={t('event.loadNavigationFailed')}
       />
     );
   }
@@ -138,13 +141,16 @@ export default async function EventPage({ params }: EventPageProps) {
 
   // "Jump to" anchors — only for sections that exist.
   const jumps = [
-    { id: 'highlights', label: 'Highlights' },
-    has.stackTrace && { id: 'stacktrace', label: 'Stack Trace' },
-    has.breadcrumbs && { id: 'breadcrumbs', label: 'Breadcrumbs' },
-    has.tags && { id: 'tags', label: 'Tags' },
+    { id: 'highlights', label: t('event.sectionHighlights') },
+    has.stackTrace && { id: 'stacktrace', label: t('event.sectionStackTrace') },
+    has.breadcrumbs && {
+      id: 'breadcrumbs',
+      label: t('event.sectionBreadcrumbs'),
+    },
+    has.tags && { id: 'tags', label: t('event.sectionTags') },
     (has.contexts || has.modules || has.user) && {
       id: 'context',
-      label: 'Context',
+      label: t('event.sectionContext'),
     },
   ].filter(Boolean) as { id: string; label: string }[];
 
@@ -152,24 +158,23 @@ export default async function EventPage({ params }: EventPageProps) {
     <>
       <div className="p-4 space-y-1.5 border-b">
         <div className="flex items-baseline justify-between gap-2 text-sm">
-          <span className="text-muted-foreground">Last seen</span>
-          <span title={new Date(issue.last_seen).toLocaleString()}>
-            {formatDistanceToNow(new Date(issue.last_seen), {
-              addSuffix: true,
-            })}
+          <span className="text-muted-foreground">{t('event.lastSeen')}</span>
+          <span title={format.dateTime(new Date(issue.last_seen), 'precise')}>
+            {format.relativeTime(new Date(issue.last_seen))}
           </span>
         </div>
         <div className="flex items-baseline justify-between gap-2 text-sm">
-          <span className="text-muted-foreground">First seen</span>
-          <span title={new Date(issue.first_seen).toLocaleString()}>
-            {formatDistanceToNow(new Date(issue.first_seen), {
-              addSuffix: true,
-            })}
+          <span className="text-muted-foreground">{t('event.firstSeen')}</span>
+          <span title={format.dateTime(new Date(issue.first_seen), 'precise')}>
+            {format.relativeTime(new Date(issue.first_seen))}
           </span>
         </div>
         {issue.last_release && (
           <p className="text-xs text-muted-foreground truncate pt-1">
-            in release <span className="font-mono">{issue.last_release}</span>
+            {t.rich('event.inRelease', {
+              release: issue.last_release,
+              rel: (chunks) => <span className="font-mono">{chunks}</span>,
+            })}
           </p>
         )}
       </div>
@@ -205,7 +210,7 @@ export default async function EventPage({ params }: EventPageProps) {
                 <div className="shrink-0 space-y-3">
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Events
+                      {t('event.events')}
                     </p>
                     <p className="text-xl font-semibold tabular-nums">
                       {compact(total30d)}
@@ -213,7 +218,7 @@ export default async function EventPage({ params }: EventPageProps) {
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Users
+                      {t('event.users')}
                     </p>
                     <p className="text-xl font-semibold tabular-nums">
                       {compact(userCount)}
@@ -225,7 +230,7 @@ export default async function EventPage({ params }: EventPageProps) {
                     <EventChart data={stats30d.data} />
                   ) : (
                     <div className="h-[130px] flex items-center justify-center text-xs text-muted-foreground">
-                      No event data
+                      {t('event.noEventData')}
                     </div>
                   )}
                 </div>
@@ -233,12 +238,14 @@ export default async function EventPage({ params }: EventPageProps) {
 
               <div className="rounded-lg border bg-card p-4">
                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                  Tags
+                  {t('event.tags')}
                 </h3>
                 {aggregates && aggregates.tags.length > 0 ? (
                   <TagDistribution tags={aggregates.tags.slice(0, 5)} />
                 ) : (
-                  <p className="text-xs text-muted-foreground">No tags</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('event.noTags')}
+                  </p>
                 )}
               </div>
             </div>
@@ -247,8 +254,10 @@ export default async function EventPage({ params }: EventPageProps) {
             <div className="sm:sticky sm:top-0 sm:z-20 -mx-4 md:-mx-8 border-b bg-background px-4 md:px-8 pt-1 pb-3 space-y-3 sm:space-y-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm">
-                  <span className="font-semibold">Events</span>{' '}
-                  <span className="text-muted-foreground">in this issue</span>
+                  <span className="font-semibold">{t('event.events')}</span>{' '}
+                  <span className="text-muted-foreground">
+                    {t('event.inThisIssue')}
+                  </span>
                 </p>
                 <EventNavigationBar
                   projectId={projectId}
@@ -260,17 +269,13 @@ export default async function EventPage({ params }: EventPageProps) {
               <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <div className="flex items-center gap-2 flex-wrap min-w-0">
                   <span>
-                    ID:{' '}
+                    {t('event.idLabel')}{' '}
                     <span className="font-mono text-foreground">
                       {event.event_id.slice(0, 8)}
                     </span>
                   </span>
                   <span className="text-muted-foreground/40">·</span>
-                  <span>
-                    {formatDistanceToNow(new Date(event.timestamp), {
-                      addSuffix: true,
-                    })}
-                  </span>
+                  <span>{format.relativeTime(new Date(event.timestamp))}</span>
                   {event.platform && (
                     <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
                       {event.platform}
@@ -284,7 +289,7 @@ export default async function EventPage({ params }: EventPageProps) {
                 </div>
                 {jumps.length > 0 && (
                   <div className="flex items-center gap-3 flex-wrap shrink-0">
-                    <span>Jump to:</span>
+                    <span>{t('event.jumpTo')}</span>
                     {jumps.map((j) => (
                       <a
                         key={j.id}
@@ -313,7 +318,7 @@ export default async function EventPage({ params }: EventPageProps) {
         </main>
 
         {/* Right rail (desktop, collapsible) */}
-        <CollapsibleRail title="Details">{rail}</CollapsibleRail>
+        <CollapsibleRail title={t('event.details')}>{rail}</CollapsibleRail>
       </div>
     </div>
   );

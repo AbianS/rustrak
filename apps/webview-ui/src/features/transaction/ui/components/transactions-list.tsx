@@ -1,10 +1,10 @@
 'use client';
 
 import type { OffsetPaginatedResponse, Transaction } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
@@ -60,6 +60,9 @@ export function TransactionsList({
   basePath,
   filters,
 }: TransactionsListProps) {
+  const format = useFormatter();
+  const t = useTranslations('transactions');
+  const tableT = useTranslations('table');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -93,10 +96,11 @@ export function TransactionsList({
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-center">
         <Zap className="size-12 text-muted-foreground/30 mb-4" />
-        <h2 className="text-lg font-semibold mb-1">No transactions yet</h2>
+        <h2 className="text-lg font-semibold mb-1">{t('empty.title')}</h2>
         <p className="text-sm text-muted-foreground max-w-md">
-          Configure your SDK with <code>tracesSampleRate</code> to start
-          capturing performance data.
+          {t.rich('empty.sdkHint', {
+            code: (chunks) => <code>{chunks}</code>,
+          })}
         </p>
       </div>
     );
@@ -107,13 +111,13 @@ export function TransactionsList({
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex-1">
-            Transaction
+            {t('columns.transaction')}
           </span>
           <span className="hidden sm:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-40">
-            Duration
+            {t('columns.duration')}
           </span>
           <span className="hidden md:block text-xs font-bold uppercase tracking-widest text-muted-foreground w-28 text-right">
-            Last Seen
+            {t('columns.lastSeen')}
           </span>
         </div>
 
@@ -128,7 +132,7 @@ export function TransactionsList({
               >
                 <div className="flex-1 min-w-0">
                   <span className="block font-mono text-sm truncate group-hover:text-primary transition-colors">
-                    {txn.transaction_name || '(unnamed)'}
+                    {txn.transaction_name || t('unnamed')}
                   </span>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap mt-1">
                     {txn.platform && (
@@ -168,9 +172,7 @@ export function TransactionsList({
 
                 <div className="hidden md:block w-28 text-right">
                   <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDistanceToNow(new Date(txn.timestamp), {
-                      addSuffix: true,
-                    })}
+                    {format.relativeTime(new Date(txn.timestamp))}
                   </span>
                 </div>
               </Link>
@@ -183,15 +185,19 @@ export function TransactionsList({
         <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
             {total_count > 0
-              ? `Showing ${startIndex}-${endIndex} of ${total_count}`
-              : 'No results'}
+              ? tableT('showingRange', {
+                  start: startIndex,
+                  end: endIndex,
+                  total: total_count,
+                })
+              : tableT('noResults')}
           </span>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to previous page"
+              aria-label={tableT('previousPage')}
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isPending}
             >
@@ -199,13 +205,13 @@ export function TransactionsList({
             </Button>
 
             <span className="text-sm px-2">
-              Page {currentPage} of {total_pages}
+              {tableT('pageOf', { current: currentPage, total: total_pages })}
             </span>
 
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to next page"
+              aria-label={tableT('nextPage')}
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= total_pages || isPending}
             >

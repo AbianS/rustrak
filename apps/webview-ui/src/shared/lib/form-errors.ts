@@ -1,6 +1,6 @@
 import type { FieldErrorCode, RustrakError } from '@rustrak/client';
 import type { FieldValues, Path, UseFormReturn } from 'react-hook-form';
-import { describeError } from '@/shared/lib/error-copy';
+import { describeError, type Translate } from '@/shared/lib/error-copy';
 
 /**
  * The one form-level slot every server failure falls back to.
@@ -32,6 +32,15 @@ export interface ApplyServerFieldErrorsOptions {
    * `slug` -> `'Slug'` turns `already_exists` into "Slug is already taken."
    */
   readonly labels?: Readonly<Record<string, string>>;
+  /**
+   * Resolves the copy sentences.
+   *
+   * Required, like `describeError`'s. It was optional with an English table
+   * standing in below, which is a second dictionary keyed by the same message
+   * keys as `messages/en.json` and reachable from nowhere: every call site
+   * passes a translator.
+   */
+  readonly t: Translate;
 }
 
 export interface AppliedServerFieldErrors {
@@ -65,9 +74,11 @@ export interface AppliedServerFieldErrors {
 export function applyServerFieldErrors<TFieldValues extends FieldValues>(
   form: UseFormReturn<TFieldValues>,
   error: RustrakError,
-  options: ApplyServerFieldErrorsOptions = {},
+  // No default: `t` is required, so an omitted options object would be an
+  // options object missing it.
+  options: ApplyServerFieldErrorsOptions,
 ): AppliedServerFieldErrors {
-  const { map = {}, labels = {} } = options;
+  const { map = {}, labels = {}, t } = options;
 
   // A stale form-level message outliving the failure that caused it reads as a
   // second, phantom rejection. Clear before writing, not after.
@@ -84,7 +95,12 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
 
   for (const fieldError of fields) {
     const name = map[fieldError.field] ?? fieldError.field;
-    const message = copyFor(fieldError.code, labels[name], fieldError.message);
+    const message = copyFor(
+      fieldError.code,
+      labels[name],
+      fieldError.message,
+      t,
+    );
 
     // A second entry for a name already marked cannot go on the same input:
     // `setError` replaces rather than appends, so the first reason would
@@ -107,7 +123,7 @@ export function applyServerFieldErrors<TFieldValues extends FieldValues>(
   // toast reading "Failed to create project / Failed to create project" and
   // the user was never told the server was down.
   if (fields.length === 0) {
-    unattributed.push(describeError(error));
+    unattributed.push(describeError(error, t));
   }
 
   if (unattributed.length === 0) {
@@ -194,25 +210,26 @@ function copyFor(
   code: FieldErrorCode,
   label: string | undefined,
   serverMessage: string | undefined,
+  t: Translate,
 ): string {
   if (code === 'custom') {
     // The one code whose meaning lives in the message. The server sends it
     // precisely because the code set could not express the reason.
-    return serverMessage ?? 'This value was rejected.';
+    return serverMessage ?? t('formErrors.rejected');
   }
 
-  const subject = label ?? 'This value';
+  const subject = label ?? t('formErrors.defaultSubject');
 
   switch (code) {
     case 'required':
-      return `${subject} is required.`;
+      return t('formErrors.required', { subject });
     case 'invalid':
-      return `${subject} is not valid.`;
+      return t('formErrors.invalid', { subject });
     case 'already_exists':
-      return `${subject} is already taken.`;
+      return t('formErrors.alreadyExists', { subject });
     case 'too_short':
-      return `${subject} is too short.`;
+      return t('formErrors.tooShort', { subject });
     case 'too_long':
-      return `${subject} is too long.`;
+      return t('formErrors.tooLong', { subject });
   }
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import type { AlertRuleFormData } from '@/features/alert/model/alert-rule-form';
 import {
@@ -12,6 +13,7 @@ import {
 import { Switch } from '@/shared/ui/components/shadcn/switch';
 
 export function EnabledField({ disabled }: { disabled: boolean }) {
+  const t = useTranslations('alerts');
   const { control } = useFormContext<AlertRuleFormData>();
 
   return (
@@ -21,9 +23,11 @@ export function EnabledField({ disabled }: { disabled: boolean }) {
       render={({ field }) => (
         <FormItem className="flex items-center justify-between rounded-lg border p-3">
           <div>
-            <FormLabel className="text-sm font-medium">Enable rule</FormLabel>
+            <FormLabel className="text-sm font-medium">
+              {t('ruleDialog.enable')}
+            </FormLabel>
             <FormDescription className="text-xs">
-              Start sending alerts immediately after saving
+              {t('ruleDialog.enableDescription')}
             </FormDescription>
           </div>
           <FormControl>

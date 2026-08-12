@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
-export default function SettingsPage() {
-  redirect('/settings/tokens');
+export default async function SettingsPage() {
+  await redirect('/settings/tokens');
 }

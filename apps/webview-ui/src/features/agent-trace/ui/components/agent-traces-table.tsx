@@ -4,6 +4,7 @@ import type { AgentTraceSummary } from '@rustrak/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -37,6 +38,9 @@ export function AgentTracesTable({
   totalCount,
   perPage,
 }: AgentTracesTableProps) {
+  const format = useFormatter();
+  const t = useTranslations('agents');
+  const tableT = useTranslations('table');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -53,22 +57,22 @@ export function AgentTracesTable({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          <span className="flex-1">Agents</span>
-          <span className="w-24 text-right">Duration</span>
-          <span className="w-20 text-right">Tokens</span>
-          <span className="w-16 text-right">Tools</span>
+          <span className="flex-1">{t('columns.agents')}</span>
+          <span className="w-24 text-right">{t('columns.duration')}</span>
+          <span className="w-20 text-right">{t('columns.tokens')}</span>
+          <span className="w-16 text-right">{t('columns.tools')}</span>
         </div>
         <div className="flex-1 overflow-auto divide-y">
-          {traces.map((t) => (
+          {traces.map((trace) => (
             <Link
-              key={t.trace_id}
-              href={`/projects/${projectId}/agents/${t.trace_id}`}
+              key={trace.trace_id}
+              href={`/projects/${projectId}/agents/${trace.trace_id}`}
               className="flex items-center gap-4 px-4 py-3 text-sm hover:bg-muted/30 transition-colors group"
             >
               <div className="flex-1 min-w-0">
-                {t.agent_names.length > 0 ? (
+                {trace.agent_names.length > 0 ? (
                   <span className="flex flex-wrap items-center gap-1">
-                    {t.agent_names.map((name) => (
+                    {trace.agent_names.map((name) => (
                       <Badge
                         key={name}
                         variant="secondary"
@@ -80,21 +84,21 @@ export function AgentTracesTable({
                   </span>
                 ) : (
                   <span className="block font-mono truncate text-muted-foreground">
-                    (unnamed agent)
+                    {t('unnamedAgent')}
                   </span>
                 )}
                 <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {t.trace_id}
+                  {trace.trace_id}
                 </span>
               </div>
               <span className="w-24 text-right font-mono tabular-nums text-muted-foreground">
-                {formatMs(t.duration_ms)}
+                {formatMs(trace.duration_ms)}
               </span>
               <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                {t.total_tokens.toLocaleString()}
+                {format.number(trace.total_tokens)}
               </span>
               <span className="w-16 text-right font-mono tabular-nums text-muted-foreground">
-                {t.tool_call_count.toLocaleString()}
+                {format.number(trace.tool_call_count)}
               </span>
             </Link>
           ))}
@@ -104,14 +108,18 @@ export function AgentTracesTable({
       {totalPages > 0 && (
         <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
-            {`Showing ${startIndex}-${endIndex} of ${totalCount}`}
+            {tableT('showingRange', {
+              start: startIndex,
+              end: endIndex,
+              total: totalCount,
+            })}
           </span>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to previous page"
+              aria-label={tableT('previousPage')}
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isPending}
             >
@@ -119,13 +127,13 @@ export function AgentTracesTable({
             </Button>
 
             <span className="text-sm px-2">
-              Page {currentPage} of {totalPages}
+              {tableT('pageOf', { current: currentPage, total: totalPages })}
             </span>
 
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to next page"
+              aria-label={tableT('nextPage')}
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || isPending}
             >

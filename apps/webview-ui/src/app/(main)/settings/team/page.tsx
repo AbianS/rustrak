@@ -1,6 +1,7 @@
 import { ShieldX } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { listTeam } from '@/features/user/api/mutations';
 import { getCurrentUser, listInvitations } from '@/features/user/api/queries';
 import { InviteForm } from '@/features/user/ui/components/invite-form';
@@ -11,16 +12,20 @@ import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import { Card, CardContent } from '@/shared/ui/components/shadcn/card';
 
-export const metadata: Metadata = {
-  title: 'Team | Rustrak',
-  description: 'Manage your team members and invitations',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('team.meta.title'),
+    description: t('team.meta.description'),
+  };
+}
 
 export default async function TeamPage() {
+  const t = await getTranslations('settings');
   const session = await getCurrentUser();
 
   if (session.state === 'anonymous') {
-    redirect('/auth/login');
+    return redirect('/auth/login');
   }
 
   // Checked before the admin guard: an outage is not a permission verdict, and
@@ -30,11 +35,9 @@ export default async function TeamPage() {
       <>
         <div className="mb-6 md:mb-8">
           <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-            Team
+            {t('team.title')}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your team members and invitations
-          </p>
+          <p className="text-muted-foreground mt-1">{t('team.subtitle')}</p>
         </div>
         <ServiceUnavailable error={session.error} />
       </>
@@ -47,19 +50,16 @@ export default async function TeamPage() {
       <>
         <div className="mb-6 md:mb-8">
           <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-            Team
+            {t('team.title')}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your team members and invitations
-          </p>
+          <p className="text-muted-foreground mt-1">{t('team.subtitle')}</p>
         </div>
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <ShieldX className="size-12 text-muted-foreground/50 mb-4" />
-            <p className="font-semibold">Not authorized</p>
+            <p className="font-semibold">{t('notAuthorized')}</p>
             <p className="text-muted-foreground mt-1 text-sm max-w-sm">
-              Only instance administrators can manage the team. Contact an admin
-              if you need access.
+              {t('team.notAuthorizedDescription')}
             </p>
           </CardContent>
         </Card>
@@ -73,7 +73,7 @@ export default async function TeamPage() {
     return (
       <LoadFailure
         error={loaded.error}
-        title="Could not load the team"
+        title={t('team.loadFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -89,11 +89,9 @@ export default async function TeamPage() {
     <>
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          Team
+          {t('team.title')}
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your team members and invitations
-        </p>
+        <p className="text-muted-foreground mt-1">{t('team.subtitle')}</p>
       </div>
 
       <div className="space-y-6">

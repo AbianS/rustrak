@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, ChevronDown, Copy } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -25,13 +26,13 @@ interface CopyAsDropdownProps {
 
 /** "Copy as ..." dropdown for section headers (Stack Trace, Breadcrumbs). */
 export function CopyAsDropdown({ formats }: CopyAsDropdownProps) {
+  const t = useTranslations('common');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (format: CopyAsFormat) => {
     if (!(await copyToClipboard(format.value))) {
-      toast.info('Clipboard unavailable', {
-        description:
-          'Select the content and copy it manually, or access Rustrak over HTTPS.',
+      toast.info(t('clipboardUnavailable'), {
+        description: t('clipboardUnavailableHint'),
       });
       return;
     }
@@ -49,7 +50,7 @@ export function CopyAsDropdown({ formats }: CopyAsDropdownProps) {
         ) : (
           <Copy className="mr-1 size-3" />
         )}
-        Copy as
+        {t('copyAs')}
         <ChevronDown className="ml-1 size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

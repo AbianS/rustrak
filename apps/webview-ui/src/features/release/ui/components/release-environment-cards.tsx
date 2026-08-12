@@ -1,4 +1,5 @@
 import type { ReleaseHealthRow } from '@rustrak/client';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { crashFreeClass, pct } from '@/features/release/model/session-health';
 import { cn } from '@/shared/lib/utils';
 import {
@@ -12,9 +13,12 @@ interface ReleaseEnvironmentCardsProps {
   rows: ReleaseHealthRow[];
 }
 
-export function ReleaseEnvironmentCards({
+export async function ReleaseEnvironmentCards({
   rows,
 }: ReleaseEnvironmentCardsProps) {
+  const format = await getFormatter();
+  const t = await getTranslations('releases');
+
   return (
     <div className="flex flex-col gap-3">
       {rows.map((row) => (
@@ -27,14 +31,14 @@ export function ReleaseEnvironmentCards({
           <CardContent>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
-                <p className="text-[10px] text-muted-foreground">Sessions</p>
-                <p className="text-xl font-bold">
-                  {row.total.toLocaleString()}
+                <p className="text-[10px] text-muted-foreground">
+                  {t('sessions')}
                 </p>
+                <p className="text-xl font-bold">{format.number(row.total)}</p>
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">
-                  Crash-free sessions
+                  {t('crashFreeSessions')}
                 </p>
                 <p
                   className={cn(
@@ -47,7 +51,7 @@ export function ReleaseEnvironmentCards({
               </div>
               <div>
                 <p className="text-[10px] text-muted-foreground">
-                  Crash-free users
+                  {t('crashFreeUsers')}
                 </p>
                 <p
                   className={cn(
@@ -59,7 +63,9 @@ export function ReleaseEnvironmentCards({
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground">Crashed</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {t('crashed')}
+                </p>
                 <p
                   className={cn(
                     'text-xl font-bold',
@@ -68,7 +74,7 @@ export function ReleaseEnvironmentCards({
                       : 'text-muted-foreground',
                   )}
                 >
-                  {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
+                  {row.crashed > 0 ? format.number(row.crashed) : '—'}
                 </p>
               </div>
             </div>

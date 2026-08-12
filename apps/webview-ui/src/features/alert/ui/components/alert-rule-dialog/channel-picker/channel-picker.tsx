@@ -1,6 +1,7 @@
 'use client';
 
 import type { AlertIntegration } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import { routingNeedsOf } from '@/features/alert/lib/routing';
 import type { AlertRuleFormData } from '@/features/alert/model/alert-rule-form';
@@ -26,6 +27,7 @@ export function ChannelPicker({
   routing: ChannelRouting;
   disabled: boolean;
 }) {
+  const t = useTranslations('alerts');
   const { watch, setValue, getValues, clearErrors, formState } =
     useFormContext<AlertRuleFormData>();
   const selectedIds = watch('selected_integration_ids');
@@ -53,7 +55,7 @@ export function ChannelPicker({
   return (
     <div>
       <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
-        Send To
+        {t('ruleDialog.sendTo')}
       </p>
       <div className="space-y-2">
         {integrations.map((integration) => {

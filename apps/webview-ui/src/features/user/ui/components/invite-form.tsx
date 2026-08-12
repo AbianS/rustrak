@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { GlobalRole } from '@rustrak/client';
 import { UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -44,10 +45,11 @@ const inviteSchema = z.object({
 
 type InviteFormData = z.infer<typeof inviteSchema>;
 
-const roleLabel = (role: string) => (role === 'admin' ? 'Admin' : 'Member');
-
 export function InviteForm() {
   const router = useRouter();
+  const t = useTranslations('user');
+
+  const globalT = useTranslations();
   const [isPending, startTransition] = useTransition();
 
   const onSubmit = (data: InviteFormData) => {
@@ -62,11 +64,15 @@ export function InviteForm() {
         // invite, comes back as a `conflict` naming `email`. That belongs on
         // the email input, where the fix is.
         const applied = applyServerFieldErrors(form, result.error, {
-          labels: { email: 'That email address', role: 'Role' },
+          labels: {
+            email: t('invite.fieldEmail'),
+            role: t('invite.roleLabel'),
+          },
+          t: globalT,
         });
 
         if (applied.formLevel) {
-          toast.error('Failed to create invitation', {
+          toast.error(t('toast.createFailed'), {
             description: applied.formLevel,
           });
         }
@@ -79,15 +85,14 @@ export function InviteForm() {
 
       const copied = await copyToClipboard(link);
       if (copied) {
-        toast.success('Invitation created', {
-          description:
-            'Invite link copied to clipboard — share it with the new member.',
+        toast.success(t('toast.created'), {
+          description: t('toast.createdHint'),
         });
       } else {
         // Couldn't auto-copy (e.g. plain HTTP). Surface the link so it isn't lost;
         // it's also re-copyable from the pending invitations list below.
-        toast.success('Invitation created', {
-          description: `Copy the invite link: ${link}`,
+        toast.success(t('toast.created'), {
+          description: t('toast.copyInviteLink', { link }),
         });
       }
     });
@@ -104,11 +109,8 @@ export function InviteForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invite a member</CardTitle>
-        <CardDescription>
-          The invite link is copied to your clipboard when created. No email is
-          sent &mdash; share the link with the new member yourself.
-        </CardDescription>
+        <CardTitle>{t('invite.title')}</CardTitle>
+        <CardDescription>{t('invite.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <Form {...form}>
@@ -122,7 +124,7 @@ export function InviteForm() {
               render={({ field }) => (
                 <FormItem className="flex-1">
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Email
+                    {t('invite.emailLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -144,7 +146,7 @@ export function InviteForm() {
               render={({ field }) => (
                 <FormItem className="sm:w-40">
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Role
+                    {t('invite.roleLabel')}
                   </FormLabel>
                   <Select
                     value={field.value}
@@ -156,14 +158,24 @@ export function InviteForm() {
                     <FormControl>
                       <SelectTrigger
                         className="w-full"
-                        aria-label="Invite role"
+                        aria-label={t('invite.roleAria')}
                       >
-                        <SelectValue>{(value) => roleLabel(value)}</SelectValue>
+                        <SelectValue>
+                          {(value) =>
+                            t(
+                              value === 'admin'
+                                ? 'roles.admin'
+                                : 'roles.member',
+                            )
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="member">
+                        {t('roles.member')}
+                      </SelectItem>
+                      <SelectItem value="admin">{t('roles.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -177,7 +189,7 @@ export function InviteForm() {
               className="sm:mt-[26px] font-bold uppercase tracking-wider"
             >
               <UserPlus className="mr-2 size-4" />
-              {isPending ? 'Inviting...' : 'Invite'}
+              {isPending ? t('invite.inviting') : t('invite.submit')}
             </Button>
           </form>
           {/* Where a failure that named no field of this form lands. */}

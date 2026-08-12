@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { APP_VERSION } from '@/shared/config/constants';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
@@ -22,8 +25,8 @@ export function ErrorScreen({
   guidance,
   detail,
   actions,
-  brandStatement = 'Your data is safe',
-  brandDescription = 'Nothing has been lost and your session is intact. This screen is about reaching Rustrak, not about what is stored in it.',
+  brandStatement,
+  brandDescription,
 }: {
   /** The one-line answer to "what happened", on the content side. */
   headline: string;
@@ -45,6 +48,10 @@ export function ErrorScreen({
   /** Buttons. */
   actions?: ReactNode;
 }) {
+  const t = useTranslations('errorScreen');
+  const statement = brandStatement ?? t('brandStatement');
+  const statementDescription = brandDescription ?? t('brandDescription');
+
   return (
     <div className="min-h-screen flex">
       {/* Left panel, decorative. Hidden below lg, exactly like the login. */}
@@ -61,11 +68,11 @@ export function ErrorScreen({
             every viewport wide enough to show both. */}
         <div className="relative z-20 max-w-xl">
           <h2 className="text-6xl xl:text-7xl font-extrabold tracking-tighter leading-[1.05] mb-8 text-balance">
-            {brandStatement}
+            {statement}
             <span className="text-primary">.</span>
           </h2>
           <p className="text-muted-foreground text-lg font-medium leading-relaxed max-w-md">
-            {brandDescription}
+            {statementDescription}
           </p>
         </div>
 

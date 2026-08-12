@@ -41,7 +41,9 @@ const MIXED = cn(
  * the table only ever holds one page, and a select-all reaching rows that were
  * never fetched is a claim it cannot honour.
  */
-export function selectionColumn<TData extends RowData>() {
+export function selectionColumn<TData extends RowData>(
+  t: (key: string) => string,
+) {
   const helper = createAppColumnHelper<TData>();
   return helper.display({
     id: 'select',
@@ -52,7 +54,7 @@ export function selectionColumn<TData extends RowData>() {
       <StopPropagation>
         <Checkbox
           className={MIXED}
-          aria-label="Select all rows on this page"
+          aria-label={t('selectAllPageRows')}
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={
             table.getIsSomePageRowsSelected() &&
@@ -69,7 +71,7 @@ export function selectionColumn<TData extends RowData>() {
       // would do both.
       <StopPropagation>
         <Checkbox
-          aria-label="Select row"
+          aria-label={t('selectRow')}
           checked={row.getIsSelected()}
           disabled={!row.getCanSelect()}
           onCheckedChange={(checked) => row.toggleSelected(checked === true)}
@@ -87,14 +89,16 @@ export function selectionColumn<TData extends RowData>() {
  * button here would be a second tab stop on every row doing what the first
  * already does.
  */
-export function expandColumn<TData extends RowData>() {
+export function expandColumn<TData extends RowData>(
+  t: (key: string) => string,
+) {
   const helper = createAppColumnHelper<TData>();
   return helper.display({
     id: 'expand',
     size: 36,
     minSize: 36,
     maxSize: 36,
-    header: () => <span className="sr-only">Expand</span>,
+    header: () => <span className="sr-only">{t('expand')}</span>,
     cell: ({ row }) => (
       <ChevronRight
         aria-hidden="true"

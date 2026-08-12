@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowRight, ArrowUpRight, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { UpdateInfo } from '@/shared/lib/version';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
@@ -47,6 +48,7 @@ interface UpdateBannerProps {
 }
 
 export function UpdateBanner({ info }: UpdateBannerProps) {
+  const t = useTranslations('update');
   const [dismissed, setDismissed] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -119,14 +121,14 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
       {/* The pill only reads as an update to sighted users; without this a
           screen reader user learns nothing until they tab into it. */}
       <span role="status" className="sr-only">
-        Rustrak {info.latest} is available.
+        {t('srAvailable', { version: info.latest })}
       </span>
 
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: static keyframes, no user input */}
       <style dangerouslySetInnerHTML={{ __html: KEYFRAMES }} />
 
       <svg width="0" height="0" className="absolute" aria-hidden="true">
-        <title>Update notice shape</title>
+        <title>{t('shapeTitle')}</title>
         <defs>
           <filter id={filterId} colorInterpolationFilters="sRGB">
             <feGaussianBlur
@@ -253,12 +255,13 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
               a mark that tints to lime on hover would tint to invisible. */}
           <RustrakWordmark className="h-3.5 w-auto shrink-0" still />
           <span className="text-xs whitespace-nowrap">
-            <span className="font-semibold">{info.latest}</span> available
+            <span className="font-semibold">{info.latest}</span>{' '}
+            {t('available')}
           </span>
           <button
             type="button"
             onClick={handleDismiss}
-            aria-label={`Dismiss update notice for version ${info.latest}`}
+            aria-label={t('dismiss', { version: info.latest })}
             className="inline-flex size-5 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-primary-foreground/20"
           >
             <X className="size-3" />
@@ -300,9 +303,9 @@ export function UpdateBanner({ info }: UpdateBannerProps) {
               rel="noopener noreferrer"
               className="group inline-flex items-center gap-1.5 rounded-full bg-primary-foreground px-4 py-1.5 text-[11px] font-semibold text-primary transition-opacity hover:opacity-90"
             >
-              View changelog
+              {t('viewChangelog')}
               <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-            </a>
+            </a>{' '}
           </div>
         </div>
       </div>

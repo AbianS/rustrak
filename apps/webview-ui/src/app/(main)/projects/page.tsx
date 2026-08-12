@@ -1,13 +1,17 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { getProjects } from '@/features/project/api/queries';
 import { ProjectsList } from '@/features/project/ui/components/projects-list/projects-list';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { ProjectsHeader } from './_components/projects-header';
 
-export const metadata: Metadata = {
-  title: 'Projects | Rustrak',
-  description: 'Manage your Rustrak projects',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
+  return {
+    title: t('projectsList.meta.title'),
+    description: t('projectsList.meta.description'),
+  };
+}
 
 /**
  * Window for the per-row stats.
@@ -24,6 +28,7 @@ interface ProjectsPageProps {
 export default async function ProjectsPage({
   searchParams,
 }: ProjectsPageProps) {
+  const t = await getTranslations('projectPages');
   const { page = '1' } = await searchParams;
   const currentPage = parseInt(page, 10) || 1;
 
@@ -40,7 +45,7 @@ export default async function ProjectsPage({
     return (
       <LoadFailure
         error={projectsResponse.error}
-        title="Could not load projects"
+        title={t('projectsList.loadFailed')}
         notFoundOnMissing={false}
       />
     );

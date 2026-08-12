@@ -3,6 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useMemo, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -45,6 +46,9 @@ export function EmailForm({
   onDelete,
   isPending: parentPending,
 }: ConfigFormProps) {
+  const t = useTranslations('alerts');
+
+  const globalT = useTranslations();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
@@ -62,8 +66,9 @@ export function EmailForm({
     [testRecipients],
   );
 
+  const schema = useMemo(() => emailFormSchema(t), [t]);
   const form = useForm<EmailFormData>({
-    resolver: zodResolver(emailFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: emailDefaults(existingIntegration),
   });
 
@@ -94,28 +99,25 @@ export function EmailForm({
         const applied = applyServerFieldErrors(form, result.error, {
           map: EMAIL_FIELD_MAP,
           labels: {
-            name: 'That name',
-            smtp_host: 'That SMTP host',
-            smtp_port: 'That SMTP port',
-            smtp_username: 'That SMTP username',
-            smtp_password: 'That SMTP password',
-            from_address: 'That from address',
+            name: t('common.fieldName'),
+            smtp_host: t('email.fieldHost'),
+            smtp_port: t('email.fieldPort'),
+            smtp_username: t('email.fieldUsername'),
+            smtp_password: t('email.fieldPassword'),
+            from_address: t('email.fieldFrom'),
           },
+          t: globalT,
         });
 
         if (applied.formLevel) {
-          toast.error('Failed to save email integration', {
+          toast.error(t('email.saveFailed'), {
             description: applied.formLevel,
           });
         }
         return;
       }
 
-      toast.success(
-        existingIntegration
-          ? 'Email integration updated'
-          : 'Email integration created',
-      );
+      toast.success(t(existingIntegration ? 'email.updated' : 'email.created'));
       onOpenChange(false);
       router.refresh();
     });
@@ -125,20 +127,15 @@ export function EmailForm({
     <>
       <DialogHeader>
         <DialogTitle>
-          {existingIntegration
-            ? 'Edit Email Integration'
-            : 'Configure Email (SMTP)'}
+          {t(existingIntegration ? 'email.titleEdit' : 'email.titleNew')}
         </DialogTitle>
-        <DialogDescription>
-          Store SMTP credentials here. Specify recipients when creating an alert
-          rule.
-        </DialogDescription>
+        <DialogDescription>{t('email.description')}</DialogDescription>
       </DialogHeader>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <NameField<EmailFormData>
-            placeholder="e.g., Email Alerts"
+            placeholder={t('email.namePlaceholder')}
             disabled={isLoading}
           />
 
@@ -149,11 +146,11 @@ export function EmailForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    SMTP Host
+                    {t('email.hostLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="smtp.example.com"
+                      placeholder={t('email.hostPlaceholder')}
                       disabled={isLoading}
                       {...field}
                     />
@@ -169,12 +166,12 @@ export function EmailForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Port
+                    {t('email.portLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
                       type="number"
-                      placeholder="587"
+                      placeholder={t('email.portPlaceholder')}
                       disabled={isLoading}
                       {...field}
                       onChange={(e) =>
@@ -195,11 +192,11 @@ export function EmailForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Username (optional)
+                    {t('email.usernameLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="username"
+                      placeholder={t('email.usernamePlaceholder')}
                       autoComplete="off"
                       disabled={isLoading}
                       {...field}
@@ -216,12 +213,12 @@ export function EmailForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Password (optional)
+                    {t('email.passwordLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
                       type="password"
-                      placeholder="••••••••"
+                      placeholder={t('email.passwordPlaceholder')}
                       autoComplete="new-password"
                       disabled={isLoading}
                       {...field}
@@ -239,12 +236,12 @@ export function EmailForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  From Address
+                  {t('email.fromLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="alerts@rustrak.local"
+                    placeholder={t('email.fromPlaceholder')}
                     disabled={isLoading}
                     {...field}
                   />
@@ -260,12 +257,12 @@ export function EmailForm({
                 persisted integration id, so it only becomes usable on save. */}
           <div className="rounded-lg border p-3 space-y-2">
             <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Send a test
+              {t('email.sendTestTitle')}
             </p>
             <div className="flex gap-2">
               <Input
-                aria-label="Test recipients"
-                placeholder="test@example.com"
+                aria-label={t('email.testRecipientsAria')}
+                placeholder={t('email.testRecipientsPlaceholder')}
                 value={testRecipients}
                 onChange={(e) => setTestRecipients(e.target.value)}
                 className="h-8 text-xs"
@@ -290,20 +287,20 @@ export function EmailForm({
                 }
               >
                 <Play className="size-3.5 mr-1" />
-                Test
+                {t('common.test')}
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
               {existingIntegration
-                ? 'Comma-separate multiple addresses. The test uses the SMTP settings you last saved, not unsaved edits above.'
-                : 'Save this integration first to send a test email.'}
+                ? t('email.testHintExisting')
+                : t('email.testHintNew')}
             </p>
           </div>
 
           <ConfigFooter
             existingIntegration={existingIntegration}
             submitLabel={
-              existingIntegration ? 'Save Changes' : 'Create Email Integration'
+              existingIntegration ? t('common.saveChanges') : t('email.create')
             }
             isLoading={isLoading}
             onDelete={onDelete}

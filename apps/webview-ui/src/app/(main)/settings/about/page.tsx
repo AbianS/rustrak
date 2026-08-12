@@ -1,5 +1,6 @@
 import { PlugZap } from 'lucide-react';
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { getServerVersion } from '@/shared/api/server-version';
 import { APP_VERSION } from '@/shared/config/constants';
 import { describeError } from '@/shared/lib/error-copy';
@@ -12,10 +13,13 @@ import {
   CardTitle,
 } from '@/shared/ui/components/shadcn/card';
 
-export const metadata: Metadata = {
-  title: 'About | Rustrak',
-  description: 'About Rustrak error tracking system',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('about.meta.title'),
+    description: t('about.meta.description'),
+  };
+}
 
 /**
  * Neither `LoadFailure` nor `ServiceUnavailable` is used for the failed read
@@ -36,17 +40,19 @@ export const metadata: Metadata = {
  * "Unavailable" used to guarantee.
  */
 export default async function AboutPage() {
-  const serverVersion = await getServerVersion();
+  const [t, rootT, serverVersion] = await Promise.all([
+    getTranslations('settings'),
+    getTranslations(),
+    getServerVersion(),
+  ]);
 
   return (
     <>
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          About
+          {t('about.title')}
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Information about your Rustrak installation
-        </p>
+        <p className="text-muted-foreground mt-1">{t('about.subtitle')}</p>
       </div>
 
       <div className="space-y-6">
@@ -57,42 +63,46 @@ export default async function AboutPage() {
                 thing the mark is not allowed to do. */}
             <div className="space-y-1.5">
               <RustrakWordmark className="h-[26px] w-auto" />
-              <CardDescription>
-                Lightweight error tracking system
-              </CardDescription>
+              <CardDescription>{t('about.cardDescription')}</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">WebView version</p>
+                <p className="text-muted-foreground">
+                  {t('about.webviewVersion')}
+                </p>
                 <p className="font-mono font-medium">v{APP_VERSION}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Server version</p>
+                <p className="text-muted-foreground">
+                  {t('about.serverVersion')}
+                </p>
                 {serverVersion.success ? (
                   <p className="font-mono font-medium">
                     {serverVersion.data.version
                       ? `v${serverVersion.data.version}`
-                      : 'Not reported'}
+                      : t('about.notReported')}
                   </p>
                 ) : (
                   <p className="flex items-center gap-1.5 font-medium text-muted-foreground">
                     <PlugZap aria-hidden="true" className="size-4 shrink-0" />
-                    Could not read
+                    {t('about.couldNotRead')}
                   </p>
                 )}
               </div>
               <div>
-                <p className="text-muted-foreground">Environment</p>
+                <p className="text-muted-foreground">
+                  {t('about.environment')}
+                </p>
                 <p className="font-mono font-medium">{process.env.NODE_ENV}</p>
               </div>
             </div>
 
             {!serverVersion.success && (
               <p className="text-xs text-muted-foreground">
-                {describeError(serverVersion.error)} The server version is
-                unknown until it answers; nothing is shown in its place.
+                {describeError(serverVersion.error, rootT)}{' '}
+                {t('about.serverVersionUnknown')}
               </p>
             )}
           </CardContent>
@@ -100,7 +110,7 @@ export default async function AboutPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Links</CardTitle>
+            <CardTitle>{t('about.links')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <a
@@ -109,7 +119,7 @@ export default async function AboutPage() {
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline block"
             >
-              GitHub Repository
+              {t('about.githubRepository')}
             </a>
             <a
               href="https://github.com/rustrak/rustrak/issues"
@@ -117,7 +127,7 @@ export default async function AboutPage() {
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline block"
             >
-              Report an Issue
+              {t('about.reportAnIssue')}
             </a>
             <a
               href="https://docs.sentry.io/platforms/"
@@ -125,7 +135,7 @@ export default async function AboutPage() {
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline block"
             >
-              Sentry SDK Documentation
+              {t('about.sentryDocs')}
             </a>
           </CardContent>
         </Card>

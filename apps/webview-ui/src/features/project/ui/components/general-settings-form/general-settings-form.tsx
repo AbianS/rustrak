@@ -3,7 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Project } from '@rustrak/client';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useTranslations } from 'next-intl';
+import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -12,6 +13,7 @@ import {
   projectNameField,
   projectSlugField,
 } from '@/features/project/model/fields';
+import type { Translate } from '@/shared/lib/error-copy';
 import { describeError } from '@/shared/lib/error-copy';
 import {
   applyServerFieldErrors,
@@ -30,22 +32,31 @@ import { SavableRow } from './savable-row';
  * name reached the server and came back as a toast, and a server-named field
  * had no input to attach itself to.
  */
-const generalSettingsSchema = z.object({
-  name: projectNameField,
-  slug: projectSlugField,
-});
+function buildGeneralSettingsSchema(t: Translate) {
+  return z.object({
+    name: projectNameField(t),
+    slug: projectSlugField(t),
+  });
+}
 
-export type GeneralSettingsFormData = z.infer<typeof generalSettingsSchema>;
+export type GeneralSettingsFormData = z.infer<
+  ReturnType<typeof buildGeneralSettingsSchema>
+>;
 
 interface GeneralSettingsFormProps {
   project: Project;
 }
 
-const FIELD_LABELS = { name: 'Project name', slug: 'Slug' };
-
 export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
+  const t = useTranslations('projects');
+  const formT = useTranslations();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const generalSettingsSchema = useMemo(
+    () => buildGeneralSettingsSchema(t),
+    [t],
+  );
 
   const form = useForm<GeneralSettingsFormData>({
     resolver: zodResolver(generalSettingsSchema),
@@ -68,7 +79,7 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         const result = await updateProject(project.id, { name: trimmed });
 
         if (!result.success) {
-          reportFailure(result.error, 'Failed to update project');
+          reportFailure(result.error, t('toasts.updateNameFailed'));
           return;
         }
 
@@ -76,7 +87,7 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         // stray whitespace leaves the Save button looking permanently dirty.
         form.setValue('name', trimmed);
         clearFailure();
-        toast.success('Project updated');
+        toast.success(t('toasts.nameUpdated'));
         router.refresh();
       });
     });
@@ -92,7 +103,7 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         });
 
         if (!result.success) {
-          reportFailure(result.error, 'Failed to update slug');
+          reportFailure(result.error, t('toasts.updateSlugFailed'));
           return;
         }
 
@@ -101,7 +112,7 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
         // field showing "my-api", not a value that was never persisted.
         form.setValue('slug', result.data.slug);
         clearFailure();
-        toast.success('Slug updated');
+        toast.success(t('toasts.slugUpdated'));
         router.refresh();
       });
     });
@@ -116,12 +127,12 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
       if (!result.success) {
         // The picker is not a registered field, so this one has nowhere to go
         // but the form-level slot; `reportFailure` puts it there.
-        reportFailure(result.error, 'Failed to update platform');
+        reportFailure(result.error, t('toasts.updatePlatformFailed'));
         return;
       }
 
       clearFailure();
-      toast.success('Platform updated');
+      toast.success(t('toasts.platformUpdated'));
       router.refresh();
     });
   };
@@ -133,13 +144,13 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
       // Toast only, deliberately. The Danger Zone sits outside the `<Form>`
       // wrapper, so a form-level message raised here renders up in Project
       // Details, nowhere near the button that was pressed.
-      toast.error('Failed to delete project', {
-        description: describeError(result.error),
+      toast.error(t('toasts.deleteProjectFailed'), {
+        description: describeError(result.error, formT),
       });
       return;
     }
 
-    toast.success('Project deleted');
+    toast.success(t('toasts.deleted'));
     router.push('/projects');
   };
 
@@ -152,7 +163,8 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
     title: string,
   ) {
     const applied = applyServerFieldErrors(form, error, {
-      labels: FIELD_LABELS,
+      labels: { name: t('fields.name'), slug: t('fields.slug') },
+      t: formT,
     });
 
     if (applied.formLevel) {
@@ -192,13 +204,13 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
   return (
     <div className="max-w-3xl">
       <Form {...form}>
-        <SettingSection title="Project Details">
+        <SettingSection title={t('projectDetails')}>
           <SavableRow
             form={form}
             name="name"
-            title="Name"
-            description="How this project appears across the dashboard."
-            placeholder="Project name"
+            title={t('nameTitle')}
+            description={t('nameDescription')}
+            placeholder={t('namePlaceholder')}
             isPending={isPending}
             hasChanges={hasNameChanges}
             onSave={handleSaveName}
@@ -208,8 +220,8 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
           <SavableRow
             form={form}
             name="slug"
-            title="Slug"
-            description="Short identifier for this project. Your DSN and dashboard links use the numeric project ID, so renaming this will not break anything already sending events."
+            title={t('fields.slug')}
+            description={t('slugDescription')}
             placeholder="project-slug"
             className="font-mono"
             isPending={isPending}
@@ -219,8 +231,8 @@ export function GeneralSettingsForm({ project }: GeneralSettingsFormProps) {
           />
 
           <SettingRow
-            title="Platform"
-            description="Detected from the first event received. Change it if the detected value is wrong or too broad."
+            title={t('fields.platform')}
+            description={t('platformDescription')}
           >
             <PlatformPicker
               value={project.platform}

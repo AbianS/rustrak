@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Search } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { useMemo, useState } from 'react';
 import {
@@ -32,6 +33,7 @@ export function PlatformGrid({
   onValueChange,
   disabled,
 }: PlatformGridProps) {
+  const t = useTranslations('platforms');
   const [category, setCategory] = useState('popular');
   const [query, setQuery] = useState('');
 
@@ -62,8 +64,8 @@ export function PlatformGrid({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search all platforms"
-            aria-label="Search platforms"
+            placeholder={t('searchPlaceholder')}
+            aria-label={t('searchAria')}
             disabled={disabled}
             className="h-9 pl-9"
           />
@@ -72,7 +74,7 @@ export function PlatformGrid({
         <div
           className="-mx-1 flex flex-1 gap-1 overflow-x-auto px-1"
           role="tablist"
-          aria-label="Platform categories"
+          aria-label={t('categoriesAria')}
         >
           {PLATFORM_CATEGORIES.map((c) => (
             <button
@@ -105,23 +107,24 @@ export function PlatformGrid({
         // picker otherwise requires a choice.
         <div className="px-4 py-16 text-center">
           <p className="text-sm font-medium">
-            No SDK for &quot;{query.trim()}&quot; yet
+            {t('noSdkFor', { query: query.trim() })}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Try a more generic SDK such as JavaScript, Python or Node, or create
-            a generic project with{' '}
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                setQuery('');
-                onValueChange(OTHER_PLATFORM_ID);
-              }}
-              className="font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
-            >
-              Other
-            </button>
-            .
+            {t.rich('tryGeneric', {
+              other: (chunks) => (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    setQuery('');
+                    onValueChange(OTHER_PLATFORM_ID);
+                  }}
+                  className="font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                >
+                  {chunks}
+                </button>
+              ),
+            })}
           </p>
         </div>
       ) : (
@@ -149,11 +152,10 @@ export function PlatformGrid({
               <PlatformIcon platform={OTHER_PLATFORM_ID} size={28} />
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">
-                  Other platform
+                  {t('otherPlatform')}
                 </span>
                 <span className="block text-xs text-muted-foreground">
-                  Your platform is not on the list, or you would rather choose
-                  later. Works with any Sentry SDK.
+                  {t('otherPlatformDescription')}
                 </span>
               </span>
               {otherSelected && (
@@ -192,8 +194,8 @@ export function PlatformGrid({
       )}
       <div className="border-t px-4 py-2 text-xs text-muted-foreground">
         {isSearching
-          ? `${platforms.length} matching ${platforms.length === 1 ? 'platform' : 'platforms'}`
-          : `${platforms.length} platforms · search to look across every category`}
+          ? t('matchingCount', { count: platforms.length })
+          : t('footerCount', { count: platforms.length })}
       </div>
       ;
     </div>

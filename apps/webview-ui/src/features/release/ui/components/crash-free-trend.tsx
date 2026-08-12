@@ -1,7 +1,7 @@
 'use client';
 
 import type { SessionTimeseries } from '@rustrak/client';
-import { format } from 'date-fns';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 // Not loaded through next/dynamic, deliberately.
 //
@@ -23,7 +23,6 @@ import {
   YAxis,
 } from 'recharts';
 import { crashFreeColor, pct } from '@/features/release/model/session-health';
-import { exactCount } from '@/shared/lib/chart-format';
 import {
   ChartTooltipCaption,
   ChartTooltipRow,
@@ -85,6 +84,8 @@ function ChartTooltip(props: {
   active?: boolean;
   payload?: Array<{ payload: ChartPoint }>;
 }) {
+  const format = useFormatter();
+  const t = useTranslations('releases');
   const { active, payload } = props;
   if (!active || !payload?.length) {
     return null;
@@ -93,11 +94,17 @@ function ChartTooltip(props: {
 
   return (
     <ChartTooltipSurface>
-      <ChartTooltipRow label="Crash-free" value={pct(point.rate)} />
-      <ChartTooltipRow label="Sessions" value={exactCount(point.total)} />
-      <ChartTooltipRow label="Crashed" value={exactCount(point.crashed)} />
+      <ChartTooltipRow label={t('crashFree')} value={pct(point.rate)} />
+      <ChartTooltipRow
+        label={t('sessions')}
+        value={format.number(point.total)}
+      />
+      <ChartTooltipRow
+        label={t('crashed')}
+        value={format.number(point.crashed)}
+      />
       <ChartTooltipCaption>
-        {format(new Date(point.t), 'PPp')}
+        {format.dateTime(new Date(point.t), 'dateTime')}
       </ChartTooltipCaption>
     </ChartTooltipSurface>
   );
@@ -131,6 +138,8 @@ export function CrashFreeTrend({
   data,
   height = 132,
 }: CrashFreeTrendProps) {
+  const format = useFormatter();
+  const t = useTranslations('releases');
   const { chartData, floor } = useMemo(() => {
     const points: ChartPoint[] = data.map((point) => ({
       t: new Date(point.bucket).getTime(),
@@ -162,9 +171,9 @@ export function CrashFreeTrend({
         className="flex flex-col items-center justify-center text-center"
         style={{ height }}
       >
-        <p className="text-sm text-muted-foreground">No session data</p>
+        <p className="text-sm text-muted-foreground">{t('noSessionData')}</p>
         <p className="mt-1 text-xs text-muted-foreground/70">
-          Enable release health in your SDK to track crash-free rates
+          {t('enableReleaseHealth')}
         </p>
       </div>
     );
@@ -183,7 +192,7 @@ export function CrashFreeTrend({
         </p>
         <dl className="mt-3 space-y-1.5 text-xs">
           <div className="flex items-baseline gap-2">
-            <dt className="text-muted-foreground">Users</dt>
+            <dt className="text-muted-foreground">{t('users')}</dt>
             <dd
               className="font-semibold"
               style={{ color: crashFreeColor(usersRate) }}
@@ -192,9 +201,9 @@ export function CrashFreeTrend({
             </dd>
           </div>
           <div className="flex items-baseline gap-2">
-            <dt className="text-muted-foreground">Sessions</dt>
+            <dt className="text-muted-foreground">{t('sessions')}</dt>
             <dd className="font-semibold tabular-nums">
-              {exactCount(totalSessions)}
+              {format.number(totalSessions)}
             </dd>
           </div>
         </dl>
@@ -212,7 +221,7 @@ export function CrashFreeTrend({
                 type="number"
                 scale="time"
                 domain={['dataMin', 'dataMax']}
-                tickFormatter={(v) => format(new Date(v), 'MMM d')}
+                tickFormatter={(v) => format.dateTime(new Date(v), 'axisDay')}
                 tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                 axisLine={false}
                 tickLine={false}
@@ -269,7 +278,7 @@ export function CrashFreeTrend({
             className="flex items-center justify-center text-xs text-muted-foreground"
             style={{ height }}
           >
-            Not enough history to chart a trend
+            {t('noTrendHistory')}
           </div>
         )}
       </div>

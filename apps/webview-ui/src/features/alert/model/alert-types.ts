@@ -9,23 +9,23 @@ import type { AlertType } from '@rustrak/client';
  */
 export const alertTypes: {
   type: AlertType;
-  name: string;
-  description: string;
+  nameKey: string;
+  descriptionKey: string;
 }[] = [
   {
     type: 'new_issue',
-    name: 'New Issue',
-    description: 'A new issue is first detected',
+    nameKey: 'newIssue.name',
+    descriptionKey: 'newIssue.description',
   },
   {
     type: 'regression',
-    name: 'Regression',
-    description: 'A resolved issue reappears',
+    nameKey: 'regression.name',
+    descriptionKey: 'regression.description',
   },
   {
     type: 'unmute',
-    name: 'Unmute',
-    description: 'A muted issue is unmuted',
+    nameKey: 'unmute.name',
+    descriptionKey: 'unmute.description',
   },
 ];
 
@@ -40,8 +40,7 @@ export function alertTypeInfo(type: string) {
   return (
     alertTypes.find((t) => t.type === type) ?? {
       type,
-      name: type,
-      description: '',
+      nameKey: type,
     }
   );
 }

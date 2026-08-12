@@ -1,6 +1,7 @@
 'use client';
 
 import { Menu } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -19,6 +20,7 @@ interface ProjectSettingsMobileNavProps {
 export function ProjectSettingsMobileNav({
   projectId,
 }: ProjectSettingsMobileNavProps) {
+  const t = useTranslations('settings');
   const [open, setOpen] = useState(false);
 
   return (
@@ -27,12 +29,12 @@ export function ProjectSettingsMobileNav({
         render={<Button variant="ghost" size="icon" className="md:hidden" />}
       >
         <Menu className="size-5" />
-        <span className="sr-only">Open project settings menu</span>
+        <span className="sr-only">{t('nav.openProjectSettingsMenu')}</span>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-6">
         <SheetHeader className="mb-4 p-0">
           <SheetTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Project Settings
+            {t('nav.projectSettingsTitle')}
           </SheetTitle>
         </SheetHeader>
         <ProjectSettingsNav

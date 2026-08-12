@@ -1,4 +1,7 @@
+'use client';
+
 import type { Issue, IssuePriority } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 import { priorityDisplay, statusDisplay } from '@/features/issue/model/status';
 import { cn } from '@/shared/lib/utils';
 
@@ -39,12 +42,14 @@ export function StatusIndicator({
   issue: Pick<Issue, 'status' | 'substatus'>;
   className?: string;
 }) {
-  const { dot, label } = statusDisplay(issue);
+  const t = useTranslations('issues');
+  const { dot, labelKey } = statusDisplay(issue);
+  const label = t(labelKey);
   return (
     <Pill
       dot={dot}
       label={label}
-      title={`Status: ${label}`}
+      title={t('statusTitle', { label })}
       className={className}
     />
   );
@@ -57,15 +62,17 @@ export function PriorityIndicator({
   priority: IssuePriority | null | undefined;
   className?: string;
 }) {
+  const t = useTranslations('issues');
   const meta = priorityDisplay(priority);
   if (!meta) {
     return null;
   }
+  const label = t(meta.labelKey);
   return (
     <Pill
       dot={meta.dot}
-      label={meta.label}
-      title={`Priority: ${meta.label}`}
+      label={label}
+      title={t('priorityTitle', { label })}
       className={className}
     />
   );
@@ -90,6 +97,7 @@ export function LevelBadge({
   level: string | null | undefined;
   className?: string;
 }) {
+  const t = useTranslations('issues');
   if (!level) {
     return null;
   }
@@ -97,7 +105,7 @@ export function LevelBadge({
     LEVEL_STYLES[level.toLowerCase()] ?? 'bg-muted text-muted-foreground';
   return (
     <span
-      title={`Level: ${level}`}
+      title={t('levelTitle', { level })}
       className={cn(
         'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wide',
         style,

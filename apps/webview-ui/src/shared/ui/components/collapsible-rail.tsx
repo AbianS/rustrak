@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -17,6 +18,7 @@ export function CollapsibleRail({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const t = useTranslations('common');
   const toggleRail = () => setCollapsed((c) => !c);
 
   if (collapsed) {
@@ -26,8 +28,8 @@ export function CollapsibleRail({
           variant="ghost"
           size="sm"
           className="size-8 px-0"
-          aria-label="Open sidebar"
-          title="Show sidebar"
+          aria-label={t('openSidebar')}
+          title={t('showSidebar')}
           onClick={toggleRail}
         >
           <ChevronsLeft className="size-4" />
@@ -44,8 +46,8 @@ export function CollapsibleRail({
           variant="ghost"
           size="sm"
           className="size-8 px-0 shrink-0"
-          aria-label="Close sidebar"
-          title="Hide sidebar"
+          aria-label={t('closeSidebar')}
+          title={t('hideSidebar')}
           onClick={toggleRail}
         >
           <ChevronsRight className="size-4" />

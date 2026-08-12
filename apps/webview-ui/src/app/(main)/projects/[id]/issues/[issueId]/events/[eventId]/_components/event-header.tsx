@@ -1,6 +1,7 @@
 import type { Issue } from '@rustrak/client';
 import { CircleAlert } from 'lucide-react';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { IssueActions } from '@/features/issue/ui/components/issue-actions';
 import { StatusIndicator } from '@/features/issue/ui/components/issue-indicators';
 import { cn } from '@/shared/lib/utils';
@@ -20,7 +21,7 @@ const compact = (n: number) =>
  * in the body, because resolving or muting acts on the issue named directly
  * above it and not on the event being read below.
  */
-export function EventHeader({
+export async function EventHeader({
   issue,
   projectId,
   titleType,
@@ -35,6 +36,8 @@ export function EventHeader({
   levelText: string;
   userCount: number;
 }) {
+  const t = await getTranslations('projectPages');
+
   return (
     <header className="shrink-0 bg-card border-b">
       <div className="w-full px-4 md:px-8 py-3 space-y-1.5">
@@ -43,7 +46,7 @@ export function EventHeader({
             href={`/projects/${projectId}/issues`}
             className="hover:text-foreground transition-colors"
           >
-            Issues
+            {t('issues.title')}
           </Link>
           <span className="text-muted-foreground/40">/</span>
           <span className="font-mono text-foreground truncate">
@@ -58,7 +61,7 @@ export function EventHeader({
           <div className="flex items-start gap-4 sm:gap-8 shrink-0">
             <div className="text-right">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Events (total)
+                {t('event.eventsTotal')}
               </p>
               <p className="text-xl font-semibold tabular-nums leading-tight">
                 {compact(issue.event_count)}
@@ -66,7 +69,7 @@ export function EventHeader({
             </div>
             <div className="text-right">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Users
+                {t('event.users')}
               </p>
               <p className="text-xl font-semibold tabular-nums leading-tight">
                 {compact(userCount)}

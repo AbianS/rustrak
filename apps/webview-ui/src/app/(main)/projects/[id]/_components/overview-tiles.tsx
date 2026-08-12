@@ -1,4 +1,5 @@
 import type { RustrakError } from '@rustrak/client';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { listIssues } from '@/features/issue/api/queries';
 import { IssueListCard } from '@/features/issue/ui/components/issue-list-card';
 import {
@@ -16,7 +17,6 @@ import {
 import { CrashFreeTrend } from '@/features/release/ui/components/crash-free-trend';
 import { SessionHealthArea } from '@/features/release/ui/components/session-health-area';
 import { getTransactionStats } from '@/features/transaction/api/queries';
-import { exactCount } from '@/shared/lib/chart-format';
 import { loadAll } from '@/shared/lib/results';
 import { ErrorVolumeChart } from '@/shared/ui/components/error-volume-chart';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
@@ -96,6 +96,7 @@ function TileFailure({ error, title }: { error: RustrakError; title: string }) {
 }
 
 export async function ErrorVolumeTile({ projectId, period }: TileProps) {
+  const t = await getTranslations('projectPages');
   const timeseries = await getProjectEventTimeseries(
     projectId,
     period,
@@ -104,19 +105,23 @@ export async function ErrorVolumeTile({ projectId, period }: TileProps) {
 
   if (!timeseries.success) {
     return (
-      <TileFailure error={timeseries.error} title="Error volume by severity" />
+      <TileFailure error={timeseries.error} title={t('overview.errorVolume')} />
     );
   }
 
   return (
-    <TileShell title="Error volume by severity">
+    <TileShell title={t('overview.errorVolume')}>
       <ErrorVolumeChart data={timeseries.data} />
     </TileShell>
   );
 }
 
 export async function CounterTiles({ projectId, period }: TileProps) {
-  const result = await getProjectStatsSummary(projectId, period);
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('projectPages'),
+    getProjectStatsSummary(projectId, period),
+  ]);
 
   if (!result.success) {
     // One fetch fills two grid cells, so it has to fail as two. Returning a
@@ -124,8 +129,8 @@ export async function CounterTiles({ projectId, period }: TileProps) {
     // tile simply disappeared, with nothing marking that a metric was missing.
     return (
       <>
-        <TileFailure error={result.error} title="Events" />
-        <TileFailure error={result.error} title="New issues" />
+        <TileFailure error={result.error} title={t('overview.events')} />
+        <TileFailure error={result.error} title={t('overview.newIssues')} />
       </>
     );
   }
@@ -134,18 +139,26 @@ export async function CounterTiles({ projectId, period }: TileProps) {
 
   return (
     <>
-      <StatTile label="Events" metric={summary.events} polarity="up-is-bad" />
       <StatTile
-        label="New issues"
+        label={t('overview.events')}
+        metric={summary.events}
+        polarity="up-is-bad"
+      />
+      <StatTile
+        label={t('overview.newIssues')}
         metric={summary.new_issues}
         polarity="up-is-bad"
-        footnote={`${exactCount(summary.open_issues)} open`}
+        footnote={t('overview.openIssues', {
+          count: format.number(summary.open_issues),
+        })}
       />
     </>
   );
 }
 
 export async function CrashFreeTile({ projectId, period }: TileProps) {
+  const t = await getTranslations('projectPages');
+
   // The headline rates and the shape behind them come from two endpoints, so
   // they are fetched together rather than split across two Suspense
   // boundaries: half the tile arriving before the other half would flash.
@@ -160,13 +173,18 @@ export async function CrashFreeTile({ projectId, period }: TileProps) {
   ]);
 
   if (!loaded.success) {
-    return <TileFailure error={loaded.error} title="Crash-free sessions" />;
+    return (
+      <TileFailure
+        error={loaded.error}
+        title={t('overview.crashFreeSessions')}
+      />
+    );
   }
 
   const [summary, timeseries] = loaded.data;
 
   return (
-    <TileShell title="Crash-free sessions">
+    <TileShell title={t('overview.crashFreeSessions')}>
       <CrashFreeTrend
         sessionsRate={summary.crash_free_sessions_rate}
         usersRate={summary.crash_free_users_rate}
@@ -178,6 +196,7 @@ export async function CrashFreeTile({ projectId, period }: TileProps) {
 }
 
 export async function SessionHealthTile({ projectId, period }: TileProps) {
+  const t = await getTranslations('projectPages');
   const timeseries = await getSessionTimeseries(
     projectId,
     period,
@@ -185,13 +204,18 @@ export async function SessionHealthTile({ projectId, period }: TileProps) {
   );
 
   if (!timeseries.success) {
-    return <TileFailure error={timeseries.error} title="Session health" />;
+    return (
+      <TileFailure
+        error={timeseries.error}
+        title={t('overview.sessionHealth')}
+      />
+    );
   }
 
   return (
     <TileShell
-      title="Session health"
-      subtitle="Healthy and crashed sessions over time"
+      title={t('overview.sessionHealth')}
+      subtitle={t('overview.sessionHealthSubtitle')}
     >
       <SessionHealthArea data={timeseries.data} height={220} />
     </TileShell>
@@ -199,23 +223,30 @@ export async function SessionHealthTile({ projectId, period }: TileProps) {
 }
 
 export async function PerformanceTile({ projectId }: TileProps) {
+  const t = await getTranslations('projectPages');
+
   // Transaction stats have no period filter of their own yet, so this tile is
   // all-time regardless of the selected window. Said out loud in the subtitle
   // rather than silently pretending to follow the filter.
   const stats = await getTransactionStats(projectId, { page: 1, per_page: 20 });
 
   if (!stats.success) {
-    return <TileFailure error={stats.error} title="Latency" />;
+    return <TileFailure error={stats.error} title={t('overview.latency')} />;
   }
 
   return (
-    <TileShell title="Latency" subtitle="Slowest transactions by p95, all time">
+    <TileShell
+      title={t('overview.latency')}
+      subtitle={t('overview.latencySubtitle')}
+    >
       <TransactionP95Bars projectId={projectId} rows={stats.data.items} />
     </TileShell>
   );
 }
 
 export async function TopIssuesTile({ projectId }: TileProps) {
+  const t = await getTranslations('projectPages');
+
   // The issues endpoint takes no time window, and `event_count` is the issue's
   // lifetime total, so this ranking is all-time whatever the page filter says.
   // Labelled rather than left to look like it follows the filter, the same way
@@ -229,16 +260,18 @@ export async function TopIssuesTile({ projectId }: TileProps) {
   });
 
   if (!response.success) {
-    return <TileFailure error={response.error} title="Top issues" />;
+    return (
+      <TileFailure error={response.error} title={t('overview.topIssues')} />
+    );
   }
 
   return (
     <IssueListCard
       projectId={projectId}
       issues={response.data.items}
-      title="Top issues"
-      subtitle="Open issues by total events, all time"
-      emptyMessage="No issues yet"
+      title={t('overview.topIssues')}
+      subtitle={t('overview.topIssuesSubtitle')}
+      emptyMessage={t('overview.noIssuesYet')}
     />
   );
 }

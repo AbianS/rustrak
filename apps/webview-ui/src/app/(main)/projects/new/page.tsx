@@ -1,13 +1,17 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { getProjects } from '@/features/project/api/queries';
 import { CreateProjectForm } from '@/features/project/ui/components/create-project-form/create-project-form';
 
-export const metadata: Metadata = {
-  title: 'New Project | Rustrak',
-  description: 'Create a new Rustrak project',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
+  return {
+    title: t('newProject.meta.title'),
+    description: t('newProject.meta.description'),
+  };
+}
 
 /**
  * Create-project page: platform picker plus name, in one form.
@@ -15,6 +19,8 @@ export const metadata: Metadata = {
  * A full page rather than a dialog, matching Sentry's own `/projects/new/`.
  */
 export default async function NewProjectPage() {
+  const t = await getTranslations('projectPages');
+
   // Only used to suggest a free default name. `projects.name` is UNIQUE, so
   // the raw platform id Sentry pre-fills would collide on a second Next.js
   // project. One page is enough for a suggestion; the server still has the
@@ -36,17 +42,14 @@ export default async function NewProjectPage() {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
         <ArrowLeft className="size-4" />
-        Back to projects
+        {t('newProject.backToProjects')}
       </Link>
 
       <div className="mt-4 mb-6">
         <h1 className="text-xl font-extrabold tracking-tight md:text-2xl">
-          Create a new project
+          {t('newProject.title')}
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          Pick the platform you want to monitor. You will get the DSN and a
-          setup snippet right after.
-        </p>
+        <p className="mt-1 text-muted-foreground">{t('newProject.subtitle')}</p>
       </div>
 
       <CreateProjectForm existingNames={existingNames} />

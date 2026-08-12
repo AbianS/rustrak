@@ -1,6 +1,7 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
 import type { Span, TraceContext } from '@/features/transaction/model/span';
@@ -17,12 +18,13 @@ interface TransactionDetailPageProps {
 export async function generateMetadata({
   params,
 }: TransactionDetailPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id, txnId } = await params;
   const txn = await getTransaction(parseInt(id, 10), txnId);
   return {
     title: txn.success
-      ? `${txn.data.transaction_name} | Performance | Rustrak`
-      : 'Transaction | Rustrak',
+      ? t('transaction.meta.title', { name: txn.data.transaction_name })
+      : t('transaction.meta.fallbackTitle'),
   };
 }
 
@@ -80,6 +82,8 @@ function KeyValuePanel({
 export default async function TransactionDetailPage({
   params,
 }: TransactionDetailPageProps) {
+  const t = await getTranslations('projectPages');
+  const format = await getFormatter();
   const { id, txnId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -90,7 +94,7 @@ export default async function TransactionDetailPage({
 
   if (!loaded.success) {
     return (
-      <LoadFailure error={loaded.error} title="Could not load transaction" />
+      <LoadFailure error={loaded.error} title={t('transaction.loadFailed')} />
     );
   }
 
@@ -124,10 +128,10 @@ export default async function TransactionDetailPage({
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
         >
           <ArrowLeft className="size-4" />
-          Performance
+          {t('performance.backLink')}
         </Link>
         <h1 className="font-mono text-lg font-semibold break-all">
-          {txn.transaction_name || '(unnamed transaction)'}
+          {txn.transaction_name || t('transaction.unnamed')}
         </h1>
         <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
           <span className="font-mono font-semibold">
@@ -149,7 +153,7 @@ export default async function TransactionDetailPage({
             </span>
           )}
           <span className="text-xs text-muted-foreground">
-            {new Date(txn.timestamp).toLocaleString()}
+            {format.dateTime(new Date(txn.timestamp), 'precise')}
           </span>
         </div>
       </div>
@@ -161,16 +165,16 @@ export default async function TransactionDetailPage({
         <section className="rounded-lg border">
           <div className="border-b px-4 py-2.5 flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Spans
+              {t('transaction.spans')}
             </h2>
             <span className="text-xs text-muted-foreground">
-              {spans.length} span{spans.length === 1 ? '' : 's'}
+              {t('spanCount', { count: spans.length })}
             </span>
           </div>
           <div className="p-3">
             {spans.length === 0 && !trace ? (
               <p className="text-sm text-muted-foreground px-1 py-4 text-center">
-                This transaction has no spans.
+                {t('transaction.noSpans')}
               </p>
             ) : (
               <SpanWaterfall
@@ -184,9 +188,11 @@ export default async function TransactionDetailPage({
         </section>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {tags && <KeyValuePanel title="Tags" data={tags} />}
-          {request && <KeyValuePanel title="Request" data={request} />}
-          {user && <KeyValuePanel title="User" data={user} />}
+          {tags && <KeyValuePanel title={t('transaction.tags')} data={tags} />}
+          {request && (
+            <KeyValuePanel title={t('transaction.request')} data={request} />
+          )}
+          {user && <KeyValuePanel title={t('transaction.user')} data={user} />}
         </div>
       </div>
     </div>

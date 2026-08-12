@@ -6858,6 +6858,60 @@
             "session_cookie": []
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "PATCH /auth/me\nUpdate the current user's presentation preferences",
+        "operationId": "update_current_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePreferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed language tag or timezone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session_cookie": []
+          }
+        ]
       }
     },
     "/auth/register": {
@@ -9577,6 +9631,24 @@
           }
         }
       },
+      "UpdatePreferencesRequest": {
+        "type": "object",
+        "description": "What a reader may change about how the dashboard is presented to them.\n\nEvery field is doubly optional, and both levels are used: absent means\n\"leave it\", `null` means \"clear it\". `#[serde(default)]` with\n`deserialize_with` is what keeps those distinguishable, because plain\n`Option<Option<T>>` collapses a missing key and an explicit null.",
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "UpdateProject": {
         "type": "object",
         "description": "DTO for updating a project",
@@ -9756,8 +9828,22 @@
             "type": "boolean",
             "description": "Convenience flag derived from `role` (kept for backward compatibility)."
           },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chosen dashboard language, or `null` when the user never chose one."
+          },
           "role": {
             "type": "string"
+          },
+          "timezone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Chosen IANA timezone, or `null` when the user never chose one."
           }
         }
       },

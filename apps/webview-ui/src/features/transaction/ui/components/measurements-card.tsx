@@ -1,3 +1,6 @@
+'use client';
+
+import { useTranslations } from 'next-intl';
 import { cn } from '@/shared/lib/utils';
 
 interface Measurement {
@@ -11,14 +14,15 @@ interface MeasurementsCardProps {
 
 // Web-vital thresholds (good / needs-improvement boundaries) from web.dev.
 // Values in ms unless noted. Unknown keys render without a rating.
-const VITALS: Record<string, { label: string; good: number; poor: number }> = {
-  lcp: { label: 'LCP', good: 2500, poor: 4000 },
-  fcp: { label: 'FCP', good: 1800, poor: 3000 },
-  fid: { label: 'FID', good: 100, poor: 300 },
-  inp: { label: 'INP', good: 200, poor: 500 },
-  ttfb: { label: 'TTFB', good: 800, poor: 1800 },
-  cls: { label: 'CLS', good: 0.1, poor: 0.25 },
-};
+const VITALS: Record<string, { labelKey: string; good: number; poor: number }> =
+  {
+    lcp: { labelKey: 'lcp', good: 2500, poor: 4000 },
+    fcp: { labelKey: 'fcp', good: 1800, poor: 3000 },
+    fid: { labelKey: 'fid', good: 100, poor: 300 },
+    inp: { labelKey: 'inp', good: 200, poor: 500 },
+    ttfb: { labelKey: 'ttfb', good: 800, poor: 1800 },
+    cls: { labelKey: 'cls', good: 0.1, poor: 0.25 },
+  };
 
 function rating(key: string, value: number): 'good' | 'meh' | 'poor' | null {
   const v = VITALS[key.toLowerCase()];
@@ -45,6 +49,8 @@ function formatValue(value: number, unit?: string): string {
 }
 
 export function MeasurementsCard({ measurements }: MeasurementsCardProps) {
+  const t = useTranslations('transactions');
+
   const entries = Object.entries(measurements)
     .map(([key, raw]): [string, Measurement] | null => {
       const m = raw as Measurement | null;
@@ -66,7 +72,8 @@ export function MeasurementsCard({ measurements }: MeasurementsCardProps) {
       {entries.map(([key, m]) => {
         const value = m.value as number;
         const r = rating(key, value);
-        const label = VITALS[key.toLowerCase()]?.label ?? key;
+        const vital = VITALS[key.toLowerCase()];
+        const label = vital ? t(`measurements.${vital.labelKey}`) : key;
         return (
           <div key={key} className="rounded-lg border p-3">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">

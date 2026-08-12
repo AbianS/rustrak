@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Translate } from '@/shared/lib/error-copy';
 
 const PROJECT_NAME_MIN_LENGTH = 2;
 export const PROJECT_NAME_MAX_LENGTH = 100;
@@ -13,27 +14,28 @@ export const PROJECT_NAME_MAX_LENGTH = 100;
  * agree about what that column accepts, which is what makes this shared rather
  * than copied.
  */
-export const projectNameField = z
-  .string()
-  .trim()
-  .min(
-    PROJECT_NAME_MIN_LENGTH,
-    `Name must be at least ${PROJECT_NAME_MIN_LENGTH} characters`,
-  )
-  .max(
-    PROJECT_NAME_MAX_LENGTH,
-    `Name must be at most ${PROJECT_NAME_MAX_LENGTH} characters`,
-  );
+export function projectNameField(t: Translate) {
+  return z
+    .string()
+    .trim()
+    .min(
+      PROJECT_NAME_MIN_LENGTH,
+      t('fields.nameTooShort', { min: PROJECT_NAME_MIN_LENGTH }),
+    )
+    .max(
+      PROJECT_NAME_MAX_LENGTH,
+      t('fields.nameTooLong', { max: PROJECT_NAME_MAX_LENGTH }),
+    );
+}
 
 /** The rules for a project slug, shared for the same reason. */
-export const projectSlugField = z
-  .string()
-  .trim()
-  .min(1, 'Slug cannot be empty')
-  .regex(
-    /^[a-z0-9]+(?:[-_][a-z0-9]+)*$/,
-    'Use lowercase letters, digits and dashes',
-  );
+export function projectSlugField(t: Translate) {
+  return z
+    .string()
+    .trim()
+    .min(1, t('fields.slugEmpty'))
+    .regex(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/, t('fields.slugChars'));
+}
 
 /**
  * Live preview slugifier, ported from Sentry's `utils/slugify`.

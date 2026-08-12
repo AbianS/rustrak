@@ -4,6 +4,7 @@ import type { TransactionStats } from '@rustrak/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
@@ -57,6 +58,9 @@ export function TransactionStatsTable({
   totalCount,
   perPage,
 }: TransactionStatsTableProps) {
+  const format = useFormatter();
+  const t = useTranslations('transactions');
+  const tableT = useTranslations('table');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -73,12 +77,14 @@ export function TransactionStatsTable({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          <span className="flex-1">Transaction</span>
-          <span className="hidden sm:block w-20 text-right">Count</span>
+          <span className="flex-1">{t('columns.transaction')}</span>
+          <span className="hidden sm:block w-20 text-right">
+            {t('columns.count')}
+          </span>
           <span className="w-16 text-right">p50</span>
           <span className="w-16 text-right">p95</span>
           <span className="hidden md:block w-16 text-right">p99</span>
-          <span className="w-20 text-right">Failures</span>
+          <span className="w-20 text-right">{t('columns.failures')}</span>
         </div>
         <div className="flex-1 overflow-auto divide-y">
           {stats.map((s) => {
@@ -91,7 +97,7 @@ export function TransactionStatsTable({
               >
                 <div className="flex-1 min-w-0">
                   <span className="block font-mono truncate group-hover:text-primary transition-colors">
-                    {s.transaction_name || '(unnamed)'}
+                    {s.transaction_name || t('unnamed')}
                   </span>
                   {s.op && (
                     <Badge variant="secondary" className="text-[10px] mt-1">
@@ -100,7 +106,7 @@ export function TransactionStatsTable({
                   )}
                 </div>
                 <span className="hidden sm:block w-20 text-right font-mono tabular-nums text-muted-foreground">
-                  {s.count.toLocaleString()}
+                  {format.number(s.count)}
                 </span>
                 <span
                   className={cn(
@@ -143,14 +149,18 @@ export function TransactionStatsTable({
       {totalPages > 0 && (
         <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
-            {`Showing ${startIndex}-${endIndex} of ${totalCount}`}
+            {tableT('showingRange', {
+              start: startIndex,
+              end: endIndex,
+              total: totalCount,
+            })}
           </span>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to previous page"
+              aria-label={tableT('previousPage')}
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1 || isPending}
             >
@@ -158,13 +168,13 @@ export function TransactionStatsTable({
             </Button>
 
             <span className="text-sm px-2">
-              Page {currentPage} of {totalPages}
+              {tableT('pageOf', { current: currentPage, total: totalPages })}
             </span>
 
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to next page"
+              aria-label={tableT('nextPage')}
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages || isPending}
             >

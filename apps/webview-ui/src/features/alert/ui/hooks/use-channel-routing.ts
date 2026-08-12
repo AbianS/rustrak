@@ -1,6 +1,7 @@
 'use client';
 
 import type { AlertIntegration, AlertRule } from '@rustrak/client';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import {
   collectRoutingErrors,
@@ -62,6 +63,7 @@ export function useChannelRouting(
   existingRule: AlertRule | null,
   integrations: readonly AlertIntegration[],
 ): ChannelRouting {
+  const t = useTranslations('alerts');
   const [routingMap, setRoutingMap] = useState<RoutingMap>(() =>
     initialRoutingMap(existingRule, integrations),
   );
@@ -97,7 +99,12 @@ export function useChannelRouting(
     },
 
     validate: (selectedIds) => {
-      const found = collectRoutingErrors(selectedIds, routingMap, integrations);
+      const found = collectRoutingErrors(
+        selectedIds,
+        routingMap,
+        integrations,
+        t,
+      );
       setErrors(found);
       return Object.keys(found).length === 0;
     },

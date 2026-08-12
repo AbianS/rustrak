@@ -1,11 +1,7 @@
 import type { MetricDelta } from '@rustrak/client';
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react';
-import {
-  compactCount,
-  exactCount,
-  formatPercentChange,
-  percentChange,
-} from '@/shared/lib/chart-format';
+import { getFormatter, getTranslations } from 'next-intl/server';
+import { percentChange } from '@/shared/lib/chart-format';
 import { deltaTone, type Polarity } from '@/shared/lib/metric-tone';
 import { cn } from '@/shared/lib/utils';
 import {
@@ -28,7 +24,14 @@ interface StatTileProps {
  * the overview grid: a single current value plus a trend is a stat tile, not a
  * one-bar bar chart.
  */
-export function StatTile({ label, metric, polarity, footnote }: StatTileProps) {
+export async function StatTile({
+  label,
+  metric,
+  polarity,
+  footnote,
+}: StatTileProps) {
+  const t = await getTranslations('statTile');
+  const format = await getFormatter();
   const change = percentChange(metric.current, metric.previous);
   const Arrow =
     change === null || change === 0
@@ -50,13 +53,15 @@ export function StatTile({ label, metric, polarity, footnote }: StatTileProps) {
             is for columns that have to align. */}
         <p
           className="text-3xl font-bold leading-none"
-          title={exactCount(metric.current)}
+          title={format.number(metric.current)}
         >
-          {compactCount(metric.current)}
+          {format.number(metric.current, 'compact')}
         </p>
         {change === null ? (
           <span className="text-xs text-muted-foreground">
-            {metric.previous === null ? 'No prior period' : 'No prior activity'}
+            {metric.previous === null
+              ? t('noPriorPeriod')
+              : t('noPriorActivity')}
           </span>
         ) : (
           <span
@@ -66,8 +71,10 @@ export function StatTile({ label, metric, polarity, footnote }: StatTileProps) {
             )}
           >
             <Arrow className="size-3.5" aria-hidden />
-            {formatPercentChange(change)}
-            <span className="font-normal text-muted-foreground">vs prev</span>
+            {format.number(change, 'percentChange')}
+            <span className="font-normal text-muted-foreground">
+              {t('vsPrev')}
+            </span>
           </span>
         )}
         {footnote ? (

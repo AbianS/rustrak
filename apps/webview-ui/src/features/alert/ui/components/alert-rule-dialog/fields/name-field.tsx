@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import type { AlertRuleFormData } from '@/features/alert/model/alert-rule-form';
 import {
@@ -12,6 +13,7 @@ import {
 import { Input } from '@/shared/ui/components/shadcn/input';
 
 export function NameField({ disabled }: { disabled: boolean }) {
+  const t = useTranslations('alerts');
   const { control } = useFormContext<AlertRuleFormData>();
 
   return (
@@ -21,11 +23,11 @@ export function NameField({ disabled }: { disabled: boolean }) {
       render={({ field }) => (
         <FormItem>
           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Rule Name
+            {t('ruleDialog.name')}
           </FormLabel>
           <FormControl>
             <Input
-              placeholder="e.g., Notify team on new issues"
+              placeholder={t('ruleDialog.namePlaceholder')}
               autoComplete="off"
               disabled={disabled}
               {...field}

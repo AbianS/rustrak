@@ -1,6 +1,7 @@
 'use client';
 
 import { Minus, Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import type { AlertRuleFormData } from '@/features/alert/model/alert-rule-form';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -18,6 +19,7 @@ import { Input } from '@/shared/ui/components/shadcn/input';
 const STEP = 5;
 
 export function CooldownField({ disabled }: { disabled: boolean }) {
+  const t = useTranslations('alerts');
   const { control, watch } = useFormContext<AlertRuleFormData>();
   const cooldown = watch('cooldown_minutes');
 
@@ -28,14 +30,14 @@ export function CooldownField({ disabled }: { disabled: boolean }) {
       render={({ field }) => (
         <FormItem>
           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Cooldown
+            {t('ruleDialog.cooldown')}
           </FormLabel>
           <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
               size="icon"
-              aria-label={`Decrease cooldown by ${STEP} minutes`}
+              aria-label={t('ruleDialog.decreaseCooldown', { count: STEP })}
               className="size-9 shrink-0"
               disabled={disabled || cooldown <= 0}
               onClick={() => field.onChange(Math.max(0, cooldown - STEP))}
@@ -58,19 +60,21 @@ export function CooldownField({ disabled }: { disabled: boolean }) {
               type="button"
               variant="outline"
               size="icon"
-              aria-label={`Increase cooldown by ${STEP} minutes`}
+              aria-label={t('ruleDialog.increaseCooldown', { count: STEP })}
               className="size-9 shrink-0"
               disabled={disabled}
               onClick={() => field.onChange(cooldown + STEP)}
             >
               <Plus className="size-3.5" />
             </Button>
-            <span className="text-sm text-muted-foreground shrink-0">min</span>
+            <span className="text-sm text-muted-foreground shrink-0">
+              {t('ruleDialog.minutesUnit')}
+            </span>
           </div>
           <FormDescription>
             {cooldown === 0
-              ? 'No limit — alert fires every time'
-              : `At most one alert every ${cooldown} minute${cooldown !== 1 ? 's' : ''} per issue`}
+              ? t('ruleDialog.noCooldownLimit')
+              : t('ruleDialog.cooldownLimit', { count: cooldown })}
           </FormDescription>
           <FormMessage />
         </FormItem>

@@ -1,15 +1,21 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { APP_VERSION } from '@/shared/config/constants';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { LoginForm } from './_components/login-form';
 
-export const metadata: Metadata = {
-  title: 'Log in | Rustrak',
-  description: 'Sign in to your Rustrak account',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('auth');
+  return {
+    title: t('meta.title'),
+    description: t('meta.description'),
+  };
+}
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const t = await getTranslations('auth');
+
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Decorative (hidden on mobile) */}
@@ -26,27 +32,32 @@ export default function LoginPage() {
         {/* Welcome message */}
         <div className="relative z-20 max-w-xl">
           <h2 className="text-6xl xl:text-7xl font-extrabold tracking-tighter leading-[1.05] mb-8">
-            Welcome back to Rustrak
+            {t('heroTitle')}
             <span className="text-primary">.</span>
           </h2>
           <p className="text-muted-foreground text-lg font-medium leading-relaxed max-w-md">
-            Lightweight, self-hosted error tracking. Access your dashboard to
-            monitor system health and resolve critical incidents.
+            {t('heroDescription')}
           </p>
 
           {/* Stats */}
           <div className="mt-12 flex items-center gap-8">
             <div>
               <span className="text-2xl font-bold text-primary">50MB</span>
-              <p className="text-sm text-muted-foreground">Memory footprint</p>
+              <p className="text-sm text-muted-foreground">
+                {t('statMemoryFootprint')}
+              </p>
             </div>
             <div>
               <span className="text-2xl font-bold text-primary">&lt;50ms</span>
-              <p className="text-sm text-muted-foreground">Ingestion latency</p>
+              <p className="text-sm text-muted-foreground">
+                {t('statIngestionLatency')}
+              </p>
             </div>
             <div>
               <span className="text-2xl font-bold text-primary">10k+</span>
-              <p className="text-sm text-muted-foreground">Events/second</p>
+              <p className="text-sm text-muted-foreground">
+                {t('statEventsPerSecond')}
+              </p>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import type { OffsetPaginatedResponse, Project } from '@rustrak/client';
 import { FolderOpen, Loader2, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useOptimistic, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { deleteProject } from '@/features/project/api/mutations';
@@ -29,6 +30,7 @@ export function ProjectsList({
   initialProjects,
   currentPage,
 }: ProjectsListProps) {
+  const t = useTranslations('projects');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const {
@@ -75,7 +77,7 @@ export function ProjectsList({
           // Stop at the first failure rather than carrying on: the optimistic
           // removal is reverted by the refresh below, and continuing would
           // report "3 projects deleted" over a set where one survived.
-          toast.error('Failed to delete', {
+          toast.error(t('toasts.deleteFailed'), {
             description: result.error.message,
           });
           router.refresh();
@@ -83,11 +85,7 @@ export function ProjectsList({
         }
       }
 
-      toast.success(
-        idsToDelete.length > 1
-          ? `${idsToDelete.length} projects deleted`
-          : 'Project deleted',
-      );
+      toast.success(t('toasts.deleted', { count: idsToDelete.length }));
 
       if (!pendingDelete) selection.clear();
       setPendingDelete(null);
@@ -100,7 +98,7 @@ export function ProjectsList({
       {selection.count > 0 && (
         <div className="shrink-0 flex items-center justify-end gap-2 mb-4">
           <span className="text-sm text-muted-foreground">
-            {selection.count} selected
+            {t('selectedCount', { count: selection.count })}
           </span>
           <Button
             variant="destructive"
@@ -112,7 +110,7 @@ export function ProjectsList({
             disabled={isPending}
           >
             <Trash2 className="mr-1 size-3" />
-            Delete
+            {t('delete')}
           </Button>
         </div>
       )}
@@ -120,17 +118,15 @@ export function ProjectsList({
       {projects.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center">
           <FolderOpen className="size-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground">No projects yet</p>
-          <p className="text-sm text-muted-foreground/70">
-            Create your first project to start tracking errors
-          </p>
+          <p className="text-muted-foreground">{t('empty.title')}</p>
+          <p className="text-sm text-muted-foreground/70">{t('empty.hint')}</p>
           <Button
             className="mt-4"
             nativeButton={false}
             render={<Link href="/projects/new" />}
           >
             <Plus className="mr-2 size-4" />
-            New Project
+            {t('newProject')}
           </Button>
         </div>
       ) : (
@@ -144,19 +140,27 @@ export function ProjectsList({
                 header's flex tracks are computed over a row 28px wider than
                 the real ones and every column below drifts left. */}
             <span className="w-7 shrink-0" aria-hidden />
-            <span className={cn(HEADER, PROJECT_COLUMNS.name)}>Project</span>
-            <span className={cn(HEADER, PROJECT_COLUMNS.issues)}>Issues</span>
-            <span className={cn(HEADER, PROJECT_COLUMNS.events)}>
-              Events 24h
+            <span className={cn(HEADER, PROJECT_COLUMNS.name)}>
+              {t('columns.project')}
             </span>
-            <span className={cn(HEADER, PROJECT_COLUMNS.total)}>Total</span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.issues)}>
+              {t('columns.issues')}
+            </span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.events)}>
+              {t('columns.events24h')}
+            </span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.total)}>
+              {t('columns.total')}
+            </span>
             <span className={cn(HEADER, PROJECT_COLUMNS.trend)}>
-              Issue activity
+              {t('columns.issueActivity')}
             </span>
             {/* Demoted from `sm` to `xl`: on a narrow viewport the age of a
                 project loses to every column above, all of which say
                 something about right now. */}
-            <span className={cn(HEADER, PROJECT_COLUMNS.created)}>Created</span>
+            <span className={cn(HEADER, PROJECT_COLUMNS.created)}>
+              {t('columns.created')}
+            </span>
             <span className="w-8" />
           </div>
 

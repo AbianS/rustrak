@@ -3,6 +3,7 @@
 import type { Issue, OffsetPaginatedResponse } from '@rustrak/client';
 import { AlertCircle, Check, Trash2, VolumeX, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -33,6 +34,9 @@ export function IssuesList({
   currentFilter,
   currentPage,
 }: IssuesListProps) {
+  const t = useTranslations('issues');
+  const tableT = useTranslations('table');
+  const format = useFormatter();
   const router = useRouter();
   const { items: issues, total_count, per_page } = initialIssues;
 
@@ -68,7 +72,10 @@ export function IssuesList({
     onDelete: () => {},
   });
 
-  const columns = useMemo(() => issueColumns(projectId, handlers), [projectId]);
+  const columns = useMemo(
+    () => issueColumns(projectId, handlers, t, tableT, format),
+    [projectId, t, tableT, format],
+  );
 
   const table = useAppTable({
     data: issues,
@@ -93,7 +100,7 @@ export function IssuesList({
       });
 
       if (!result.success) {
-        toast.error('Failed to update issues', {
+        toast.error(t('toasts.updateFailed'), {
           description: result.error.message,
         });
         return;
@@ -112,7 +119,9 @@ export function IssuesList({
 
       if (!result.success) {
         toast.error(
-          pendingDelete ? 'Failed to delete issue' : 'Failed to delete issues',
+          pendingDelete
+            ? t('toasts.deleteOneFailed')
+            : t('toasts.deleteManyFailed'),
           { description: result.error.message },
         );
         return;
@@ -153,7 +162,7 @@ export function IssuesList({
         bulkActions={
           <>
             <span className="text-xs font-semibold tabular-nums">
-              {selectedCount} selected
+              {t('selectedCount', { count: selectedCount })}
             </span>
             <Button
               variant="outline"
@@ -163,7 +172,7 @@ export function IssuesList({
               disabled={urlState.isPending}
             >
               <Check className="size-3.5" />
-              Resolve
+              {t('actions.resolve')}
             </Button>
             <Button
               variant="outline"
@@ -173,7 +182,7 @@ export function IssuesList({
               disabled={urlState.isPending}
             >
               <VolumeX className="size-3.5" />
-              Mute
+              {t('actions.mute')}
             </Button>
             <Button
               variant="destructive"
@@ -186,13 +195,13 @@ export function IssuesList({
               disabled={urlState.isPending}
             >
               <Trash2 className="size-3.5" />
-              Delete
+              {t('actions.delete')}
             </Button>
             <Button
               variant="ghost"
               size="icon"
               className="ml-auto size-7"
-              aria-label="Clear selection"
+              aria-label={t('clearSelection')}
               onClick={() => table.resetRowSelection()}
             >
               <X className="size-3.5" />
@@ -202,11 +211,11 @@ export function IssuesList({
         empty={
           <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <AlertCircle className="mb-4 size-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">No issues found</p>
+            <p className="text-muted-foreground">{t('empty.title')}</p>
             <p className="text-sm text-muted-foreground/70">
               {currentFilter === 'open'
-                ? 'All issues are resolved or muted'
-                : `No ${currentFilter} issues`}
+                ? t('empty.allResolved')
+                : t('empty.noFiltered', { filter: currentFilter })}
             </p>
           </div>
         }

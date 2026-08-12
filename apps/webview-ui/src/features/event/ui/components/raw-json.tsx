@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Copy } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/shared/lib/clipboard';
@@ -11,14 +12,15 @@ interface RawJsonProps {
 }
 
 export function RawJson({ data }: RawJsonProps) {
+  const t = useTranslations('events');
+  const common = useTranslations('common');
   const [copied, setCopied] = useState(false);
   const jsonString = JSON.stringify(data, null, 2);
 
   const handleCopy = async () => {
     if (!(await copyToClipboard(jsonString))) {
-      toast.info('Clipboard unavailable', {
-        description:
-          'Select the JSON and copy it manually, or access Rustrak over HTTPS.',
+      toast.info(common('clipboardUnavailable'), {
+        description: t('clipboardJsonHint'),
       });
       return;
     }
@@ -34,12 +36,12 @@ export function RawJson({ data }: RawJsonProps) {
           {copied ? (
             <>
               <Check className="mr-1 size-3 text-primary" />
-              Copied
+              {t('rawJson.copied')}
             </>
           ) : (
             <>
               <Copy className="mr-1 size-3" />
-              Copy JSON
+              {t('rawJson.copyJson')}
             </>
           )}
         </Button>

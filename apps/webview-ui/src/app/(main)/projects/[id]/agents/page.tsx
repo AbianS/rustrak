@@ -1,5 +1,6 @@
 import { Bot } from 'lucide-react';
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import {
   getAgentDuration,
   getAgentModelsByCalls,
@@ -31,16 +32,17 @@ interface AgentsPageProps {
 export async function generateMetadata({
   params,
 }: AgentsPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
   if (!project.success) {
-    return { title: 'Project Not Found | Rustrak' };
+    return { title: t('projectNotFound') };
   }
 
   return {
-    title: `Agents | ${project.data.name} | Rustrak`,
-    description: `AI agent monitoring for ${project.data.name}`,
+    title: t('agents.meta.title', { project: project.data.name }),
+    description: t('agents.meta.description', { project: project.data.name }),
   };
 }
 
@@ -48,6 +50,7 @@ export default async function AgentsPage({
   params,
   searchParams,
 }: AgentsPageProps) {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const { page = '1' } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -57,7 +60,7 @@ export default async function AgentsPage({
 
   if (!projectResult.success) {
     return (
-      <LoadFailure error={projectResult.error} title="Could not load project" />
+      <LoadFailure error={projectResult.error} title={t('loadProjectFailed')} />
     );
   }
 
@@ -79,7 +82,7 @@ export default async function AgentsPage({
     return (
       <LoadFailure
         error={loaded.error}
-        title="Could not load agent activity"
+        title={t('agents.loadFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -91,9 +94,9 @@ export default async function AgentsPage({
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
-        <h1 className="text-lg font-semibold">Agents</h1>
+        <h1 className="text-lg font-semibold">{t('agents.title')}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          AI agent runs, tokens, and tool usage for {project.name}
+          {t('agents.subtitle', { project: project.name })}
         </p>
       </div>
 
@@ -102,11 +105,10 @@ export default async function AgentsPage({
           <div className="flex flex-col items-center justify-center min-h-full text-center">
             <Bot className="size-12 text-muted-foreground/30 mb-4" />
             <h2 className="text-lg font-semibold mb-1">
-              No agent activity yet
+              {t('agents.emptyTitle')}
             </h2>
             <p className="text-sm text-muted-foreground max-w-md">
-              Instrument your AI agent with a Sentry SDK using OpenTelemetry
-              GenAI semantic conventions to start capturing agent runs.
+              {t('agents.emptyDescription')}
             </p>
           </div>
         ) : (
@@ -114,8 +116,10 @@ export default async function AgentsPage({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Agent Runs</CardTitle>
-                  <CardDescription>Runs started per interval</CardDescription>
+                  <CardTitle>{t('agents.cardRuns')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardRunsDescription')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AgentTimeseriesChart points={runs} />
@@ -124,8 +128,10 @@ export default async function AgentsPage({
 
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Duration</CardTitle>
-                  <CardDescription>Avg and p95 agent run time</CardDescription>
+                  <CardTitle>{t('agents.cardDuration')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardDurationDescription')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AgentDurationChart points={duration} />
@@ -136,8 +142,10 @@ export default async function AgentsPage({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>LLM Calls by Model</CardTitle>
-                  <CardDescription>Top models by call count</CardDescription>
+                  <CardTitle>{t('agents.cardModelsByCalls')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardModelsByCallsDescription')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AgentBreakdownChart rows={modelsByCalls} />
@@ -146,8 +154,10 @@ export default async function AgentsPage({
 
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Tokens Used by Model</CardTitle>
-                  <CardDescription>Top models by token volume</CardDescription>
+                  <CardTitle>{t('agents.cardModelsByTokens')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardModelsByTokensDescription')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AgentBreakdownChart rows={modelsByTokens} />
@@ -156,8 +166,10 @@ export default async function AgentsPage({
 
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Tool Calls by Tool</CardTitle>
-                  <CardDescription>Top tools by call count</CardDescription>
+                  <CardTitle>{t('agents.cardTools')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardToolsDescription')}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <AgentBreakdownChart rows={tools} />
@@ -167,9 +179,9 @@ export default async function AgentsPage({
 
             <Card size="sm">
               <CardHeader>
-                <CardTitle>Traces</CardTitle>
+                <CardTitle>{t('agents.cardTraces')}</CardTitle>
                 <CardDescription>
-                  One row per trace, aggregating every AI span it contains
+                  {t('agents.cardTracesDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent>

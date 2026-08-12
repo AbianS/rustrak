@@ -2,6 +2,7 @@
 
 import type { AlertIntegration } from '@rustrak/client';
 import { Plus, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { alertProviders } from '@/features/alert/model/providers';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
 import { cn } from '@/shared/lib/utils';
@@ -41,6 +42,7 @@ export function ManageDialog({
   onAdd,
   onDelete,
 }: ManageDialogProps) {
+  const t = useTranslations('alerts');
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -57,8 +59,7 @@ export function ManageDialog({
             <div>
               <DialogTitle>{providerDef.name}</DialogTitle>
               <DialogDescription>
-                {instances.length} integration
-                {instances.length !== 1 ? 's' : ''} configured
+                {t('manage.configuredCount', { count: instances.length })}
               </DialogDescription>
             </div>
           </div>
@@ -90,12 +91,14 @@ export function ManageDialog({
                   className="h-7 px-2 text-xs"
                   onClick={() => onEdit(integration)}
                 >
-                  Edit
+                  {t('manage.edit')}
                 </Button>
                 <Button
                   variant="destructive"
                   size="sm"
-                  aria-label={`Delete ${integration.name}`}
+                  aria-label={t('manage.deleteAria', {
+                    name: integration.name,
+                  })}
                   className="h-7 w-7 p-0"
                   onClick={() => onDelete(integration)}
                 >
@@ -108,11 +111,11 @@ export function ManageDialog({
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+            {t('manage.close')}
           </Button>
           <Button onClick={onAdd}>
             <Plus className="size-4 mr-1.5" />
-            Add {providerDef.name}
+            {t('manage.addProvider', { name: providerDef.name })}
           </Button>
         </DialogFooter>
       </DialogContent>

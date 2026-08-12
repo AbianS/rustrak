@@ -1,4 +1,5 @@
 import type { EventDetail } from '@rustrak/client';
+import { getTranslations } from 'next-intl/server';
 import type { readEventPayload } from '@/features/event/lib/event-payload';
 import { formatStackTraceAsText } from '@/features/event/lib/format-stack-trace';
 import { Breadcrumbs } from '@/features/event/ui/components/breadcrumbs';
@@ -22,7 +23,7 @@ type EventPayload = ReturnType<typeof readEventPayload>;
  * flattened set of props: the `has` flags and the values they guard have to
  * come from the same parse or they can disagree.
  */
-export function EventSections({
+export async function EventSections({
   event,
   payload,
   eventData,
@@ -31,6 +32,7 @@ export function EventSections({
   payload: EventPayload;
   eventData: Record<string, unknown>;
 }) {
+  const t = await getTranslations('projectPages');
   const {
     exception,
     breadcrumbs,
@@ -44,7 +46,7 @@ export function EventSections({
 
   return (
     <div className="rounded-lg border bg-card px-4">
-      <Section id="highlights" title="Highlights">
+      <Section id="highlights" title={t('event.sectionHighlights')}>
         <EventHighlights
           event={event}
           tags={safeTags}
@@ -56,7 +58,7 @@ export function EventSections({
       {has.stackTrace && (
         <Section
           id="stacktrace"
-          title="Stack Trace"
+          title={t('event.sectionStackTrace')}
           actions={
             // ThreadsSection owns its own copy control — the active
             // thread/exception pairing is client state the section
@@ -65,11 +67,11 @@ export function EventSections({
               <CopyAsDropdown
                 formats={[
                   {
-                    label: 'Plain Text',
+                    label: t('event.formatPlainText'),
                     value: formatStackTraceAsText(exception, event.platform),
                   },
                   {
-                    label: 'JSON',
+                    label: t('event.formatJson'),
                     value: JSON.stringify(exception, null, 2),
                   },
                 ]}
@@ -92,12 +94,12 @@ export function EventSections({
       {has.breadcrumbs && (
         <Section
           id="breadcrumbs"
-          title="Breadcrumbs"
+          title={t('event.sectionBreadcrumbs')}
           actions={
             <CopyAsDropdown
               formats={[
                 {
-                  label: 'JSON',
+                  label: t('event.formatJson'),
                   value: JSON.stringify(breadcrumbs, null, 2),
                 },
               ]}
@@ -109,22 +111,22 @@ export function EventSections({
       )}
 
       {has.tags && (
-        <Section id="tags" title="Tags">
+        <Section id="tags" title={t('event.sectionTags')}>
           <EventTags tags={safeTags} />
         </Section>
       )}
 
       {(has.contexts || has.modules || has.user) && (
-        <Section id="context" title="Context">
+        <Section id="context" title={t('event.sectionContext')}>
           <EventContext contexts={contexts} modules={modules} user={user} />
         </Section>
       )}
 
-      <Section id="details" title="Event Details">
+      <Section id="details" title={t('event.sectionDetails')}>
         <EventDetails event={event} />
       </Section>
 
-      <Section id="raw" title="Raw JSON" defaultOpen={false}>
+      <Section id="raw" title={t('event.sectionRawJson')} defaultOpen={false}>
         <RawJson data={eventData} />
       </Section>
     </div>

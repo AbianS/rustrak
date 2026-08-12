@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { Suspense } from 'react';
 import { getProjects } from '@/features/project/api/queries';
 import {
@@ -41,20 +42,23 @@ import {
   TableRow,
 } from '@/shared/ui/components/shadcn/table';
 
-export const metadata: Metadata = {
-  title: 'Storage | Rustrak',
-  description: 'Storage usage and data retention',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('storage.meta.title'),
+    description: t('storage.meta.description'),
+  };
+}
 
-function PageHeader() {
+async function PageHeader() {
+  const t = await getTranslations('settings');
+
   return (
     <div className="mb-6 md:mb-8">
       <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-        Storage
+        {t('storage.title')}
       </h1>
-      <p className="text-muted-foreground mt-1">
-        See what Rustrak is holding and reclaim space by cleaning up old data
-      </p>
+      <p className="text-muted-foreground mt-1">{t('storage.subtitle')}</p>
     </div>
   );
 }
@@ -64,13 +68,17 @@ function PageHeader() {
  * a skeleton without blocking the rest of the page.
  */
 async function SummaryCards() {
-  const result = await getStorageSummary();
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('settings'),
+    getStorageSummary(),
+  ]);
 
   if (!result.success) {
     return (
       <LoadFailure
         error={result.error}
-        title="Could not read storage usage"
+        title={t('storage.loadSummaryFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -80,33 +88,44 @@ async function SummaryCards() {
 
   const cards = [
     {
-      label: 'Database size',
+      id: 'dbSize',
+      label: t('storage.dbSize'),
       value: formatBytes(summary.total_db_size_bytes),
-      sub: `${summary.events_count.toLocaleString()} events`,
+      sub: t('storage.eventsCount', {
+        count: format.number(summary.events_count),
+      }),
       icon: Database,
     },
     {
-      label: 'Transactions',
-      value: summary.transactions_count.toLocaleString(),
-      sub: `${summary.spans_count.toLocaleString()} spans`,
+      id: 'transactions',
+      label: t('storage.transactions'),
+      value: format.number(summary.transactions_count),
+      sub: t('storage.spansCount', {
+        count: format.number(summary.spans_count),
+      }),
       icon: ListTree,
     },
     {
-      label: 'Spans',
-      value: summary.spans_count.toLocaleString(),
-      sub: 'indexed from transactions',
+      id: 'spans',
+      label: t('storage.spans'),
+      value: format.number(summary.spans_count),
+      sub: t('storage.spansSub'),
       icon: Layers,
     },
     {
-      label: 'Logs',
-      value: summary.logs_count.toLocaleString(),
-      sub: 'structured log records',
+      id: 'logs',
+      label: t('storage.logs'),
+      value: format.number(summary.logs_count),
+      sub: t('storage.logsSub'),
       icon: ScrollText,
     },
     {
-      label: 'Source maps',
+      id: 'sourceMaps',
+      label: t('storage.sourceMaps'),
       value: formatBytes(summary.source_maps.total_bytes),
-      sub: `${summary.source_maps.file_count.toLocaleString()} files`,
+      sub: t('storage.sourceMapsFiles', {
+        count: format.number(summary.source_maps.file_count),
+      }),
       icon: FileCode2,
     },
   ];
@@ -116,7 +135,7 @@ async function SummaryCards() {
       {cards.map((card) => {
         const Icon = card.icon;
         return (
-          <Card key={card.label} size="sm">
+          <Card key={card.id} size="sm">
             <CardContent>
               <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
                 <Icon className="size-3.5" />
@@ -141,13 +160,17 @@ async function SummaryCards() {
  * streams in independently of the cards above.
  */
 async function ProjectsTable() {
-  const result = await getStorageProjects();
+  const [format, t, result] = await Promise.all([
+    getFormatter(),
+    getTranslations('settings'),
+    getStorageProjects(),
+  ]);
 
   if (!result.success) {
     return (
       <LoadFailure
         error={result.error}
-        title="Could not read the per-project breakdown"
+        title={t('storage.loadBreakdownFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -158,17 +181,15 @@ async function ProjectsTable() {
   return (
     <Card className="mb-6">
       <CardHeader>
-        <CardTitle>By project</CardTitle>
-        <CardDescription>
-          Counts and estimated weight of the data each project holds
-        </CardDescription>
+        <CardTitle>{t('storage.byProject')}</CardTitle>
+        <CardDescription>{t('storage.byProjectDescription')}</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Mobile: card list */}
         <div className="md:hidden space-y-3">
           {projects.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">
-              No projects yet.
+              {t('storage.noProjects')}
             </p>
           ) : (
             projects.map((p) => (
@@ -178,27 +199,39 @@ async function ProjectsTable() {
               >
                 <p className="text-sm font-medium">{p.project_name}</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <span className="text-muted-foreground">Events</span>
-                  <span className="tabular-nums text-right">
-                    {p.events_count.toLocaleString()}
+                  <span className="text-muted-foreground">
+                    {t('storage.events')}
                   </span>
-                  <span className="text-muted-foreground">Transactions</span>
                   <span className="tabular-nums text-right">
-                    {p.transactions_count.toLocaleString()}
+                    {format.number(p.events_count)}
                   </span>
-                  <span className="text-muted-foreground">Spans</span>
+                  <span className="text-muted-foreground">
+                    {t('storage.transactions')}
+                  </span>
                   <span className="tabular-nums text-right">
-                    {p.spans_count.toLocaleString()}
+                    {format.number(p.transactions_count)}
                   </span>
-                  <span className="text-muted-foreground">Logs</span>
+                  <span className="text-muted-foreground">
+                    {t('storage.spans')}
+                  </span>
                   <span className="tabular-nums text-right">
-                    {p.logs_count.toLocaleString()}
+                    {format.number(p.spans_count)}
                   </span>
-                  <span className="text-muted-foreground">Source maps</span>
+                  <span className="text-muted-foreground">
+                    {t('storage.logs')}
+                  </span>
                   <span className="tabular-nums text-right">
-                    {p.source_maps_count.toLocaleString()}
+                    {format.number(p.logs_count)}
                   </span>
-                  <span className="text-muted-foreground">Est. size</span>
+                  <span className="text-muted-foreground">
+                    {t('storage.sourceMaps')}
+                  </span>
+                  <span className="tabular-nums text-right">
+                    {format.number(p.source_maps_count)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {t('storage.estSize')}
+                  </span>
                   <span className="tabular-nums text-right">
                     {formatBytes(p.estimated_bytes)}
                   </span>
@@ -212,13 +245,21 @@ async function ProjectsTable() {
         <Table className="hidden md:table">
           <TableHeader>
             <TableRow>
-              <TableHead>Project</TableHead>
-              <TableHead className="text-right">Events</TableHead>
-              <TableHead className="text-right">Transactions</TableHead>
-              <TableHead className="text-right">Spans</TableHead>
-              <TableHead className="text-right">Logs</TableHead>
-              <TableHead className="text-right">Source maps</TableHead>
-              <TableHead className="text-right">Est. size</TableHead>
+              <TableHead>{t('storage.project')}</TableHead>
+              <TableHead className="text-right">
+                {t('storage.events')}
+              </TableHead>
+              <TableHead className="text-right">
+                {t('storage.transactions')}
+              </TableHead>
+              <TableHead className="text-right">{t('storage.spans')}</TableHead>
+              <TableHead className="text-right">{t('storage.logs')}</TableHead>
+              <TableHead className="text-right">
+                {t('storage.sourceMaps')}
+              </TableHead>
+              <TableHead className="text-right">
+                {t('storage.estSize')}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -228,7 +269,7 @@ async function ProjectsTable() {
                   colSpan={7}
                   className="text-center text-muted-foreground py-8"
                 >
-                  No projects yet.
+                  {t('storage.noProjects')}
                 </TableCell>
               </TableRow>
             ) : (
@@ -238,19 +279,19 @@ async function ProjectsTable() {
                     {p.project_name}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.events_count.toLocaleString()}
+                    {format.number(p.events_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.transactions_count.toLocaleString()}
+                    {format.number(p.transactions_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.spans_count.toLocaleString()}
+                    {format.number(p.spans_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.logs_count.toLocaleString()}
+                    {format.number(p.logs_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {p.source_maps_count.toLocaleString()}
+                    {format.number(p.source_maps_count)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatBytes(p.estimated_bytes)}
@@ -271,6 +312,7 @@ async function ProjectsTable() {
  * it can stream in early.
  */
 async function CleanupPanel() {
+  const t = await getTranslations('settings');
   // Fetch every project in one shot (the API applies no hard page-size cap) so
   // the scope selector never silently drops projects.
   const result = await getProjects({ per_page: 10000 });
@@ -279,7 +321,7 @@ async function CleanupPanel() {
     return (
       <LoadFailure
         error={result.error}
-        title="Could not load projects"
+        title={t('loadProjectsFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -293,10 +335,11 @@ async function CleanupPanel() {
 }
 
 export default async function StoragePage() {
+  const t = await getTranslations('settings');
   const session = await getCurrentUser();
 
   if (session.state === 'anonymous') {
-    redirect('/auth/login');
+    return redirect('/auth/login');
   }
 
   // Before the admin guard, and separate from it: the old `user?.role !==
@@ -319,10 +362,9 @@ export default async function StoragePage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <ShieldX className="size-12 text-muted-foreground/50 mb-4" />
-            <p className="font-semibold">Not authorized</p>
+            <p className="font-semibold">{t('notAuthorized')}</p>
             <p className="text-muted-foreground mt-1 text-sm max-w-sm">
-              Only instance administrators can view storage usage and run
-              cleanups. Contact an admin if you need access.
+              {t('storage.notAuthorizedDescription')}
             </p>
           </CardContent>
         </Card>

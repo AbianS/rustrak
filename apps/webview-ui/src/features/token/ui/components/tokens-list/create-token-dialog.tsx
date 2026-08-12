@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Copy, Plus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -43,6 +44,7 @@ export function CreateTokenDialog({
   onDone: () => void;
   onCopyToken: () => Promise<boolean>;
 }) {
+  const t = useTranslations('tokens');
   const [description, setDescription] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -67,16 +69,15 @@ export function CreateTokenDialog({
         render={<Button className="font-bold uppercase tracking-wider" />}
       >
         <Plus className="mr-2 size-4" />
-        New Token
+        {t('create.trigger')}
       </DialogTrigger>
       <DialogContent>
         {newToken ? (
           <>
             <DialogHeader>
-              <DialogTitle>Token Created</DialogTitle>
+              <DialogTitle>{t('create.createdTitle')}</DialogTitle>
               <DialogDescription>
-                Copy your token now. You can also retrieve it later from the
-                list.
+                {t('create.createdDescription')}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
@@ -89,7 +90,7 @@ export function CreateTokenDialog({
                   size="icon"
                   onClick={copy}
                   className="shrink-0"
-                  aria-label="Copy the new token"
+                  aria-label={t('create.copyTokenLabel')}
                 >
                   {copied ? (
                     <Check className="size-4 text-primary" />
@@ -99,27 +100,27 @@ export function CreateTokenDialog({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                You can copy this token again anytime from the token list.
+                {t('create.copyAgainHint')}
               </p>
             </div>
             <DialogFooter>
-              <Button onClick={onDone}>Done</Button>
+              <Button onClick={onDone}>{t('create.done')}</Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Create API Token</DialogTitle>
-              <DialogDescription>
-                Create a new token for programmatic API access.
-              </DialogDescription>
+              <DialogTitle>{t('create.title')}</DialogTitle>
+              <DialogDescription>{t('create.description')}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="description">Description (optional)</Label>
+                <Label htmlFor="description">
+                  {t('create.descriptionLabel')}
+                </Label>
                 <Input
                   id="description"
-                  placeholder="e.g., CI/CD Pipeline"
+                  placeholder={t('create.descriptionPlaceholder')}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && create()}
@@ -130,12 +131,16 @@ export function CreateTokenDialog({
                   aria-invalid={!isValid}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {trimmed.length}/{TOKEN_DESCRIPTION_MAX_LENGTH} characters
+                  {t('create.charCount', {
+                    count: trimmed.length,
+                    max: TOKEN_DESCRIPTION_MAX_LENGTH,
+                  })}
                 </p>
                 {!isValid && (
                   <p className="text-sm text-destructive">
-                    Description must be at most {TOKEN_DESCRIPTION_MAX_LENGTH}{' '}
-                    characters
+                    {t('create.descriptionTooLong', {
+                      max: TOKEN_DESCRIPTION_MAX_LENGTH,
+                    })}
                   </p>
                 )}
               </div>
@@ -146,10 +151,10 @@ export function CreateTokenDialog({
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
               >
-                Cancel
+                {t('create.cancel')}
               </Button>
               <Button onClick={create} disabled={isPending || !isValid}>
-                {isPending ? 'Creating...' : 'Create Token'}
+                {isPending ? t('create.creating') : t('create.submit')}
               </Button>
             </DialogFooter>
           </>

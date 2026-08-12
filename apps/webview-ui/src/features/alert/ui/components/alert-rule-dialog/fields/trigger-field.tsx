@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import type { AlertRuleFormData } from '@/features/alert/model/alert-rule-form';
 import type { alertTypes } from '@/features/alert/model/alert-types';
@@ -28,6 +29,7 @@ export function TriggerField({
   disabled: boolean;
   locked: boolean;
 }) {
+  const t = useTranslations('alerts');
   const { control, setValue, watch } = useFormContext<AlertRuleFormData>();
   const selected = watch('alert_type');
   const inert = disabled || locked;
@@ -39,18 +41,18 @@ export function TriggerField({
       render={() => (
         <FormItem>
           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Trigger
+            {t('ruleDialog.trigger')}
           </FormLabel>
           <div className="grid grid-cols-3 gap-2 mt-1">
-            {types.map((t) => {
-              const isSelected = selected === t.type;
+            {types.map((entry) => {
+              const isSelected = selected === entry.type;
               return (
                 <button
-                  key={t.type}
+                  key={entry.type}
                   type="button"
                   disabled={inert}
                   onClick={() =>
-                    setValue('alert_type', t.type, { shouldValidate: true })
+                    setValue('alert_type', entry.type, { shouldValidate: true })
                   }
                   className={cn(
                     'flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all',
@@ -62,7 +64,7 @@ export function TriggerField({
                   )}
                 >
                   <AlertTypeIcon
-                    type={t.type}
+                    type={entry.type}
                     className={cn(
                       'size-4',
                       isSelected ? 'text-primary' : 'text-muted-foreground',
@@ -75,10 +77,10 @@ export function TriggerField({
                         isSelected ? 'text-primary' : 'text-foreground',
                       )}
                     >
-                      {t.name}
+                      {t(entry.nameKey)}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
-                      {t.description}
+                      {entry.descriptionKey ? t(entry.descriptionKey) : null}
                     </p>
                   </div>
                 </button>

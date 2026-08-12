@@ -3,7 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useTranslations } from 'next-intl';
+import { useMemo, useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import {
@@ -53,13 +54,17 @@ export function SlackForm({
   onDelete,
   isPending: parentPending,
 }: ConfigFormProps) {
+  const t = useTranslations('alerts');
+
+  const globalT = useTranslations();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
   const [testChannel, setTestChannel] = useState('');
 
+  const schema = useMemo(() => slackFormSchema(t), [t]);
   const form = useForm<SlackFormData>({
-    resolver: zodResolver(slackFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: slackDefaults(existingIntegration),
   });
 
@@ -94,25 +99,22 @@ export function SlackForm({
         const applied = applyServerFieldErrors(form, result.error, {
           map: SLACK_FIELD_MAP,
           labels: {
-            name: 'That name',
-            webhook_url: 'That webhook URL',
-            token: 'That bot token',
+            name: t('common.fieldName'),
+            webhook_url: t('slack.fieldWebhookUrl'),
+            token: t('slack.fieldToken'),
           },
+          t: globalT,
         });
 
         if (applied.formLevel) {
-          toast.error('Failed to save Slack integration', {
+          toast.error(t('slack.saveFailed'), {
             description: applied.formLevel,
           });
         }
         return;
       }
 
-      toast.success(
-        existingIntegration
-          ? 'Slack integration updated'
-          : 'Slack integration created',
-      );
+      toast.success(t(existingIntegration ? 'slack.updated' : 'slack.created'));
       onOpenChange(false);
       router.refresh();
     });
@@ -124,20 +126,15 @@ export function SlackForm({
     <>
       <DialogHeader>
         <DialogTitle>
-          {existingIntegration
-            ? 'Edit Slack Integration'
-            : 'Add Slack Integration'}
+          {t(existingIntegration ? 'slack.titleEdit' : 'slack.titleNew')}
         </DialogTitle>
-        <DialogDescription>
-          Store your Slack credentials here. Choose the target channel when
-          creating an alert rule.
-        </DialogDescription>
+        <DialogDescription>{t('slack.description')}</DialogDescription>
       </DialogHeader>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <NameField<SlackFormData>
-            placeholder="e.g., Team Alerts"
+            placeholder={t('slack.namePlaceholder')}
             disabled={isLoading}
           />
 
@@ -147,7 +144,7 @@ export function SlackForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Connection method
+                  {t('slack.methodLabel')}
                 </FormLabel>
                 <Tabs
                   value={field.value}
@@ -155,10 +152,10 @@ export function SlackForm({
                 >
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="webhook" disabled={isLoading}>
-                      Incoming Webhook
+                      {t('slack.incomingWebhook')}
                     </TabsTrigger>
                     <TabsTrigger value="bot_token" disabled={isLoading}>
-                      Bot Token
+                      {t('slack.botTokenTab')}
                     </TabsTrigger>
                   </TabsList>
 
@@ -169,19 +166,18 @@ export function SlackForm({
                       render={({ field: urlField }) => (
                         <FormItem>
                           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                            Webhook URL
+                            {t('slack.webhookUrlLabel')}
                           </FormLabel>
                           <FormControl>
                             <Input
                               type="url"
-                              placeholder="https://hooks.slack.com/services/..."
+                              placeholder={t('slack.webhookUrlPlaceholder')}
                               disabled={isLoading}
                               {...urlField}
                             />
                           </FormControl>
                           <FormDescription>
-                            Create an incoming webhook in your Slack app
-                            settings.
+                            {t('slack.webhookUrlDescription')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -196,23 +192,22 @@ export function SlackForm({
                       render={({ field: tokenField }) => (
                         <FormItem>
                           <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                            Bot Token
+                            {t('slack.botTokenTab')}
                             {existingIntegration
-                              ? ' (leave blank to keep existing)'
+                              ? ` ${t('slack.tokenLabelSuffix')}`
                               : ''}
                           </FormLabel>
                           <FormControl>
                             <Input
                               type="password"
-                              placeholder="xoxb-..."
+                              placeholder={t('slack.tokenPlaceholder')}
                               autoComplete="new-password"
                               disabled={isLoading}
                               {...tokenField}
                             />
                           </FormControl>
                           <FormDescription>
-                            OAuth bot token starting with xoxb- from your Slack
-                            app.
+                            {t('slack.tokenDescription')}
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -230,13 +225,13 @@ export function SlackForm({
           {existingIntegration && (
             <div className="rounded-lg border p-3 space-y-2">
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Send a test
+                {t('slack.sendTestTitle')}
               </p>
               {isBotToken ? (
                 <>
                   <div className="flex gap-2">
                     <Input
-                      placeholder="#alerts"
+                      placeholder={t('slack.testChannelPlaceholder')}
                       value={testChannel}
                       onChange={(e) => setTestChannel(e.target.value)}
                       className="h-8 text-xs"
@@ -255,17 +250,17 @@ export function SlackForm({
                       disabled={isLoading || !testChannel.trim()}
                     >
                       <Play className="size-3.5 mr-1" />
-                      Test
+                      {t('common.test')}
                     </Button>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Enter the Slack channel where the test message will be sent.
+                    {t('slack.testChannelHint')}
                   </p>
                 </>
               ) : (
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] text-muted-foreground">
-                    Sends a test message to the configured webhook.
+                    {t('slack.testWebhookHint')}
                   </p>
                   <Button
                     type="button"
@@ -275,7 +270,7 @@ export function SlackForm({
                     disabled={isLoading}
                   >
                     <Play className="size-3.5 mr-1" />
-                    Test
+                    {t('common.test')}
                   </Button>
                 </div>
               )}
@@ -285,7 +280,9 @@ export function SlackForm({
           <ConfigFooter
             existingIntegration={existingIntegration}
             submitLabel={
-              existingIntegration ? 'Save Changes' : 'Add Integration'
+              existingIntegration
+                ? t('common.saveChanges')
+                : t('slack.addIntegration')
             }
             isLoading={isLoading}
             onDelete={onDelete}

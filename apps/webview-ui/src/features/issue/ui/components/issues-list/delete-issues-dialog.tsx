@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,23 +33,23 @@ export function DeleteIssuesDialog({
   isPending: boolean;
   onConfirm: () => void;
 }) {
-  const plural = count > 1 ? 's' : '';
-  const subject = count > 1 ? `${count} issue${plural}` : 'this issue';
+  const t = useTranslations('issues');
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {count > 1 ? `Delete ${count} issues?` : 'Delete this issue?'}
+            {t('deleteDialog.title', { count })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            This will permanently delete {subject} and all associated events.
-            This action cannot be undone.
+            {t('deleteDialog.description', { count })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>
+            {t('deleteDialog.cancel')}
+          </AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
             disabled={isPending}
@@ -57,10 +58,10 @@ export function DeleteIssuesDialog({
             {isPending ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
-                Deleting...
+                {t('deleteDialog.deleting')}
               </>
             ) : (
-              'Delete'
+              t('deleteDialog.confirm')
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

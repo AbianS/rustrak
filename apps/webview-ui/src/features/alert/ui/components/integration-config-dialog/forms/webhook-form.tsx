@@ -2,7 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useTranslations } from 'next-intl';
+import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import {
@@ -44,6 +45,9 @@ export function WebhookForm({
   onDelete,
   isPending: parentPending,
 }: ConfigFormProps) {
+  const t = useTranslations('alerts');
+
+  const globalT = useTranslations();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const isLoading = isPending || parentPending;
@@ -53,8 +57,9 @@ export function WebhookForm({
   // "opened again" and "opened on a different integration" are both a fresh
   // mount, and the `key` on the shell makes the second case structural rather
   // than a fact about how the parent sequences its state updates.
+  const schema = useMemo(() => webhookFormSchema(t), [t]);
   const form = useForm<WebhookFormData>({
-    resolver: zodResolver(webhookFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: webhookDefaults(existingIntegration),
   });
 
@@ -82,14 +87,15 @@ export function WebhookForm({
         const applied = applyServerFieldErrors(form, result.error, {
           map: WEBHOOK_FIELD_MAP,
           labels: {
-            name: 'That name',
-            url: 'That URL',
-            secret: 'That secret',
+            name: t('common.fieldName'),
+            url: t('webhook.fieldUrl'),
+            secret: t('webhook.fieldSecret'),
           },
+          t: globalT,
         });
 
         if (applied.formLevel) {
-          toast.error('Failed to save webhook', {
+          toast.error(t('webhook.saveFailed'), {
             description: applied.formLevel,
           });
         }
@@ -97,7 +103,7 @@ export function WebhookForm({
       }
 
       toast.success(
-        existingIntegration ? 'Webhook updated' : 'Webhook created',
+        t(existingIntegration ? 'webhook.updated' : 'webhook.created'),
       );
       onOpenChange(false);
       router.refresh();
@@ -108,18 +114,15 @@ export function WebhookForm({
     <>
       <DialogHeader>
         <DialogTitle>
-          {existingIntegration ? 'Edit Webhook' : 'Configure Webhook'}
+          {t(existingIntegration ? 'webhook.titleEdit' : 'webhook.titleNew')}
         </DialogTitle>
-        <DialogDescription>
-          POST JSON payloads to external API endpoints. Specify the target URL
-          here (global default) or per-alert-rule as an override.
-        </DialogDescription>
+        <DialogDescription>{t('webhook.description')}</DialogDescription>
       </DialogHeader>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <NameField<WebhookFormData>
-            placeholder="e.g., Production Alerts"
+            placeholder={t('webhook.namePlaceholder')}
             disabled={isLoading}
           />
 
@@ -129,19 +132,17 @@ export function WebhookForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Default URL (optional)
+                  {t('webhook.urlLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="url"
-                    placeholder="https://example.com/webhook"
+                    placeholder={t('webhook.urlPlaceholder')}
                     disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>
-                  Leave blank to require a URL override per alert rule.
-                </FormDescription>
+                <FormDescription>{t('webhook.urlDescription')}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -153,18 +154,18 @@ export function WebhookForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                  Secret (optional)
+                  {t('webhook.secretLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="password"
-                    placeholder="HMAC signing secret"
+                    placeholder={t('webhook.secretPlaceholder')}
                     disabled={isLoading}
                     {...field}
                   />
                 </FormControl>
                 <FormDescription>
-                  Used to sign payloads with HMAC-SHA256
+                  {t('webhook.secretDescription')}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -176,7 +177,9 @@ export function WebhookForm({
           <ConfigFooter
             existingIntegration={existingIntegration}
             submitLabel={
-              existingIntegration ? 'Save Changes' : 'Create Webhook'
+              existingIntegration
+                ? t('common.saveChanges')
+                : t('webhook.create')
             }
             isLoading={isLoading}
             onTest={onTest}

@@ -1,24 +1,29 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { getCurrentUser } from '@/features/user/api/queries';
 import { ServiceUnavailable } from '@/shared/ui/components/service-unavailable';
 import { SettingsMobileNav } from './_components/settings-mobile-nav';
 import { SettingsNav } from './_components/settings-nav';
 
-export const metadata: Metadata = {
-  title: 'Settings | Rustrak',
-  description: 'Manage your Rustrak settings',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('nav.settingsTitle') + ' | Rustrak',
+    description: t('meta.description'),
+  };
+}
 
 export default async function SettingsLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const t = await getTranslations('settings');
   const session = await getCurrentUser();
 
   if (session.state === 'anonymous') {
-    redirect('/auth/login');
+    return redirect('/auth/login');
   }
 
   // Not a silent `isAdmin = false`. The old `user?.role === 'admin'` meant an
@@ -36,7 +41,7 @@ export default async function SettingsLayout({
       <div className="sticky top-16 z-40 bg-background flex items-center gap-3 border-b px-4 py-3 md:hidden">
         <SettingsMobileNav isAdmin={isAdmin} />
         <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-          Settings
+          {t('nav.settingsTitle')}
         </span>
       </div>
 
@@ -44,7 +49,7 @@ export default async function SettingsLayout({
         {/* Desktop sidebar */}
         <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r border-border p-6 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 px-3">
-            Settings
+            {t('nav.settingsTitle')}
           </h2>
           <SettingsNav isAdmin={isAdmin} />
         </aside>

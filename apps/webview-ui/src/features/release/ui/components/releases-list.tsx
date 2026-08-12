@@ -7,6 +7,7 @@ import type {
 import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import {
   crashFreeClass,
@@ -37,6 +38,9 @@ export function ReleasesList({
   currentPage,
   activePeriod,
 }: ReleasesListProps) {
+  const format = useFormatter();
+  const t = useTranslations('releases');
+  const tableT = useTranslations('table');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -67,7 +71,7 @@ export function ReleasesList({
             onClick={() => navigate(1)}
             disabled={isPending}
           >
-            All
+            {t('all')}
           </Button>
           {RELEASE_PERIODS.map((period) => (
             <Button
@@ -87,11 +91,9 @@ export function ReleasesList({
       {rows.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center rounded-lg border border-dashed">
           <Rocket className="size-12 text-muted-foreground/30 mb-4" />
-          <h2 className="text-lg font-semibold mb-1">
-            No releases in this window
-          </h2>
+          <h2 className="text-lg font-semibold mb-1">{t('empty.title')}</h2>
           <p className="text-sm text-muted-foreground max-w-md">
-            Try a longer period or clear the filter.
+            {t('empty.hint')}
           </p>
         </div>
       ) : (
@@ -99,13 +101,15 @@ export function ReleasesList({
           {/* whitespace-nowrap: the crash-free labels are long enough to wrap
               onto a second line and desync the header from the rows. */}
           <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground whitespace-nowrap">
-            <span className="flex-1">Release</span>
-            <span className="w-20 text-right">Sessions</span>
-            <span className="hidden sm:block w-40 text-right">Crash-free</span>
-            <span className="hidden md:block w-40 text-right">
-              Crash-free users
+            <span className="flex-1">{t('columns.release')}</span>
+            <span className="w-20 text-right">{t('sessions')}</span>
+            <span className="hidden sm:block w-40 text-right">
+              {t('crashFree')}
             </span>
-            <span className="w-20 text-right">Crashed</span>
+            <span className="hidden md:block w-40 text-right">
+              {t('crashFreeUsers')}
+            </span>
+            <span className="w-20 text-right">{t('crashed')}</span>
           </div>
           <div className="flex-1 overflow-auto divide-y">
             {rows.map((row) => (
@@ -123,7 +127,7 @@ export function ReleasesList({
                   </Badge>
                 </div>
                 <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                  {row.total.toLocaleString()}
+                  {format.number(row.total)}
                 </span>
                 <span
                   className={cn(
@@ -149,7 +153,7 @@ export function ReleasesList({
                       : 'text-muted-foreground',
                   )}
                 >
-                  {row.crashed > 0 ? row.crashed.toLocaleString() : '—'}
+                  {row.crashed > 0 ? format.number(row.crashed) : '—'}
                 </span>
               </Link>
             ))}
@@ -160,14 +164,18 @@ export function ReleasesList({
       {total_pages > 0 && (
         <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-2 pt-4">
           <span className="text-sm text-muted-foreground">
-            {`Showing ${startIndex}-${endIndex} of ${total_count}`}
+            {tableT('showingRange', {
+              start: startIndex,
+              end: endIndex,
+              total: total_count,
+            })}
           </span>
 
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to previous page"
+              aria-label={tableT('previousPage')}
               onClick={() => navigate(currentPage - 1, activePeriod)}
               disabled={currentPage <= 1 || isPending}
             >
@@ -175,13 +183,16 @@ export function ReleasesList({
             </Button>
 
             <span className="text-sm px-2">
-              Page {currentPage} of {total_pages}
+              {tableT('pageOf', {
+                current: currentPage,
+                total: total_pages,
+              })}
             </span>
 
             <Button
               variant="outline"
               size="sm"
-              aria-label="Go to next page"
+              aria-label={tableT('nextPage')}
               onClick={() => navigate(currentPage + 1, activePeriod)}
               disabled={currentPage >= total_pages || isPending}
             >

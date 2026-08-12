@@ -1,15 +1,19 @@
 import type { RustrakError } from '@rustrak/client';
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { getInvitation } from '@/features/user/api/queries';
 import { OutageScreen } from '@/shared/ui/components/outage-screen';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { AcceptInvitationForm } from './_components/accept-invitation-form';
 import { InvitationUnavailable } from './_components/invitation-unavailable';
 
-export const metadata: Metadata = {
-  title: 'Accept Invitation | Rustrak',
-  description: 'Accept your invitation to join Rustrak',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('invite');
+  return {
+    title: t('meta.title'),
+    description: t('meta.description'),
+  };
+}
 
 interface InvitePageProps {
   params: Promise<{ token: string }>;

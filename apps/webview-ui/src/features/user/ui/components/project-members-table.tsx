@@ -2,6 +2,7 @@
 
 import type { ProjectMember, ProjectRole } from '@rustrak/client';
 import { Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { PROJECT_ROLES, roleLabel } from '@/features/user/model/roles';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
@@ -43,23 +44,28 @@ export function ProjectMembersTable({
   onRoleChange: (member: ProjectMember, role: ProjectRole) => void;
   onRemove: (member: ProjectMember) => void;
 }) {
+  const t = useTranslations('user');
+
   const columns = useMemo(() => {
     const email = helper.accessor('email', {
-      header: 'Email',
+      header: t('table.email'),
       minSize: 200,
       meta: { grow: true },
       cell: ({ row }) => (
         <span className="truncate font-medium">
           {row.original.email}
           {row.original.user_id === currentUserId && (
-            <span className="font-normal text-muted-foreground"> (you)</span>
+            <span className="font-normal text-muted-foreground">
+              {' '}
+              {t('table.you')}
+            </span>
           )}
         </span>
       ),
     });
 
     const role = helper.accessor('role', {
-      header: 'Role',
+      header: t('table.role'),
       size: 160,
       minSize: 120,
       cell: ({ row }) =>
@@ -74,22 +80,24 @@ export function ProjectMembersTable({
             <SelectTrigger
               size="sm"
               className="w-28"
-              aria-label={`Change role for ${row.original.email}`}
+              aria-label={t('table.changeRoleAria', {
+                email: row.original.email,
+              })}
             >
               <SelectValue>
-                {(value) => roleLabel(value as ProjectRole)}
+                {(value) => t(roleLabel(value as ProjectRole))}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {PROJECT_ROLES.map((entry) => (
                 <SelectItem key={entry.value} value={entry.value}>
-                  {entry.label}
+                  {t(entry.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         ) : (
-          <Badge variant="secondary">{roleLabel(row.original.role)}</Badge>
+          <Badge variant="secondary">{t(roleLabel(row.original.role))}</Badge>
         ),
     });
 
@@ -104,7 +112,7 @@ export function ProjectMembersTable({
         minSize: 64,
         maxSize: 64,
         meta: { align: 'end' },
-        header: () => <span className="sr-only">Actions</span>,
+        header: () => <span className="sr-only">{t('table.actionsAria')}</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <Button
@@ -113,7 +121,7 @@ export function ProjectMembersTable({
               className="size-7 text-muted-foreground hover:text-destructive"
               onClick={() => onRemove(row.original)}
               disabled={disabled}
-              aria-label={`Remove ${row.original.email}`}
+              aria-label={t('table.removeAria', { email: row.original.email })}
             >
               <Trash2 className="size-3.5" />
             </Button>
@@ -121,7 +129,7 @@ export function ProjectMembersTable({
         ),
       }),
     ]);
-  }, [canManage, currentUserId, disabled, onRoleChange, onRemove]);
+  }, [t, canManage, currentUserId, disabled, onRoleChange, onRemove]);
 
   const table = useAppTable({
     data: members,

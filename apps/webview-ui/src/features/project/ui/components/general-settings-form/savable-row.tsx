@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type { Path, UseFormReturn } from 'react-hook-form';
 import { SettingRow } from '@/shared/ui/components/setting-row';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -47,6 +48,7 @@ export function SavableRow({
   onSave: () => void;
   onEdit: () => void;
 }) {
+  const t = useTranslations('projects');
   const id = `project-${name}`;
 
   return (
@@ -79,7 +81,7 @@ export function SavableRow({
                 {isPending ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  'Save'
+                  t('save')
                 )}
               </Button>
             </div>

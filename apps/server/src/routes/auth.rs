@@ -1,11 +1,12 @@
 use actix_session::Session;
 use actix_web::{web, HttpResponse, Responder};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use chrono::{DateTime, Utc};
 
 use crate::auth::{self, AuthenticatedUser};
-use crate::error::{AppError, AppResult};
+use crate::db::DbPool;
+use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{AcceptInvitation, CreateUserRequest, LoginRequest, User};
 use crate::services::{InvitationService, UsersService};
 
@@ -26,6 +27,10 @@ struct UserResponse {
     role: String,
     /// Convenience flag derived from `role` (kept for backward compatibility).
     is_admin: bool,
+    /// Chosen dashboard language, or `null` when the user never chose one.
+    language: Option<String>,
+    /// Chosen IANA timezone, or `null` when the user never chose one.
+    timezone: Option<String>,
 }
 
 impl From<User> for UserResponse {
@@ -36,6 +41,8 @@ impl From<User> for UserResponse {
             email: user.email,
             role: user.role,
             is_admin,
+            language: user.language,
+            timezone: user.timezone,
         }
     }
 }
@@ -248,6 +255,104 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
     HttpResponse::Ok().json(UserResponse::from(user.0))
 }
 
+/// What a reader may change about how the dashboard is presented to them.
+///
+/// Every field is doubly optional, and both levels are used: absent means
+/// "leave it", `null` means "clear it". `#[serde(default)]` with
+/// `deserialize_with` is what keeps those distinguishable, because plain
+/// `Option<Option<T>>` collapses a missing key and an explicit null.
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct UpdatePreferencesRequest {
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub language: Option<Option<String>>,
+    #[serde(default, deserialize_with = "deserialize_optional_field")]
+    pub timezone: Option<Option<String>>,
+}
+
+fn deserialize_optional_field<'de, D>(deserializer: D) -> Result<Option<Option<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    Ok(Some(Option::<String>::deserialize(deserializer)?))
+}
+
+/// Whether `value` is shaped like a BCP-47 language tag.
+///
+/// Shape, not membership: `pt-BR` passes even though this server has no idea
+/// whether any dashboard renders Portuguese. Rustrak's API is usable without
+/// the dashboard, so hard-coding that dashboard's locale list here would mean
+/// redeploying the server to add a language to a frontend.
+fn is_language_tag(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 35
+        && value
+            .split('-')
+            .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric()))
+}
+
+/// Whether `value` is shaped like an IANA timezone name (`Area/Location`).
+///
+/// Same reasoning, plus one of its own: the tz database changes without this
+/// server being rebuilt, so a fixed list would go stale on its own.
+fn is_time_zone_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.split('/').all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '+')
+        })
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    patch,
+    path = "/auth/me",
+    tag = "Auth",
+    request_body = UpdatePreferencesRequest,
+    responses(
+        (status = 200, description = "Updated user", body = UserResponse),
+        (status = 400, description = "Malformed language tag or timezone", body = crate::error::ErrorResponse),
+        (status = 401, description = "Not authenticated", body = crate::error::ErrorResponse),
+    ),
+    security(("session_cookie" = [])),
+))]
+/// PATCH /auth/me
+/// Update the current user's presentation preferences
+pub async fn update_current_user(
+    user: AuthenticatedUser,
+    pool: web::Data<DbPool>,
+    body: web::Json<UpdatePreferencesRequest>,
+) -> AppResult<HttpResponse> {
+    let body = body.into_inner();
+
+    // Only a present, non-null value is checked. Absent leaves the column
+    // alone and `null` clears it, and neither is a value to validate.
+    if let Some(Some(language)) = body.language.as_ref() {
+        if !is_language_tag(language) {
+            return Err(AppError::Validation("Invalid language tag".to_string())
+                .with_field("language", FieldErrorCode::Invalid));
+        }
+    }
+    if let Some(Some(timezone)) = body.timezone.as_ref() {
+        if !is_time_zone_name(timezone) {
+            return Err(AppError::Validation("Invalid timezone name".to_string())
+                .with_field("timezone", FieldErrorCode::Invalid));
+        }
+    }
+
+    UsersService::update_preferences(pool.get_ref(), user.0.id, body.language, body.timezone)
+        .await?;
+
+    let updated = UsersService::get_by_id(pool.get_ref(), user.0.id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+    Ok(HttpResponse::Ok().json(UserResponse::from(updated)))
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
 #[openapi(
@@ -257,7 +362,8 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
         get_invitation,
         login,
         logout,
-        get_current_user
+        get_current_user,
+        update_current_user
     ),
     components(schemas(
         crate::models::CreateUserRequest,
@@ -265,6 +371,7 @@ pub async fn get_current_user(user: AuthenticatedUser) -> impl Responder {
         crate::models::AcceptInvitation,
         AuthResponse,
         UserResponse,
+        UpdatePreferencesRequest,
         InvitationInfoResponse,
     ))
 )]
@@ -279,6 +386,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/invitation/{token}", web::get().to(get_invitation))
             .route("/login", web::post().to(login))
             .route("/logout", web::post().to(logout))
-            .route("/me", web::get().to(get_current_user)),
+            .route("/me", web::get().to(get_current_user))
+            .route("/me", web::patch().to(update_current_user)),
     );
 }

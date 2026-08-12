@@ -1,9 +1,9 @@
 'use client';
 
 import type { ActivityEntry } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { addIssueComment } from '@/features/issue/api/mutations';
@@ -15,12 +15,6 @@ interface IssueActivityProps {
   issueId: string;
   activity: ActivityEntry[];
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  resolved: 'marked this issue as resolved',
-  unresolved: 'reopened this issue',
-  ignored: 'muted this issue',
-};
 
 function parseData(data: string): Record<string, unknown> {
   try {
@@ -38,19 +32,29 @@ function noteText(entry: ActivityEntry): string {
 }
 
 /** A human-readable description of a non-note activity entry. */
-function describe(entry: ActivityEntry): string {
+function describe(
+  entry: ActivityEntry,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const d = parseData(entry.data);
   switch (entry.type) {
     case 'set_status': {
       const status = typeof d.status === 'string' ? d.status : '';
-      return STATUS_LABELS[status] ?? `changed status to ${status}`;
+      const keys: Record<string, string> = {
+        resolved: 'activity.statusResolved',
+        unresolved: 'activity.statusReopened',
+        ignored: 'activity.statusMuted',
+      };
+      return keys[status] ?? t('activity.statusChanged', { status });
     }
     case 'set_priority':
-      return `set priority to ${d.priority ?? '—'}`;
+      return t('activity.priorityChanged', {
+        priority: String(d.priority ?? '—'),
+      });
     case 'regression':
-      return 'detected a regression';
+      return t('activity.regression');
     case 'first_seen':
-      return 'first saw this issue';
+      return t('activity.firstSeen');
     default:
       return entry.type.replace(/_/g, ' ');
   }
@@ -61,6 +65,8 @@ export function IssueActivity({
   issueId,
   activity,
 }: IssueActivityProps) {
+  const format = useFormatter();
+  const t = useTranslations('issues');
   const router = useRouter();
   const [text, setText] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -82,7 +88,7 @@ export function IssueActivity({
       if (!result.success) {
         // Keep the text in the box: clearing it on a failure destroys what the
         // user wrote and leaves no trace that anything went wrong.
-        toast.error('Failed to add comment', {
+        toast.error(t('activity.commentFailed'), {
           description: result.error.message,
         });
         return;
@@ -95,14 +101,14 @@ export function IssueActivity({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Activity</h3>
+      <h3 className="text-sm font-semibold">{t('activity.title')}</h3>
 
       <div className="space-y-5">
         <form onSubmit={handleSubmit} className="space-y-2">
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Leave a comment..."
+            placeholder={t('activity.placeholder')}
             rows={3}
             disabled={isPending}
           />
@@ -117,14 +123,14 @@ export function IssueActivity({
               ) : (
                 <MessageSquare className="mr-2 size-4" />
               )}
-              Comment
+              {t('activity.comment')}
             </Button>
           </div>
         </form>
 
         {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-6">
-            No activity yet.
+            {t('activity.empty')}
           </p>
         ) : (
           <ol className="space-y-4">
@@ -139,12 +145,12 @@ export function IssueActivity({
                         {noteText(entry)}
                       </p>
                     ) : (
-                      <p className="text-muted-foreground">{describe(entry)}</p>
+                      <p className="text-muted-foreground">
+                        {describe(entry, t)}
+                      </p>
                     )}
                     <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      {formatDistanceToNow(new Date(entry.created_at), {
-                        addSuffix: true,
-                      })}
+                      {format.relativeTime(new Date(entry.created_at))}
                     </p>
                   </div>
                 </li>

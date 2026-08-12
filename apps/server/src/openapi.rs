@@ -60,6 +60,7 @@ impl Modify for SecurityAddon {
         crate::routes::auth::login,
         crate::routes::auth::logout,
         crate::routes::auth::get_current_user,
+        crate::routes::auth::update_current_user,
         crate::routes::team::list_team,
         crate::routes::team::update_team_role,
         crate::routes::team::delete_user,
@@ -118,6 +119,7 @@ impl Modify for SecurityAddon {
         crate::routes::storage::gc_source_maps,
     ),
     components(schemas(
+        crate::routes::auth::UpdatePreferencesRequest,
         crate::models::ProjectResponse,
         crate::models::CreateProject,
         crate::models::UpdateProject,

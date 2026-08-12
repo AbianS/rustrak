@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ErrorScreen } from '@/shared/ui/components/error-screen';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
-export const metadata: Metadata = {
-  title: 'Not found | Rustrak',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('errors');
+  return { title: t('notFound.meta.title') };
+}
 
 /**
  * The one 404 for every route.
@@ -16,17 +18,19 @@ export const metadata: Metadata = {
  * is the only one, it replaces the header for a signed-in reader too, which is
  * why the action below is not decoration: it is the only way back.
  */
-export default function NotFound() {
+export default async function NotFound() {
+  const t = await getTranslations('errors');
+
   return (
     <ErrorScreen
-      brandStatement="Nothing here"
-      brandDescription="Nothing failed on the way to this page. The server answered normally and simply had nothing at this address."
-      headline="Page not found"
-      description="This address does not match any page in this Rustrak instance."
-      guidance="If you followed a link from inside Rustrak, the project, issue or event it pointed at may have been deleted since."
+      brandStatement={t('notFound.brandStatement')}
+      brandDescription={t('notFound.brandDescription')}
+      headline={t('notFound.headline')}
+      description={t('notFound.description')}
+      guidance={t('notFound.guidance')}
       actions={
         <Button nativeButton={false} render={<Link href="/projects" />}>
-          Go to Projects
+          {t('goToProjects')}
         </Button>
       }
     />

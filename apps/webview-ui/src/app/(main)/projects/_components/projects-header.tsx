@@ -1,5 +1,6 @@
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**
@@ -13,21 +14,23 @@ import { Button } from '@/shared/ui/components/shadcn/button';
  * No longer a Client Component: with the form moved out, there is no state
  * left here.
  */
-export function ProjectsHeader() {
+export async function ProjectsHeader() {
+  const t = await getTranslations('projectPages');
+
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          Projects
+          {t('projectsList.title')}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Manage your error tracking projects
+          {t('projectsList.subtitle')}
         </p>
       </div>
 
       <Button nativeButton={false} render={<Link href="/projects/new" />}>
         <Plus className="mr-2 size-4" />
-        New Project
+        {t('projectsList.newProject')}
       </Button>
     </div>
   );

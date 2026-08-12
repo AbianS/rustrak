@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { ErrorScreen } from '@/shared/ui/components/error-screen';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -21,17 +22,19 @@ import { Button } from '@/shared/ui/components/shadcn/button';
  * distinction is the whole point, because "ask an administrator for a new link"
  * is the one action that cannot fix an API that is down.
  */
-export function InvitationUnavailable() {
+export async function InvitationUnavailable() {
+  const t = await getTranslations('invite');
+
   return (
     <ErrorScreen
-      brandStatement="Links expire"
-      brandDescription="Invitations are single-use and time-limited, so a link stops working once it has been accepted or once it ages out. Nothing failed on the way here."
-      headline="Invitation unavailable"
-      description="This invitation link is invalid, has expired, or has already been used."
-      guidance="Ask an administrator to send you a new one. If you already accepted it, sign in instead."
+      brandStatement={t('unavailable.brandStatement')}
+      brandDescription={t('unavailable.brandDescription')}
+      headline={t('unavailable.headline')}
+      description={t('unavailable.description')}
+      guidance={t('unavailable.guidance')}
       actions={
         <Button nativeButton={false} render={<Link href="/auth/login" />}>
-          Go to login
+          {t('unavailable.goToLogin')}
         </Button>
       }
     />

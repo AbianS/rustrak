@@ -16,25 +16,25 @@ import type { ProviderType } from '@rustrak/client';
 export const alertProviders: {
   type: ProviderType;
   name: string;
-  description: string;
+  descriptionKey: string;
   color: string;
 }[] = [
   {
     type: 'slack',
     name: 'Slack',
-    description: 'Send alerts to Slack channels via webhook or bot token.',
+    descriptionKey: 'providers.slack.description',
     color: 'bg-[#4A154B]',
   },
   {
     type: 'email',
     name: 'Email',
-    description: 'Send alerts via SMTP email to any recipient.',
+    descriptionKey: 'providers.email.description',
     color: 'bg-[#0066CC]',
   },
   {
     type: 'webhook',
     name: 'Webhook',
-    description: 'POST JSON payloads to any HTTP endpoint.',
+    descriptionKey: 'providers.webhook.description',
     color: 'bg-orange-600',
   },
 ];

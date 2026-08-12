@@ -2,6 +2,7 @@
 
 import type { Project } from '@rustrak/client';
 import { Check, Copy, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -22,28 +23,8 @@ interface ClientKeysSettingsProps {
 type HighlighterComponent = typeof import('react-syntax-highlighter').Prism;
 type HighlighterStyle = Record<string, React.CSSProperties>;
 
-/**
- * Copy a value and flash the caller's copied flag for two seconds.
- *
- * At module scope because it closes over nothing: the value, the flag setter
- * and the label a failure names all arrive as arguments.
- */
-async function copy(
-  value: string,
-  setFlag: (copied: boolean) => void,
-  label: string,
-) {
-  if (!(await copyToClipboard(value))) {
-    toast.info('Clipboard unavailable', {
-      description: `Select the ${label} and copy it manually, or access Rustrak over HTTPS.`,
-    });
-    return;
-  }
-  setFlag(true);
-  setTimeout(() => setFlag(false), 2000);
-}
-
 export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
+  const t = useTranslations('projects');
   const { resolvedTheme } = useTheme();
   const [copiedDsn, setCopiedDsn] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -55,6 +36,21 @@ export function ClientKeysSettings({ project }: ClientKeysSettingsProps) {
     useState<HighlighterStyle | null>(null);
   const [highlighterFailed, setHighlighterFailed] = useState(false);
   const isDark = resolvedTheme === 'dark';
+
+  async function copy(
+    value: string,
+    setFlag: (copied: boolean) => void,
+    label: string,
+  ) {
+    if (!(await copyToClipboard(value))) {
+      toast.info(t('copyUnavailable'), {
+        description: t('copyUnavailableHint', { label }),
+      });
+      return;
+    }
+    setFlag(true);
+    setTimeout(() => setFlag(false), 2000);
+  }
 
   // Loaded lazily: the highlighter is far larger than this page's own code,
   // and the DSN above it stays useful while it arrives.
@@ -112,14 +108,16 @@ Sentry.init({
 });`;
   const codeLanguage = snippet?.language ?? 'javascript';
   const exampleTitle = snippet
-    ? `Example (${platformLabel(project.platform ?? '')})`
-    : 'Example (JavaScript)';
+    ? t('clientKeys.examplePlatform', {
+        platform: platformLabel(project.platform ?? ''),
+      })
+    : t('clientKeys.exampleJs');
 
   return (
     <div className="max-w-3xl">
       <SettingSection
-        title="DSN"
-        description="Point any Sentry SDK at this string to send events to this project."
+        title={t('clientKeys.dsn')}
+        description={t('clientKeys.dsnDescription')}
       >
         <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted p-3">
           <code className="flex-1 truncate font-mono text-xs">
@@ -128,9 +126,9 @@ Sentry.init({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => copy(project.dsn, setCopiedDsn, 'DSN')}
+            onClick={() => copy(project.dsn, setCopiedDsn, t('clientKeys.dsn'))}
             className="shrink-0"
-            aria-label="Copy DSN"
+            aria-label={t('clientKeys.copyDsn')}
           >
             {copiedDsn ? (
               <Check className="size-4 text-primary" />
@@ -143,8 +141,8 @@ Sentry.init({
 
       {snippet?.install && (
         <SettingSection
-          title="Install"
-          description="Add the SDK to your project."
+          title={t('clientKeys.install')}
+          description={t('clientKeys.installDescription')}
         >
           <div className="mt-3 flex items-center gap-2 rounded-lg border bg-muted p-3">
             <code className="flex-1 overflow-x-auto font-mono text-xs">
@@ -154,10 +152,14 @@ Sentry.init({
               variant="ghost"
               size="sm"
               onClick={() =>
-                copy(snippet.install ?? '', setCopiedInstall, 'command')
+                copy(
+                  snippet.install ?? '',
+                  setCopiedInstall,
+                  t('clientKeys.commandLabel'),
+                )
               }
               className="shrink-0"
-              aria-label="Copy install command"
+              aria-label={t('clientKeys.copyInstallCommand')}
             >
               {copiedInstall ? (
                 <Check className="size-4 text-primary" />
@@ -170,11 +172,9 @@ Sentry.init({
       )}
 
       <SettingSection
-        title={codeExample ? exampleTitle : 'Setup'}
+        title={codeExample ? exampleTitle : t('clientKeys.setup')}
         description={
-          codeExample
-            ? 'Your DSN is already filled in below.'
-            : 'Point the SDK for this platform at the DSN above.'
+          codeExample ? t('clientKeys.dsnFilled') : t('clientKeys.pointSdk')
         }
       >
         <div className="mt-3">
@@ -184,18 +184,24 @@ Sentry.init({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copy(codeExample, setCopiedCode, 'example')}
+                  onClick={() =>
+                    copy(
+                      codeExample,
+                      setCopiedCode,
+                      t('clientKeys.exampleLabel'),
+                    )
+                  }
                   className="h-6 text-xs"
                 >
                   {copiedCode ? (
                     <>
                       <Check className="mr-1 size-3 text-primary" />
-                      Copied
+                      {t('clientKeys.copied')}
                     </>
                   ) : (
                     <>
                       <Copy className="mr-1 size-3" />
-                      Copy
+                      {t('clientKeys.copy')}
                     </>
                   )}
                 </Button>
@@ -229,7 +235,7 @@ Sentry.init({
           <p
             className={`text-xs text-muted-foreground${codeExample ? ' mt-3' : ''}`}
           >
-            This server is compatible with all official Sentry SDKs. Check the{' '}
+            {t('clientKeys.compatLead')}{' '}
             <a
               href={docsUrl ?? 'https://docs.sentry.io/platforms/'}
               target="_blank"
@@ -237,12 +243,14 @@ Sentry.init({
               className="text-primary hover:underline"
             >
               {docsUrl
-                ? `${platformLabel(project.platform ?? '')} documentation`
-                : 'Sentry documentation'}
+                ? t('clientKeys.docsPlatform', {
+                    platform: platformLabel(project.platform ?? ''),
+                  })
+                : t('clientKeys.docsSentry')}
             </a>{' '}
             {codeExample
-              ? 'for the full setup, including options this example leaves out.'
-              : 'for the setup steps for this platform.'}
+              ? t('clientKeys.compatFull')
+              : t('clientKeys.compatSteps')}
           </p>
         </div>
       </SettingSection>

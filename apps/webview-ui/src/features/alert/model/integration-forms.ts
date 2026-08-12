@@ -1,5 +1,6 @@
 import type { AlertIntegration } from '@rustrak/client';
 import { z } from 'zod';
+import type { Translate } from '@/shared/lib/error-copy';
 import type { ServerFieldMap } from '@/shared/lib/form-errors';
 
 /**
@@ -37,94 +38,102 @@ export const EMAIL_FIELD_MAP: ServerFieldMap = {
 /* Schemas -- credentials only, no routing fields                              */
 /* -------------------------------------------------------------------------- */
 
-export const webhookFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255),
-  // url is optional: per-rule routing_override.url can supply it
-  url: z
-    .string()
-    .optional()
-    .refine(
-      (v) =>
-        !v ||
-        v.trim() === '' ||
-        v.startsWith('http://') ||
-        v.startsWith('https://'),
-      { message: 'Must be a valid http/https URL' },
-    ),
-  secret: z.string().optional(),
-  is_enabled: z.boolean(),
-});
-
-export const slackFormSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required').max(255),
-    method: z.enum(['webhook', 'bot_token']),
-    is_edit: z.boolean(),
-    webhook_url: z.string().optional(),
-    token: z.string().optional(),
+export function webhookFormSchema(t: Translate) {
+  return z.object({
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
+    // url is optional: per-rule routing_override.url can supply it
+    url: z
+      .string()
+      .optional()
+      .refine(
+        (v) =>
+          !v ||
+          v.trim() === '' ||
+          v.startsWith('http://') ||
+          v.startsWith('https://'),
+        { message: t('validation.validHttpUrl') },
+      ),
+    secret: z.string().optional(),
     is_enabled: z.boolean(),
-  })
-  .superRefine((data, ctx) => {
-    if (data.method === 'webhook') {
-      if (!data.webhook_url || data.webhook_url.trim() === '') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Webhook URL is required',
-          path: ['webhook_url'],
-        });
-      } else {
-        try {
-          const url = new URL(data.webhook_url);
-          if (url.protocol !== 'https:' || url.hostname !== 'hooks.slack.com') {
+  });
+}
+
+export function slackFormSchema(t: Translate) {
+  return z
+    .object({
+      name: z.string().min(1, t('validation.nameRequired')).max(255),
+      method: z.enum(['webhook', 'bot_token']),
+      is_edit: z.boolean(),
+      webhook_url: z.string().optional(),
+      token: z.string().optional(),
+      is_enabled: z.boolean(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.method === 'webhook') {
+        if (!data.webhook_url || data.webhook_url.trim() === '') {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('validation.webhookUrlRequired'),
+            path: ['webhook_url'],
+          });
+        } else {
+          try {
+            const url = new URL(data.webhook_url);
+            if (
+              url.protocol !== 'https:' ||
+              url.hostname !== 'hooks.slack.com'
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: t('validation.slackWebhookUrl'),
+                path: ['webhook_url'],
+              });
+            }
+          } catch {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message:
-                'Must be a valid Slack webhook URL (https://hooks.slack.com/...)',
+              message: t('validation.validUrl'),
               path: ['webhook_url'],
             });
           }
-        } catch {
+        }
+      } else if (data.method === 'bot_token') {
+        const tokenEmpty = !data.token || data.token.trim() === '';
+        if (data.is_edit && tokenEmpty) {
+          // Blank on edit = keep existing — OK
+          return;
+        }
+        if (tokenEmpty) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'Please enter a valid URL',
-            path: ['webhook_url'],
+            message: t('validation.botTokenRequired'),
+            path: ['token'],
+          });
+        } else if (!data.token!.startsWith('xoxb-')) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: t('validation.botTokenPrefix'),
+            path: ['token'],
           });
         }
       }
-    } else if (data.method === 'bot_token') {
-      const tokenEmpty = !data.token || data.token.trim() === '';
-      if (data.is_edit && tokenEmpty) {
-        // Blank on edit = keep existing — OK
-        return;
-      }
-      if (tokenEmpty) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Bot token is required',
-          path: ['token'],
-        });
-      } else if (!data.token!.startsWith('xoxb-')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Bot token must start with xoxb-',
-          path: ['token'],
-        });
-      }
-    }
-  });
+    });
+}
 
-export const emailFormSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255),
-  smtp_host: z.string().min(1, 'SMTP host is required'),
-  smtp_port: z.number().int().min(1).max(65535),
-  smtp_username: z.string().optional(),
-  smtp_password: z.string().optional(),
-  from_address: z.email('Please enter a valid email'),
-  is_enabled: z.boolean(),
-});
-export type WebhookFormData = z.infer<typeof webhookFormSchema>;
-export type SlackFormData = z.infer<typeof slackFormSchema>;
-export type EmailFormData = z.infer<typeof emailFormSchema>;
+export function emailFormSchema(t: Translate) {
+  return z.object({
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
+    smtp_host: z.string().min(1, t('validation.smtpHostRequired')),
+    smtp_port: z.number().int().min(1).max(65535),
+    smtp_username: z.string().optional(),
+    smtp_password: z.string().optional(),
+    from_address: z.email(t('validation.validEmail')),
+    is_enabled: z.boolean(),
+  });
+}
+export type WebhookFormData = z.infer<ReturnType<typeof webhookFormSchema>>;
+export type SlackFormData = z.infer<ReturnType<typeof slackFormSchema>>;
+export type EmailFormData = z.infer<ReturnType<typeof emailFormSchema>>;
 export type SlackMethod = 'webhook' | 'bot_token';
 
 /* -------------------------------------------------------------------------- */

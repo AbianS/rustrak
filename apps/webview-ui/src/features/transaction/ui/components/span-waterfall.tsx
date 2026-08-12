@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 import type { Span, TraceContext } from '@/features/transaction/model/span';
 import { cn } from '@/shared/lib/utils';
@@ -165,6 +166,7 @@ export function SpanWaterfall({
   transactionStart,
   transactionEnd,
 }: SpanWaterfallProps) {
+  const t = useTranslations('transactions');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -227,7 +229,7 @@ export function SpanWaterfall({
         <div className="flex items-center gap-3 rounded-md bg-muted/40 px-2 py-1.5">
           <div className="flex w-[38%] min-w-0 items-center gap-2">
             <span className="truncate font-semibold text-foreground">
-              {trace?.op || 'transaction'}
+              {trace?.op || t('waterfall.rootFallback')}
             </span>
             <span className="truncate text-muted-foreground">
               {trace?.description ?? ''}
@@ -299,7 +301,11 @@ export function SpanWaterfall({
                       // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
                       <button
                         type="button"
-                        aria-label={isCol ? 'Expand' : 'Collapse'}
+                        aria-label={
+                          isCol
+                            ? t('waterfall.expand')
+                            : t('waterfall.collapse')
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
                           toggle(span.span_id);
@@ -321,7 +327,7 @@ export function SpanWaterfall({
                         opColor(span.op),
                       )}
                     >
-                      {span.op || 'span'}
+                      {span.op || t('waterfall.spanFallback')}
                     </span>
                     <span className="truncate text-muted-foreground">
                       {span.description || '—'}
@@ -370,21 +376,50 @@ function SpanDetail({
   dur: number | null;
   selfMs: number | null;
 }) {
-  const rows: [string, string][] = [
-    ['op', span.op ?? '—'],
-    ['description', span.description ?? '—'],
-    ['status', span.status ?? '—'],
-    ['duration', formatDuration(dur)],
-    ['self time', formatDuration(selfMs)],
-    ['span_id', span.span_id ?? '—'],
-    ['parent_span_id', span.parent_span_id ?? '—'],
+  const t = useTranslations('transactions');
+  const rows: { key: string; label: string; value: string }[] = [
+    {
+      key: 'op',
+      label: t('waterfall.detail.op'),
+      value: span.op ?? '—',
+    },
+    {
+      key: 'description',
+      label: t('waterfall.detail.description'),
+      value: span.description ?? '—',
+    },
+    {
+      key: 'status',
+      label: t('waterfall.detail.status'),
+      value: span.status ?? '—',
+    },
+    {
+      key: 'duration',
+      label: t('waterfall.detail.duration'),
+      value: formatDuration(dur),
+    },
+    {
+      key: 'selfTime',
+      label: t('waterfall.detail.selfTime'),
+      value: formatDuration(selfMs),
+    },
+    {
+      key: 'spanId',
+      label: t('waterfall.detail.spanId'),
+      value: span.span_id ?? '—',
+    },
+    {
+      key: 'parentSpanId',
+      label: t('waterfall.detail.parentSpanId'),
+      value: span.parent_span_id ?? '—',
+    },
   ];
   return (
     <dl className="ml-6 mt-0.5 mb-1 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-[11px]">
-      {rows.map(([k, v]) => (
-        <div key={k} className="contents">
-          <dt className="text-muted-foreground">{k}</dt>
-          <dd className="truncate break-all text-foreground">{v}</dd>
+      {rows.map((row) => (
+        <div key={row.key} className="contents">
+          <dt className="text-muted-foreground">{row.label}</dt>
+          <dd className="truncate break-all text-foreground">{row.value}</dd>
         </div>
       ))}
     </dl>

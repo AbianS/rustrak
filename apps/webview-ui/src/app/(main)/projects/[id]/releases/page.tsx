@@ -1,6 +1,7 @@
 import { Rocket } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import { getReleaseHealth } from '@/features/release/api/queries';
 import { parseReleasePeriod } from '@/features/release/model/session-health';
@@ -15,16 +16,17 @@ interface ReleasesPageProps {
 export async function generateMetadata({
   params,
 }: ReleasesPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
   if (!project.success) {
-    return { title: 'Project Not Found | Rustrak' };
+    return { title: t('projectNotFound') };
   }
 
   return {
-    title: `Releases | ${project.data.name} | Rustrak`,
-    description: `Release health for ${project.data.name}`,
+    title: t('releases.meta.title', { project: project.data.name }),
+    description: t('releases.meta.description', { project: project.data.name }),
   };
 }
 
@@ -43,6 +45,7 @@ export default async function ReleasesPage({
   params,
   searchParams,
 }: ReleasesPageProps) {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const { page, period: rawPeriod } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -56,7 +59,7 @@ export default async function ReleasesPage({
 
   if (!projectResult.success) {
     return (
-      <LoadFailure error={projectResult.error} title="Could not load project" />
+      <LoadFailure error={projectResult.error} title={t('loadProjectFailed')} />
     );
   }
 
@@ -74,7 +77,7 @@ export default async function ReleasesPage({
     return (
       <LoadFailure
         error={healthResult.error}
-        title="Could not load release health"
+        title={t('releases.loadFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -87,18 +90,18 @@ export default async function ReleasesPage({
   // a page that exists; the target is always within range, so this settles in
   // one hop.
   if (health.total_pages > 0 && currentPage > health.total_pages) {
-    redirect(releasesHref(projectId, health.total_pages, period));
+    await redirect(releasesHref(projectId, health.total_pages, period));
   }
   if (health.total_pages === 0 && currentPage > 1) {
-    redirect(releasesHref(projectId, 1, period));
+    await redirect(releasesHref(projectId, 1, period));
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
-        <h1 className="text-lg font-semibold">Releases</h1>
+        <h1 className="text-lg font-semibold">{t('releases.title')}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Session health per release for {project.name}
+          {t('releases.subtitle', { project: project.name })}
         </p>
       </div>
 
@@ -106,10 +109,13 @@ export default async function ReleasesPage({
         {health.total_count === 0 && !period ? (
           <div className="flex flex-col items-center justify-center min-h-full text-center">
             <Rocket className="size-12 text-muted-foreground/30 mb-4" />
-            <h2 className="text-lg font-semibold mb-1">No releases yet</h2>
+            <h2 className="text-lg font-semibold mb-1">
+              {t('releases.emptyTitle')}
+            </h2>
             <p className="text-sm text-muted-foreground max-w-md">
-              Send a <code>release</code> attribute with your events or sessions
-              to start tracking release health.
+              {t.rich('releases.emptyDescription', {
+                code: (chunks) => <code>{chunks}</code>,
+              })}
             </p>
           </div>
         ) : (

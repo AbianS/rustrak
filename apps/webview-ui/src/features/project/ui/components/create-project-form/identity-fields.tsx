@@ -1,6 +1,7 @@
 'use client';
 
 import { Pencil, RotateCcw } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useFormContext } from 'react-hook-form';
 import {
   PROJECT_NAME_MAX_LENGTH,
@@ -35,10 +36,9 @@ export function IdentityFields({
   disabled: boolean;
 }) {
   const { control } = useFormContext<CreateProjectFormData>();
+  const t = useTranslations('projects');
 
-  const toggleLabel = slug.isManual
-    ? 'Reset slug to follow the name'
-    : 'Edit slug';
+  const toggleLabel = slug.isManual ? t('slug.reset') : t('slug.edit');
 
   return (
     <>
@@ -49,7 +49,7 @@ export function IdentityFields({
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Project name
+                {t('fields.name')}
               </FormLabel>
               <FormControl>
                 <Input
@@ -77,7 +77,7 @@ export function IdentityFields({
           render={({ field, fieldState }) => (
             <FormItem>
               <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Slug
+                {t('fields.slug')}
               </FormLabel>
               <div className="flex items-center gap-2">
                 <FormControl>
@@ -123,9 +123,7 @@ export function IdentityFields({
                   !fieldState.error && 'text-muted-foreground',
                 )}
               >
-                {slug.isManual
-                  ? 'Yours to choose. A slug already in use is rejected.'
-                  : 'Generated from the name. Edit it to choose your own.'}
+                {slug.isManual ? t('slug.hintManual') : t('slug.hintAuto')}
               </FormMessage>
             </FormItem>
           )}

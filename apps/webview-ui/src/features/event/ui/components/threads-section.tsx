@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import {
   type ExceptionChain,
@@ -26,8 +27,11 @@ interface ThreadsSectionProps {
   platform?: string;
 }
 
-function threadLabel(thread: Thread): string {
-  return thread.name || `Thread #${thread.id ?? '?'}`;
+function threadLabel(
+  thread: Thread,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  return thread.name || t('threads.threadLabel', { id: thread.id ?? '?' });
 }
 
 function threadKey(thread: Thread, index: number): string {
@@ -39,6 +43,7 @@ export function ThreadsSection({
   exception,
   platform,
 }: ThreadsSectionProps) {
+  const t = useTranslations('events');
   const bestThread = useMemo(() => findBestThread(threads), [threads]);
   const [activeKey, setActiveKey] = useState<string>(() =>
     bestThread ? threadKey(bestThread, threads.indexOf(bestThread)) : '',
@@ -47,13 +52,14 @@ export function ThreadsSection({
   if (threads.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        No stack trace available
+        {t('stackTrace.empty')}
       </div>
     );
   }
 
   const activeThread =
-    threads.find((t, i) => threadKey(t, i) === activeKey) ?? bestThread;
+    threads.find((thread, i) => threadKey(thread, i) === activeKey) ??
+    bestThread;
   const matchedException = matchExceptionForThread(exception, activeThread);
 
   const originalFrames =
@@ -65,15 +71,18 @@ export function ThreadsSection({
   const copyFormats = matchedException
     ? [
         {
-          label: 'Plain Text',
+          label: t('copy.plainText'),
           value: formatStackTraceAsText(
             { values: [matchedException] },
             platform,
           ),
         },
-        { label: 'JSON', value: JSON.stringify(matchedException, null, 2) },
+        {
+          label: t('copy.json'),
+          value: JSON.stringify(matchedException, null, 2),
+        },
       ]
-    : [{ label: 'JSON', value: JSON.stringify(activeThread, null, 2) }];
+    : [{ label: t('copy.json'), value: JSON.stringify(activeThread, null, 2) }];
 
   return (
     <div className="space-y-4">
@@ -94,24 +103,28 @@ export function ThreadsSection({
                   key={threadKey(thread, i)}
                   value={threadKey(thread, i)}
                 >
-                  {threadLabel(thread)}
-                  {thread.crashed ? ' (crashed)' : ''}
+                  {threadLabel(thread, t)}
+                  {thread.crashed ? t('threads.crashedSuffix') : ''}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         ) : (
           <p className="text-sm font-semibold">
-            {activeThread ? threadLabel(activeThread) : 'Thread'}
+            {activeThread ? threadLabel(activeThread, t) : t('threads.thread')}
           </p>
         )}
 
         <div className="flex items-center gap-2">
           {activeThread?.crashed && (
-            <Badge variant="destructive">Crashed</Badge>
+            <Badge variant="destructive">{t('threads.crashed')}</Badge>
           )}
-          {activeThread?.current && <Badge variant="outline">Current</Badge>}
-          {activeThread?.main && <Badge variant="outline">Main</Badge>}
+          {activeThread?.current && (
+            <Badge variant="outline">{t('threads.current')}</Badge>
+          )}
+          {activeThread?.main && (
+            <Badge variant="outline">{t('threads.main')}</Badge>
+          )}
           {activeThread?.state && (
             <Badge variant="secondary">{activeThread.state}</Badge>
           )}
@@ -145,7 +158,7 @@ export function ThreadsSection({
         </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">
-          No stack trace available for this thread
+          {t('stackTrace.emptyForThread')}
         </div>
       )}
     </div>

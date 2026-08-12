@@ -1,23 +1,28 @@
 import { BookOpen, ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import { listTokens } from '@/features/token/api/queries';
 import { TokensList } from '@/features/token/ui/components/tokens-list/tokens-list';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 
-export const metadata: Metadata = {
-  title: 'API Tokens | Rustrak',
-  description: 'Manage your API tokens',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('tokens.meta.title'),
+    description: t('tokens.meta.description'),
+  };
+}
 
 export default async function TokensPage() {
+  const t = await getTranslations('settings');
   const tokens = await listTokens();
 
   if (!tokens.success) {
     return (
       <LoadFailure
         error={tokens.error}
-        title="Could not load API tokens"
+        title={t('tokens.loadFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -27,11 +32,9 @@ export default async function TokensPage() {
     <>
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          API Tokens
+          {t('tokens.title')}
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your API tokens for programmatic access
-        </p>
+        <p className="text-muted-foreground mt-1">{t('tokens.subtitle')}</p>
       </div>
 
       <Link
@@ -44,10 +47,11 @@ export default async function TokensPage() {
           <BookOpen className="size-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-none">API Reference</p>
+          <p className="text-sm font-semibold leading-none">
+            {t('tokens.apiReference')}
+          </p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Full documentation for all endpoints, authentication, and request
-            examples
+            {t('tokens.apiReferenceDescription')}
           </p>
         </div>
         <ExternalLink className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />

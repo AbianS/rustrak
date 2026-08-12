@@ -1,7 +1,6 @@
 'use client';
 
 import type { Issue } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import {
   AlertCircle,
   Bookmark,
@@ -12,6 +11,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useFormatter } from 'next-intl';
 import type { RefObject } from 'react';
 import type { IssueAction } from '@/features/issue/model/actions';
 import {
@@ -60,16 +60,32 @@ const helper = createAppColumnHelper<Issue>();
  * for `sort` (the third, `digest_order`, is not a column), so if sorting is
  * added the URL, the API and the column already agree without a lookup table
  * in between.
+ *
+ * `t` is passed in rather than resolved with a hook: the columns are built
+ * inside the list's `useMemo`, and a hook called there would break the rules
+ * of hooks.
  */
+/**
+ * The formatter is passed in, exactly like `t`.
+ *
+ * `useFormatter` is a hook, and this is a builder rather than a component, so
+ * it cannot reach for one itself. The component that calls it already threads
+ * the translator through for the same reason.
+ */
+type Formatter = ReturnType<typeof useFormatter>;
+
 export function issueColumns(
   projectId: number,
   handlers: RefObject<IssueRowHandlers>,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  tableT: (key: string) => string,
+  format: Formatter,
 ) {
   return helper.columns([
-    selectionColumn<Issue>(),
+    selectionColumn<Issue>(tableT),
 
     helper.accessor('title', {
-      header: 'Issue',
+      header: t('columns.issue'),
       minSize: 280,
       meta: { grow: true },
       cell: ({ row }) => {
@@ -105,9 +121,7 @@ export function issueColumns(
                   block so "when did this last happen" survives the narrow
                   layout. */}
               <span className="sm:hidden">
-                {formatDistanceToNow(new Date(issue.last_seen), {
-                  addSuffix: true,
-                })}
+                {format.relativeTime(new Date(issue.last_seen))}
               </span>
             </div>
           </Link>
@@ -116,7 +130,7 @@ export function issueColumns(
     }),
 
     helper.accessor('trend', {
-      header: 'Trend',
+      header: t('columns.trend'),
       size: 76,
       minSize: 64,
       meta: { hideBelow: 'lg' },
@@ -125,19 +139,19 @@ export function issueColumns(
 
     helper.accessor('first_seen', {
       id: 'age',
-      header: 'Age',
+      header: t('columns.age'),
       size: 96,
       minSize: 80,
       meta: { align: 'end', hideBelow: 'lg' },
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(getValue()))}
+          {format.relativeTime(new Date(getValue()))}
         </span>
       ),
     }),
 
     helper.accessor('event_count', {
-      header: 'Events',
+      header: t('columns.events'),
       // Wider than the number needs, so "EVENTS" stops truncating to "EVEN…"
       // and so the header still fits once it has a sort indicator to carry.
       size: 116,
@@ -145,31 +159,31 @@ export function issueColumns(
       meta: { align: 'end', hideBelow: 'sm' },
       cell: ({ getValue }) => (
         <span className="font-mono text-sm tabular-nums">
-          {getValue().toLocaleString()}
+          {format.number(getValue())}
         </span>
       ),
     }),
 
     helper.accessor('user_count', {
-      header: 'Users',
+      header: t('columns.users'),
       size: 96,
       minSize: 80,
       meta: { align: 'end', hideBelow: 'lg' },
       cell: ({ getValue }) => (
         <span className="font-mono text-sm tabular-nums">
-          {(getValue() ?? 0).toLocaleString()}
+          {format.number(getValue() ?? 0)}
         </span>
       ),
     }),
 
     helper.accessor('last_seen', {
-      header: 'Last seen',
+      header: t('columns.lastSeen'),
       size: 140,
       minSize: 110,
       meta: { align: 'end', hideBelow: 'sm' },
       cell: ({ getValue }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(getValue()), { addSuffix: true })}
+          {format.relativeTime(new Date(getValue()))}
         </span>
       ),
     }),
@@ -180,7 +194,7 @@ export function issueColumns(
       size: 56,
       minSize: 56,
       maxSize: 56,
-      header: () => <span className="sr-only">Actions</span>,
+      header: () => <span className="sr-only">{t('actionsTitle')}</span>,
       cell: ({ row }) => {
         const issue = row.original;
         return (
@@ -192,7 +206,7 @@ export function issueColumns(
                     variant="ghost"
                     size="icon"
                     className="size-8"
-                    aria-label={`Actions for ${issue.title}`}
+                    aria-label={t('actionsFor', { title: issue.title })}
                   />
                 }
               >
@@ -204,7 +218,7 @@ export function issueColumns(
                     onClick={() => handlers.current.onAction('resolve', issue)}
                   >
                     <Check className="mr-2 size-4" />
-                    Resolve
+                    {t('actions.resolve')}
                   </DropdownMenuItem>
                 )}
                 {issue.status === 'resolved' && (
@@ -214,7 +228,7 @@ export function issueColumns(
                     }
                   >
                     <AlertCircle className="mr-2 size-4" />
-                    Unresolve
+                    {t('actions.unresolve')}
                   </DropdownMenuItem>
                 )}
                 {issue.status !== 'ignored' && (
@@ -222,7 +236,7 @@ export function issueColumns(
                     onClick={() => handlers.current.onAction('mute', issue)}
                   >
                     <VolumeX className="mr-2 size-4" />
-                    Mute
+                    {t('actions.mute')}
                   </DropdownMenuItem>
                 )}
                 {issue.status === 'ignored' && (
@@ -230,7 +244,7 @@ export function issueColumns(
                     onClick={() => handlers.current.onAction('unmute', issue)}
                   >
                     <Volume2 className="mr-2 size-4" />
-                    Unmute
+                    {t('actions.unmute')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem
@@ -238,7 +252,7 @@ export function issueColumns(
                   onClick={() => handlers.current.onDelete(issue)}
                 >
                   <Trash2 className="mr-2 size-4" />
-                  Delete
+                  {t('actions.delete')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

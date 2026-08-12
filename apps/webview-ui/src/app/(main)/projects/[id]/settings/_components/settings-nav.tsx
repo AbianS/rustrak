@@ -3,14 +3,15 @@
 import { Bell, KeyRound, SlidersHorizontal, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/shared/lib/utils';
 
 interface NavGroup {
   /** Rendered above the group. Omit for a single ungrouped list. */
-  label?: string;
+  labelKey?: string;
   items: {
     segment: string;
-    label: string;
+    labelKey: string;
     icon: React.ElementType;
   }[];
 }
@@ -22,16 +23,18 @@ interface NavGroup {
  */
 const navGroups: NavGroup[] = [
   {
-    label: 'Project',
+    labelKey: 'nav.groupProject',
     items: [
-      { segment: 'general', label: 'General', icon: SlidersHorizontal },
-      { segment: 'alerts', label: 'Alerts', icon: Bell },
-      { segment: 'members', label: 'Members', icon: Users },
+      { segment: 'general', labelKey: 'nav.general', icon: SlidersHorizontal },
+      { segment: 'alerts', labelKey: 'nav.alerts', icon: Bell },
+      { segment: 'members', labelKey: 'nav.members', icon: Users },
     ],
   },
   {
-    label: 'SDK Setup',
-    items: [{ segment: 'client-keys', label: 'Client Keys', icon: KeyRound }],
+    labelKey: 'nav.groupSdkSetup',
+    items: [
+      { segment: 'client-keys', labelKey: 'nav.clientKeys', icon: KeyRound },
+    ],
   },
 ];
 
@@ -44,6 +47,7 @@ export function ProjectSettingsNav({
   projectId,
   onNavigate,
 }: ProjectSettingsNavProps) {
+  const t = useTranslations('settings');
   const pathname = usePathname();
   const base = `/projects/${projectId}/settings`;
   const showLabels = navGroups.length > 1;
@@ -55,10 +59,10 @@ export function ProjectSettingsNav({
         // the one group that carries no label, and it cannot collide because a
         // label is either present and unique or absent exactly once.
         // react-doctor-disable-next-line react-doctor/no-array-index-as-key
-        <div key={group.label ?? index} className="flex flex-col gap-1">
-          {showLabels && group.label && (
+        <div key={group.labelKey ?? index} className="flex flex-col gap-1">
+          {showLabels && group.labelKey && (
             <span className="mb-1 px-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              {group.label}
+              {t(group.labelKey)}
             </span>
           )}
           {group.items.map((item) => {
@@ -79,7 +83,7 @@ export function ProjectSettingsNav({
                 )}
               >
                 <Icon className="size-4" />
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}

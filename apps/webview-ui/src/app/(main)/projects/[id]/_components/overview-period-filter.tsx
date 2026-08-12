@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import {
   OVERVIEW_PERIODS,
@@ -23,6 +24,7 @@ export function OverviewPeriodFilter({
   activePeriod,
 }: OverviewPeriodFilterProps) {
   const router = useRouter();
+  const t = useTranslations('projectPages');
   const [isPending, startTransition] = useTransition();
 
   const navigate = (period?: OverviewPeriod) => {
@@ -56,7 +58,7 @@ export function OverviewPeriodFilter({
         onClick={() => navigate()}
         disabled={isPending}
       >
-        All
+        {t('overview.periodAll')}
       </Button>
     </div>
   );

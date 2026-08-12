@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { RustrakError } from '@rustrak/client';
 import { Eye, EyeOff } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -21,12 +22,12 @@ import {
 } from '@/shared/ui/components/shadcn/form';
 import { Input } from '@/shared/ui/components/shadcn/input';
 
-const loginSchema = z.object({
-  email: z.email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
+type LoginFormData = {
+  email: string;
+  password: string;
+};
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginTranslator = ReturnType<typeof useTranslations<'auth'>>;
 
 /**
  * Copy for a failure that is not a verdict on the credentials.
@@ -35,33 +36,41 @@ type LoginFormData = z.infer<typeof loginSchema>;
  * again", and on a login page behind a proxy rate-limit that is the one
  * instruction that makes things worse: every retry extends the block.
  */
-function loginFailureMessage(error: RustrakError): string {
+function loginFailureMessage(error: RustrakError, t: LoginTranslator): string {
   switch (error.kind) {
     case 'network':
-      return 'Could not reach the server. Check your connection and try again.';
+      return t('form.failureNetwork');
     case 'rate_limited':
       // `retryAfter` is reachable only on this arm, which is what branching on
       // the client's own union buys over a flattened domain enum.
       return error.retryAfter && error.retryAfter > 0
-        ? `Too many login attempts. Wait about ${formatWait(error.retryAfter)} before trying again.`
-        : 'Too many login attempts. Wait a few minutes before trying again.';
+        ? t('form.failureRateLimited', {
+            duration: formatWait(error.retryAfter, t),
+          })
+        : t('form.failureRateLimitedGeneric');
     default:
-      return 'An unexpected error occurred. Please try again.';
+      return t('form.failureUnexpected');
   }
 }
 
-function formatWait(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconds`;
+function formatWait(seconds: number, t: LoginTranslator): string {
+  if (seconds < 60) return t('form.waitSeconds', { count: seconds });
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  if (minutes < 60) return t('form.waitMinutes', { count: minutes });
   const hours = Math.round(seconds / 3600);
-  return `${hours} hour${hours === 1 ? '' : 's'}`;
+  return t('form.waitHours', { count: hours });
 }
 
 export function LoginForm() {
+  const t = useTranslations('auth');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
+
+  const loginSchema = z.object({
+    email: z.email(t('form.emailInvalid')),
+    password: z.string().min(1, t('form.passwordRequired')),
+  });
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -102,7 +111,7 @@ export function LoginForm() {
         // so a distinct "account disabled" answer would leak the same fact.
         form.setError('password', {
           type: 'server',
-          message: 'Invalid email or password',
+          message: t('form.invalidCredentials'),
         });
         return;
       }
@@ -117,7 +126,7 @@ export function LoginForm() {
       // nothing checks.
       form.setError(SERVER_ERROR_PATH, {
         type: 'server',
-        message: loginFailureMessage(result.error),
+        message: loginFailureMessage(result.error, t),
       });
     });
   };
@@ -125,10 +134,8 @@ export function LoginForm() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Log in</h1>
-        <p className="text-muted-foreground">
-          Enter your credentials to access the platform.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('form.title')}</h1>
+        <p className="text-muted-foreground">{t('form.subtitle')}</p>
       </div>
 
       <Form {...form}>
@@ -139,12 +146,12 @@ export function LoginForm() {
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Email Address
+                  {t('form.emailLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="email"
-                    placeholder="name@company.com"
+                    placeholder={t('form.emailPlaceholder')}
                     autoComplete="email"
                     disabled={isPending}
                     className="bg-background border-border px-4 py-3.5 text-sm placeholder:text-muted-foreground/30"
@@ -163,14 +170,14 @@ export function LoginForm() {
               <FormItem className="space-y-2">
                 <div className="flex items-center justify-between">
                   <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Password
+                    {t('form.passwordLabel')}
                   </FormLabel>
                 </div>
                 <FormControl>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
+                      placeholder={t('form.passwordPlaceholder')}
                       autoComplete="current-password"
                       disabled={isPending}
                       className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-4 py-3.5 pr-10 text-sm shadow-xs outline-none placeholder:text-muted-foreground/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
@@ -183,7 +190,9 @@ export function LoginForm() {
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                       tabIndex={-1}
                       aria-label={
-                        showPassword ? 'Hide password' : 'Show password'
+                        showPassword
+                          ? t('form.hidePassword')
+                          : t('form.showPassword')
                       }
                     >
                       {showPassword ? (
@@ -207,7 +216,7 @@ export function LoginForm() {
             className="w-full font-extrabold uppercase tracking-widest text-xs py-6 mt-2"
             disabled={isPending}
           >
-            {isPending ? 'Signing in...' : 'Login'}
+            {isPending ? t('form.signingIn') : t('form.login')}
           </Button>
         </form>
       </Form>

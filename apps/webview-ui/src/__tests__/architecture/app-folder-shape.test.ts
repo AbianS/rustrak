@@ -29,9 +29,10 @@ import { isTestFile } from './predicates';
  * renaming `page.tsx` unroutes the page, so these cannot move into
  * `_components/` and are not violations.
  *
- * Metadata routes (`icon`, `opengraph-image`, ...) are included because Next
- * resolves them the same way, even though none exists here yet. Listing them
- * now costs nothing and stops the rule from firing on the first one added.
+ * Names Next resolves but this app does not use yet are included too:
+ * `forbidden`, `unauthorized`, `global-not-found`, and the metadata routes
+ * (`opengraph-image`, ...). Listing them costs nothing and stops the rule from
+ * firing on the first one added.
  */
 const NEXT_SPECIAL = new Set([
   'page',
@@ -40,6 +41,7 @@ const NEXT_SPECIAL = new Set([
   'error',
   'global-error',
   'not-found',
+  'global-not-found',
   'forbidden',
   'unauthorized',
   'template',
@@ -80,10 +82,20 @@ describe('AD-9 rule (8): the shape of app/', () => {
       .adhereTo(() => true, 'counted')
       .check();
 
-    // 49 source files under `app/`. It was 53 until the page tests were
-    // deleted, and this floor is what reported that rather than absorbing it:
-    // the four `__tests__` folders under `app/` went with them.
-    expect(underApp.length).toBeGreaterThanOrEqual(49);
+    // 53 source files under `app/`.
+    //
+    // Briefly 54: a `[...rest]` catch-all existed so that an unmatched URL
+    // raised `notFound()` from *inside* the `[locale]` segment, which was the
+    // only way `not-found.tsx` could render while the root layout was a dynamic
+    // segment. Taking the locale out of the URL made the root layout static
+    // again, so Next resolves `app/not-found.tsx` by itself and the catch-all
+    // has nothing left to do.
+    //
+    // Before that it read 49, set when the page tests were deleted and the four
+    // `__tests__` folders under `app/` went with them, and it had drifted four
+    // behind since. A floor below the truth still passes while the glob quietly
+    // narrows, which is the failure this assertion exists to catch.
+    expect(underApp.length).toBeGreaterThanOrEqual(53);
   });
 
   it('has no component sitting loose beside a route', async () => {

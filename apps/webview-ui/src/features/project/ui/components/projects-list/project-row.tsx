@@ -1,9 +1,9 @@
 'use client';
 
 import type { Project } from '@rustrak/client';
-import { formatDistanceToNow } from 'date-fns';
 import { MoreVertical, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useFormatter, useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
 import { ProjectStatsCells } from '@/features/project/ui/components/project-stats-cells';
@@ -27,6 +27,9 @@ export function ProjectRow({
   onToggleSelect: () => void;
   onDelete: (project: Project) => void;
 }) {
+  const format = useFormatter();
+  const t = useTranslations('projects');
+
   return (
     <div className="flex items-center gap-4 px-4 py-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors group">
       <Checkbox checked={selected} onCheckedChange={onToggleSelect} />
@@ -61,9 +64,7 @@ export function ProjectRow({
 
       <div className={PROJECT_COLUMNS.created}>
         <span className="text-sm text-muted-foreground">
-          {formatDistanceToNow(new Date(project.created_at), {
-            addSuffix: true,
-          })}
+          {format.relativeTime(new Date(project.created_at))}
         </span>
       </div>
 
@@ -79,7 +80,7 @@ export function ProjectRow({
             onClick={() => onDelete(project)}
           >
             <Trash2 className="mr-2 size-4" />
-            Delete
+            {t('actions.delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

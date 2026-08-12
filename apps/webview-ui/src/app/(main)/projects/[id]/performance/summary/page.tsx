@@ -2,6 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import {
   getTransactionStatForGroup,
@@ -20,8 +21,13 @@ interface SummaryPageProps {
 export async function generateMetadata({
   searchParams,
 }: SummaryPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { name } = await searchParams;
-  return { title: `${name ?? 'Transaction'} | Performance | Rustrak` };
+  return {
+    title: t('summary.meta.title', {
+      name: name ?? t('summary.meta.fallbackName'),
+    }),
+  };
 }
 
 function formatMs(ms: number): string {
@@ -33,6 +39,8 @@ export default async function TransactionSummaryPage({
   params,
   searchParams,
 }: SummaryPageProps) {
+  const t = await getTranslations('projectPages');
+  const format = await getFormatter();
   const { id } = await params;
   const { name, op, page = '1' } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -60,20 +68,37 @@ export default async function TransactionSummaryPage({
 
   if (!loaded.success) {
     return (
-      <LoadFailure error={loaded.error} title="Could not load transaction" />
+      <LoadFailure error={loaded.error} title={t('transaction.loadFailed')} />
     );
   }
 
   const [, samples, group] = loaded.data;
 
-  const metrics: { label: string; value: string }[] = group
+  const metrics: { id: string; label: string; value: string }[] = group
     ? [
-        { label: 'Count', value: group.count.toLocaleString() },
-        { label: 'p50', value: formatMs(group.p50_ms) },
-        { label: 'p95', value: formatMs(group.p95_ms) },
-        { label: 'p99', value: formatMs(group.p99_ms) },
         {
-          label: 'Failure rate',
+          id: 'count',
+          label: t('summary.metricCount'),
+          value: format.number(group.count),
+        },
+        {
+          id: 'p50',
+          label: t('summary.metricP50'),
+          value: formatMs(group.p50_ms),
+        },
+        {
+          id: 'p95',
+          label: t('summary.metricP95'),
+          value: formatMs(group.p95_ms),
+        },
+        {
+          id: 'p99',
+          label: t('summary.metricP99'),
+          value: formatMs(group.p99_ms),
+        },
+        {
+          id: 'failureRate',
+          label: t('summary.metricFailureRate'),
           value: `${(group.failure_rate * 100).toFixed(1)}%`,
         },
       ]
@@ -87,7 +112,7 @@ export default async function TransactionSummaryPage({
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
         >
           <ArrowLeft className="size-4" />
-          Performance
+          {t('performance.backLink')}
         </Link>
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="font-mono text-lg font-semibold break-all">{name}</h1>
@@ -97,7 +122,7 @@ export default async function TransactionSummaryPage({
         {metrics.length > 0 && (
           <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
             {metrics.map((m) => (
-              <div key={m.label}>
+              <div key={m.id}>
                 <dt className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   {m.label}
                 </dt>
@@ -112,7 +137,7 @@ export default async function TransactionSummaryPage({
 
       <div className="flex-1 overflow-hidden w-full px-4 md:px-8 py-4 md:py-6 flex flex-col gap-3">
         <h2 className="shrink-0 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          Samples
+          {t('summary.samples')}
         </h2>
         <TransactionsList
           projectId={projectId}

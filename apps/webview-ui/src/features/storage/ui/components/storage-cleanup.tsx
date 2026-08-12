@@ -3,6 +3,7 @@
 import type { CleanupCounts } from '@rustrak/client';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -42,11 +43,11 @@ interface StorageCleanupProps {
 }
 
 const PERIODS = [
-  { value: '1', label: 'Older than 1 day' },
-  { value: '7', label: 'Older than 7 days' },
-  { value: '30', label: 'Older than 30 days' },
-  { value: '60', label: 'Older than 60 days' },
-  { value: '90', label: 'Older than 90 days' },
+  { value: '1', days: 1 },
+  { value: '7', days: 7 },
+  { value: '30', days: 30 },
+  { value: '60', days: 60 },
+  { value: '90', days: 90 },
 ];
 
 const ALL_SCOPE = 'all';
@@ -55,17 +56,24 @@ const ALL_SCOPE = 'all';
  *  empty out; `transactions` also governs cascaded spans. */
 type DataType = 'events' | 'transactions' | 'logs';
 
-const TYPE_OPTIONS: { key: DataType; label: string }[] = [
-  { key: 'events', label: 'Errors' },
-  { key: 'transactions', label: 'Transactions' },
-  { key: 'logs', label: 'Logs' },
+const TYPE_OPTIONS: { key: DataType }[] = [
+  { key: 'events' },
+  { key: 'transactions' },
+  { key: 'logs' },
 ];
 
 /** The human label for a retention period, or the raw value if unknown. */
-const periodLabel = (value: string) =>
-  PERIODS.find((p) => p.value === value)?.label ?? value;
+const periodLabel = (
+  value: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) => {
+  const period = PERIODS.find((p) => p.value === value);
+  return period ? t('period', { count: period.days }) : value;
+};
 
 export function StorageCleanup({ projects }: StorageCleanupProps) {
+  const format = useFormatter();
+  const t = useTranslations('storage');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [period, setPeriod] = useState('90');
@@ -103,7 +111,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
       });
 
       if (!counts.success) {
-        toast.error('Could not preview cleanup', {
+        toast.error(t('toasts.previewFailed'), {
           description: counts.error.message,
         });
         return;
@@ -124,11 +132,13 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
       });
 
       if (!counts.success) {
-        toast.error('Cleanup failed', { description: counts.error.message });
+        toast.error(t('toasts.cleanupFailed'), {
+          description: counts.error.message,
+        });
         return;
       }
 
-      toast.success(summarizeRemoved(counts.data));
+      toast.success(summarizeRemoved(counts.data, t));
       setPreview(null);
       router.refresh();
     });
@@ -136,12 +146,12 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
 
   const scopeLabel = (value: string) =>
     value === ALL_SCOPE
-      ? 'All projects'
+      ? t('allProjects')
       : (projects.find((p) => String(p.id) === value)?.name ?? value);
 
   // Breakdown rows for the categories the preview was run with — only the
   // selected ones, so it never claims to touch data the selection spared.
-  const previewLines = preview ? buildLines(preview, selected) : [];
+  const previewLines = preview ? buildLines(preview, selected, t) : [];
   const nothingToDelete =
     preview !== null && previewLines.every((l) => l.count === 0);
 
@@ -150,12 +160,9 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Trash2 className="size-4" />
-          Clean up old data
+          {t('cleanup.title')}
         </CardTitle>
-        <CardDescription>
-          Permanently delete the selected data older than the chosen period.
-          Preview first — this cannot be undone.
-        </CardDescription>
+        <CardDescription>{t('cleanup.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -169,13 +176,16 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
             }}
             disabled={isPending}
           >
-            <SelectTrigger className="sm:w-56" aria-label="Retention period">
-              <SelectValue>{(value) => periodLabel(value)}</SelectValue>
+            <SelectTrigger
+              className="sm:w-56"
+              aria-label={t('retentionPeriodLabel')}
+            >
+              <SelectValue>{(value) => periodLabel(value, t)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {PERIODS.map((p) => (
                 <SelectItem key={p.value} value={p.value}>
-                  {p.label}
+                  {t('period', { count: p.days })}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -191,11 +201,14 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
             }}
             disabled={isPending}
           >
-            <SelectTrigger className="sm:w-56" aria-label="Project scope">
+            <SelectTrigger
+              className="sm:w-56"
+              aria-label={t('projectScopeLabel')}
+            >
               <SelectValue>{(value) => scopeLabel(value)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={ALL_SCOPE}>All projects</SelectItem>
+              <SelectItem value={ALL_SCOPE}>{t('allProjects')}</SelectItem>
               {projects.map((p) => (
                 <SelectItem key={p.id} value={String(p.id)}>
                   {p.name}
@@ -209,19 +222,19 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
             dry-run actually runs. */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <span className="text-sm font-medium text-muted-foreground">
-            Data
+            {t('dataLabel')}
           </span>
-          {TYPE_OPTIONS.map((t) => (
+          {TYPE_OPTIONS.map((item) => (
             <label
-              key={t.key}
+              key={item.key}
               className="flex items-center gap-2 text-sm cursor-pointer select-none"
             >
               <Checkbox
-                checked={selected[t.key]}
-                onCheckedChange={() => toggle(t.key)}
+                checked={selected[item.key]}
+                onCheckedChange={() => toggle(item.key)}
                 disabled={isPending}
               />
-              {t.label}
+              {t(`type.${item.key}`)}
             </label>
           ))}
         </div>
@@ -232,30 +245,31 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
           onClick={handlePreview}
           disabled={isPending || noneSelected}
         >
-          {isPending ? 'Working…' : 'Preview'}
+          {isPending ? t('working') : t('preview')}
         </Button>
 
         {preview !== null &&
           (nothingToDelete ? (
             <div className="border-t pt-4">
               <p className="text-sm text-muted-foreground">
-                Nothing matches this selection{' '}
-                {periodLabel(period).toLowerCase()} for {scopeLabel(scope)} —
-                there's nothing to delete.
+                {t('nothingMatches', {
+                  period: periodLabel(period, t).toLowerCase(),
+                  scope: scopeLabel(scope),
+                })}
               </p>
             </div>
           ) : (
             <div className="border-t pt-4 space-y-3">
-              <p className="text-sm font-medium">This cleanup would remove</p>
+              <p className="text-sm font-medium">{t('wouldRemove')}</p>
               <dl className="text-sm">
                 {previewLines.map((line) => (
                   <div
-                    key={line.label}
+                    key={line.key}
                     className="flex items-center justify-between border-b py-1.5 last:border-b-0"
                   >
                     <dt className="text-muted-foreground">{line.label}</dt>
                     <dd className="tabular-nums font-medium">
-                      {line.count.toLocaleString()}
+                      {format.number(line.count)}
                     </dd>
                   </div>
                 ))}
@@ -266,30 +280,31 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
                   render={<Button variant="destructive" disabled={isPending} />}
                 >
                   <Trash2 className="mr-2 size-4" />
-                  Delete permanently
+                  {t('deleteTrigger')}
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2">
                       <AlertTriangle className="size-5 text-destructive" />
-                      Delete {totalRows(previewLines).toLocaleString()} rows?
+                      {t('deleteRowsTitle', { count: totalRows(previewLines) })}
                     </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This permanently deletes the selected data{' '}
-                      {periodLabel(period).toLowerCase()} for{' '}
-                      {scopeLabel(scope)}. This action cannot be undone.
+                      {t('deleteRowsDescription', {
+                        period: periodLabel(period, t).toLowerCase(),
+                        scope: scopeLabel(scope),
+                      })}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel disabled={isPending}>
-                      Cancel
+                      {t('cancel')}
                     </AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleExecute}
                       disabled={isPending}
                       className="bg-destructive text-white hover:bg-destructive/90"
                     >
-                      {isPending ? 'Deleting…' : 'Delete permanently'}
+                      {isPending ? t('deleting') : t('deleteAction')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -302,6 +317,7 @@ export function StorageCleanup({ projects }: StorageCleanupProps) {
 }
 
 interface PreviewLine {
+  key: string;
   label: string;
   count: number;
 }
@@ -312,18 +328,35 @@ interface PreviewLine {
 function buildLines(
   counts: CleanupCounts,
   selected: Record<DataType, boolean>,
+  t: (key: string, values?: Record<string, string | number>) => string,
 ): PreviewLine[] {
   const lines: PreviewLine[] = [];
   if (selected.events) {
-    lines.push({ label: 'Errors', count: counts.events });
-    lines.push({ label: 'Empty issues', count: counts.issues_removed });
+    lines.push({
+      key: 'events',
+      label: t('type.events'),
+      count: counts.events,
+    });
+    lines.push({
+      key: 'emptyIssues',
+      label: t('line.emptyIssues'),
+      count: counts.issues_removed,
+    });
   }
   if (selected.transactions) {
-    lines.push({ label: 'Transactions', count: counts.transactions });
-    lines.push({ label: 'Spans', count: counts.spans });
+    lines.push({
+      key: 'transactions',
+      label: t('type.transactions'),
+      count: counts.transactions,
+    });
+    lines.push({
+      key: 'spans',
+      label: t('line.spans'),
+      count: counts.spans,
+    });
   }
   if (selected.logs) {
-    lines.push({ label: 'Logs', count: counts.logs });
+    lines.push({ key: 'logs', label: t('type.logs'), count: counts.logs });
   }
   return lines;
 }
@@ -334,16 +367,19 @@ function totalRows(lines: PreviewLine[]): number {
 
 /** Success toast text after an executed cleanup — categories the server reports
  *  as zero (spared or empty) simply don't show up. */
-function summarizeRemoved(counts: CleanupCounts): string {
+function summarizeRemoved(
+  counts: CleanupCounts,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
   const parts: string[] = [];
-  if (counts.events) parts.push(`${counts.events.toLocaleString()} errors`);
+  if (counts.events) parts.push(t('unit.errors', { count: counts.events }));
   if (counts.transactions)
-    parts.push(`${counts.transactions.toLocaleString()} transactions`);
-  if (counts.spans) parts.push(`${counts.spans.toLocaleString()} spans`);
-  if (counts.logs) parts.push(`${counts.logs.toLocaleString()} logs`);
+    parts.push(t('unit.transactions', { count: counts.transactions }));
+  if (counts.spans) parts.push(t('unit.spans', { count: counts.spans }));
+  if (counts.logs) parts.push(t('unit.logs', { count: counts.logs }));
   if (counts.issues_removed)
-    parts.push(`${counts.issues_removed.toLocaleString()} empty issues`);
+    parts.push(t('unit.emptyIssues', { count: counts.issues_removed }));
   return parts.length > 0
-    ? `Removed ${parts.join(', ')}`
-    : 'Nothing matched — no data removed';
+    ? t('toasts.removed', { parts: parts.join(', ') })
+    : t('toasts.nothingRemoved');
 }

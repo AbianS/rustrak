@@ -24,7 +24,7 @@ impl UsersService {
             r#"
             INSERT INTO users (email, password_hash, role)
             VALUES ($1, $2, $3)
-            RETURNING id, email, password_hash, is_active, role, created_at, last_login
+            RETURNING id, email, password_hash, is_active, role, created_at, last_login, language, timezone
             "#,
         )
         .bind(&req.email)
@@ -46,7 +46,7 @@ impl UsersService {
     pub async fn get_by_email(pool: &DbPool, email: &str) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, is_active, role, created_at, last_login
+            SELECT id, email, password_hash, is_active, role, created_at, last_login, language, timezone
             FROM users
             WHERE email = $1
             "#,
@@ -62,7 +62,7 @@ impl UsersService {
     pub async fn get_by_id(pool: &DbPool, user_id: i32) -> AppResult<Option<User>> {
         let user = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, is_active, role, created_at, last_login
+            SELECT id, email, password_hash, is_active, role, created_at, last_login, language, timezone
             FROM users
             WHERE id = $1
             "#,
@@ -78,7 +78,7 @@ impl UsersService {
     pub async fn list(pool: &DbPool) -> AppResult<Vec<User>> {
         let users = sqlx::query_as::<_, User>(
             r#"
-            SELECT id, email, password_hash, is_active, role, created_at, last_login
+            SELECT id, email, password_hash, is_active, role, created_at, last_login, language, timezone
             FROM users
             ORDER BY created_at DESC
             "#,
@@ -143,6 +143,36 @@ impl UsersService {
         .execute(pool)
         .await?;
 
+        Ok(())
+    }
+
+    /// Writes the reader's dashboard preferences.
+    ///
+    /// Both are `Option<Option<String>>` shaped by the caller: the outer level
+    /// is "was this field in the request", the inner is "what was it set to".
+    /// A `PATCH` that names only `language` must leave `timezone` alone, and a
+    /// `PATCH` that sets a field to `null` must clear it -- one `Option` cannot
+    /// tell those two apart.
+    pub async fn update_preferences(
+        pool: &DbPool,
+        user_id: i32,
+        language: Option<Option<String>>,
+        timezone: Option<Option<String>>,
+    ) -> AppResult<()> {
+        if let Some(language) = language {
+            sqlx::query("UPDATE users SET language = $1 WHERE id = $2")
+                .bind(language)
+                .bind(user_id)
+                .execute(pool)
+                .await?;
+        }
+        if let Some(timezone) = timezone {
+            sqlx::query("UPDATE users SET timezone = $1 WHERE id = $2")
+                .bind(timezone)
+                .bind(user_id)
+                .execute(pool)
+                .await?;
+        }
         Ok(())
     }
 

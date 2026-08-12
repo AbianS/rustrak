@@ -1,6 +1,7 @@
 'use client';
 
 import { Menu } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
@@ -17,6 +18,7 @@ interface SettingsMobileNavProps {
 }
 
 export function SettingsMobileNav({ isAdmin }: SettingsMobileNavProps) {
+  const t = useTranslations('settings');
   const [open, setOpen] = useState(false);
 
   return (
@@ -25,12 +27,12 @@ export function SettingsMobileNav({ isAdmin }: SettingsMobileNavProps) {
         render={<Button variant="ghost" size="icon" className="md:hidden" />}
       >
         <Menu className="size-5" />
-        <span className="sr-only">Open settings menu</span>
+        <span className="sr-only">{t('nav.openSettingsMenu')}</span>
       </SheetTrigger>
       <SheetContent side="left" className="w-64 p-6">
         <SheetHeader className="p-0 mb-4">
           <SheetTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Settings
+            {t('nav.settingsTitle')}
           </SheetTitle>
         </SheetHeader>
         <SettingsNav onNavigate={() => setOpen(false)} isAdmin={isAdmin} />

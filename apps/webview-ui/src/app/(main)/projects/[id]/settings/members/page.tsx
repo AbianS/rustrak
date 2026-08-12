@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import {
   getCurrentUser,
@@ -14,13 +15,15 @@ interface MembersSettingsPageProps {
   params: Promise<{ id: string }>;
 }
 
-export const metadata: Metadata = {
-  title: 'Project Members | Rustrak',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return { title: t('members.meta.title') };
+}
 
 export default async function MembersSettingsPage({
   params,
 }: MembersSettingsPageProps) {
+  const t = await getTranslations('settings');
   const { id } = await params;
   const projectId = parseInt(id, 10);
   // Concurrent, but each answer still gets its own branch. `listProjectMembers`
@@ -36,7 +39,7 @@ export default async function MembersSettingsPage({
   // exactly like the one a non-admin sees. Neither a redirect nor a silent
   // demotion is right here.
   if (session.state === 'anonymous') {
-    redirect('/auth/login');
+    return redirect('/auth/login');
   }
 
   if (session.state === 'unavailable') {
@@ -44,12 +47,7 @@ export default async function MembersSettingsPage({
   }
 
   if (!loaded.success) {
-    return (
-      <LoadFailure
-        error={loaded.error}
-        title="Could not load project members"
-      />
-    );
+    return <LoadFailure error={loaded.error} title={t('members.loadFailed')} />;
   }
 
   const [, members] = loaded.data;

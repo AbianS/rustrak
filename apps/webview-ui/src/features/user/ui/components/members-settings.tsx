@@ -3,6 +3,7 @@
 import type { ProjectMember, ProjectRole, TeamMember } from '@rustrak/client';
 import { Loader2, UserPlus, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import {
@@ -53,6 +54,7 @@ export function MembersSettings({
   canManage,
 }: MembersSettingsProps) {
   const router = useRouter();
+  const t = useTranslations('user');
   const [isPending, startTransition] = useTransition();
   const [team, setTeam] = useState<TeamMember[] | null>(null);
   // Distinct from `team === null`, which only means "not loaded yet". An empty
@@ -105,8 +107,11 @@ export function MembersSettings({
         role,
       });
       if (result.success) {
-        toast.success('Member updated', {
-          description: `${member.email} is now ${roleLabel(role)}.`,
+        toast.success(t('toast.updated'), {
+          description: t('member.updatedDescription', {
+            email: member.email,
+            role: t(roleLabel(role)),
+          }),
         });
         router.refresh();
       } else {
@@ -114,7 +119,7 @@ export function MembersSettings({
         // server names `role`, but these are table row selects, not a
         // react-hook-form, and the server's own sentence ("Cannot downgrade
         // the last project admin") says far more than the generic field copy.
-        toast.error('Failed to update member', {
+        toast.error(t('toast.updateFailed'), {
           description: result.error.message,
         });
       }
@@ -129,11 +134,11 @@ export function MembersSettings({
         removingMember.user_id,
       );
       if (result.success) {
-        toast.success('Member removed');
+        toast.success(t('toast.removed'));
         setRemovingMember(null);
         router.refresh();
       } else {
-        toast.error('Failed to remove member', {
+        toast.error(t('toast.removeFailed'), {
           description: result.error.message,
         });
       }
@@ -145,18 +150,18 @@ export function MembersSettings({
       <div className="mb-6 flex items-start justify-between gap-4 md:mb-8">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight md:text-2xl">
-            Project Members
+            {t('members.title')}
           </h1>
           <p className="mt-1 text-muted-foreground">
             {canManage
-              ? 'Manage who can access this project and their roles.'
-              : 'People with access to this project.'}
+              ? t('members.manageDescription')
+              : t('members.readOnlyDescription')}
           </p>
         </div>
         {canManage && (
           <Button onClick={() => setShowAddDialog(true)} className="shrink-0">
             <UserPlus className="mr-2 size-4" />
-            Add Member
+            {t('members.addMember')}
           </Button>
         )}
       </div>
@@ -164,7 +169,7 @@ export function MembersSettings({
       {members.length === 0 ? (
         <div className="rounded-lg border border-dashed py-16 text-center">
           <Users className="mx-auto mb-3 size-10 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">No members yet</p>
+          <p className="text-sm text-muted-foreground">{t('members.empty')}</p>
         </div>
       ) : (
         <ProjectMembersTable
@@ -196,20 +201,23 @@ export function MembersSettings({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogTitle>{t('remove.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Remove {removingMember?.email} from this project? They will lose
-              access until they are added again.
+              {t('remove.description', {
+                email: removingMember?.email ?? '',
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isPending}>
+              {t('cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRemove}
               disabled={isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {isPending ? 'Removing...' : 'Remove'}
+              {isPending ? t('remove.removing') : t('remove.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -262,6 +270,7 @@ function AddMemberForm({
   teamFailed,
   onSuccess,
 }: Omit<AddMemberDialogProps, 'open'>) {
+  const t = useTranslations('user');
   const [isPending, startTransition] = useTransition();
   const [userId, setUserId] = useState('');
   const [role, setRole] = useState<ProjectRole>('viewer');
@@ -275,10 +284,10 @@ function AddMemberForm({
         role,
       });
       if (result.success) {
-        toast.success('Member added');
+        toast.success(t('toast.added'));
         onSuccess();
       } else {
-        toast.error('Failed to add member', {
+        toast.error(t('toast.addFailed'), {
           description: result.error.message,
         });
       }
@@ -288,10 +297,8 @@ function AddMemberForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Add Member</DialogTitle>
-        <DialogDescription>
-          Grant a teammate access to this project.
-        </DialogDescription>
+        <DialogTitle>{t('addMember.title')}</DialogTitle>
+        <DialogDescription>{t('addMember.description')}</DialogDescription>
       </DialogHeader>
 
       <div className="space-y-4 py-1">
@@ -300,7 +307,7 @@ function AddMemberForm({
             htmlFor="add-member-user"
             className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
           >
-            User
+            {t('addMember.userLabel')}
           </label>
           <Select
             value={userId}
@@ -310,15 +317,15 @@ function AddMemberForm({
             <SelectTrigger
               id="add-member-user"
               className="w-full"
-              aria-label="Select a user to add"
+              aria-label={t('addMember.userAria')}
             >
               <SelectValue
                 placeholder={
                   teamFailed
-                    ? 'Could not load the team list'
+                    ? t('addMember.teamFailed')
                     : availableUsers.length === 0
-                      ? 'No users available'
-                      : 'Select a user'
+                      ? t('addMember.noUsers')
+                      : t('addMember.selectUser')
                 }
               >
                 {(value) =>
@@ -342,7 +349,7 @@ function AddMemberForm({
             htmlFor="add-member-role"
             className="text-xs font-bold uppercase tracking-widest text-muted-foreground"
           >
-            Role
+            {t('addMember.roleLabel')}
           </label>
           <Select
             value={role}
@@ -354,16 +361,16 @@ function AddMemberForm({
             <SelectTrigger
               id="add-member-role"
               className="w-full"
-              aria-label="Role for new member"
+              aria-label={t('addMember.roleAria')}
             >
               <SelectValue>
-                {(value) => roleLabel(value as ProjectRole)}
+                {(value) => t(roleLabel(value as ProjectRole))}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {PROJECT_ROLES.map((r) => (
                 <SelectItem key={r.value} value={r.value}>
-                  {r.label}
+                  {t(r.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -378,7 +385,7 @@ function AddMemberForm({
           onClick={() => onOpenChange(false)}
           disabled={isPending}
         >
-          Cancel
+          {t('cancel')}
         </Button>
         <Button onClick={handleAdd} disabled={isPending || !userId}>
           {isPending ? (
@@ -386,7 +393,7 @@ function AddMemberForm({
           ) : (
             <>
               <UserPlus className="mr-2 size-4" />
-              Add
+              {t('addMember.submit')}
             </>
           )}
         </Button>

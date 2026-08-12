@@ -13,27 +13,49 @@ import type { RustrakError } from '@rustrak/client';
  * real ones name the deployment's internal host, or a database error), so their
  * copy is written here. The rest carry a message the server meant a human to
  * read, and it is rendered rather than replaced.
+ *
+ * **Why a translator parameter.** This module is part of the portable core,
+ * which does not know Next. Every sentence is a message key resolved by the
+ * caller's translator, so the copy can be localised without this module
+ * importing anything framework-shaped.
+ *
+ * **And why it is required.** It was optional, with a table of 21 English
+ * sentences in this file standing in when it was omitted -- a second dictionary
+ * keyed by the same message keys as `messages/en.json`. All eleven call sites
+ * passed a translator, so the table was unreachable code that could only ever
+ * drift out of sync with the file it duplicated. A required parameter is one
+ * source of truth and one compile error at any call site that forgets.
  */
+
+/**
+ * The smallest translator shape the core needs: `t(key, values)` -> string.
+ *
+ * next-intl's `t` from `useTranslations` / `getTranslations` satisfies it.
+ */
+export type Translate = (
+  key: string,
+  values?: Record<string, string | number>,
+) => string;
 
 /**
  * What went wrong, in one sentence.
  */
-export function describeError(error: RustrakError): string {
+export function describeError(error: RustrakError, t: Translate): string {
   switch (error.kind) {
     case 'network':
       return error.reason === 'timeout'
-        ? 'The Rustrak API took too long to answer.'
-        : 'The Rustrak API could not be reached.';
+        ? t('error.describe.networkTimeout')
+        : t('error.describe.networkUnreachable');
     case 'server_error':
-      return 'The Rustrak API failed while answering. Try again in a moment.';
+      return t('error.describe.serverError');
     case 'forbidden':
-      return 'Your account is not allowed to do this.';
+      return t('error.describe.forbidden');
     case 'rate_limited':
-      return `Too many requests. Try again ${retryWindow(error.retryAfter)}.`;
+      return t('error.describe.rateLimited', {
+        window: retryWindow(error.retryAfter, t),
+      });
     case 'invalid_response':
-      // Not the server's fault and not the user's: the two halves disagree
-      // about the shape of the data, which is a deployment problem.
-      return 'The Rustrak API answered with data this dashboard could not read.';
+      return t('error.describe.invalidResponse');
     default:
       return error.message;
   }
@@ -49,19 +71,22 @@ export function describeError(error: RustrakError): string {
  * whose dashboard is a version ahead of its API, to wait for a server that is
  * already up.
  */
-export function errorGuidance(error: RustrakError): string | null {
+export function errorGuidance(
+  error: RustrakError,
+  t: Translate,
+): string | null {
   switch (error.kind) {
     case 'network':
     case 'server_error':
-      return 'You are still signed in. Reload the page once the API is back.';
+      return t('error.guidance.network');
     case 'rate_limited':
-      return 'This limit usually comes from a proxy in front of Rustrak rather than from Rustrak itself.';
+      return t('error.guidance.rateLimited');
     case 'forbidden':
-      return 'Ask an administrator if you think you should have access.';
+      return t('error.guidance.forbidden');
     case 'invalid_response':
-      return 'The dashboard and the API are probably running different versions. Reloading will not help.';
+      return t('error.guidance.invalidResponse');
     case 'not_found':
-      return 'The server answered normally; it just had nothing at that address.';
+      return t('error.guidance.notFound');
     default:
       // validation, conflict, gone, payload_too_large, client_error,
       // invalid_request, unauthenticated: the message already says everything
@@ -75,21 +100,21 @@ export function errorGuidance(error: RustrakError): string | null {
  *
  * Only the two genuine outage kinds get to claim the API is down.
  */
-export function errorHeadline(error: RustrakError): string {
+export function errorHeadline(error: RustrakError, t: Translate): string {
   switch (error.kind) {
     case 'network':
     case 'server_error':
-      return 'Rustrak is not responding';
+      return t('error.headline.network');
     case 'forbidden':
-      return 'You do not have access';
+      return t('error.headline.forbidden');
     case 'rate_limited':
-      return 'Too many requests';
+      return t('error.headline.rateLimited');
     case 'invalid_response':
-      return 'This dashboard could not read the API';
+      return t('error.headline.invalidResponse');
     case 'not_found':
-      return 'Nothing here';
+      return t('error.headline.notFound');
     default:
-      return 'That did not work';
+      return t('error.headline.other');
   }
 }
 
@@ -100,14 +125,19 @@ export function errorHeadline(error: RustrakError): string {
  * was previously dropped on the floor, so a proxy answering `Retry-After: 3600`
  * rendered as "in a moment" and the user reloaded for an hour.
  */
-function retryWindow(retryAfter: number | undefined): string {
-  if (retryAfter === undefined || retryAfter <= 0) return 'in a moment';
-  if (retryAfter < 60) return `in ${retryAfter} seconds`;
+function retryWindow(retryAfter: number | undefined, t: Translate): string {
+  if (retryAfter === undefined || retryAfter <= 0) {
+    return t('error.retry.moments');
+  }
+  if (retryAfter < 60) {
+    return t('error.retry.seconds', { count: retryAfter });
+  }
 
   const minutes = Math.round(retryAfter / 60);
-  if (minutes < 60)
-    return `in about ${minutes} minute${minutes === 1 ? '' : 's'}`;
+  if (minutes < 60) {
+    return t('error.retry.minutes', { count: minutes });
+  }
 
   const hours = Math.round(retryAfter / 3600);
-  return `in about ${hours} hour${hours === 1 ? '' : 's'}`;
+  return t('error.retry.hours', { count: hours });
 }

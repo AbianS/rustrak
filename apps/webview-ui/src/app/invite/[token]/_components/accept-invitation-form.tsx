@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -18,17 +19,10 @@ import {
 import { Input } from '@/shared/ui/components/shadcn/input';
 import { Label } from '@/shared/ui/components/shadcn/label';
 
-const acceptSchema = z
-  .object({
-    password: z.string().min(1, 'Password is required'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  });
-
-type AcceptFormData = z.infer<typeof acceptSchema>;
+type AcceptFormData = {
+  password: string;
+  confirmPassword: string;
+};
 
 interface AcceptInvitationFormProps {
   token: string;
@@ -39,8 +33,19 @@ export function AcceptInvitationForm({
   token,
   email,
 }: AcceptInvitationFormProps) {
+  const t = useTranslations('invite');
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const acceptSchema = z
+    .object({
+      password: z.string().min(1, t('form.passwordRequired')),
+      confirmPassword: z.string().min(1, t('form.confirmRequired')),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t('form.passwordsMismatch'),
+      path: ['confirmPassword'],
+    });
 
   const form = useForm<AcceptFormData>({
     resolver: zodResolver(acceptSchema),
@@ -70,15 +75,13 @@ export function AcceptInvitationForm({
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Accept invitation</h1>
-        <p className="text-muted-foreground">
-          Set a password to finish creating your account.
-        </p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('form.title')}</h1>
+        <p className="text-muted-foreground">{t('form.subtitle')}</p>
       </div>
 
       <div className="space-y-2">
         <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-          Email
+          {t('form.emailLabel')}
         </Label>
         <Input value={email} readOnly disabled className="bg-background" />
       </div>
@@ -91,12 +94,12 @@ export function AcceptInvitationForm({
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Password
+                  {t('form.passwordLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="password"
-                    placeholder="Choose a password"
+                    placeholder={t('form.passwordPlaceholder')}
                     autoComplete="new-password"
                     disabled={isPending}
                     {...field}
@@ -113,12 +116,12 @@ export function AcceptInvitationForm({
             render={({ field }) => (
               <FormItem className="space-y-2">
                 <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Confirm password
+                  {t('form.confirmLabel')}
                 </FormLabel>
                 <FormControl>
                   <Input
                     type="password"
-                    placeholder="Re-enter your password"
+                    placeholder={t('form.confirmPlaceholder')}
                     autoComplete="new-password"
                     disabled={isPending}
                     {...field}
@@ -134,7 +137,7 @@ export function AcceptInvitationForm({
             className="w-full font-extrabold uppercase tracking-widest text-xs py-6 mt-2"
             disabled={isPending}
           >
-            {isPending ? 'Creating account...' : 'Accept & continue'}
+            {isPending ? t('form.creating') : t('form.accept')}
           </Button>
         </form>
       </Form>

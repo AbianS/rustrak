@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import {
   type ExceptionChain,
   orderFramesForDisplay,
@@ -12,12 +13,13 @@ interface StackTraceProps {
 }
 
 export function StackTrace({ exception, platform }: StackTraceProps) {
+  const t = useTranslations('events');
   const exceptions = exception?.values ?? [];
 
   if (exceptions.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        No stack trace available
+        {t('stackTrace.empty')}
       </div>
     );
   }

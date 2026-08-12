@@ -8,12 +8,12 @@ export default async function Home() {
   // `anonymous` is the only state that means "log in". This route sits outside
   // the `(main)` group, so it has no gate above it and owns the whole decision.
   if (session.state === 'anonymous') {
-    redirect('/auth/login');
+    return redirect('/auth/login');
   }
 
   if (session.state === 'unavailable') {
     return <OutageScreen error={session.error} />;
   }
 
-  redirect('/projects');
+  return redirect('/projects');
 }

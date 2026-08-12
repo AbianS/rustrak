@@ -3,7 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AlertIntegration, AlertRule } from '@rustrak/client';
 import { Loader2 } from 'lucide-react';
-import { useTransition } from 'react';
+import { useTranslations } from 'next-intl';
+import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import {
@@ -70,6 +71,9 @@ function AlertRuleForm({
   existingRuleTypes,
   onSuccess,
 }: Omit<AlertRuleFormDialogProps, 'open'>) {
+  const t = useTranslations('alerts');
+
+  const globalT = useTranslations();
   const [isPending, startTransition] = useTransition();
   const routing = useChannelRouting(existingRule, integrations);
 
@@ -78,14 +82,16 @@ function AlertRuleForm({
   // trigger from its own form.
   const covered = new Set(existingRuleTypes);
   const availableTypes = alertTypes.filter(
-    (t) => !covered.has(t.type) || existingRule?.alert_type === t.type,
+    (entry) =>
+      !covered.has(entry.type) || existingRule?.alert_type === entry.type,
   );
 
   // Seeded at mount and never re-seeded: the body only exists while the dialog
   // is open, and the `key` above remounts it when the rule being edited
   // changes, so there is nothing left for an adjustment effect to do.
+  const schema = useMemo(() => alertRuleFormSchema(t), [t]);
   const form = useForm<AlertRuleFormData>({
-    resolver: zodResolver(alertRuleFormSchema),
+    resolver: zodResolver(schema),
     defaultValues: existingRule
       ? {
           name: existingRule.name,
@@ -108,7 +114,7 @@ function AlertRuleForm({
 
     if (data.selected_integration_ids.length === 0) {
       form.setError('selected_integration_ids', {
-        message: 'Select at least one integration',
+        message: t('ruleDialog.selectAtLeastOne'),
       });
       return;
     }
@@ -140,18 +146,24 @@ function AlertRuleForm({
         // rule for an alert type already covered is one naming `alert_type`.
         // Both are fields this dialog registers, so both land on their input.
         const applied = applyServerFieldErrors(form, result.error, {
-          labels: { name: 'That name', alert_type: 'That alert type' },
+          labels: {
+            name: t('common.fieldName'),
+            alert_type: t('ruleDialog.fieldAlertType'),
+          },
+          t: globalT,
         });
 
         if (applied.formLevel) {
-          toast.error('Failed to save rule', {
+          toast.error(t('ruleDialog.saveFailed'), {
             description: applied.formLevel,
           });
         }
         return;
       }
 
-      toast.success(existingRule ? 'Alert rule updated' : 'Alert rule created');
+      toast.success(
+        t(existingRule ? 'ruleDialog.updated' : 'ruleDialog.created'),
+      );
       onSuccess();
     });
   };
@@ -160,12 +172,10 @@ function AlertRuleForm({
     <>
       <DialogHeader>
         <DialogTitle>
-          {existingRule ? 'Edit Alert Rule' : 'New Alert Rule'}
+          {t(existingRule ? 'ruleDialog.titleEdit' : 'ruleDialog.titleNew')}
         </DialogTitle>
         <DialogDescription>
-          {existingRule
-            ? 'Update when and where this rule sends notifications.'
-            : 'Define when to trigger an alert and where to send it.'}
+          {t(existingRule ? 'ruleDialog.descEdit' : 'ruleDialog.descNew')}
         </DialogDescription>
       </DialogHeader>
 
@@ -192,11 +202,11 @@ function AlertRuleForm({
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={isPending}>
               {isPending && <Loader2 className="size-4 mr-2 animate-spin" />}
-              {existingRule ? 'Save Changes' : 'Create Rule'}
+              {t(existingRule ? 'ruleDialog.saveChanges' : 'ruleDialog.create')}
             </Button>
           </DialogFooter>
           {/* Where a failure that named no field of this form lands. */}

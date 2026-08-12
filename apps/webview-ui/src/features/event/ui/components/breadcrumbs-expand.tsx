@@ -1,12 +1,13 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import {
   type Breadcrumb,
   groupConsecutiveBreadcrumbs,
 } from '@/features/event/lib/breadcrumbs';
 import { Button } from '@/shared/ui/components/shadcn/button';
-import { BreadcrumbTimeline } from './breadcrumbs';
+import { BreadcrumbTimeline } from './breadcrumb-timeline';
 
 interface BreadcrumbsExpandProps {
   items: Breadcrumb[];
@@ -21,6 +22,7 @@ export function BreadcrumbsExpand({
   items,
   summaryItems,
 }: BreadcrumbsExpandProps) {
+  const t = useTranslations('events');
   const [isExpanded, setIsExpanded] = useState(false);
   const hiddenCount = items.length - summaryItems.length;
   const grouped = groupConsecutiveBreadcrumbs(
@@ -37,7 +39,7 @@ export function BreadcrumbsExpand({
           className="mt-2 w-full"
           onClick={() => setIsExpanded(true)}
         >
-          View {hiddenCount} more
+          {t('breadcrumbs.viewMore', { count: hiddenCount })}
         </Button>
       )}
     </div>

@@ -1,4 +1,5 @@
 import type { EventDetail } from '@rustrak/client';
+import { getTranslations } from 'next-intl/server';
 import { cn } from '@/shared/lib/utils';
 
 interface EventHighlightsProps {
@@ -22,7 +23,7 @@ function str(v: unknown): string | undefined {
 }
 
 interface Highlight {
-  label: string;
+  labelKey: string;
   value?: string;
   mono?: boolean;
 }
@@ -31,12 +32,13 @@ interface Highlight {
  * Read-only "Highlights" panel: the handful of promoted attributes Sentry shows
  * at a glance, synthesized from the event's fields, tags and contexts.
  */
-export function EventHighlights({
+export async function EventHighlights({
   event,
   tags,
   contexts,
   eventData,
 }: EventHighlightsProps) {
+  const t = await getTranslations('events');
   const firstException = asRecord(
     (asRecord(eventData.exception)?.values as unknown[] | undefined)?.[0],
   );
@@ -50,18 +52,28 @@ export function EventHighlights({
     tags['runtime.name'];
 
   const items: Highlight[] = [
-    { label: 'handled', value: tags.handled ?? str(mechanism?.handled) },
-    { label: 'level', value: event.level ?? tags.level },
     {
-      label: 'transaction',
+      labelKey: 'highlights.handled',
+      value: tags.handled ?? str(mechanism?.handled),
+    },
+    { labelKey: 'highlights.level', value: event.level ?? tags.level },
+    {
+      labelKey: 'highlights.transaction',
       value: str(eventData.transaction) ?? tags.transaction,
       mono: true,
     },
-    { label: 'url', value: str(request?.url) ?? tags.url, mono: true },
-    { label: 'environment', value: event.environment ?? tags.environment },
-    { label: 'release', value: event.release, mono: true },
-    { label: 'runtime', value: runtimeLabel || undefined },
-    { label: 'trace id', value: str(trace?.trace_id), mono: true },
+    {
+      labelKey: 'highlights.url',
+      value: str(request?.url) ?? tags.url,
+      mono: true,
+    },
+    {
+      labelKey: 'highlights.environment',
+      value: event.environment ?? tags.environment,
+    },
+    { labelKey: 'highlights.release', value: event.release, mono: true },
+    { labelKey: 'highlights.runtime', value: runtimeLabel || undefined },
+    { labelKey: 'highlights.traceId', value: str(trace?.trace_id), mono: true },
   ].filter((i) => Boolean(i.value));
 
   if (items.length === 0) {
@@ -77,11 +89,11 @@ export function EventHighlights({
         <dl key={idx === 0 ? 'left' : 'right'} className="text-sm">
           {col.map((it) => (
             <div
-              key={it.label}
+              key={it.labelKey}
               className="flex items-center gap-4 rounded px-2 py-1.5 odd:bg-muted/40"
             >
               <dt className="w-28 shrink-0 text-muted-foreground">
-                {it.label}
+                {t(it.labelKey)}
               </dt>
               <dd
                 className={cn(

@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { EventNavigation } from '@/features/event/api/queries';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -16,6 +17,7 @@ export function EventNavigationBar({
   issueId,
   navigation,
 }: EventNavigationBarProps) {
+  const t = useTranslations('events');
   const router = useRouter();
   const {
     currentIndex,
@@ -39,7 +41,7 @@ export function EventNavigationBar({
         variant="ghost"
         size="sm"
         className="size-8 px-0"
-        aria-label="Previous event"
+        aria-label={t('navigation.previousEvent')}
         disabled={!prevEventId}
         onClick={() => go(prevEventId)}
       >
@@ -49,7 +51,7 @@ export function EventNavigationBar({
         variant="ghost"
         size="sm"
         className="size-8 px-0"
-        aria-label="Next event"
+        aria-label={t('navigation.nextEvent')}
         disabled={!nextEventId}
         onClick={() => go(nextEventId)}
       >
@@ -57,7 +59,10 @@ export function EventNavigationBar({
       </Button>
 
       <span className="mx-1.5 text-xs tabular-nums text-muted-foreground">
-        {currentIndex} of {totalCount}
+        {t('navigation.position', {
+          current: currentIndex,
+          total: totalCount,
+        })}
       </span>
 
       <Button
@@ -66,7 +71,7 @@ export function EventNavigationBar({
         disabled={currentIndex <= 1 || !firstEventId}
         onClick={() => go(firstEventId)}
       >
-        First
+        {t('navigation.first')}
       </Button>
       <Button
         variant="ghost"
@@ -74,7 +79,7 @@ export function EventNavigationBar({
         disabled={currentIndex >= totalCount || !lastEventId}
         onClick={() => go(lastEventId)}
       >
-        Latest
+        {t('navigation.latest')}
       </Button>
     </div>
   );

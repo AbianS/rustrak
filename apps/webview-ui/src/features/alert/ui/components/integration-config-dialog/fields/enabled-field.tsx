@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { type FieldValues, type Path, useFormContext } from 'react-hook-form';
 import {
   FormControl,
@@ -16,6 +17,7 @@ export function EnabledField<T extends FieldValues & { is_enabled: boolean }>({
 }: {
   disabled: boolean;
 }) {
+  const t = useTranslations('alerts');
   const { control } = useFormContext<T>();
 
   return (
@@ -25,9 +27,11 @@ export function EnabledField<T extends FieldValues & { is_enabled: boolean }>({
       render={({ field }) => (
         <FormItem className="flex items-center justify-between rounded-lg border p-3">
           <div className="space-y-0.5">
-            <FormLabel className="text-sm font-medium">Enabled</FormLabel>
+            <FormLabel className="text-sm font-medium">
+              {t('integrationDialog.enabled')}
+            </FormLabel>
             <FormDescription className="text-xs">
-              Receive alerts on this integration
+              {t('integrationDialog.enabledDescription')}
             </FormDescription>
           </div>
           <FormControl>

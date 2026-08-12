@@ -2,6 +2,7 @@
 
 import type { AuthToken } from '@rustrak/client';
 import { Copy, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
 /**
@@ -24,6 +25,7 @@ export function TokenActions({
   onCopy: (token: AuthToken) => void;
   onDelete: (token: AuthToken) => void;
 }) {
+  const t = useTranslations('tokens');
   const label = token.description || token.token_prefix;
 
   return (
@@ -33,7 +35,7 @@ export function TokenActions({
         size="icon"
         onClick={() => onCopy(token)}
         disabled={busy}
-        aria-label={`Copy token ${label}`}
+        aria-label={t('copyTokenLabel', { label })}
       >
         <Copy className="size-4" />
       </Button>
@@ -42,7 +44,7 @@ export function TokenActions({
         size="icon"
         onClick={() => onDelete(token)}
         disabled={busy}
-        aria-label={`Delete token ${label}`}
+        aria-label={t('deleteTokenLabel', { label })}
       >
         <Trash2 className="size-4" />
       </Button>

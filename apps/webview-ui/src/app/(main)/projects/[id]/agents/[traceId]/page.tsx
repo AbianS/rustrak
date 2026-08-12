@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getFormatter, getTranslations } from 'next-intl/server';
 import { listSpans } from '@/features/agent-trace/api/queries';
 import { AgentTraceWaterfall } from '@/features/agent-trace/ui/components/agent-trace-waterfall';
 import { getProject } from '@/features/project/api/queries';
@@ -23,8 +24,9 @@ interface AgentTraceDetailPageProps {
 export async function generateMetadata({
   params,
 }: AgentTraceDetailPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { traceId } = await params;
-  return { title: `${traceId} | Agents | Rustrak` };
+  return { title: t('trace.meta.title', { traceId }) };
 }
 
 const PER_PAGE = 100;
@@ -76,6 +78,8 @@ function formatDuration(ms: number | null): string {
 export default async function AgentTraceDetailPage({
   params,
 }: AgentTraceDetailPageProps) {
+  const t = await getTranslations('projectPages');
+  const format = await getFormatter();
   const { id, traceId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -85,14 +89,16 @@ export default async function AgentTraceDetailPage({
   ]);
 
   if (!loaded.success) {
-    return <LoadFailure error={loaded.error} title="Could not load trace" />;
+    return <LoadFailure error={loaded.error} title={t('trace.loadFailed')} />;
   }
 
   const [, spansResponse] = loaded.data;
   const collected = await collectAllSpans(projectId, traceId, spansResponse);
 
   if (!collected.success) {
-    return <LoadFailure error={collected.error} title="Could not load trace" />;
+    return (
+      <LoadFailure error={collected.error} title={t('trace.loadFailed')} />
+    );
   }
 
   const spans = collected.data;
@@ -130,26 +136,26 @@ export default async function AgentTraceDetailPage({
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-3"
         >
           <ArrowLeft className="size-4" />
-          Agents
+          {t('trace.backLink')}
         </Link>
         <h1 className="font-mono text-lg font-semibold break-all">
-          {agentName || '(unnamed agent)'}
+          {agentName || t('trace.unnamed')}
         </h1>
         <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
           <span className="font-mono font-semibold">
             {formatDuration(duration)}
           </span>
           <Badge variant="secondary">
-            {totalTokens.toLocaleString()} tokens
+            {t('trace.tokens', { count: format.number(totalTokens) })}
           </Badge>
           {toolCallCount > 0 && (
             <Badge variant="outline">
-              {toolCallCount} tool call{toolCallCount === 1 ? '' : 's'}
+              {t('trace.toolCalls', { count: toolCallCount })}
             </Badge>
           )}
           {startedAt != null && (
             <span className="text-xs text-muted-foreground">
-              {new Date(startedAt).toLocaleString()}
+              {format.dateTime(new Date(startedAt), 'precise')}
             </span>
           )}
         </div>
@@ -162,10 +168,10 @@ export default async function AgentTraceDetailPage({
         <section className="rounded-lg border">
           <div className="border-b px-4 py-2.5 flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Spans
+              {t('trace.spans')}
             </h2>
             <span className="text-xs text-muted-foreground">
-              {spans.length} span{spans.length === 1 ? '' : 's'}
+              {t('spanCount', { count: spans.length })}
             </span>
           </div>
           <div className="p-3">

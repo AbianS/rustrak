@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { getTranslations } from 'next-intl/server';
 import { IssueListCard } from '@/features/issue/ui/components/issue-list-card';
 import { getProject } from '@/features/project/api/queries';
 import {
@@ -24,17 +25,23 @@ interface ReleaseDetailPageProps {
 export async function generateMetadata({
   params,
 }: ReleaseDetailPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id, release } = await params;
   const project = await getProject(parseInt(id, 10));
   const releaseVersion = decodeURIComponent(release);
 
   if (!project.success) {
-    return { title: 'Project Not Found | Rustrak' };
+    return { title: t('projectNotFound') };
   }
 
   return {
-    title: `${releaseVersion} | ${project.data.name} | Rustrak`,
-    description: `Release health for ${releaseVersion}`,
+    title: t('releaseDetail.meta.title', {
+      release: releaseVersion,
+      project: project.data.name,
+    }),
+    description: t('releaseDetail.meta.description', {
+      release: releaseVersion,
+    }),
   };
 }
 
@@ -42,6 +49,7 @@ export default async function ReleaseDetailPage({
   params,
   searchParams,
 }: ReleaseDetailPageProps) {
+  const t = await getTranslations('projectPages');
   const { id, release } = await params;
   const { environment } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -72,7 +80,7 @@ export default async function ReleaseDetailPage({
     // transport-level failure cannot surface as an unhandled rejection.
     void newIssuesPromise.catch(() => undefined);
     return (
-      <LoadFailure error={loaded.error} title="Could not load this release" />
+      <LoadFailure error={loaded.error} title={t('releaseDetail.loadFailed')} />
     );
   }
 
@@ -95,7 +103,7 @@ export default async function ReleaseDetailPage({
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
         <h1 className="text-lg font-semibold font-mono">{releaseVersion}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Release health for {project.name}
+          {t('releaseDetail.subtitle', { project: project.name })}
         </p>
       </div>
 
@@ -106,14 +114,14 @@ export default async function ReleaseDetailPage({
           <IssueListCard
             projectId={projectId}
             issues={newIssues.data}
-            title="New Issues"
-            emptyMessage="No new issues introduced in this release"
+            title={t('releaseDetail.newIssues')}
+            emptyMessage={t('releaseDetail.newIssuesEmpty')}
           />
         ) : (
           <Card size="sm">
             <CardHeader>
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                New Issues
+                {t('releaseDetail.newIssues')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -121,7 +129,7 @@ export default async function ReleaseDetailPage({
                   release page that already rendered its health cards. */}
               <LoadFailure
                 error={newIssues.error}
-                title="Could not load new issues"
+                title={t('releaseDetail.loadNewIssuesFailed')}
                 notFoundOnMissing={false}
               />
             </CardContent>

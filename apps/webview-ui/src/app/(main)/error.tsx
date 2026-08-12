@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Home, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -11,6 +12,8 @@ interface ErrorProps {
 }
 
 export default function MainError({ error, reset }: ErrorProps) {
+  const t = useTranslations('errors');
+
   useEffect(() => {
     // Log the error to console in development
     console.error('Application error:', error);
@@ -34,24 +37,23 @@ export default function MainError({ error, reset }: ErrorProps) {
 
         <div className="space-y-2">
           <h1 className="text-xl font-bold tracking-tight">
-            This page could not be loaded
+            {t('main.headline')}
           </h1>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            The failure happened while rendering, not in your data. Everything
-            else in the dashboard is still reachable from the header above.
+            {t('main.description')}
           </p>
         </div>
 
         {error.digest && (
           <p className="text-xs text-muted-foreground font-mono">
-            Error ID: {error.digest}
+            {t('errorId', { id: error.digest })}
           </p>
         )}
 
         <div className="flex justify-center gap-4">
           <Button onClick={reset} variant="default">
             <RefreshCw className="mr-2 size-4" />
-            Try again
+            {t('tryAgain')}
           </Button>
           <Button
             variant="outline"
@@ -59,7 +61,7 @@ export default function MainError({ error, reset }: ErrorProps) {
             render={<Link href="/projects" />}
           >
             <Home className="mr-2 size-4" />
-            Go to Projects
+            {t('goToProjects')}
           </Button>
         </div>
       </div>

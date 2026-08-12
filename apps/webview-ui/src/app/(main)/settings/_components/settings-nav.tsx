@@ -3,21 +3,27 @@
 import { Database, Info, Key, Palette, Plug, User, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { cn } from '@/shared/lib/utils';
 
 const navItems = [
-  { href: '/settings/tokens', label: 'API Tokens', icon: Key },
-  { href: '/settings/integrations', label: 'Integrations', icon: Plug },
-  { href: '/settings/team', label: 'Team', icon: Users, adminOnly: true },
+  { href: '/settings/tokens', labelKey: 'nav.apiTokens', icon: Key },
+  { href: '/settings/integrations', labelKey: 'nav.integrations', icon: Plug },
+  {
+    href: '/settings/team',
+    labelKey: 'nav.team',
+    icon: Users,
+    adminOnly: true,
+  },
   {
     href: '/settings/storage',
-    label: 'Storage',
+    labelKey: 'nav.storage',
     icon: Database,
     adminOnly: true,
   },
-  { href: '/settings/account', label: 'Account', icon: User },
-  { href: '/settings/appearance', label: 'Appearance', icon: Palette },
-  { href: '/settings/about', label: 'About', icon: Info },
+  { href: '/settings/account', labelKey: 'nav.account', icon: User },
+  { href: '/settings/appearance', labelKey: 'nav.appearance', icon: Palette },
+  { href: '/settings/about', labelKey: 'nav.about', icon: Info },
 ];
 
 interface SettingsNavProps {
@@ -26,6 +32,7 @@ interface SettingsNavProps {
 }
 
 export function SettingsNav({ onNavigate, isAdmin = false }: SettingsNavProps) {
+  const t = useTranslations('settings');
   const pathname = usePathname();
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
@@ -49,7 +56,7 @@ export function SettingsNav({ onNavigate, isAdmin = false }: SettingsNavProps) {
             )}
           >
             <Icon className="size-4" />
-            {item.label}
+            {t(item.labelKey)}
           </Link>
         );
       })}

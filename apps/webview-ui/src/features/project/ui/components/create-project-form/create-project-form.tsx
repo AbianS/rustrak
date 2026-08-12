@@ -3,8 +3,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
-import { useTransition } from 'react';
+import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import {
 } from '@/features/project/model/fields';
 import { useProjectSlug } from '@/features/project/ui/hooks/use-project-slug';
 import { platformLabel } from '@/shared/config/platforms';
+import type { Translate } from '@/shared/lib/error-copy';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { PlatformGrid } from '@/shared/ui/components/platform-grid';
 import { Button } from '@/shared/ui/components/shadcn/button';
@@ -29,13 +31,17 @@ import {
 } from '@/shared/ui/components/shadcn/form';
 import { IdentityFields } from './identity-fields';
 
-const createProjectFormSchema = z.object({
-  platform: z.string().min(1, 'Choose a platform to continue'),
-  name: projectNameField,
-  slug: projectSlugField,
-});
+function buildCreateProjectFormSchema(t: Translate) {
+  return z.object({
+    platform: z.string().min(1, t('platformRequired')),
+    name: projectNameField(t),
+    slug: projectSlugField(t),
+  });
+}
 
-export type CreateProjectFormData = z.infer<typeof createProjectFormSchema>;
+export type CreateProjectFormData = z.infer<
+  ReturnType<typeof buildCreateProjectFormSchema>
+>;
 
 interface CreateProjectFormProps {
   /**
@@ -72,8 +78,15 @@ function suggestName(platformId: string, taken: Set<string>): string {
  * the final say on collisions.
  */
 export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
+  const t = useTranslations('projects');
+  const formT = useTranslations();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  const createProjectFormSchema = useMemo(
+    () => buildCreateProjectFormSchema(t),
+    [t],
+  );
 
   const form = useForm<CreateProjectFormData>({
     resolver: zodResolver(createProjectFormSchema),
@@ -125,7 +138,8 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         // helper only marks a field this form registers, so a name the form
         // does not have cannot strand it.
         const applied = applyServerFieldErrors(form, result.error, {
-          labels: { name: 'Project name', slug: 'Slug' },
+          labels: { name: t('fields.name'), slug: t('fields.slug') },
+          t: formT,
         });
 
         // The slug input is read-only while it mirrors the name, so a slug the
@@ -137,7 +151,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
         // Only when nothing landed on an input: a toast next to a red field is
         // the same sentence twice, and it outlives the fix.
         if (applied.formLevel) {
-          toast.error('Failed to create project', {
+          toast.error(t('toasts.createFailed'), {
             description: applied.formLevel,
           });
         }
@@ -155,10 +169,10 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
   const submitLabel = isPending ? (
     <>
       <Loader2 className="mr-2 size-4 animate-spin" />
-      Creating...
+      {t('creating')}
     </>
   ) : (
-    'Create Project'
+    t('create')
   );
 
   return (
@@ -175,7 +189,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
           render={({ field }) => (
             <FormItem className="min-w-0">
               <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Platform
+                {t('fields.platform')}
               </FormLabel>
               <FormControl>
                 <PlatformGrid
@@ -207,7 +221,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
               <>
                 <div className="size-8 shrink-0 rounded-md border border-dashed" />
                 <p className="text-sm text-muted-foreground">
-                  No platform selected
+                  {t('noPlatformSelected')}
                 </p>
               </>
             )}
@@ -229,7 +243,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
           </Button>
 
           <p className="mt-3 hidden text-xs text-muted-foreground lg:block">
-            You will get your DSN and setup snippet next.
+            {t('dsnNext')}
           </p>
         </aside>
 
@@ -248,7 +262,7 @@ export function CreateProjectForm({ existingNames }: CreateProjectFormProps) {
               </>
             ) : (
               <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                Pick a platform
+                {t('pickPlatform')}
               </span>
             )}
             <Button

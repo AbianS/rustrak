@@ -1,5 +1,6 @@
 import { ScrollText } from 'lucide-react';
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { listLogs } from '@/features/log/api/queries';
 import { getProject } from '@/features/project/api/queries';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
@@ -13,16 +14,17 @@ interface LogsPageProps {
 export async function generateMetadata({
   params,
 }: LogsPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
   if (!project.success) {
-    return { title: 'Project Not Found | Rustrak' };
+    return { title: t('projectNotFound') };
   }
 
   return {
-    title: `Logs | ${project.data.name} | Rustrak`,
-    description: `Structured logs for ${project.data.name}`,
+    title: t('logs.meta.title', { project: project.data.name }),
+    description: t('logs.meta.description', { project: project.data.name }),
   };
 }
 
@@ -30,6 +32,7 @@ export default async function LogsPage({
   params,
   searchParams,
 }: LogsPageProps) {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const { page = '1', level } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -39,7 +42,7 @@ export default async function LogsPage({
 
   if (!projectResult.success) {
     return (
-      <LoadFailure error={projectResult.error} title="Could not load project" />
+      <LoadFailure error={projectResult.error} title={t('loadProjectFailed')} />
     );
   }
 
@@ -57,7 +60,7 @@ export default async function LogsPage({
     return (
       <LoadFailure
         error={logsResult.error}
-        title="Could not load logs"
+        title={t('logs.loadFailed')}
         notFoundOnMissing={false}
       />
     );
@@ -68,9 +71,9 @@ export default async function LogsPage({
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="shrink-0 w-full px-4 md:px-8 py-4 md:py-6 border-b">
-        <h1 className="text-lg font-semibold">Logs</h1>
+        <h1 className="text-lg font-semibold">{t('logs.title')}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Structured logs for {project.name}, newest first
+          {t('logs.subtitle', { project: project.name })}
         </p>
       </div>
 
@@ -78,11 +81,13 @@ export default async function LogsPage({
         {logs.total_count === 0 && !level ? (
           <div className="flex flex-col items-center justify-center min-h-full text-center">
             <ScrollText className="size-12 text-muted-foreground/30 mb-4" />
-            <h2 className="text-lg font-semibold mb-1">No logs yet</h2>
+            <h2 className="text-lg font-semibold mb-1">
+              {t('logs.emptyTitle')}
+            </h2>
             <p className="text-sm text-muted-foreground max-w-md">
-              Send structured logs from your SDK (e.g.{' '}
-              <code>Sentry.logger.info(...)</code>) to start collecting them
-              here.
+              {t.rich('logs.emptyDescription', {
+                code: (chunks) => <code>{chunks}</code>,
+              })}
             </p>
           </div>
         ) : (

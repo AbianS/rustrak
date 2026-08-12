@@ -1,6 +1,7 @@
 'use client';
 
 import type { GenAiBreakdownRow } from '@rustrak/client';
+import { useFormatter, useTranslations } from 'next-intl';
 // Not loaded through next/dynamic, deliberately.
 //
 // The advice does not apply in the App Router: this module is a client
@@ -25,8 +26,6 @@ interface AgentBreakdownChartProps {
   formatValue?: (value: number) => string;
   height?: number;
 }
-
-const defaultFormatValue = (value: number) => value.toLocaleString();
 
 function ChartTooltip({
   active,
@@ -56,16 +55,23 @@ function ChartTooltip({
  */
 export function AgentBreakdownChart({
   rows,
-  formatValue = defaultFormatValue,
+  formatValue,
   height = 130,
 }: AgentBreakdownChartProps) {
+  const t = useTranslations('agents');
+  const format = useFormatter();
+  // The default cannot be a module-scope constant any more: reading the
+  // request locale means calling a hook, and a hook only runs inside the
+  // component. `??` here rather than a default parameter for the same reason.
+  const formatOne = formatValue ?? ((value: number) => format.number(value));
+
   if (rows.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-sm text-muted-foreground"
         style={{ height }}
       >
-        No data yet
+        {t('charts.noData')}
       </div>
     );
   }
@@ -91,7 +97,7 @@ export function AgentBreakdownChart({
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)', opacity: 0.5 }}
-          content={<ChartTooltip formatValue={formatValue} />}
+          content={<ChartTooltip formatValue={formatOne} />}
         />
         <Bar
           dataKey="value"

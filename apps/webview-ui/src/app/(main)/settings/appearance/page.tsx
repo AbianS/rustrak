@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import {
   Card,
   CardContent,
@@ -8,27 +9,30 @@ import {
 } from '@/shared/ui/components/shadcn/card';
 import { ThemeSelector } from '@/shared/ui/components/theme-selector';
 
-export const metadata: Metadata = {
-  title: 'Appearance | Rustrak',
-  description: 'Customize the appearance of Rustrak',
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations('settings');
+  return {
+    title: t('appearance.meta.title'),
+    description: t('appearance.meta.description'),
+  };
+}
 
-export default function AppearancePage() {
+export default async function AppearancePage() {
+  const t = await getTranslations('settings');
+
   return (
     <>
       <div className="mb-6 md:mb-8">
         <h1 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          Appearance
+          {t('appearance.title')}
         </h1>
-        <p className="text-muted-foreground mt-1">
-          Customize how Rustrak looks on your device
-        </p>
+        <p className="text-muted-foreground mt-1">{t('appearance.subtitle')}</p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Theme</CardTitle>
-          <CardDescription>Select your preferred color scheme</CardDescription>
+          <CardTitle>{t('appearance.theme')}</CardTitle>
+          <CardDescription>{t('appearance.themeDescription')}</CardDescription>
         </CardHeader>
         <CardContent>
           <ThemeSelector />

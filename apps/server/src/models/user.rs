@@ -56,6 +56,14 @@ pub struct User {
     pub role: String,
     pub created_at: DateTime<Utc>,
     pub last_login: Option<DateTime<Utc>>,
+    /// The dashboard language this user chose, or `None` if they never have.
+    ///
+    /// `None` is not "English": it is what lets a consumer fall back to the
+    /// reader's `Accept-Language` instead of forcing a default on someone who
+    /// never opened the setting.
+    pub language: Option<String>,
+    /// The IANA timezone this user chose, or `None` if they never have.
+    pub timezone: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

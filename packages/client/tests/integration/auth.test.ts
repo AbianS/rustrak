@@ -199,6 +199,42 @@ describe('AuthResource Integration', () => {
     });
   });
 
+  describe('updatePreferences()', () => {
+    it('should send the chosen language and timezone and return the updated user', async () => {
+      expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
+
+      const user = expectOk(
+        await client.auth.updatePreferences({
+          language: 'zh',
+          timezone: 'Asia/Tokyo',
+        }),
+      );
+
+      expect(user.language).toBe('zh');
+      expect(user.timezone).toBe('Asia/Tokyo');
+    });
+
+    it('should clear a preference when it is sent as null', async () => {
+      expectOk(
+        await client.auth.login({
+          email: 'test@example.com',
+          password: 'password123',
+        }),
+      );
+
+      const user = expectOk(
+        await client.auth.updatePreferences({ language: null }),
+      );
+
+      expect(user.language).toBeNull();
+    });
+  });
+
   describe('getCurrentUser()', () => {
     it('should get current authenticated user', async () => {
       // First login to set session

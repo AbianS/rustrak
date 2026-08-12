@@ -7,6 +7,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from 'lucide-react';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import type { DataTableInstance } from './use-app-table';
 
@@ -28,9 +29,11 @@ export function DataTablePagination<TData extends RowData>({
   table: DataTableInstance<TData>;
   disabled?: boolean;
 }) {
+  const format = useFormatter();
   const { pageIndex, pageSize } = table.state.pagination;
   const pageCount = table.getPageCount();
   const rowCount = table.getRowCount();
+  const t = useTranslations('table');
 
   if (pageCount <= 1) return null;
 
@@ -45,9 +48,9 @@ export function DataTablePagination<TData extends RowData>({
           was being looked for. */}
       <p className="text-xs text-muted-foreground tabular-nums">
         <span className="font-medium text-foreground">
-          {first.toLocaleString()}-{last.toLocaleString()}
+          {format.number(first)}-{format.number(last)}
         </span>{' '}
-        of {rowCount.toLocaleString()}
+        {t('ofTotal', { total: format.number(rowCount) })}
       </p>
 
       <div className="flex items-center gap-1">
@@ -55,7 +58,7 @@ export function DataTablePagination<TData extends RowData>({
           variant="outline"
           size="icon"
           className="size-8"
-          aria-label="First page"
+          aria-label={t('firstPage')}
           onClick={() => table.setPageIndex(0)}
           disabled={disabled || !table.getCanPreviousPage()}
         >
@@ -65,7 +68,7 @@ export function DataTablePagination<TData extends RowData>({
           variant="outline"
           size="icon"
           className="size-8"
-          aria-label="Previous page"
+          aria-label={t('previousPage')}
           onClick={() => table.previousPage()}
           disabled={disabled || !table.getCanPreviousPage()}
         >
@@ -73,16 +76,17 @@ export function DataTablePagination<TData extends RowData>({
         </Button>
 
         <span className="px-2 text-xs text-muted-foreground tabular-nums">
-          Page{' '}
-          <span className="font-medium text-foreground">{pageIndex + 1}</span>{' '}
-          of {pageCount.toLocaleString()}
+          {t('pageOf', {
+            current: pageIndex + 1,
+            total: format.number(pageCount),
+          })}
         </span>
 
         <Button
           variant="outline"
           size="icon"
           className="size-8"
-          aria-label="Next page"
+          aria-label={t('nextPage')}
           onClick={() => table.nextPage()}
           disabled={disabled || !table.getCanNextPage()}
         >
@@ -92,7 +96,7 @@ export function DataTablePagination<TData extends RowData>({
           variant="outline"
           size="icon"
           className="size-8"
-          aria-label="Last page"
+          aria-label={t('lastPage')}
           onClick={() => table.setPageIndex(pageCount - 1)}
           disabled={disabled || !table.getCanNextPage()}
         >

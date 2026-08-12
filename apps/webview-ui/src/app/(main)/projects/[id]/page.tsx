@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { Suspense } from 'react';
 import { getProject } from '@/features/project/api/queries';
 import { ProjectHeader } from '@/features/project/ui/components/project-header';
@@ -23,16 +24,19 @@ interface ProjectPageProps {
 export async function generateMetadata({
   params,
 }: ProjectPageProps): Promise<Metadata> {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const project = await getProject(parseInt(id, 10));
 
   if (!project.success) {
-    return { title: 'Project Not Found | Rustrak' };
+    return { title: t('projectNotFound') };
   }
 
   return {
-    title: `${project.data.name} | Rustrak`,
-    description: `Overview for ${project.data.name}`,
+    title: t('projectTitle', { project: project.data.name }),
+    description: t('overview.meta.description', {
+      project: project.data.name,
+    }),
   };
 }
 
@@ -40,6 +44,7 @@ export default async function ProjectPage({
   params,
   searchParams,
 }: ProjectPageProps) {
+  const t = await getTranslations('projectPages');
   const { id } = await params;
   const { period: rawPeriod } = await searchParams;
   const projectId = parseInt(id, 10);
@@ -53,7 +58,7 @@ export default async function ProjectPage({
 
   if (!projectResult.success) {
     return (
-      <LoadFailure error={projectResult.error} title="Could not load project" />
+      <LoadFailure error={projectResult.error} title={t('loadProjectFailed')} />
     );
   }
 

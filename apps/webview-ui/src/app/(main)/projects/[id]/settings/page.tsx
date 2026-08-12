@@ -8,5 +8,5 @@ export default async function ProjectSettingsIndexPage({
   params,
 }: ProjectSettingsIndexPageProps) {
   const { id } = await params;
-  redirect(`/projects/${id}/settings/general`);
+  await redirect(`/projects/${id}/settings/general`);
 }
