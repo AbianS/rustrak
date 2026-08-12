@@ -2,6 +2,7 @@
 
 import type { Issue, OffsetPaginatedResponse } from '@rustrak/client';
 import { AlertCircle, Check, Trash2, VolumeX, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -11,7 +12,6 @@ import {
   deleteIssue,
 } from '@/features/issue/api/mutations';
 import { type IssueAction, STATUS_FOR } from '@/features/issue/model/actions';
-import { useRouter } from '@/shared/i18n/navigation';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';
 import { DataTablePagination } from '@/shared/ui/components/data-table/pagination';
 import { useAppTable } from '@/shared/ui/components/data-table/use-app-table';

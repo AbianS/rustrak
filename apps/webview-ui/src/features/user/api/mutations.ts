@@ -12,6 +12,7 @@ import type {
   UpsertProjectMember,
   User,
 } from '@rustrak/client';
+import { Ok } from '@rustrak/client';
 import {
   applySetCookies,
   clearSessionCookies,
@@ -111,6 +112,26 @@ export async function updateUserRole(
 ): Promise<Result<void, RustrakError>> {
   const client = await createClient();
   return client.team.updateRole(userId, role);
+}
+
+/**
+ * Store how this reader wants the dashboard presented to them.
+ *
+ * A field left out is left alone; a field sent as `null` is cleared, which is
+ * how a reader goes back to "infer it from my browser" after having chosen.
+ *
+ * @param preferences - Language and/or timezone
+ * @returns `Ok` on success, or the failure the server reported
+ */
+export async function updatePreferences(preferences: {
+  language?: string | null;
+  timezone?: string | null;
+}): Promise<Result<void, RustrakError>> {
+  const client = await createClient();
+  const result = await client.auth.updatePreferences(preferences);
+  // The updated user comes back and nothing here needs it: the page re-renders
+  // from the server, which reads the row again.
+  return result.success ? Ok(undefined) : result;
 }
 
 /**

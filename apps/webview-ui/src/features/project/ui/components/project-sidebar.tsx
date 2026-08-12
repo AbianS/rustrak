@@ -12,9 +12,10 @@ import {
   Settings,
   Zap,
 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
-import { Link, usePathname } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   DropdownMenu,

@@ -3,13 +3,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { GlobalRole } from '@rustrak/client';
 import { UserPlus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { createInvitation } from '@/features/user/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { Button } from '@/shared/ui/components/shadcn/button';

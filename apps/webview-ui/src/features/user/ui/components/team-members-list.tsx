@@ -2,6 +2,7 @@
 
 import type { GlobalRole, TeamMember } from '@rustrak/client';
 import { Loader2, Trash2, Users } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -10,7 +11,6 @@ import {
   updateUserRole,
 } from '@/features/user/api/mutations';
 import { TeamMembersTable } from '@/features/user/ui/components/team-members-table';
-import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

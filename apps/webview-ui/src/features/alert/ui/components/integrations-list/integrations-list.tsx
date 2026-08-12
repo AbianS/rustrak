@@ -2,6 +2,7 @@
 
 import type { AlertIntegration, ProviderType } from '@rustrak/client';
 import { Bell, ChevronDown } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +13,6 @@ import {
 import { alertProviders } from '@/features/alert/model/providers';
 import { IntegrationConfigDialog } from '@/features/alert/ui/components/integration-config-dialog/integration-config-dialog';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
-import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,

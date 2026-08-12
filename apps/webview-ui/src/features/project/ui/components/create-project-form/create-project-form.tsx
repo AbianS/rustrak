@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { useMemo, useTransition } from 'react';
@@ -15,7 +16,6 @@ import {
 } from '@/features/project/model/fields';
 import { useProjectSlug } from '@/features/project/ui/hooks/use-project-slug';
 import { platformLabel } from '@/shared/config/platforms';
-import { useRouter } from '@/shared/i18n/navigation';
 import type { Translate } from '@/shared/lib/error-copy';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import { PlatformGrid } from '@/shared/ui/components/platform-grid';

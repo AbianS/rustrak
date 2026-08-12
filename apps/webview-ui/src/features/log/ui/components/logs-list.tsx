@@ -2,9 +2,9 @@
 
 import type { Log, OffsetPaginatedResponse } from '@rustrak/client';
 import { ScrollText } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useMemo } from 'react';
-import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { expandColumn } from '@/shared/ui/components/data-table/columns';
 import { DataTable } from '@/shared/ui/components/data-table/data-table';

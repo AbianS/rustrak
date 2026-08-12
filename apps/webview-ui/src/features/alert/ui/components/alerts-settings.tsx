@@ -2,6 +2,8 @@
 
 import type { AlertIntegration, AlertRule, Project } from '@rustrak/client';
 import { Bell, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -11,7 +13,6 @@ import {
 } from '@/features/alert/api/mutations';
 import { AlertRuleFormDialog } from '@/features/alert/ui/components/alert-rule-dialog/alert-rule-dialog';
 import { AlertRulesTable } from '@/features/alert/ui/components/alert-rules-table';
-import { Link, useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

@@ -1,8 +1,8 @@
 import type { Issue } from '@rustrak/client';
 import { AlertCircle, Users } from 'lucide-react';
+import Link from 'next/link';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { LevelBadge } from '@/features/issue/ui/components/issue-indicators';
-import { Link } from '@/shared/i18n/navigation';
 import {
   Card,
   CardContent,

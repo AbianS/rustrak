@@ -1,6 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
@@ -15,7 +16,6 @@ import {
   webhookDefaults,
   webhookFormSchema,
 } from '@/features/alert/model/integration-forms';
-import { useRouter } from '@/shared/i18n/navigation';
 import { applyServerFieldErrors } from '@/shared/lib/form-errors';
 import {
   DialogDescription,

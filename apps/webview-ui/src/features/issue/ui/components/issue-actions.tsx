@@ -21,6 +21,7 @@ import {
   Trash2,
   Undo,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -32,7 +33,6 @@ import {
   updateIssueState,
 } from '@/features/issue/api/mutations';
 import { priorityDisplay } from '@/features/issue/model/status';
-import { useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,

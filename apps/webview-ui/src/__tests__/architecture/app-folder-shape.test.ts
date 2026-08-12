@@ -82,19 +82,20 @@ describe('AD-9 rule (8): the shape of app/', () => {
       .adhereTo(() => true, 'counted')
       .check();
 
-    // 54 source files under `app/`.
+    // 53 source files under `app/`.
     //
-    // The number this replaced was 49, set when the page tests were deleted and
-    // the four `__tests__` folders under `app/` went with them. It had drifted
-    // five behind since: `main` holds 53, and the `[...rest]` catch-all that
-    // makes `not-found.tsx` reachable for an unmatched URL is the 54th. The
-    // i18n pass itself moved every route under `[locale]` without changing the
-    // count, which is what a rename should do.
+    // Briefly 54: a `[...rest]` catch-all existed so that an unmatched URL
+    // raised `notFound()` from *inside* the `[locale]` segment, which was the
+    // only way `not-found.tsx` could render while the root layout was a dynamic
+    // segment. Taking the locale out of the URL made the root layout static
+    // again, so Next resolves `app/not-found.tsx` by itself and the catch-all
+    // has nothing left to do.
     //
-    // A floor five below the truth still passes while the glob quietly narrows
-    // to 49, which is the failure this assertion exists to catch, so it is
-    // worth re-pinning rather than leaving as headroom.
-    expect(underApp.length).toBeGreaterThanOrEqual(54);
+    // Before that it read 49, set when the page tests were deleted and the four
+    // `__tests__` folders under `app/` went with them, and it had drifted four
+    // behind since. A floor below the truth still passes while the glob quietly
+    // narrows, which is the failure this assertion exists to catch.
+    expect(underApp.length).toBeGreaterThanOrEqual(53);
   });
 
   it('has no component sitting loose beside a route', async () => {

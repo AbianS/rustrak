@@ -2,6 +2,7 @@
 
 import type { AuthToken } from '@rustrak/client';
 import { Key, Plus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -10,7 +11,6 @@ import {
   deleteToken,
   getToken,
 } from '@/features/token/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import {
   AlertDialog,

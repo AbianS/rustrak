@@ -2,11 +2,11 @@
 
 import type { ActivityEntry } from '@rustrak/client';
 import { Loader2, MessageSquare } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { addIssueComment } from '@/features/issue/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Textarea } from '@/shared/ui/components/shadcn/textarea';
 

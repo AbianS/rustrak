@@ -4,8 +4,8 @@ import type { Messages } from 'next-intl';
  * Which slice of the dictionary crosses into the browser, and where.
  *
  * `NextIntlClientProvider` serialises whatever it is given into the RSC payload
- * of every page under it. One provider at the root handed all 31 namespaces to
- * all 32 routes, which made `/auth/login` -- the one page a visitor sees before
+ * of every page under it. One provider at the root handed all 30 namespaces to
+ * all 33 routes, which made `/auth/login` -- the one page a visitor sees before
  * they are anyone -- a 113KB document carrying the copy for source-map cleanup
  * and project deletion. Measured on the built app, not inferred.
  *
@@ -21,7 +21,8 @@ import type { Messages } from 'next-intl';
  */
 
 /**
- * Everything under `[locale]/`, including the two pages outside `(main)`.
+ * The shell: everything outside `(main)`, which is the login and the
+ * invitation, plus the error and not-found screens.
  *
  * `error` and `formErrors` are here rather than in `MAIN` because the login and
  * invitation forms resolve server rejections through them, and those are the

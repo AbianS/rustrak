@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -7,7 +8,6 @@ import {
   type CommandProject,
   PROJECT_COMMANDS,
 } from '@/shared/config/commands';
-import { useRouter } from '@/shared/i18n/navigation';
 import { filterCommand } from '@/shared/lib/command-score';
 import { cn } from '@/shared/lib/utils';
 import { Command, CommandInput } from '@/shared/ui/components/shadcn/command';

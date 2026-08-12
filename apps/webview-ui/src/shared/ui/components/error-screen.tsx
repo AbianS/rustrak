@@ -1,9 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import { APP_VERSION } from '@/shared/config/constants';
-import { Link } from '@/shared/i18n/navigation';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 
 /**

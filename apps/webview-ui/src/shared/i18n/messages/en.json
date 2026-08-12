@@ -3,7 +3,8 @@
     "en": "English",
     "zh": "简体中文",
     "label": "Language",
-    "storedOnDevice": "Saved in this browser, not on your account."
+    "storedOnAccount": "Saved to your account.",
+    "saveFailed": "Could not save your language."
   },
   "app": {
     "title": "Rustrak - Error Tracking System",
@@ -1460,7 +1461,7 @@
       "role": "Role",
       "administrator": "Administrator",
       "regional": "Language and region",
-      "regionalDescription": "How Rustrak reads to you on this device"
+      "regionalDescription": "How Rustrak reads to you, saved to your account"
     },
     "appearance": {
       "meta": {

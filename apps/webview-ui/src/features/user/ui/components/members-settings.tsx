@@ -2,6 +2,7 @@
 
 import type { ProjectMember, ProjectRole, TeamMember } from '@rustrak/client';
 import { Loader2, UserPlus, Users } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -12,7 +13,6 @@ import {
 } from '@/features/user/api/mutations';
 import { PROJECT_ROLES, roleLabel } from '@/features/user/model/roles';
 import { ProjectMembersTable } from '@/features/user/ui/components/project-members-table';
-import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

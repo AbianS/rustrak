@@ -3,7 +3,8 @@
     "en": "English",
     "zh": "简体中文",
     "label": "语言",
-    "storedOnDevice": "保存在此浏览器中，不会保存到您的账户。"
+    "storedOnAccount": "已保存到您的账户。",
+    "saveFailed": "无法保存您的语言设置。"
   },
   "app": {
     "title": "Rustrak - 错误跟踪系统",
@@ -1460,7 +1461,7 @@
       "role": "角色",
       "administrator": "管理员",
       "regional": "语言与地区",
-      "regionalDescription": "Rustrak 在此设备上以何种方式呈现给您"
+      "regionalDescription": "Rustrak 以何种方式呈现给您，已保存到您的账户"
     },
     "appearance": {
       "meta": {

@@ -2,11 +2,11 @@
 
 import type { Invitation } from '@rustrak/client';
 import { Copy, Mail, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { revokeInvitation } from '@/features/user/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import { copyToClipboard } from '@/shared/lib/clipboard';
 import { type Translate } from '@/shared/lib/error-copy';
 import { Badge } from '@/shared/ui/components/shadcn/badge';

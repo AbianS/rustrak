@@ -2,6 +2,7 @@
 
 import type { CleanupCounts } from '@rustrak/client';
 import { AlertTriangle, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +10,6 @@ import {
   executeStorageCleanup,
   previewStorageCleanup,
 } from '@/features/storage/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import {
   AlertDialog,
   AlertDialogAction,

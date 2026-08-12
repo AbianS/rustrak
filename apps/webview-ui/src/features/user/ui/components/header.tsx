@@ -2,10 +2,11 @@
 
 import type { User } from '@rustrak/client';
 import { LogOut, Settings } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { type ReactNode, useTransition } from 'react';
 import { logout } from '@/features/user/api/mutations';
-import { Link, useRouter } from '@/shared/i18n/navigation';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {

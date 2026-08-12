@@ -2,6 +2,7 @@
 
 import type { SourceMapGcResult } from '@rustrak/client';
 import { FileCode2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -9,7 +10,6 @@ import {
   gcStorageSourceMaps,
   previewStorageSourceMapGc,
 } from '@/features/storage/api/mutations';
-import { useRouter } from '@/shared/i18n/navigation';
 import { formatBytes } from '@/shared/lib/utils';
 import {
   AlertDialog,

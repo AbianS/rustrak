@@ -2,9 +2,10 @@
 
 import type { OffsetPaginatedResponse, Transaction } from '@rustrak/client';
 import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
-import { Link, useRouter } from '@/shared/i18n/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';

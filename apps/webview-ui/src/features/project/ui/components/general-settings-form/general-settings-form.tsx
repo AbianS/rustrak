@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { Project } from '@rustrak/client';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useMemo, useTransition } from 'react';
 import { useForm } from 'react-hook-form';
@@ -12,7 +13,6 @@ import {
   projectNameField,
   projectSlugField,
 } from '@/features/project/model/fields';
-import { useRouter } from '@/shared/i18n/navigation';
 import type { Translate } from '@/shared/lib/error-copy';
 import { describeError } from '@/shared/lib/error-copy';
 import {

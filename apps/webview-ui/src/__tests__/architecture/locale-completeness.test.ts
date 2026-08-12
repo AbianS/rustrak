@@ -39,21 +39,20 @@ const LOCALE_BLIND_FORMAT =
   /toLocale(?:String|DateString|TimeString)\s*\(|new Intl\.|(?:from|import)\s+['"]date-fns['"]/;
 
 /**
- * `Link` and the router, but not `notFound`.
+ * The URL carries no locale, so nothing may route as if it did.
  *
- * With `localePrefix: 'always'` a plain `next/link` href omits the prefix, so
- * the click leaves the app, hits the proxy and comes back as a 307 to the
- * prefixed URL. It works, which is why three of these survived the pass, and it
- * costs a round trip on every navigation that takes the wrong door.
+ * **This rule used to say the opposite.** While the locale lived in the path,
+ * a plain `next/link` href omitted the prefix and the proxy bounced it back as
+ * a 307, so every navigation had to go through next-intl's wrapper. That whole
+ * apparatus is gone: an internal dashboard sits behind a login where nothing
+ * is indexed, nothing is cached per locale, and a link pasted to a colleague
+ * should open in *their* language, not the sender's.
  *
- * `notFound()` is deliberately absent from this list. It raises a control-flow
- * signal rather than producing a URL, next-intl does not wrap it, and four
- * files call it correctly today.
+ * What is left to enforce is that it does not creep back. A locale-aware
+ * navigation import means someone reintroduced the wrapper; a `[locale]`
+ * segment or a `proxy.ts` means someone reintroduced the routing.
  */
-const UNPREFIXED_LINK = /(?:from|import)\s+['"]next\/link['"]/;
-
-const UNPREFIXED_ROUTER =
-  /import\s*\{[^}]*\b(?:useRouter|usePathname|redirect|permanentRedirect)\b[^}]*\}\s*from\s+['"]next\/navigation['"]/;
+const LOCALE_ROUTING = /(?:from|import)\s+['"][^'"]*i18n\/navigation['"]/;
 
 const posix = (path: string) => path.split('\\').join('/');
 const isMessages = (path: string) => posix(path).includes('/messages/');
@@ -83,28 +82,26 @@ describe('the locale reaches the data, not just the chrome', () => {
   /**
    * The second floor, for the navigation rule specifically.
    *
-   * Banning `next/link` means nothing if nobody imports the replacement. This
-   * counts the files that go through next-intl's navigation API, so a refactor
-   * that deletes the locale-aware `Link` fails here rather than making the ban
-   * below trivially satisfiable.
-   *
-   * Matched on the substring `i18n/navigation` rather than a full alias, so the
-   * module can move between `@/i18n` and `@/shared/i18n` without this number
-   * silently becoming zero.
+   * Forbidding a locale-aware navigation import means nothing if nobody
+   * navigates. This counts the files that use Next's own navigation, so a
+   * refactor that empties them fails here rather than making the ban below
+   * trivially satisfiable.
    */
-  it('sees the locale-aware navigation it requires', async () => {
+  it('sees the navigation it claims to check', async () => {
     const users = await projectFiles()
       .inFolder('src/**')
       .shouldNot()
       .adhereTo(
         (file) =>
           judged(file.path) &&
-          withoutComments(file.content).includes('i18n/navigation'),
+          /(?:from|import)\s+['"]next\/(?:link|navigation)['"]/.test(
+            withoutComments(file.content),
+          ),
         'counted',
       );
 
-    // 48 files after the i18n pass.
-    expect((await users.check()).length).toBeGreaterThanOrEqual(45);
+    // 55 files after the locale prefix was removed.
+    expect((await users.check()).length).toBeGreaterThanOrEqual(50);
   });
 
   it('formats every date and number through the request locale', async () => {
@@ -121,15 +118,48 @@ describe('the locale reaches the data, not just the chrome', () => {
     await expect(rule).toPassAsync();
   });
 
-  it('builds every href through the locale-aware navigation API', async () => {
+  it('routes through Next, not through a locale-aware wrapper', async () => {
     const rule = projectFiles()
       .inFolder('src/**')
       .shouldNot()
-      .adhereTo((file) => {
-        if (!judged(file.path)) return false;
-        const source = withoutComments(file.content);
-        return UNPREFIXED_LINK.test(source) || UNPREFIXED_ROUTER.test(source);
-      }, 'navigates through next/link or next/navigation, which drops the locale prefix and costs a proxy redirect: import from the i18n navigation module');
+      .adhereTo(
+        (file) =>
+          judged(file.path) &&
+          LOCALE_ROUTING.test(withoutComments(file.content)),
+        'imports a locale-aware navigation module: the URL carries no locale, so `next/link` and `next/navigation` are correct here',
+      );
+
+    await expect(rule).toPassAsync();
+  });
+
+  /**
+   * The routing apparatus itself, pinned by its absence.
+   *
+   * The rule above catches a file that *uses* locale routing. These two catch
+   * someone re-adding the routing for it to use: a dynamic `[locale]` segment
+   * wrapping the app, or the proxy that would have to populate it. Both are
+   * cheap to check and neither has a natural reason to reappear.
+   */
+  it('has no locale segment in the route tree', async () => {
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo(
+        (file) => posix(file.path).includes('/app/[locale]/'),
+        'sits under a `[locale]` route segment: the locale comes from the reader, not the URL',
+      );
+
+    await expect(rule).toPassAsync();
+  });
+
+  it('has no proxy rewriting requests for a locale', async () => {
+    const rule = projectFiles()
+      .inFolder('src/**')
+      .shouldNot()
+      .adhereTo(
+        (file) => /(^|\/)(proxy|middleware)\.ts$/.test(posix(file.path)),
+        'is a proxy/middleware: the only one this app had existed to prefix URLs with a locale, and there is no longer a prefix',
+      );
 
     await expect(rule).toPassAsync();
   });

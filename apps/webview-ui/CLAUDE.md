@@ -22,7 +22,7 @@ were deleted on purpose. See "Architecture" below before adding a file.
 - **Styling**: Tailwind CSS 4.3
 - **UI Components**: Base UI + shadcn/ui
 - **Theme**: next-themes (dark/light/system)
-- **i18n**: next-intl 4 (`en`, `zh`), every route under `/[locale]`
+- **i18n**: next-intl 4 (`en`, `zh`), resolved per reader, **not** from the URL
 - **Icons**: Lucide React
 - **API Client**: `@rustrak/client` (workspace package)
 - **Architecture tests**: [archunit](https://github.com/lukasniessen/archunitts)
@@ -40,12 +40,10 @@ upward.** This is enforced, not merely documented.
 apps/webview-ui/
 ├── components.json              shadcn CLI config; its aliases point into shared/
 └── src/
-    ├── proxy.ts                 the locale middleware, and the only thing at src root
     ├── app/                     routing + composition. Next lives here.
-    │   └── [locale]/            every route is under it. See "Internationalisation"
-    │       └── <route>/
-    │           ├── page.tsx     and the other Next special files
-    │           └── _components/ everything else, unconditionally
+    │   └── <route>/
+    │       ├── page.tsx         and the other Next special files
+    │       └── _components/     everything else, unconditionally
     ├── features/                the domain, one slice per business concept
     │   └── <slice>/
     │       ├── ui/
@@ -68,9 +66,9 @@ apps/webview-ui/
 
 `i18n` is a segment of `shared`, not a fourth thing at the root of `src`. It
 was written as `src/i18n/` first, which put it outside all three layers and
-therefore outside every rule that governs them -- `shared/ui/components/locale-switcher.tsx`
-imported from it and no rule could see the edge. Under `shared/` it is covered
-by `layer-direction` for free.
+therefore outside every rule that governs them -- a shared component imported
+from it and no rule could see the edge. Under `shared/` it is covered by
+`layer-direction` for free.
 
 ### The eleven features
 
@@ -113,7 +111,7 @@ five routes still belongs to the feature whose type it names.
 
 ## Rules the CI enforces
 
-`src/__tests__/architecture/` holds eleven rule files, 44 assertions, written on
+`src/__tests__/architecture/` holds eleven rule files, 46 assertions, written on
 archunit. They run in `pnpm test`. **Read the rule before working around it** --
 each file documents why it exists and what it is protecting.
 
@@ -129,7 +127,7 @@ each file documents why it exists and what it is protecting.
 | `result-shape` | minting a `success: false` literal outside `@rustrak/client` |
 | `client-error-kinds` | a new client error `kind` slipping in unhandled (compile-time) |
 | `message-keys` | `en`/`zh` drifting apart, a translator bound to a namespace that does not exist, a key that resolves to nothing, or a second English dictionary living in a `.ts` file |
-| `locale-completeness` | formatting a date or number without the request locale (`toLocaleString`, `new Intl.*`, a date library), and navigating through `next/link` or `next/navigation`, which drops the locale prefix |
+| `locale-completeness` | formatting a date or number without the request locale (`toLocaleString`, `new Intl.*`, a date library); and re-introducing locale routing: a locale-aware navigation import, a `[locale]` segment, or a proxy |
 
 Two conventions in that folder that exist for a reason:
 
@@ -233,10 +231,34 @@ export function DeleteButton({ id }: { id: number }) {
 
 ## Internationalisation
 
-Two locales, `en` and `zh`, on next-intl 4. **Every route is under `/[locale]`
-and the prefix is always present** (`localePrefix: 'always'`), so `/projects`
-does not exist -- `/en/projects` and `/zh/projects` do. `proxy.ts` adds the
-prefix and remembers the choice in a cookie.
+Two locales, `en` and `zh`, on next-intl 4. **The locale is not in the URL.**
+`/projects` is `/projects` in every language; `shared/i18n/request.ts` resolves
+which one to answer in, per request, from the reader.
+
+That is next-intl's "without i18n routing" setup, and it is the right one for
+this app. A locale prefix buys indexable per-language URLs and per-locale
+caching, and an internal dashboard behind a login has use for neither. It also
+costs something real: a link pasted to a colleague opens in the *sender's*
+language rather than the reader's, which is backwards for a tool a team shares.
+
+There was a prefix for one unmerged branch. Removing it deleted `proxy.ts`, a
+navigation wrapper, a `redirect` wrapper, a catch-all route, a `hasLocale`
+guard, and the entire class of bug where a forged prefix (`/v1.0/...`) rendered
+the app under a bogus locale. Do not bring it back; `locale-completeness`
+fails the build if you start to.
+
+**Which language a request gets**, in order, in `request.ts`:
+
+1. the `NEXT_LOCALE` cookie, written when the reader picks one on
+   `/settings/account`. An explicit choice always beats an inferred one.
+2. `Accept-Language`, matched on the base tag so `zh-CN` and `zh-TW` both reach
+   `zh`. A first-time Chinese speaker lands in Chinese rather than being shown
+   English and left to find the setting.
+3. `en`.
+
+When the preference moves onto the user record (rustrak/rustrak#258, together
+with the timezone) that read goes in front, and the cookie becomes what an
+anonymous visitor gets rather than the store.
 
 ### The five things to know before touching it
 
@@ -273,8 +295,8 @@ prefix and remembers the choice in a cookie.
    `user.options.timezone ?? browserTimezone` and never defaults to UTC. Their
    frontend can read `Intl` directly because it renders in the browser; ours
    renders on the server, where the zone arrives in no header. So
-   `TimeZoneCookie` writes it from an inline script and `shared/i18n/timezone.ts`
-   reads it back, validated, falling back to UTC.
+   `TimeZoneCookie` writes it from an effect and `request.ts` reads it back,
+   validated, falling back to UTC.
 
    **A UTC reading is labelled, a local one is not.** Also Sentry's rule, from
    `dateTime.tsx`: the zone is shown only when the time is UTC, "in which case
@@ -284,13 +306,12 @@ prefix and remembers the choice in a cookie.
    `timeStyle` on that condition.
 
    Not ported: Sentry's persisted `user.options.timezone` and `clock24Hours`,
-   which need a column and an endpoint on the Rust side. The 12/24-hour clock
-   is the smaller loss, since `Intl` already picks it from the locale.
+   which need a column and an endpoint on the Rust side (#258, the same change
+   that persists the language). The 12/24-hour clock is the smaller loss, since
+   `Intl` already picks it from the locale.
 
-4. **Navigate through `shared/i18n/navigation.ts`**, never `next/link` or
-   `next/navigation`. `notFound()` is the one exception -- it produces no URL.
-   `shared/i18n/redirect.ts` is the server-side `redirect`, and is server-only
-   by construction.
+4. **Navigate with `next/link` and `next/navigation`,** plainly. There is no
+   wrapper to go through, because there is no prefix to preserve.
 
 5. **Messages are split by where they render.** `shared/i18n/client-messages.ts`
    holds two namespace sets: the shell's, and the dashboard's. One provider at
@@ -304,19 +325,7 @@ Add the key to **both** dictionaries, resolve it with `t`, run `pnpm test`.
 `message-keys` fails if `zh` is missing it, if the namespace does not exist, or
 if the key resolves to nothing.
 
-### The 404s
-
-`app/[locale]/[...rest]/page.tsx` exists so that an unmatched URL raises
-`notFound()` from *inside* the locale segment, which is what lets
-`[locale]/not-found.tsx` render it: translated, branded, with prefixed links.
-Without that route Next answers with its own unstyled page, because a
-`not-found.tsx` only renders for a `notFound()` raised in its segment and an
-unmatched URL never reaches one. Read that file before deleting it; it looks
-like it does nothing.
-
 ## Routes
-
-Every path below is prefixed with the locale: `/en/projects`, `/zh/settings`.
 
 | Route | Description |
 |-------|-------------|
@@ -352,11 +361,12 @@ Every path below is prefixed with the locale: `/en/projects`, `/zh/settings`.
 | `/settings/appearance` | Theme selector |
 | `/settings/about` | Version info |
 
-Failure surfaces: `app/[locale]/error.tsx` (full screen, with brand panel),
-`app/[locale]/(main)/error.tsx` (below the header, no brand panel), and
-`app/[locale]/not-found.tsx`, which answers every `notFound()` raised inside the
-app **and**, through the `[...rest]` catch-all, every unmatched URL. It did not
-answer unmatched URLs before that route existed; see "The 404s" above.
+Failure surfaces: `app/error.tsx` (full screen, with brand panel),
+`app/(main)/error.tsx` (below the header, no brand panel), and
+`app/not-found.tsx`, which answers both an unmatched URL and every `notFound()`
+raised inside the app. It only manages the first because the root layout is
+static again: while it was a `[locale]` segment, an unmatched URL reached no
+layout and Next served its own unstyled page instead.
 
 ## UI Components
 

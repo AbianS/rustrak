@@ -1,6 +1,6 @@
 import type { TransactionStats } from '@rustrak/client';
+import Link from 'next/link';
 import { getFormatter, getTranslations } from 'next-intl/server';
-import { Link } from '@/shared/i18n/navigation';
 
 interface TransactionP95BarsProps {
   projectId: number;

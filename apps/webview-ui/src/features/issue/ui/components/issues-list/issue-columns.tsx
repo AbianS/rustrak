@@ -10,6 +10,7 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useFormatter } from 'next-intl';
 import type { RefObject } from 'react';
 import type { IssueAction } from '@/features/issue/model/actions';
@@ -18,7 +19,6 @@ import {
   PriorityIndicator,
   StatusIndicator,
 } from '@/features/issue/ui/components/issue-indicators';
-import { Link } from '@/shared/i18n/navigation';
 import { selectionColumn } from '@/shared/ui/components/data-table/columns';
 import { createAppColumnHelper } from '@/shared/ui/components/data-table/use-app-table';
 import { Button } from '@/shared/ui/components/shadcn/button';

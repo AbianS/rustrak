@@ -2,11 +2,11 @@
 
 import type { Project } from '@rustrak/client';
 import { MoreVertical, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { useFormatter, useTranslations } from 'next-intl';
 import { PlatformIcon } from 'platformicons';
 import { PROJECT_COLUMNS } from '@/features/project/model/columns';
 import { ProjectStatsCells } from '@/features/project/ui/components/project-stats-cells';
-import { Link } from '@/shared/i18n/navigation';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import { Checkbox } from '@/shared/ui/components/shadcn/checkbox';
 import {
