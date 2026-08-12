@@ -1,5 +1,11 @@
 # @rustrak/server
 
+## 0.14.3
+
+### Patch Changes
+
+- [`612ae3f`](https://github.com/rustrak/rustrak/commit/612ae3fe5edf0592a8829ea3f6e3bcca46ea577a) Thanks [@AbianS](https://github.com/AbianS)! - The dashboard is internationalized and ships English and Chinese (@LiJoeAllen). Language is picked in `/settings/account` and stored on the user account rather than in a cookie, so it follows the reader to another browser; before a choice is made it follows `Accept-Language`. Timezone moves onto the account the same way, adopting the browser's zone once when unset. Dates and numbers now format in the reader's locale everywhere, and `date-fns` is gone. The server gains nullable `language` and `timezone` columns on the user and accepts either through `PATCH /auth/me`.
+
 ## 0.14.2
 
 ### Patch Changes
