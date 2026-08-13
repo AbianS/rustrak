@@ -1,5 +1,11 @@
 # docs
 
+## 0.15.4
+
+### Patch Changes
+
+- [`d8a8d92`](https://github.com/rustrak/rustrak/commit/d8a8d92c1f1942d35430cd897ceaf74958b81810) Thanks [@AbianS](https://github.com/AbianS)! - The landing's hydration flag moves from `useState` plus a mount effect to `useSyncExternalStore`, so the correction lands before the first paint instead of after it. Site dependencies updated, including motion 12 to 13.
+
 ## 0.15.3
 
 ### Patch Changes
