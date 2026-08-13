@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/index.js';
+import { spanSchema } from '../../src/schemas/index.js';
 import { expectOk } from '../helpers/result.js';
 
 const client = new RustrakClient({
@@ -44,6 +45,44 @@ describe('SpansResource', () => {
         }),
       );
       expect(result).toBeDefined();
+    });
+
+    it('omits attributes — the list stays light', () => {
+      // `spans.data` is never trimmed server-side, so a trace's worth of
+      // prompts would dwarf the waterfall the list draws. Attributes come
+      // from get() instead, one span at a time.
+      expect(spanSchema.shape).not.toHaveProperty('attributes');
+    });
+  });
+
+  describe('get()', () => {
+    it('returns the span with its raw gen_ai attribute bag', async () => {
+      const span = expectOk(
+        await client.spans.get(1, 'd4e5f6a7-e89b-12d3-a456-426614174000'),
+      );
+
+      expect(span.op).toBe('gen_ai.chat');
+      expect(span.attributes['gen_ai.request.messages']).toBe(
+        '[{"role":"user","content":"what is the weather"}]',
+      );
+      expect(span.attributes['gen_ai.response.text']).toBe('it is sunny');
+    });
+
+    it('carries tags when the producer stored them', async () => {
+      const span = expectOk(
+        await client.spans.get(1, 'd4e5f6a7-e89b-12d3-a456-426614174000'),
+      );
+
+      expect(span.tags).toEqual({ environment: 'production' });
+    });
+
+    it('returns a not-found error for an unknown span', async () => {
+      const result = await client.spans.get(1, 'ffffffff-0000-0000-0000-000000000000');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.kind).toBe('not_found');
+      }
     });
   });
 });

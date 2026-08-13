@@ -115,7 +115,8 @@ impl Processor for SpanProcessor {
                 gen_ai_operation_type, gen_ai_agent_name,
                 gen_ai_request_model, gen_ai_response_model,
                 gen_ai_tool_name, gen_ai_conversation_id,
-                gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
+                gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
+                    gen_ai_usage_cached_input_tokens, gen_ai_usage_reasoning_output_tokens
             ) VALUES (
                 $1, NULL, $2,
                 $3, $4, $5,
@@ -127,7 +128,7 @@ impl Processor for SpanProcessor {
                 $20, $21,
                 $22, $23,
                 $24, $25,
-                $26, $27, $28
+                $26, $27, $28, $29, $30
             )
             "#,
         )
@@ -159,6 +160,8 @@ impl Processor for SpanProcessor {
         .bind(gen_ai.usage_input_tokens)
         .bind(gen_ai.usage_output_tokens)
         .bind(gen_ai.usage_total_tokens)
+        .bind(gen_ai.usage_cached_input_tokens)
+        .bind(gen_ai.usage_reasoning_output_tokens)
         .execute(&ctx.pool)
         .await?;
 

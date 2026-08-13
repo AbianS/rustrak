@@ -1414,6 +1414,18 @@
             }
           },
           {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "interval_hours",
             "in": "query",
             "description": "Bucket width in hours (default: 1).",
@@ -1434,6 +1446,153 @@
                   "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/AgentDurationPoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/environments": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/environments\nThe options the environment filter offers, read from the data rather than\nhardcoded — an installation may name its environments anything.",
+        "operationId": "agent_environments",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Environments present in this project's AI spans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/models": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/models",
+        "operationId": "agent_models_table",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-model volume, failures, latency and token split",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentModelRow"
                   }
                 }
               }
@@ -1496,6 +1655,18 @@
                 "null"
               ],
               "format": "int64"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
@@ -1585,6 +1756,18 @@
             }
           },
           {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
@@ -1671,6 +1854,18 @@
             }
           },
           {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "interval_hours",
             "in": "query",
             "description": "Bucket width in hours (default: 1).",
@@ -1692,6 +1887,89 @@
                   "items": {
                     "$ref": "#/components/schemas/AgentTimeseriesPoint"
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/agents/summary": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/summary\nAgent runs, LLM calls, tool calls, errors, tokens and latency over the\nselected window — the numbers the six charts cannot state outright.",
+        "operationId": "agent_summary",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Headline totals for the selected window",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSummary"
                 }
               }
             }
@@ -1756,6 +2034,18 @@
             }
           },
           {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
@@ -1810,6 +2100,92 @@
         ]
       }
     },
+    "/api/projects/{project_id}/agents/tools/stats": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "summary": "GET /api/projects/{project_id}/agents/tools/stats",
+        "operationId": "agent_tools_table",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter).",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Per-tool call volume, failures and latency",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AgentToolRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/projects/{project_id}/agents/traces": {
       "get": {
         "tags": [
@@ -1826,6 +2202,31 @@
             "schema": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter). The dashboard\napplies one window to every widget, and this table is one of them.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "environment",
+            "in": "query",
+            "description": "Restrict to spans reporting this environment (default: all).",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           {
@@ -1878,6 +2279,8 @@
                           "agent_names",
                           "total_tokens",
                           "tool_call_count",
+                          "llm_call_count",
+                          "error_count",
                           "started_at"
                         ],
                         "properties": {
@@ -1895,6 +2298,16 @@
                             ],
                             "format": "double",
                             "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+                          },
+                          "error_count": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "AI spans in this trace whose status is set and not `ok`."
+                          },
+                          "llm_call_count": {
+                            "type": "integer",
+                            "format": "int64",
+                            "description": "`ai_client` spans in this trace — how many times a model was actually\ncalled, which is what separates a one-shot answer from an agent loop."
                           },
                           "started_at": {
                             "type": "string",
@@ -5023,7 +5436,7 @@
                               "string",
                               "null"
                             ],
-                            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                            "description": "Set for every span. A standalone span reports its own; a\ntransaction-embedded one is stamped with its parent transaction's at\nwrite time, rather than being left NULL to be recovered by a JOIN —\nthe agents dashboard filters `spans` directly and a NULL would drop\nthe row from an environment-filtered view."
                           },
                           "release": {
                             "type": [
@@ -5097,6 +5510,74 @@
                       "format": "int64"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/projects/{project_id}/spans/{span_id}": {
+      "get": {
+        "tags": [
+          "Spans"
+        ],
+        "summary": "GET /api/projects/{project_id}/spans/{span_id}\nReturns one span together with its attributes and tags — the `gen_ai.*`\npayload (prompts, responses, tool arguments and results) that the list\nresponse deliberately omits, since `spans.data` is untrimmed and a whole\ntrace's worth of it would dwarf the waterfall it is drawn from.",
+        "operationId": "get_span",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "description": "Project ID",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "span_id",
+            "in": "path",
+            "description": "Span row ID (the `id` field of a span list item, not the SDK's 16-hex span_id)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Span with its full attribute bag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpanDetailResponse"
                 }
               }
             }
@@ -5867,7 +6348,7 @@
                           "string",
                           "null"
                         ],
-                        "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+                        "description": "Set for every span. A standalone span reports its own; a\ntransaction-embedded one is stamped with its parent transaction's at\nwrite time, rather than being left NULL to be recovered by a JOIN —\nthe agents dashboard filters `spans` directly and a NULL would drop\nthe row from an environment-filtered view."
                       },
                       "release": {
                         "type": [
@@ -7100,6 +7581,108 @@
           }
         }
       },
+      "AgentModelRow": {
+        "type": "object",
+        "description": "One row of the Models table: per response model, the volume, the failures,\nthe latency and the full token split.\n\nCached input and reasoning output are SUBSETS of input/output, not\nadditions — a reader comparing them must not add all four together.",
+        "required": [
+          "model",
+          "requests",
+          "errors",
+          "avg_ms",
+          "p95_ms",
+          "input_tokens",
+          "cached_input_tokens",
+          "output_tokens",
+          "reasoning_output_tokens",
+          "total_tokens"
+        ],
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "cached_input_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "input_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "model": {
+            "type": "string"
+          },
+          "output_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "p95_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "reasoning_output_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "requests": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tokens": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "AgentSummary": {
+        "type": "object",
+        "description": "Headline numbers for the agents dashboard, over the selected window.\n\nToken totals exclude `agent`-type spans throughout, for the same reason\nthe Traces table does: an agent span's usage is a client-side rollup of\nits `ai_client` children, so counting both double-counts.",
+        "required": [
+          "agent_runs",
+          "llm_calls",
+          "tool_calls",
+          "error_count",
+          "total_tokens",
+          "avg_duration_ms",
+          "p95_duration_ms"
+        ],
+        "properties": {
+          "agent_runs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "avg_duration_ms": {
+            "type": "number",
+            "format": "double",
+            "description": "Over `agent` and `ai_client` spans — matching the Duration chart."
+          },
+          "error_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "AI spans whose status is set and not `ok`."
+          },
+          "llm_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p95_duration_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool_calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "total_tokens": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "AgentTimeseriesPoint": {
         "type": "object",
         "description": "One time-bucketed value (count or sum) — mirrors `SessionTimeseriesPoint`.",
@@ -7118,6 +7701,38 @@
           }
         }
       },
+      "AgentToolRow": {
+        "type": "object",
+        "description": "One row of the Tools table: per tool, how often it ran and how often it\nfailed. A tool with a high failure rate is the most actionable signal the\nagents page can carry.",
+        "required": [
+          "tool",
+          "calls",
+          "errors",
+          "avg_ms",
+          "p95_ms"
+        ],
+        "properties": {
+          "avg_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "calls": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "errors": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "p95_ms": {
+            "type": "number",
+            "format": "double"
+          },
+          "tool": {
+            "type": "string"
+          }
+        }
+      },
       "AgentTraceSummary": {
         "type": "object",
         "description": "One row of the Traces table — per-`trace_id` aggregate across all AI\nspans (standalone and transaction-embedded) sharing that trace.",
@@ -7126,6 +7741,8 @@
           "agent_names",
           "total_tokens",
           "tool_call_count",
+          "llm_call_count",
+          "error_count",
           "started_at"
         ],
         "properties": {
@@ -7143,6 +7760,16 @@
             ],
             "format": "double",
             "description": "Duration of the root/longest AI span in this trace, in milliseconds."
+          },
+          "error_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "AI spans in this trace whose status is set and not `ok`."
+          },
+          "llm_call_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`ai_client` spans in this trace — how many times a model was actually\ncalled, which is what separates a one-shot answer from an agent loop."
           },
           "started_at": {
             "type": "string",
@@ -9024,6 +9651,28 @@
           }
         }
       },
+      "SpanDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SpanResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "attributes"
+            ],
+            "properties": {
+              "attributes": {
+                "description": "The span's attribute bag, flattened to `{key: value}` regardless of\nwhich producer wrote the row — see [`span_attributes`]. This is the\n`gen_ai.*` payload (prompts, responses, tool arguments and results,\nsystem instructions, tool definitions) that the agents UI renders."
+              },
+              "tags": {
+                "description": "Span tags, when the producer stored any. Spans Protocol v2 has no\nseparate tags concept — everything is an attribute — so this is always\n`None` for a v2-origin span."
+              }
+            }
+          }
+        ],
+        "description": "One span with its full attribute bag — the detail counterpart to\n[`SpanResponse`].\n\nThe list response deliberately omits attributes: `spans.data` is never\ntrimmed (unlike event data, which goes through `services::event_trim`), so\na single AI span can carry a whole prompt and a trace's worth of them would\ndwarf the waterfall it is drawn from. Attributes are fetched one span at a\ntime instead, which is also how Sentry's own agent drawer works — the span\nlist is light and the details panel loads the selected node's attributes."
+      },
       "SpanResponse": {
         "type": "object",
         "description": "A single indexed span — extracted from a transaction, OR standalone\n(Sentry \"span\" item type). Both origins write into the same `spans`\ntable, so `transaction_id` is the only thing that distinguishes them.",
@@ -9142,7 +9791,7 @@
               "string",
               "null"
             ],
-            "description": "Only ever set for standalone spans — a transaction-embedded span\ninherits these from its parent transaction row instead."
+            "description": "Set for every span. A standalone span reports its own; a\ntransaction-embedded one is stamped with its parent transaction's at\nwrite time, rather than being left NULL to be recovered by a JOIN —\nthe agents dashboard filters `spans` directly and a NULL would drop\nthe row from an environment-filtered view."
           },
           "release": {
             "type": [

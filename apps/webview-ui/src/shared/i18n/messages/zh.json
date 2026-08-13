@@ -912,7 +912,10 @@
       "agents": "智能体",
       "duration": "耗时",
       "tokens": "令牌数",
-      "tools": "工具数"
+      "tools": "工具数",
+      "started": "开始时间",
+      "llmCalls": "LLM",
+      "errors": "错误"
     },
     "unnamedAgent": "（未命名智能体）",
     "charts": {
@@ -945,6 +948,59 @@
       "outputTokens": "输出令牌",
       "totalTokens": "总令牌数",
       "genAiSection": "gen_ai"
+    },
+    "spanDetail": {
+      "agentName": "智能体",
+      "model": "模型",
+      "toolName": "工具",
+      "reasoningEffort": "推理强度",
+      "conversationId": "会话",
+      "tokens": "令牌",
+      "inputTokens": "输入",
+      "cachedTokens": "缓存输入",
+      "outputTokens": "输出",
+      "totalTokens": "总计",
+      "availableTools": "可用工具",
+      "input": "输入",
+      "systemInstructions": "系统指令",
+      "output": "输出",
+      "responseObject": "响应对象",
+      "requestedToolCalls": "请求的工具调用",
+      "allAttributes": "全部属性",
+      "tokenMismatch": "这些数值与报告的总数不符 —— SDK 可能上报得不一致。"
+    },
+    "summary": {
+      "agentRuns": "智能体运行",
+      "llmCalls": "LLM 调用",
+      "toolCalls": "工具调用",
+      "totalTokens": "令牌",
+      "avgDuration": "平均耗时",
+      "p95Duration": "P95 耗时",
+      "errors": "错误"
+    },
+    "filters": {
+      "allTime": "全部时间",
+      "allEnvironments": "全部环境"
+    },
+    "modelsTable": {
+      "empty": "该时间段内没有模型调用。",
+      "model": "模型",
+      "requests": "请求数",
+      "errors": "错误",
+      "avg": "平均",
+      "p95": "P95",
+      "input": "输入",
+      "cached": "缓存",
+      "output": "输出",
+      "reasoning": "推理"
+    },
+    "toolsTable": {
+      "empty": "该时间段内没有工具调用。",
+      "tool": "工具",
+      "calls": "调用数",
+      "errors": "错误",
+      "avg": "平均",
+      "p95": "P95"
     }
   },
   "tokens": {
@@ -1291,7 +1347,11 @@
       "cardTools": "各工具的调用次数",
       "cardToolsDescription": "按调用次数排名靠前的工具",
       "cardTraces": "追踪",
-      "cardTracesDescription": "每个追踪一行，汇总其包含的所有 AI 跨度"
+      "cardTracesDescription": "每个追踪一行，汇总其包含的所有 AI 跨度",
+      "cardModelsTable": "模型",
+      "cardModelsTableDescription": "每个模型的调用量、失败、耗时与 Token 构成。",
+      "cardToolsTable": "工具",
+      "cardToolsTableDescription": "每个工具的调用量与失败率。"
     },
     "trace": {
       "meta": {
@@ -1302,7 +1362,12 @@
       "unnamed": "（未命名智能体）",
       "tokens": "{count} 个令牌",
       "toolCalls": "{count} 次工具调用",
-      "spans": "跨度"
+      "spans": "跨度",
+      "llmCalls": "{count} 次 LLM 调用",
+      "errors": "{count} 个错误",
+      "spanDetail": "跨度详情",
+      "selectSpan": "选择一个跨度以查看其提示词、响应和属性。",
+      "spanUnavailable": "该跨度已不可用。"
     },
     "event": {
       "meta": {

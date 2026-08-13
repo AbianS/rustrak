@@ -850,3 +850,101 @@ mod level2 {
         );
     }
 }
+
+// ── Attribute type/value agreement ──────────────────────────────────────────
+//
+// Relay drops any attribute whose declared `type` disagrees with its `value`,
+// rather than repairing it (`normalize_attribute_types`,
+// relay-event-normalization/src/eap/mod.rs). Its own comment gives the reason:
+// downstream consumers require consistent shapes. Rustrak has such a consumer
+// (`models::transaction::span_attributes`), so it drops them too.
+
+#[test]
+fn test_flat_attributes_drops_a_value_that_contradicts_its_declared_type() {
+    // `AttributeType` has no object variant at all — boolean, integer, double,
+    // string, array. An object value can only ever arrive on a malformed
+    // payload, and storing it lets one attribute masquerade as a nested bag.
+    let container = json!({
+        "version": 2,
+        "items": [{
+            "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "span_id": "1111111111111111",
+            "start_timestamp": 1.0,
+            "end_timestamp": 2.0,
+            "attributes": {
+                "data": { "value": { "nested": 1 }, "type": "string" },
+                "gen_ai.request.model": { "value": "gpt-4o", "type": "string" }
+            }
+        }]
+    });
+
+    let entries = parse_span_v2_container(container.to_string().as_bytes()).unwrap();
+    let flat = entries[0].flat_attributes();
+
+    assert!(
+        flat.get("data").is_none(),
+        "an object value under a string type must be dropped, not stored"
+    );
+    assert_eq!(
+        flat["gen_ai.request.model"], "gpt-4o",
+        "dropping one bad attribute must not disturb its siblings"
+    );
+}
+
+#[test]
+fn test_flat_attributes_keeps_every_type_the_protocol_defines() {
+    let container = json!({
+        "version": 2,
+        "items": [{
+            "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "span_id": "1111111111111111",
+            "start_timestamp": 1.0,
+            "end_timestamp": 2.0,
+            "attributes": {
+                "s": { "value": "text", "type": "string" },
+                "i": { "value": 42, "type": "integer" },
+                "d": { "value": 1.5, "type": "double" },
+                "b": { "value": true, "type": "boolean" },
+                "a": { "value": ["x", "y"], "type": "array" },
+                // Relay accepts an integer under `double` — a JSON number that
+                // happens to be whole must not be mistaken for a mismatch.
+                "whole_double": { "value": 3, "type": "double" }
+            }
+        }]
+    });
+
+    let entries = parse_span_v2_container(container.to_string().as_bytes()).unwrap();
+    let flat = entries[0].flat_attributes();
+
+    assert_eq!(flat["s"], "text");
+    assert_eq!(flat["i"], 42);
+    assert_eq!(flat["d"], 1.5);
+    assert_eq!(flat["b"], true);
+    assert_eq!(flat["a"], json!(["x", "y"]));
+    assert_eq!(flat["whole_double"], 3);
+}
+
+#[test]
+fn test_flat_attributes_drops_an_unknown_declared_type() {
+    // Relay removes these outright rather than passing them through, even
+    // though `AttributeType::Unknown` exists for forward compatibility.
+    let container = json!({
+        "version": 2,
+        "items": [{
+            "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "span_id": "1111111111111111",
+            "start_timestamp": 1.0,
+            "end_timestamp": 2.0,
+            "attributes": {
+                "future": { "value": {"a": 1}, "type": "object" },
+                "kept": { "value": "ok", "type": "string" }
+            }
+        }]
+    });
+
+    let entries = parse_span_v2_container(container.to_string().as_bytes()).unwrap();
+    let flat = entries[0].flat_attributes();
+
+    assert!(flat.get("future").is_none());
+    assert_eq!(flat["kept"], "ok");
+}

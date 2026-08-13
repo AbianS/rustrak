@@ -90,3 +90,42 @@ describe('AgentsResource', () => {
     });
   });
 });
+
+describe('dashboard tables', () => {
+  it('returns headline totals', async () => {
+    const summary = expectOk(await client.agents.getSummary(1));
+
+    expect(summary.agent_runs).toBe(12);
+    expect(summary.llm_calls).toBe(31);
+    expect(summary.error_count).toBe(3);
+    expect(summary.p95_duration_ms).toBe(4210.0);
+  });
+
+  it('breaks model tokens down by type', async () => {
+    const [row] = expectOk(await client.agents.getModelsTable(1));
+
+    expect(row?.model).toBe('claude-opus-5');
+    expect(row?.cached_input_tokens).toBe(12000);
+    expect(row?.reasoning_output_tokens).toBe(2400);
+  });
+
+  it('reports per-tool failures', async () => {
+    const [row] = expectOk(await client.agents.getToolsTable(1));
+
+    expect(row?.tool).toBe('web_search');
+    expect(row?.errors).toBe(1);
+  });
+
+  it('lists the environments available to filter on', async () => {
+    const envs = expectOk(await client.agents.getEnvironments(1));
+
+    expect(envs).toEqual(['production', 'staging']);
+  });
+
+  it('carries llm call and error counts on a trace row', async () => {
+    const traces = expectOk(await client.agents.getTraces(1));
+
+    expect(traces.items[0]?.llm_call_count).toBe(2);
+    expect(traces.items[0]?.error_count).toBe(0);
+  });
+});

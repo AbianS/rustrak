@@ -16,13 +16,15 @@ use crate::db::DbPool;
 use crate::error::AppResult;
 #[cfg(feature = "openapi")]
 use crate::models::{
-    AgentDurationPoint, AgentTimeseriesPoint, AgentTraceSummary, GenAiBreakdownRow,
+    AgentDurationPoint, AgentModelRow, AgentSummary, AgentTimeseriesPoint, AgentToolRow,
+    AgentTraceSummary, GenAiBreakdownRow,
 };
 use crate::pagination::{
-    AgentBreakdownQuery, AgentTimeseriesQuery, AgentTracesQuery, OffsetPaginatedResponse,
+    AgentBreakdownQuery, AgentTimeseriesQuery, AgentTracesQuery, AgentWindowQuery,
+    OffsetPaginatedResponse,
 };
 use crate::services::access::{self, Action};
-use crate::services::span::SpanService;
+use crate::services::span::{AgentFilters, SpanService};
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
@@ -64,6 +66,9 @@ pub async fn agent_runs(
     let points = SpanService::agent_runs_timeseries(
         pool.get_ref(),
         project_id,
+        &AgentFilters {
+            environment: query.environment.clone(),
+        },
         query.period_hours,
         query.interval_hours,
     )
@@ -98,6 +103,9 @@ pub async fn agent_duration(
     let points = SpanService::agent_duration_timeseries(
         pool.get_ref(),
         project_id,
+        &AgentFilters {
+            environment: query.environment.clone(),
+        },
         query.period_hours,
         query.interval_hours,
     )
@@ -132,6 +140,9 @@ pub async fn agent_models_calls(
     let rows = SpanService::llm_calls_by_model(
         pool.get_ref(),
         project_id,
+        &AgentFilters {
+            environment: query.environment.clone(),
+        },
         query.period_hours,
         query.limit,
     )
@@ -163,9 +174,16 @@ pub async fn agent_models_tokens(
     let project_id = path.into_inner();
     require_view_access(pool.get_ref(), project_id, &actor).await?;
 
-    let rows =
-        SpanService::tokens_by_model(pool.get_ref(), project_id, query.period_hours, query.limit)
-            .await?;
+    let rows = SpanService::tokens_by_model(
+        pool.get_ref(),
+        project_id,
+        &AgentFilters {
+            environment: query.environment.clone(),
+        },
+        query.period_hours,
+        query.limit,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(rows))
 }
@@ -196,6 +214,9 @@ pub async fn agent_tools(
     let rows = SpanService::tool_calls_by_tool(
         pool.get_ref(),
         project_id,
+        &AgentFilters {
+            environment: query.environment.clone(),
+        },
         query.period_hours,
         query.limit,
     )
@@ -231,8 +252,18 @@ pub async fn agent_traces(
     let page = query.page.max(1);
     let per_page = query.per_page.clamp(1, 100);
 
-    let (traces, total_count) =
-        SpanService::agent_traces(pool.get_ref(), project_id, page, per_page).await?;
+    let filters = AgentFilters {
+        environment: query.environment.clone(),
+    };
+    let (traces, total_count) = SpanService::agent_traces(
+        pool.get_ref(),
+        project_id,
+        page,
+        per_page,
+        query.period_hours,
+        &filters,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         traces,
@@ -240,6 +271,130 @@ pub async fn agent_traces(
         page,
         per_page,
     )))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/agents/summary",
+    tag = "Agents",
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
+    responses(
+        (status = 200, description = "Headline totals for the selected window", body = AgentSummary),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/agents/summary
+/// Agent runs, LLM calls, tool calls, errors, tokens and latency over the
+/// selected window — the numbers the six charts cannot state outright.
+pub async fn agent_summary(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<AgentWindowQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+    require_view_access(pool.get_ref(), project_id, &actor).await?;
+
+    let filters = AgentFilters {
+        environment: query.environment.clone(),
+    };
+    let summary =
+        SpanService::agent_summary(pool.get_ref(), project_id, query.period_hours, &filters)
+            .await?;
+
+    Ok(HttpResponse::Ok().json(summary))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/agents/models",
+    tag = "Agents",
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
+    responses(
+        (status = 200, description = "Per-model volume, failures, latency and token split", body = Vec<AgentModelRow>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/agents/models
+pub async fn agent_models_table(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<AgentWindowQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+    require_view_access(pool.get_ref(), project_id, &actor).await?;
+
+    let filters = AgentFilters {
+        environment: query.environment.clone(),
+    };
+    let rows =
+        SpanService::models_table(pool.get_ref(), project_id, query.period_hours, &filters).await?;
+
+    Ok(HttpResponse::Ok().json(rows))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/agents/tools/stats",
+    tag = "Agents",
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
+    responses(
+        (status = 200, description = "Per-tool call volume, failures and latency", body = Vec<AgentToolRow>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/agents/tools/stats
+pub async fn agent_tools_table(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    query: web::Query<AgentWindowQuery>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+    require_view_access(pool.get_ref(), project_id, &actor).await?;
+
+    let filters = AgentFilters {
+        environment: query.environment.clone(),
+    };
+    let rows =
+        SpanService::tools_table(pool.get_ref(), project_id, query.period_hours, &filters).await?;
+
+    Ok(HttpResponse::Ok().json(rows))
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/agents/environments",
+    tag = "Agents",
+    params(("project_id" = i32, Path, description = "Project ID")),
+    responses(
+        (status = 200, description = "Environments present in this project's AI spans", body = Vec<String>),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/agents/environments
+/// The options the environment filter offers, read from the data rather than
+/// hardcoded — an installation may name its environments anything.
+pub async fn agent_environments(
+    pool: web::Data<DbPool>,
+    path: web::Path<i32>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let project_id = path.into_inner();
+    require_view_access(pool.get_ref(), project_id, &actor).await?;
+
+    let envs = SpanService::agent_environments(pool.get_ref(), project_id).await?;
+
+    Ok(HttpResponse::Ok().json(envs))
 }
 
 #[cfg(feature = "openapi")]
@@ -251,6 +406,10 @@ pub async fn agent_traces(
     agent_models_tokens,
     agent_tools,
     agent_traces,
+    agent_summary,
+    agent_models_table,
+    agent_tools_table,
+    agent_environments,
 ))]
 pub struct AgentsApi;
 
@@ -263,6 +422,10 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
             .route("/models/calls", web::get().to(agent_models_calls))
             .route("/models/tokens", web::get().to(agent_models_tokens))
             .route("/tools", web::get().to(agent_tools))
-            .route("/traces", web::get().to(agent_traces)),
+            .route("/tools/stats", web::get().to(agent_tools_table))
+            .route("/traces", web::get().to(agent_traces))
+            .route("/summary", web::get().to(agent_summary))
+            .route("/models", web::get().to(agent_models_table))
+            .route("/environments", web::get().to(agent_environments)),
     );
 }

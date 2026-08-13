@@ -14,8 +14,11 @@ import 'server-only';
 import type {
   AgentBreakdownOptions,
   AgentDurationPoint,
+  AgentModelRow,
+  AgentSummary,
   AgentTimeseriesOptions,
   AgentTimeseriesPoint,
+  AgentToolRow,
   AgentTraceSummary,
   AgentTracesOptions,
   GenAiBreakdownRow,
@@ -24,6 +27,7 @@ import type {
   Result,
   RustrakError,
   Span,
+  SpanDetail,
 } from '@rustrak/client';
 import { createClient } from '@/shared/api/rustrak';
 
@@ -33,6 +37,22 @@ export async function listSpans(
 ): Promise<Result<OffsetPaginatedResponse<Span>, RustrakError>> {
   const client = await createClient();
   return client.spans.list(projectId, options);
+}
+
+/**
+ * One span with its raw `gen_ai.*` attribute bag — the prompts, responses and
+ * tool arguments the list deliberately leaves out.
+ *
+ * Fetched per selected span rather than for the whole trace: the server never
+ * trims `spans.data`, so a trace's worth of prompts would dwarf the waterfall
+ * they are drawn from.
+ */
+export async function getSpan(
+  projectId: number,
+  spanId: string,
+): Promise<Result<SpanDetail, RustrakError>> {
+  const client = await createClient();
+  return client.spans.get(projectId, spanId);
 }
 
 export async function getAgentRuns(
@@ -81,4 +101,35 @@ export async function getAgentTraces(
 ): Promise<Result<OffsetPaginatedResponse<AgentTraceSummary>, RustrakError>> {
   const client = await createClient();
   return client.agents.getTraces(projectId, options);
+}
+
+export async function getAgentSummary(
+  projectId: number,
+  options?: AgentBreakdownOptions,
+): Promise<Result<AgentSummary, RustrakError>> {
+  const client = await createClient();
+  return client.agents.getSummary(projectId, options);
+}
+
+export async function getAgentModelsTable(
+  projectId: number,
+  options?: AgentBreakdownOptions,
+): Promise<Result<AgentModelRow[], RustrakError>> {
+  const client = await createClient();
+  return client.agents.getModelsTable(projectId, options);
+}
+
+export async function getAgentToolsTable(
+  projectId: number,
+  options?: AgentBreakdownOptions,
+): Promise<Result<AgentToolRow[], RustrakError>> {
+  const client = await createClient();
+  return client.agents.getToolsTable(projectId, options);
+}
+
+export async function getAgentEnvironments(
+  projectId: number,
+): Promise<Result<string[], RustrakError>> {
+  const client = await createClient();
+  return client.agents.getEnvironments(projectId);
 }

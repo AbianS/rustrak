@@ -3,7 +3,10 @@ import type { RustrakError } from '../errors.js';
 import type { Result } from '../result.js';
 import {
   agentDurationPointSchema,
+  agentModelRowSchema,
+  agentSummarySchema,
   agentTimeseriesPointSchema,
+  agentToolRowSchema,
   agentTraceSummarySchema,
   genAiBreakdownRowSchema,
   offsetPaginatedResponseSchema,
@@ -11,7 +14,10 @@ import {
 import type {
   AgentBreakdownOptions,
   AgentDurationPoint,
+  AgentModelRow,
+  AgentSummary,
   AgentTimeseriesOptions,
+  AgentToolRow,
   AgentTimeseriesPoint,
   AgentTraceSummary,
   AgentTracesOptions,
@@ -30,6 +36,9 @@ function timeseriesSearchParams(
   if (options?.interval_hours) {
     searchParams.interval_hours = String(options.interval_hours);
   }
+  if (options?.environment) {
+    searchParams.environment = options.environment;
+  }
   return searchParams;
 }
 
@@ -42,6 +51,9 @@ function breakdownSearchParams(
   }
   if (options?.limit) {
     searchParams.limit = String(options.limit);
+  }
+  if (options?.environment) {
+    searchParams.environment = options.environment;
   }
   return searchParams;
 }
@@ -147,6 +159,12 @@ export class AgentsResource extends BaseResource {
     if (options?.per_page) {
       searchParams.per_page = String(options.per_page);
     }
+    if (options?.period_hours) {
+      searchParams.period_hours = String(options.period_hours);
+    }
+    if (options?.environment) {
+      searchParams.environment = options.environment;
+    }
 
     return this.request(
       () =>
@@ -154,6 +172,68 @@ export class AgentsResource extends BaseResource {
           searchParams,
         }),
       offsetPaginatedResponseSchema(agentTraceSummarySchema),
+    );
+  }
+
+  /**
+   * Headline totals over the selected window — the numbers the charts show
+   * the shape of but cannot state.
+   */
+  async getSummary(
+    projectId: number,
+    options?: AgentBreakdownOptions,
+  ): Promise<Result<AgentSummary, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/summary`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      agentSummarySchema,
+    );
+  }
+
+  /**
+   * Per-model table: volume, failures, latency and the full token split.
+   */
+  async getModelsTable(
+    projectId: number,
+    options?: AgentBreakdownOptions,
+  ): Promise<Result<AgentModelRow[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/models`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      z.array(agentModelRowSchema),
+    );
+  }
+
+  /**
+   * Per-tool table: call volume, failures and latency.
+   */
+  async getToolsTable(
+    projectId: number,
+    options?: AgentBreakdownOptions,
+  ): Promise<Result<AgentToolRow[], RustrakError>> {
+    return this.request(
+      () =>
+        this.http.get(`api/projects/${projectId}/agents/tools/stats`, {
+          searchParams: breakdownSearchParams(options),
+        }),
+      z.array(agentToolRowSchema),
+    );
+  }
+
+  /**
+   * Environments present in this project's AI spans — the options the filter
+   * offers, read from the data rather than hardcoded.
+   */
+  async getEnvironments(
+    projectId: number,
+  ): Promise<Result<string[], RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/agents/environments`),
+      z.array(z.string()),
     );
   }
 }

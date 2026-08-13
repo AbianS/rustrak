@@ -33,6 +33,11 @@ pub struct GenAiColumns {
     pub usage_input_tokens: Option<f64>,
     pub usage_output_tokens: Option<f64>,
     pub usage_total_tokens: Option<f64>,
+    /// Input tokens served from the provider's prompt cache. A subset of
+    /// `usage_input_tokens` per OTel convention, not an addition to it.
+    pub usage_cached_input_tokens: Option<f64>,
+    /// Output tokens spent on reasoning. A subset of `usage_output_tokens`.
+    pub usage_reasoning_output_tokens: Option<f64>,
 }
 
 /// Normalizes a span's `data` attributes bag (see [`normalize_gen_ai_attributes`]),
@@ -64,6 +69,13 @@ pub fn extract_gen_ai_columns(span_data: &mut Value, op: Option<&str>) -> GenAiC
         usage_input_tokens: get_f64(span_data, "gen_ai.usage.input_tokens"),
         usage_output_tokens: get_f64(span_data, "gen_ai.usage.output_tokens"),
         usage_total_tokens: get_f64(span_data, "gen_ai.usage.total_tokens"),
+        // Both spellings: Relay emits only the first at c455da18, but spans
+        // ingested before the rename carry the second, and Sentry's own
+        // frontend reads both rather than dropping the older data.
+        usage_cached_input_tokens: get_f64(span_data, "gen_ai.usage.cache_read.input_tokens")
+            .or_else(|| get_f64(span_data, "gen_ai.usage.input_tokens.cached")),
+        usage_reasoning_output_tokens: get_f64(span_data, "gen_ai.usage.reasoning.output_tokens")
+            .or_else(|| get_f64(span_data, "gen_ai.usage.output_tokens.reasoning")),
     }
 }
 

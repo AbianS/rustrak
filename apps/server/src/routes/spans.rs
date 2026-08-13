@@ -4,10 +4,11 @@ use crate::auth::ApiActor;
 use crate::db::DbPool;
 use crate::error::AppResult;
 #[cfg(feature = "openapi")]
-use crate::models::SpanResponse;
+use crate::models::{SpanDetailResponse, SpanResponse};
 use crate::pagination::{ListSpansQuery, OffsetPaginatedResponse};
 use crate::services::access::{self, Action};
 use crate::services::span::{SpanFilters, SpanService};
+use uuid::Uuid;
 
 #[cfg(feature = "openapi")]
 use utoipa::OpenApi;
@@ -70,14 +71,57 @@ pub async fn list_spans(
     )))
 }
 
+#[cfg_attr(feature = "openapi", utoipa::path(
+    get,
+    path = "/api/projects/{project_id}/spans/{span_id}",
+    tag = "Spans",
+    params(
+        ("project_id" = i32, Path, description = "Project ID"),
+        ("span_id" = Uuid, Path, description = "Span row ID (the `id` field of a span list item, not the SDK's 16-hex span_id)"),
+    ),
+    responses(
+        (status = 200, description = "Span with its full attribute bag", body = SpanDetailResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+        (status = 404, description = "Not found", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// GET /api/projects/{project_id}/spans/{span_id}
+/// Returns one span together with its attributes and tags — the `gen_ai.*`
+/// payload (prompts, responses, tool arguments and results) that the list
+/// response deliberately omits, since `spans.data` is untrimmed and a whole
+/// trace's worth of it would dwarf the waterfall it is drawn from.
+pub async fn get_span(
+    pool: web::Data<DbPool>,
+    path: web::Path<(i32, Uuid)>,
+    actor: ApiActor,
+) -> AppResult<HttpResponse> {
+    let (project_id, span_id) = path.into_inner();
+
+    access::require(
+        pool.get_ref(),
+        actor.is_admin(),
+        actor.user_id(),
+        project_id,
+        Action::ViewProject,
+    )
+    .await?;
+
+    let span = SpanService::get_by_id(pool.get_ref(), project_id, span_id).await?;
+
+    Ok(HttpResponse::Ok().json(span))
+}
+
 #[cfg(feature = "openapi")]
 #[derive(OpenApi)]
-#[openapi(paths(list_spans))]
+#[openapi(paths(list_spans, get_span))]
 pub struct SpansApi;
 
 /// Configure span routes
 pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(
-        web::scope("/api/projects/{project_id}/spans").route("", web::get().to(list_spans)),
+        web::scope("/api/projects/{project_id}/spans")
+            .route("", web::get().to(list_spans))
+            .route("/{span_id}", web::get().to(get_span)),
     );
 }

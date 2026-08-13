@@ -1459,9 +1459,10 @@ mod level2 {
         };
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
-        let points = SpanService::agent_runs_timeseries(&db.pool, project.id, None, 1)
-            .await
-            .unwrap();
+        let points =
+            SpanService::agent_runs_timeseries(&db.pool, project.id, &Default::default(), None, 1)
+                .await
+                .unwrap();
 
         let total: f64 = points.iter().map(|p| p.value).sum();
         assert_eq!(
@@ -1523,5 +1524,136 @@ mod level2 {
             operation_type.is_none(),
             "non-AI transaction-child span must not get gen_ai columns populated"
         );
+    }
+
+    #[tokio::test]
+    async fn test_promoted_agent_root_inherits_the_transaction_environment() {
+        // The root agent span is synthesized from contexts.trace, which carries no
+        // environment of its own — the transaction event does. Without inheriting
+        // it, filtering the agents dashboard by environment drops every agent span
+        // while keeping its children: "Agent runs" reads 0 next to a non-zero
+        // "LLM calls" for the same traces.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "root-span-env".to_string(),
+                slug: None,
+                platform: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "event_id": "aa11bb22cc33dd44ee55ff6677889900",
+            "transaction": "invoke_agent planner",
+            "environment": "production",
+            "release": "web@1.0.0",
+            "platform": "javascript",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "contexts": {
+                "trace": {
+                    "trace_id": "ffffffffffffffffffffffffffffffff",
+                    "span_id": "1234567890abcdef",
+                    "op": "gen_ai.invoke_agent",
+                    "data": {
+                        "gen_ai.operation.name": "invoke_agent",
+                        "gen_ai.agent.name": "planner"
+                    }
+                }
+            },
+            "spans": []
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::nil(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT environment, release, platform FROM spans
+             WHERE project_id = $1 AND gen_ai_operation_type = 'agent'",
+        )
+        .bind(project.id)
+        .fetch_one(&db.pool)
+        .await
+        .expect("the promoted agent root span exists");
+
+        assert_eq!(row.0.as_deref(), Some("production"));
+        assert_eq!(row.1.as_deref(), Some("web@1.0.0"));
+        assert_eq!(row.2.as_deref(), Some("javascript"));
+    }
+
+    #[tokio::test]
+    async fn test_transaction_child_span_inherits_the_transaction_environment() {
+        // Same gap as the promoted root, one level down. The schema comment
+        // says a transaction-embedded span "inherits these from its parent
+        // transaction row instead" -- true if you JOIN, but the agents
+        // dashboard filters `spans` directly, so a NULL here silently drops
+        // every transaction-embedded AI span from an environment-filtered view.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "child-span-env".to_string(),
+                slug: None,
+                platform: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let payload = serde_json::to_vec(&json!({
+            "event_id": "bb22cc33dd44ee55ff66770088990011",
+            "transaction": "POST /chat",
+            "environment": "production",
+            "release": "web@1.0.0",
+            "platform": "javascript",
+            "start_timestamp": 1.0,
+            "timestamp": 3.0,
+            "contexts": {"trace": {"trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "span_id": "1111111111111111"}},
+            "spans": [{
+                "span_id": "2222222222222222",
+                "parent_span_id": "1111111111111111",
+                "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "op": "gen_ai.chat",
+                "start_timestamp": 1.2,
+                "timestamp": 2.8,
+                "data": {
+                    "gen_ai.operation.type": "ai_client",
+                    "gen_ai.request.model": "gpt-4o"
+                }
+            }]
+        }))
+        .unwrap();
+
+        let ctx = ProcessorCtx {
+            pool: db.pool.clone(),
+            project_id: project.id,
+            event_id: Uuid::nil(),
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+        TransactionProcessor.process(payload, &ctx).await.unwrap();
+
+        let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
+            "SELECT environment, release, platform FROM spans
+             WHERE project_id = $1 AND span_id = '2222222222222222'",
+        )
+        .bind(project.id)
+        .fetch_one(&db.pool)
+        .await
+        .expect("the child span exists");
+
+        assert_eq!(row.0.as_deref(), Some("production"));
+        assert_eq!(row.1.as_deref(), Some("web@1.0.0"));
+        assert_eq!(row.2.as_deref(), Some("javascript"));
     }
 }

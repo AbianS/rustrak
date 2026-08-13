@@ -256,10 +256,16 @@ async fn test_real_sdk_span_v2_envelope_populates_agents_dashboard() {
     // this test guards against. Now confirm the actual consumer of this
     // data — the same query the Agents API/dashboard uses — sees a
     // coherent trace.
-    let (traces, total) =
-        rustrak::services::span::SpanService::agent_traces(&db.pool, project_id, 1, 20)
-            .await
-            .unwrap();
+    let (traces, total) = rustrak::services::span::SpanService::agent_traces(
+        &db.pool,
+        project_id,
+        1,
+        20,
+        None,
+        &Default::default(),
+    )
+    .await
+    .unwrap();
 
     assert_eq!(total, 1, "all 3 spans share one trace_id -> one agent run");
     assert_eq!(traces.len(), 1);

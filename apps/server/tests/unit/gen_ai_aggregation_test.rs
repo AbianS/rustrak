@@ -118,7 +118,7 @@ async fn test_llm_calls_by_model_counts_and_orders_by_frequency() {
         .await;
     }
 
-    let rows = SpanService::llm_calls_by_model(&db.pool, project.id, None, 3)
+    let rows = SpanService::llm_calls_by_model(&db.pool, project.id, &Default::default(), None, 3)
         .await
         .unwrap();
 
@@ -154,7 +154,7 @@ async fn test_llm_calls_by_model_excludes_non_ai_client_spans() {
     )
     .await;
 
-    let rows = SpanService::llm_calls_by_model(&db.pool, project.id, None, 3)
+    let rows = SpanService::llm_calls_by_model(&db.pool, project.id, &Default::default(), None, 3)
         .await
         .unwrap();
     assert!(rows.is_empty(), "agent spans must not count as LLM calls");
@@ -192,7 +192,7 @@ async fn test_tokens_by_model_sums_total_tokens() {
         .await;
     }
 
-    let rows = SpanService::tokens_by_model(&db.pool, project.id, None, 3)
+    let rows = SpanService::tokens_by_model(&db.pool, project.id, &Default::default(), None, 3)
         .await
         .unwrap();
 
@@ -232,7 +232,7 @@ async fn test_tool_calls_by_tool_counts() {
         .await;
     }
 
-    let rows = SpanService::tool_calls_by_tool(&db.pool, project.id, None, 3)
+    let rows = SpanService::tool_calls_by_tool(&db.pool, project.id, &Default::default(), None, 3)
         .await
         .unwrap();
 
@@ -283,9 +283,10 @@ async fn test_agent_runs_timeseries_counts_agent_spans() {
     )
     .await;
 
-    let points = SpanService::agent_runs_timeseries(&db.pool, project.id, None, 1)
-        .await
-        .unwrap();
+    let points =
+        SpanService::agent_runs_timeseries(&db.pool, project.id, &Default::default(), None, 1)
+            .await
+            .unwrap();
 
     let total: f64 = points.iter().map(|p| p.value).sum();
     assert_eq!(total, 2.0, "only the 2 agent-type spans count as runs");
@@ -323,9 +324,10 @@ async fn test_agent_duration_timeseries_computes_avg_and_p95() {
         .await;
     }
 
-    let points = SpanService::agent_duration_timeseries(&db.pool, project.id, None, 1)
-        .await
-        .unwrap();
+    let points =
+        SpanService::agent_duration_timeseries(&db.pool, project.id, &Default::default(), None, 1)
+            .await
+            .unwrap();
 
     assert!(!points.is_empty());
     let avg: f64 = points.iter().map(|p| p.avg_ms).sum::<f64>() / points.len() as f64;
@@ -396,9 +398,10 @@ async fn test_agent_traces_aggregates_per_trace_id() {
     )
     .await;
 
-    let (traces, total) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
-        .await
-        .unwrap();
+    let (traces, total) =
+        SpanService::agent_traces(&db.pool, project.id, 1, 20, None, &Default::default())
+            .await
+            .unwrap();
 
     assert_eq!(total, 1, "one distinct trace_id with AI spans");
     assert_eq!(traces.len(), 1);
@@ -459,9 +462,10 @@ async fn test_agent_traces_lists_every_agent_in_a_handoff_trace() {
     )
     .await;
 
-    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
-        .await
-        .unwrap();
+    let (traces, _) =
+        SpanService::agent_traces(&db.pool, project.id, 1, 20, None, &Default::default())
+            .await
+            .unwrap();
 
     assert_eq!(traces.len(), 1);
     assert_eq!(
@@ -536,9 +540,10 @@ async fn test_agent_traces_excludes_agent_span_usage_from_token_sum() {
     )
     .await;
 
-    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
-        .await
-        .unwrap();
+    let (traces, _) =
+        SpanService::agent_traces(&db.pool, project.id, 1, 20, None, &Default::default())
+            .await
+            .unwrap();
 
     assert_eq!(traces.len(), 1);
     assert_eq!(
@@ -609,9 +614,10 @@ async fn test_agent_traces_does_not_double_count_root_span_rollup_totals() {
     )
     .await;
 
-    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
-        .await
-        .unwrap();
+    let (traces, _) =
+        SpanService::agent_traces(&db.pool, project.id, 1, 20, None, &Default::default())
+            .await
+            .unwrap();
 
     assert_eq!(traces.len(), 1);
     assert_eq!(
@@ -658,9 +664,10 @@ async fn test_agent_traces_reports_zero_tokens_for_root_only_trace() {
     )
     .await;
 
-    let (traces, _) = SpanService::agent_traces(&db.pool, project.id, 1, 20)
-        .await
-        .unwrap();
+    let (traces, _) =
+        SpanService::agent_traces(&db.pool, project.id, 1, 20, None, &Default::default())
+            .await
+            .unwrap();
 
     assert_eq!(traces.len(), 1);
     assert_eq!(

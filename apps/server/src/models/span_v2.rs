@@ -48,18 +48,55 @@ pub struct SpanV2Entry {
     pub attributes: Map<String, Value>,
 }
 
+/// Whether an attribute's declared type admits its value.
+///
+/// The pairs are Relay's, from `normalize_attribute_types`
+/// (relay-event-normalization/src/eap/mod.rs). Two are easy to get wrong:
+/// `double` also admits a whole JSON number, because a value like `3` carries
+/// no fractional part on the wire; and an unrecognized type is rejected rather
+/// than passed through, even though `AttributeType::Unknown` exists for
+/// forward compatibility — Relay removes those outright.
+///
+/// There is deliberately no arm for an object: `AttributeType` has no object
+/// variant, so no well-formed v2 attribute is one.
+fn type_matches_value(declared: Option<&str>, value: &Value) -> bool {
+    match declared {
+        Some("boolean") => value.is_boolean(),
+        Some("integer") => value.is_i64() || value.is_u64(),
+        Some("double") => value.is_f64() || value.is_i64() || value.is_u64(),
+        Some("string") => value.is_string(),
+        Some("array") => value.is_array(),
+        _ => false,
+    }
+}
+
 impl SpanV2Entry {
     /// Unwraps the typed attribute map into a flat `{key: value}` object,
-    /// dropping the `{"value":..., "type":...}` wrapper. Rustrak (self-hosted,
-    /// single-tenant) doesn't need Relay's type/value-agreement validation —
-    /// that's a Relay-side Kafka-schema strictness concern, not a wire-format
-    /// requirement. A missing `value` on an attribute is simply omitted.
+    /// dropping the `{"value":..., "type":...}` wrapper.
+    ///
+    /// An attribute whose declared `type` disagrees with its `value` is
+    /// dropped, as is one with a `type` the protocol does not define. This
+    /// mirrors Relay's `normalize_attribute_types`
+    /// (relay-event-normalization/src/eap/mod.rs), which removes the whole
+    /// attribute rather than repairing it — its comment gives the reason, and
+    /// it is not the Kafka-schema concern an earlier version of this comment
+    /// claimed: downstream consumers need attribute shapes they can rely on.
+    /// Rustrak has such a consumer in `models::transaction::span_attributes`,
+    /// which reads a nested object as a legacy attribute bag; letting an
+    /// object-valued attribute through would let one key masquerade as the
+    /// whole bag and hide every sibling.
+    ///
+    /// A missing `value` is likewise omitted.
     pub fn flat_attributes(&self) -> Value {
         let mut flat = Map::with_capacity(self.attributes.len());
         for (key, attr) in &self.attributes {
-            if let Some(value) = attr.get("value") {
-                flat.insert(key.clone(), value.clone());
+            let Some(value) = attr.get("value") else {
+                continue;
+            };
+            if !type_matches_value(attr.get("type").and_then(Value::as_str), value) {
+                continue;
             }
+            flat.insert(key.clone(), value.clone());
         }
         Value::Object(flat)
     }

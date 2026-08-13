@@ -116,9 +116,9 @@ impl Processor for TransactionProcessor {
         .bind(start_timestamp)
         .bind(timestamp)
         .bind(duration_ms)
-        .bind(platform)
-        .bind(environment)
-        .bind(release)
+        .bind(&platform)
+        .bind(&environment)
+        .bind(&release)
         .bind(server_name)
         .bind(sdk_name)
         .bind(sdk_version)
@@ -138,7 +138,17 @@ impl Processor for TransactionProcessor {
             // span's own `data` attributes bag independently of the parent
             // transaction's already-serialized `data` column above.
             for span in spans.clone() {
-                insert_span(span, id, ctx.project_id, trace_id.as_deref(), &mut *tx).await?;
+                insert_span(
+                    span,
+                    id,
+                    ctx.project_id,
+                    trace_id.as_deref(),
+                    non_empty(&platform),
+                    non_empty(&release),
+                    non_empty(&environment),
+                    &mut *tx,
+                )
+                .await?;
             }
         }
 
@@ -178,6 +188,12 @@ impl Processor for TransactionProcessor {
                     id,
                     ctx.project_id,
                     trace_context.unwrap_or(serde_json::json!({})),
+                    // `extract_str` yields "" for an absent field, but the
+                    // spans table's nullable columns mean "not reported" —
+                    // and an empty string would surface as a filter option.
+                    non_empty(&platform),
+                    non_empty(&release),
+                    non_empty(&environment),
                     gen_ai,
                     &mut *tx,
                 )
@@ -201,11 +217,23 @@ type Db = sqlx::Sqlite;
 /// Generic over the executor so it can run inside the parent's DB transaction.
 /// Takes an owned `span` (not borrowed) so gen_ai normalization can mutate
 /// its `data` attributes bag freely.
+// Same shape as `insert_root_span`: one more parameter than clippy's
+// ceiling, for the same reason -- the transaction's scope has to reach the
+// row, and there is one call site.
+#[allow(clippy::too_many_arguments)]
 async fn insert_span<'e, E>(
     mut span: serde_json::Value,
     transaction_id: Uuid,
     project_id: i32,
     txn_trace_id: Option<&str>,
+    // The parent transaction's scope. `spans.platform/release/environment`
+    // were originally documented as "standalone spans only, a child inherits
+    // from its transaction row" — true for a JOIN, but the agents dashboard
+    // filters `spans` directly, so leaving them NULL drops every
+    // transaction-embedded AI span from an environment-filtered view.
+    platform: Option<&str>,
+    release: Option<&str>,
+    environment: Option<&str>,
     executor: E,
 ) -> AppResult<()>
 where
@@ -273,20 +301,24 @@ where
             op, description, status,
             start_timestamp, timestamp, duration_ms, exclusive_time_ms,
             is_segment, segment_id, tags, data,
+            platform, release, environment,
             gen_ai_operation_type, gen_ai_agent_name,
             gen_ai_request_model, gen_ai_response_model,
             gen_ai_tool_name, gen_ai_conversation_id,
-            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
+                    gen_ai_usage_cached_input_tokens, gen_ai_usage_reasoning_output_tokens
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
             $7, $8, $9,
             $10, $11, $12, $13,
             $14, $15, $16, $17,
-            $18, $19,
-            $20, $21,
-            $22, $23,
-            $24, $25, $26
+            $18, $19, $20,
+            $21, $22,
+            $23, $24,
+            $25, $26,
+            $27, $28, $29,
+            $30, $31
         )
         "#,
     )
@@ -307,6 +339,9 @@ where
     .bind(segment_id)
     .bind(tags)
     .bind(serde_json::json!(span))
+    .bind(platform)
+    .bind(release)
+    .bind(environment)
     .bind(gen_ai.operation_type)
     .bind(gen_ai.agent_name)
     .bind(gen_ai.request_model)
@@ -316,6 +351,8 @@ where
     .bind(gen_ai.usage_input_tokens)
     .bind(gen_ai.usage_output_tokens)
     .bind(gen_ai.usage_total_tokens)
+    .bind(gen_ai.usage_cached_input_tokens)
+    .bind(gen_ai.usage_reasoning_output_tokens)
     .execute(executor)
     .await?;
 
@@ -343,6 +380,9 @@ async fn insert_root_span<'e, E>(
     transaction_id: Uuid,
     project_id: i32,
     trace_context: serde_json::Value,
+    platform: Option<&str>,
+    release: Option<&str>,
+    environment: Option<&str>,
     gen_ai: GenAiColumns,
     executor: E,
 ) -> AppResult<()>
@@ -357,20 +397,24 @@ where
             op, description, status,
             start_timestamp, timestamp, duration_ms, exclusive_time_ms,
             is_segment, segment_id, tags, data,
+            platform, release, environment,
             gen_ai_operation_type, gen_ai_agent_name,
             gen_ai_request_model, gen_ai_response_model,
             gen_ai_tool_name, gen_ai_conversation_id,
-            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens
+            gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, gen_ai_usage_total_tokens,
+                    gen_ai_usage_cached_input_tokens, gen_ai_usage_reasoning_output_tokens
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
             $7, $8, $9,
             $10, $11, $12, NULL,
             TRUE, $13, NULL, $14,
-            $15, $16,
-            $17, $18,
-            $19, $20,
-            $21, $22, $23
+            $15, $16, $17,
+            $18, $19,
+            $20, $21,
+            $22, $23,
+            $24, $25, $26,
+            $27, $28
         )
         "#,
     )
@@ -388,6 +432,12 @@ where
     .bind(duration_ms)
     .bind(span_id) // segment_id: the root is its own segment
     .bind(serde_json::json!(trace_context))
+    // Inherited from the transaction event: contexts.trace carries none of
+    // these, and a promoted root with a NULL environment would vanish from
+    // any environment-filtered aggregate while its own children survived.
+    .bind(platform)
+    .bind(release)
+    .bind(environment)
     .bind(gen_ai.operation_type)
     .bind(gen_ai.agent_name)
     .bind(gen_ai.request_model)
@@ -397,6 +447,8 @@ where
     .bind(gen_ai.usage_input_tokens)
     .bind(gen_ai.usage_output_tokens)
     .bind(gen_ai.usage_total_tokens)
+    .bind(gen_ai.usage_cached_input_tokens)
+    .bind(gen_ai.usage_reasoning_output_tokens)
     .execute(executor)
     .await?;
 
@@ -404,6 +456,15 @@ where
 }
 
 /// Extracts a top-level string field from the payload, defaulting to empty.
+/// `None` for the empty string `extract_str` returns when a field is absent.
+fn non_empty(value: &str) -> Option<&str> {
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
+}
+
 fn extract_str(data: &serde_json::Value, key: &str) -> String {
     data.get(key)
         .and_then(|v| v.as_str())

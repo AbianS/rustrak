@@ -2,12 +2,23 @@
 
 import type { Span } from '@rustrak/client';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { useFormatter, useTranslations } from 'next-intl';
-import { type KeyboardEvent, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useTranslations } from 'next-intl';
+import { useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
 
 interface AgentTraceWaterfallProps {
   spans: Span[];
+  projectId: number;
+  traceId: string;
+  /**
+   * Row id of the span whose details are open, from the `span` search param.
+   *
+   * Selection lives in the URL rather than in component state so the details
+   * panel can be fetched on the server, and so a link to one span of one trace
+   * is shareable — the same reason Sentry keeps its own span selection there.
+   */
+  selectedSpanId?: string;
 }
 
 interface TreeNode {
@@ -60,20 +71,6 @@ function formatDuration(ms: number | null): string {
   if (ms < 1) return `${(ms * 1000).toFixed(0)}µs`;
   if (ms < 1000) return `${ms.toFixed(1)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;
-}
-
-/**
- * The formatter is passed in, exactly like `t`.
- *
- * `useFormatter` is a hook, and this is a builder rather than a component, so
- * it cannot reach for one itself. The component that calls it already threads
- * the translator through for the same reason.
- */
-type Formatter = ReturnType<typeof useFormatter>;
-
-function formatTokens(n: number | null, format: Formatter): string {
-  if (n == null) return '—';
-  return format.number(n);
 }
 
 /**
@@ -176,10 +173,14 @@ function opBreakdown(tree: TreeNode[]): { color: string; ms: number }[] {
  * uniformly and already carries precomputed `duration_ms`/`exclusive_time_ms`
  * plus the gen_ai.* columns needed for the detail panel.
  */
-export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
+export function AgentTraceWaterfall({
+  spans,
+  projectId,
+  traceId,
+  selectedSpanId,
+}: AgentTraceWaterfallProps) {
   const t = useTranslations('agents');
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [selected, setSelected] = useState<string | null>(null);
 
   const tree = useMemo(() => buildTree(spans), [spans]);
   const rows = useMemo(() => flatten(tree, collapsed), [tree, collapsed]);
@@ -243,75 +244,66 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
               dur != null && total > 0 ? Math.max(0.5, (dur / total) * 100) : 0;
             const clampedWidth = Math.min(widthPct, 100 - offsetPct);
             const failed = span.status && span.status !== 'ok';
-            const isSelected =
-              span.span_id != null && selected === span.span_id;
+            const isSelected = selectedSpanId === span.id;
             const label =
               span.gen_ai_agent_name ||
               span.gen_ai_tool_name ||
               span.gen_ai_response_model ||
               span.description;
 
-            const selectKey = (e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setSelected(isSelected ? null : (span.span_id ?? null));
-              }
-            };
+            // Selecting toggles: clicking the open row closes the panel.
+            const href = isSelected
+              ? `/projects/${projectId}/agents/${traceId}`
+              : `/projects/${projectId}/agents/${traceId}?span=${span.id}`;
 
             return (
               // `span_id` is the key wherever the span has one. The index is
               // the fallback for a span the SDK sent without an id, which
               // nothing else can distinguish.
               // react-doctor-disable-next-line react-doctor/no-array-index-as-key
-              <div key={span.span_id ?? `span-${i}`}>
-                {/* biome-ignore lint/a11y/useSemanticElements: the row contains
-                    its own collapse <button>, and a <button> nested inside a
-                    <button> is invalid HTML. */}
+              <div
+                key={span.span_id ?? `span-${i}`}
+                className={cn(
+                  'flex w-full items-center gap-1 rounded-md pr-2 hover:bg-muted/40',
+                  isSelected && 'bg-muted/50',
+                )}
+              >
+                {/* The collapse control is a sibling of the row link, not a
+                    child of it. It used to be nested inside the selectable
+                    row, which meant one interactive element inside another and
+                    a stopPropagation to keep them apart; as siblings both are
+                    plain, valid, and independently reachable by keyboard. */}
                 <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() =>
-                    setSelected(isSelected ? null : (span.span_id ?? null))
-                  }
-                  onKeyDown={selectKey}
-                  className={cn(
-                    'flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-muted/40',
-                    isSelected && 'bg-muted/50',
-                  )}
+                  className="flex shrink-0 items-center"
+                  style={{ paddingLeft: `${Math.min(depth, 8) * 12 + 8}px` }}
                 >
-                  <div
-                    className="flex w-[38%] min-w-0 items-center gap-1"
-                    style={{ paddingLeft: `${Math.min(depth, 8) * 12}px` }}
-                  >
-                    {hasChildren ? (
-                      // The row itself is the selectable control, and this is a
-                      // second control inside it. Nesting is unavoidable here:
-                      // the row cannot be a <button> without making this one
-                      // invalid HTML, which is why the row is a div with a
-                      // role and its own keyboard handling.
-                      // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
-                      <button
-                        type="button"
-                        aria-label={
-                          isCol
-                            ? t('waterfall.expand')
-                            : t('waterfall.collapse')
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggle(span.span_id);
-                        }}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                      >
-                        {isCol ? (
-                          <ChevronRight className="size-3" />
-                        ) : (
-                          <ChevronDown className="size-3" />
-                        )}
-                      </button>
-                    ) : (
-                      <span className="inline-block size-3 shrink-0" />
-                    )}
+                  {hasChildren ? (
+                    <button
+                      type="button"
+                      aria-label={
+                        isCol ? t('waterfall.expand') : t('waterfall.collapse')
+                      }
+                      onClick={() => toggle(span.span_id)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      {isCol ? (
+                        <ChevronRight className="size-3" />
+                      ) : (
+                        <ChevronDown className="size-3" />
+                      )}
+                    </button>
+                  ) : (
+                    <span className="inline-block size-3" />
+                  )}
+                </div>
+
+                <Link
+                  href={href}
+                  scroll={false}
+                  aria-current={isSelected ? 'true' : undefined}
+                  className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
+                >
+                  <div className="flex w-[38%] min-w-0 items-center gap-1">
                     <span
                       className={cn(
                         'shrink-0 rounded px-1 py-px text-[10px] font-medium text-white',
@@ -343,134 +335,18 @@ export function AgentTraceWaterfall({ spans }: AgentTraceWaterfallProps) {
                       }}
                     />
                   </div>
-                  <span className="w-16 text-right tabular-nums text-muted-foreground">
+                  <span
+                    className="w-16 text-right tabular-nums text-muted-foreground"
+                    title={selfMs != null ? formatDuration(selfMs) : undefined}
+                  >
                     {formatDuration(dur)}
                   </span>
-                </div>
-
-                {isSelected && <SpanDetail span={span} selfMs={selfMs} />}
+                </Link>
               </div>
             );
           },
         )}
       </div>
     </div>
-  );
-}
-
-function SpanDetail({ span, selfMs }: { span: Span; selfMs: number | null }) {
-  const t = useTranslations('agents');
-  const format = useFormatter();
-  const rows: { key: string; label: string; value: string }[] = [
-    {
-      key: 'op',
-      label: t('detail.op'),
-      value: span.op ?? '—',
-    },
-    {
-      key: 'description',
-      label: t('detail.description'),
-      value: span.description ?? '—',
-    },
-    {
-      key: 'status',
-      label: t('detail.status'),
-      value: span.status ?? '—',
-    },
-    {
-      key: 'duration',
-      label: t('detail.duration'),
-      value: formatDuration(span.duration_ms),
-    },
-    {
-      key: 'selfTime',
-      label: t('detail.selfTime'),
-      value: formatDuration(selfMs),
-    },
-    {
-      key: 'spanId',
-      label: t('detail.spanId'),
-      value: span.span_id ?? '—',
-    },
-    {
-      key: 'parentSpanId',
-      label: t('detail.parentSpanId'),
-      value: span.parent_span_id ?? '—',
-    },
-  ];
-
-  const isAiSpan = span.gen_ai_operation_type != null;
-  const genAiRows: { key: string; label: string; value: string }[] = [
-    {
-      key: 'operationType',
-      label: t('detail.operationType'),
-      value: span.gen_ai_operation_type ?? '—',
-    },
-    {
-      key: 'agentName',
-      label: t('detail.agentName'),
-      value: span.gen_ai_agent_name ?? '—',
-    },
-    {
-      key: 'toolName',
-      label: t('detail.toolName'),
-      value: span.gen_ai_tool_name ?? '—',
-    },
-    {
-      key: 'requestModel',
-      label: t('detail.requestModel'),
-      value: span.gen_ai_request_model ?? '—',
-    },
-    {
-      key: 'responseModel',
-      label: t('detail.responseModel'),
-      value: span.gen_ai_response_model ?? '—',
-    },
-    {
-      key: 'conversationId',
-      label: t('detail.conversationId'),
-      value: span.gen_ai_conversation_id ?? '—',
-    },
-    {
-      key: 'inputTokens',
-      label: t('detail.inputTokens'),
-      value: formatTokens(span.gen_ai_usage_input_tokens, format),
-    },
-    {
-      key: 'outputTokens',
-      label: t('detail.outputTokens'),
-      value: formatTokens(span.gen_ai_usage_output_tokens, format),
-    },
-    {
-      key: 'totalTokens',
-      label: t('detail.totalTokens'),
-      value: formatTokens(span.gen_ai_usage_total_tokens, format),
-    },
-  ];
-
-  return (
-    <dl className="ml-6 mt-0.5 mb-1 grid grid-cols-[8rem_1fr] gap-x-3 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-[11px]">
-      {rows.map((row) => (
-        <div key={row.key} className="contents">
-          <dt className="text-muted-foreground">{row.label}</dt>
-          <dd className="truncate break-all text-foreground">{row.value}</dd>
-        </div>
-      ))}
-      {isAiSpan && (
-        <>
-          <div className="col-span-2 mt-1 border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-            {t('detail.genAiSection')}
-          </div>
-          {genAiRows.map((row) => (
-            <div key={row.key} className="contents">
-              <dt className="text-muted-foreground">{row.label}</dt>
-              <dd className="truncate break-all text-foreground">
-                {row.value}
-              </dd>
-            </div>
-          ))}
-        </>
-      )}
-    </dl>
   );
 }

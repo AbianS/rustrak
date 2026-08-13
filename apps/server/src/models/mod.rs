@@ -52,7 +52,10 @@ pub use alert::{
 };
 pub use auth_token::{AuthToken, AuthTokenCreatedResponse, AuthTokenResponse, CreateAuthToken};
 pub use event::{Event, EventDetailResponse, EventResponse};
-pub use gen_ai::{AgentDurationPoint, AgentTimeseriesPoint, AgentTraceSummary, GenAiBreakdownRow};
+pub use gen_ai::{
+    AgentDurationPoint, AgentModelRow, AgentSummary, AgentTimeseriesPoint, AgentToolRow,
+    AgentTraceSummary, GenAiBreakdownRow,
+};
 pub use grouping::Grouping;
 pub use installation::Installation;
 pub use invitation::{
@@ -75,6 +78,7 @@ pub use storage::{
     SourceMapStorage, StorageSummary,
 };
 pub use transaction::{
-    SpanResponse, TransactionDetailResponse, TransactionResponse, TransactionStatsResponse,
+    span_attributes, SpanDetailResponse, SpanResponse, TransactionDetailResponse,
+    TransactionResponse, TransactionStatsResponse,
 };
 pub use user::{CreateUserRequest, LoginRequest, User, UserRole};

@@ -67,8 +67,11 @@ pub struct SpanResponse {
     pub exclusive_time_ms: Option<f64>,
     pub is_segment: bool,
     pub segment_id: Option<String>,
-    /// Only ever set for standalone spans — a transaction-embedded span
-    /// inherits these from its parent transaction row instead.
+    /// Set for every span. A standalone span reports its own; a
+    /// transaction-embedded one is stamped with its parent transaction's at
+    /// write time, rather than being left NULL to be recovered by a JOIN —
+    /// the agents dashboard filters `spans` directly and a NULL would drop
+    /// the row from an environment-filtered view.
     pub platform: Option<String>,
     pub release: Option<String>,
     pub environment: Option<String>,
@@ -83,6 +86,59 @@ pub struct SpanResponse {
     pub gen_ai_usage_input_tokens: Option<f64>,
     pub gen_ai_usage_output_tokens: Option<f64>,
     pub gen_ai_usage_total_tokens: Option<f64>,
+}
+
+/// One span with its full attribute bag — the detail counterpart to
+/// [`SpanResponse`].
+///
+/// The list response deliberately omits attributes: `spans.data` is never
+/// trimmed (unlike event data, which goes through `services::event_trim`), so
+/// a single AI span can carry a whole prompt and a trace's worth of them would
+/// dwarf the waterfall it is drawn from. Attributes are fetched one span at a
+/// time instead, which is also how Sentry's own agent drawer works — the span
+/// list is light and the details panel loads the selected node's attributes.
+#[derive(Debug, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct SpanDetailResponse {
+    #[serde(flatten)]
+    pub span: SpanResponse,
+    /// The span's attribute bag, flattened to `{key: value}` regardless of
+    /// which producer wrote the row — see [`span_attributes`]. This is the
+    /// `gen_ai.*` payload (prompts, responses, tool arguments and results,
+    /// system instructions, tool definitions) that the agents UI renders.
+    pub attributes: serde_json::Value,
+    /// Span tags, when the producer stored any. Spans Protocol v2 has no
+    /// separate tags concept — everything is an attribute — so this is always
+    /// `None` for a v2-origin span.
+    pub tags: Option<serde_json::Value>,
+}
+
+/// Extracts a span's attribute bag from the raw `spans.data` column.
+///
+/// The column holds two different shapes depending on which producer wrote
+/// the row, and callers must not have to care:
+///
+/// - Spans Protocol v2 (`digest::processors::span_v2`) stores the already
+///   flattened attribute bag itself, so `data` *is* the attributes.
+/// - The legacy standalone producer (`digest::processors::span`) and the
+///   transaction-embedded one (`digest::processors::transaction`) store the
+///   whole span object, whose own `data` key holds the attributes — the same
+///   key `extract_gen_ai_columns` normalizes in place.
+///
+/// A v2 attribute bag cannot contain an object — `SpanV2Entry::flat_attributes`
+/// drops those on the way in, as Relay does. Rows written before that
+/// validation existed could still hold one, so the wrapper is recognized by
+/// two signals rather than one: the nested `data` object *and* the `span_id`
+/// that every legacy payload carries at the top level, because all three
+/// legacy producers store the span object itself. An attribute bag would only
+/// have `span_id` if an SDK set an attribute by that exact name.
+pub fn span_attributes(data: &serde_json::Value) -> serde_json::Value {
+    let looks_like_a_span_payload = data.get("span_id").is_some();
+
+    match data.get("data") {
+        Some(nested) if nested.is_object() && looks_like_a_span_payload => nested.clone(),
+        _ => data.clone(),
+    }
 }
 
 /// Aggregate performance stats for one (transaction_name, op) group.
