@@ -689,18 +689,25 @@ impl SpanService {
         project_id: i32,
         page: i64,
         per_page: i64,
+        period_hours: Option<i64>,
         filters: &AgentFilters,
     ) -> AppResult<(Vec<AgentTraceSummary>, i64)> {
         let per_page = per_page.clamp(1, 100);
         let offset = (page.max(1) - 1) * per_page;
 
         let scope = filters.sql(2);
+        #[cfg(feature = "postgres")]
+        let time_filter = pg_span_time_filter(period_hours);
+        #[cfg(not(feature = "postgres"))]
+        let time_filter = sqlite_span_time_filter(period_hours);
+
         let total_sql = format!(
             r#"
             SELECT COUNT(*) FROM (
                 SELECT 1 FROM spans
                 WHERE project_id = $1 AND gen_ai_operation_type IS NOT NULL AND trace_id IS NOT NULL
                   {scope}
+                  {time_filter}
                 GROUP BY trace_id
             ) g
             "#
@@ -746,6 +753,7 @@ impl SpanService {
             FROM spans
             WHERE project_id = $1 AND gen_ai_operation_type IS NOT NULL AND trace_id IS NOT NULL
               {scope}
+              {time_filter}
             GROUP BY trace_id
             ORDER BY started_at DESC, trace_id ASC
             LIMIT $3 OFFSET $4

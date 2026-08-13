@@ -189,12 +189,27 @@ function adjustedOutput(
     : output;
 }
 
-/** The raw counts, before any convention-reconciling. */
+/**
+ * The raw counts, before any convention-reconciling.
+ *
+ * A provider may report the parts and no total. Relay derives one in that case
+ * (`set_total_tokens`, relay-event-normalization/src/normalize/span/ai.rs) and
+ * declines to when both parts are absent; this does the same, so a span the
+ * server never normalized still reads the way Sentry would show it. Without
+ * it the total falls to zero, the mismatch tolerance collapses to 1, and the
+ * warning fires on correct instrumentation.
+ */
 function rawUsage(attributes: SpanAttributes) {
+  const input = num(attributes, 'gen_ai.usage.input_tokens');
+  const output = num(attributes, 'gen_ai.usage.output_tokens');
+  const reported = num(attributes, 'gen_ai.usage.total_tokens');
+
   return {
-    total: num(attributes, 'gen_ai.usage.total_tokens'),
-    input: num(attributes, 'gen_ai.usage.input_tokens'),
-    output: num(attributes, 'gen_ai.usage.output_tokens'),
+    // A reported total wins even when it disagrees with the parts — that
+    // disagreement is what the mismatch warning exists to surface.
+    total: reported !== 0 ? reported : input + output,
+    input,
+    output,
     cached: cachedInputTokens(attributes),
     reasoning: num(
       attributes,

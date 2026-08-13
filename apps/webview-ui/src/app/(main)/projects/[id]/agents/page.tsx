@@ -104,6 +104,7 @@ export default async function AgentsPage({
     getAgentTraces(projectId, {
       page: currentPage,
       per_page: 20,
+      period_hours: filters.periodHours,
       environment: filters.environment,
     }),
     getAgentSummary(projectId, breakdown),
@@ -276,6 +277,7 @@ export default async function AgentsPage({
                   totalPages={traces.total_pages}
                   totalCount={traces.total_count}
                   perPage={traces.per_page}
+                  filters={{ period, environment }}
                 />
               </CardContent>
             </Card>

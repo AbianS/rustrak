@@ -124,9 +124,19 @@ pub struct SpanDetailResponse {
 ///   transaction-embedded one (`digest::processors::transaction`) store the
 ///   whole span object, whose own `data` key holds the attributes — the same
 ///   key `extract_gen_ai_columns` normalizes in place.
+///
+/// A v2 attribute bag cannot contain an object — `SpanV2Entry::flat_attributes`
+/// drops those on the way in, as Relay does. Rows written before that
+/// validation existed could still hold one, so the wrapper is recognized by
+/// two signals rather than one: the nested `data` object *and* the `span_id`
+/// that every legacy payload carries at the top level, because all three
+/// legacy producers store the span object itself. An attribute bag would only
+/// have `span_id` if an SDK set an attribute by that exact name.
 pub fn span_attributes(data: &serde_json::Value) -> serde_json::Value {
+    let looks_like_a_span_payload = data.get("span_id").is_some();
+
     match data.get("data") {
-        Some(nested) if nested.is_object() => nested.clone(),
+        Some(nested) if nested.is_object() && looks_like_a_span_payload => nested.clone(),
         _ => data.clone(),
     }
 }

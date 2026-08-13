@@ -1582,18 +1582,6 @@
                 "null"
               ]
             }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "maximum": 100,
-              "minimum": 1
-            }
           }
         ],
         "responses": {
@@ -1973,18 +1961,6 @@
                 "null"
               ]
             }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "maximum": 100,
-              "minimum": 1
-            }
           }
         ],
         "responses": {
@@ -2166,18 +2142,6 @@
                 "null"
               ]
             }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Max rows returned (default: 3, matching Sentry's own widget cap).",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "maximum": 100,
-              "minimum": 1
-            }
           }
         ],
         "responses": {
@@ -2238,6 +2202,19 @@
             "schema": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "period_hours",
+            "in": "query",
+            "description": "Lookback window in hours (default: all time, no filter). The dashboard\napplies one window to every widget, and this table is one of them.",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
             }
           },
           {

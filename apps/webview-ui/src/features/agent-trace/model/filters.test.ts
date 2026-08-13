@@ -97,4 +97,18 @@ describe('defaultSelectedSpanId', () => {
   it('is undefined for an empty trace rather than throwing', () => {
     expect(defaultSelectedSpanId([])).toBeUndefined();
   });
+  it('orders deterministically when a span has no timestamp', () => {
+    // `Date.parse(null ?? '')` is NaN, and a comparator returning NaN leaves
+    // the order implementation-defined — the default selection would then
+    // depend on the order rows came back in.
+    const withoutTimestamp = {
+      id: 'no-ts',
+      gen_ai_operation_type: 'ai_client',
+      start_timestamp: null,
+    };
+    const early = span('early', 'ai_client', '2026-08-13T10:00:01Z');
+
+    expect(defaultSelectedSpanId([withoutTimestamp, early])).toBe('early');
+    expect(defaultSelectedSpanId([early, withoutTimestamp])).toBe('early');
+  });
 });

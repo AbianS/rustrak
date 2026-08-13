@@ -291,10 +291,30 @@ fn default_breakdown_limit() -> i64 {
     3
 }
 
+/// Query parameters for the agents-dashboard aggregates that return a whole
+/// table rather than a top-N slice: summary, models, tools/stats.
+///
+/// Deliberately not `AgentBreakdownQuery`: that one carries `limit`, which
+/// these endpoints have no way to honour, and reusing it published a
+/// documented parameter they silently ignored.
+#[derive(Debug, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
+pub struct AgentWindowQuery {
+    /// Lookback window in hours (default: all time, no filter).
+    pub period_hours: Option<i64>,
+
+    /// Restrict to spans reporting this environment (default: all).
+    pub environment: Option<String>,
+}
+
 /// Query parameters for the AI Agent Monitoring Traces table (offset-based).
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct AgentTracesQuery {
+    /// Lookback window in hours (default: all time, no filter). The dashboard
+    /// applies one window to every widget, and this table is one of them.
+    pub period_hours: Option<i64>,
+
     /// Restrict to spans reporting this environment (default: all).
     pub environment: Option<String>,
 

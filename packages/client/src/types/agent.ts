@@ -69,6 +69,8 @@ export interface AgentBreakdownOptions {
 export interface AgentTracesOptions {
   page?: number;
   per_page?: number;
+  /** Lookback window in hours (default: all time, no filter). */
+  period_hours?: number;
   /** Restrict to spans reporting this environment (default: all). */
   environment?: string;
 }

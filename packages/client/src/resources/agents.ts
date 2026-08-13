@@ -159,6 +159,9 @@ export class AgentsResource extends BaseResource {
     if (options?.per_page) {
       searchParams.per_page = String(options.per_page);
     }
+    if (options?.period_hours) {
+      searchParams.period_hours = String(options.period_hours);
+    }
     if (options?.environment) {
       searchParams.environment = options.environment;
     }

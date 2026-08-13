@@ -20,7 +20,8 @@ use crate::models::{
     AgentTraceSummary, GenAiBreakdownRow,
 };
 use crate::pagination::{
-    AgentBreakdownQuery, AgentTimeseriesQuery, AgentTracesQuery, OffsetPaginatedResponse,
+    AgentBreakdownQuery, AgentTimeseriesQuery, AgentTracesQuery, AgentWindowQuery,
+    OffsetPaginatedResponse,
 };
 use crate::services::access::{self, Action};
 use crate::services::span::{AgentFilters, SpanService};
@@ -254,8 +255,15 @@ pub async fn agent_traces(
     let filters = AgentFilters {
         environment: query.environment.clone(),
     };
-    let (traces, total_count) =
-        SpanService::agent_traces(pool.get_ref(), project_id, page, per_page, &filters).await?;
+    let (traces, total_count) = SpanService::agent_traces(
+        pool.get_ref(),
+        project_id,
+        page,
+        per_page,
+        query.period_hours,
+        &filters,
+    )
+    .await?;
 
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         traces,
@@ -269,7 +277,7 @@ pub async fn agent_traces(
     get,
     path = "/api/projects/{project_id}/agents/summary",
     tag = "Agents",
-    params(("project_id" = i32, Path, description = "Project ID"), AgentBreakdownQuery),
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
     responses(
         (status = 200, description = "Headline totals for the selected window", body = AgentSummary),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
@@ -283,7 +291,7 @@ pub async fn agent_traces(
 pub async fn agent_summary(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    query: web::Query<AgentBreakdownQuery>,
+    query: web::Query<AgentWindowQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
@@ -303,7 +311,7 @@ pub async fn agent_summary(
     get,
     path = "/api/projects/{project_id}/agents/models",
     tag = "Agents",
-    params(("project_id" = i32, Path, description = "Project ID"), AgentBreakdownQuery),
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
     responses(
         (status = 200, description = "Per-model volume, failures, latency and token split", body = Vec<AgentModelRow>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
@@ -315,7 +323,7 @@ pub async fn agent_summary(
 pub async fn agent_models_table(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    query: web::Query<AgentBreakdownQuery>,
+    query: web::Query<AgentWindowQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
@@ -334,7 +342,7 @@ pub async fn agent_models_table(
     get,
     path = "/api/projects/{project_id}/agents/tools/stats",
     tag = "Agents",
-    params(("project_id" = i32, Path, description = "Project ID"), AgentBreakdownQuery),
+    params(("project_id" = i32, Path, description = "Project ID"), AgentWindowQuery),
     responses(
         (status = 200, description = "Per-tool call volume, failures and latency", body = Vec<AgentToolRow>),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
@@ -346,7 +354,7 @@ pub async fn agent_models_table(
 pub async fn agent_tools_table(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    query: web::Query<AgentBreakdownQuery>,
+    query: web::Query<AgentWindowQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();

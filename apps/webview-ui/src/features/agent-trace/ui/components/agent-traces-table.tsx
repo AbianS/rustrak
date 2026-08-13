@@ -17,6 +17,8 @@ interface AgentTracesTableProps {
   totalPages: number;
   totalCount: number;
   perPage: number;
+  /** The dashboard's active filters, carried through pagination. */
+  filters: { period?: string; environment?: string };
 }
 
 function formatMs(ms: number | null): string {
@@ -38,6 +40,7 @@ export function AgentTracesTable({
   totalPages,
   totalCount,
   perPage,
+  filters,
 }: AgentTracesTableProps) {
   const format = useFormatter();
   const t = useTranslations('agents');
@@ -46,8 +49,16 @@ export function AgentTracesTable({
   const [isPending, startTransition] = useTransition();
 
   const handlePageChange = (page: number) => {
+    // The dashboard's filters live in the same query string. Navigating with
+    // only `page` would drop them, so a reader who paged through a filtered
+    // view would silently get unfiltered traces back.
+    const query = new URLSearchParams();
+    if (filters.period) query.set('period', filters.period);
+    if (filters.environment) query.set('environment', filters.environment);
+    query.set('page', String(page));
+
     startTransition(() => {
-      router.push(`/projects/${projectId}/agents?page=${page}`);
+      router.push(`/projects/${projectId}/agents?${query}`);
     });
   };
 

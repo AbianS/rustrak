@@ -153,7 +153,21 @@ export default async function AgentTraceDetailPage({
   // of the page on "select a span". Sentry defaults to the first generation
   // span for the same reason, and the URL stays clean until the reader picks
   // one themselves.
-  const selectedSpanId = requestedSpanId ?? defaultSelectedSpanId(spans);
+  //
+  // A requested id is honoured only if it belongs to this trace. `getSpan` is
+  // scoped to the project, not the trace, so without this check a span from
+  // another trace would render beside this one's waterfall — the URL and the
+  // panel describing different things. It also means the only ids that ever
+  // reach the request are ones already loaded from the server.
+  const requestedSpanIsInTrace =
+    requestedSpanId != null && spans.some((s) => s.id === requestedSpanId);
+  const selectedSpanId = requestedSpanIsInTrace
+    ? requestedSpanId
+    : requestedSpanId == null
+      ? defaultSelectedSpanId(spans)
+      : undefined;
+  const requestedSpanMissing =
+    requestedSpanId != null && !requestedSpanIsInTrace;
 
   // Only the selected span: attributes are the one part of a span that is
   // never trimmed server-side, so they are pulled one at a time.
@@ -241,19 +255,28 @@ export default async function AgentTraceDetailPage({
             </h2>
           </div>
           <div className="p-4 lg:overflow-auto">
-            {selected == null ? (
+            {requestedSpanMissing ||
+            (selected?.success === false &&
+              selected.error.kind === 'not_found') ? (
+              // A stale link, not an outage — say so in place rather than
+              // replacing the whole trace view with a failure surface.
+              <p className="text-sm text-muted-foreground">
+                {t('trace.spanUnavailable')}
+              </p>
+            ) : selected == null ? (
               <p className="text-sm text-muted-foreground">
                 {t('trace.selectSpan')}
               </p>
             ) : selected.success ? (
               <AiSpanDetail span={selected.data} />
             ) : (
-              // A span id in the URL that no longer resolves is a stale link,
-              // not an outage — say so in place rather than replacing the
-              // whole trace view with a failure surface.
-              <p className="text-sm text-muted-foreground">
-                {t('trace.spanUnavailable')}
-              </p>
+              // Anything else is a real failure. Reporting a timeout or a 500
+              // as "that span is no longer available" would send the reader
+              // looking for a deleted span that is still there.
+              <LoadFailure
+                error={selected.error}
+                title={t('trace.loadFailed')}
+              />
             )}
           </div>
         </section>

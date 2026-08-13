@@ -261,6 +261,7 @@ async fn test_real_sdk_span_v2_envelope_populates_agents_dashboard() {
         project_id,
         1,
         20,
+        None,
         &Default::default(),
     )
     .await

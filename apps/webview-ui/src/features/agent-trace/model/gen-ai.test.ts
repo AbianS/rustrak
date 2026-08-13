@@ -241,3 +241,46 @@ describe('hasTokenMismatch', () => {
     expect(hasTokenMismatch({ 'gen_ai.tool.name': 'search' })).toBe(false);
   });
 });
+
+describe('a provider that reports the parts but no total', () => {
+  it('derives the total from input and output', () => {
+    // Relay does exactly this in `set_total_tokens` when the attribute is
+    // absent, so the derived value is the one the rest of Sentry would show.
+    const breakdown = tokenBreakdown({
+      'gen_ai.usage.input_tokens': 1000,
+      'gen_ai.usage.output_tokens': 200,
+    });
+
+    expect(breakdown?.total).toBe(1200);
+  });
+
+  it('does not warn about a total it derived itself', () => {
+    // Previously `total` fell back to 0, the tolerance collapsed to 1, and the
+    // amber warning fired on perfectly good instrumentation.
+    expect(
+      hasTokenMismatch({
+        'gen_ai.usage.input_tokens': 1000,
+        'gen_ai.usage.output_tokens': 200,
+      }),
+    ).toBe(false);
+  });
+
+  it('still prefers a reported total over the derived one', () => {
+    // A reported total that disagrees with the parts is exactly what the
+    // mismatch warning exists to catch — deriving must not paper over it.
+    const attributes = {
+      'gen_ai.usage.input_tokens': 1000,
+      'gen_ai.usage.output_tokens': 200,
+      'gen_ai.usage.total_tokens': 5000,
+    };
+
+    expect(tokenBreakdown(attributes)?.total).toBe(5000);
+    expect(hasTokenMismatch(attributes)).toBe(true);
+  });
+
+  it('reports no usage when neither part is present', () => {
+    // Relay declines to set a total when both input and output are missing,
+    // and there is nothing to show for such a span either.
+    expect(tokenBreakdown({ 'gen_ai.tool.name': 'search' })).toBeNull();
+  });
+});

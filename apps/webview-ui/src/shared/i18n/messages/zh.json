@@ -955,7 +955,7 @@
       "toolName": "工具",
       "reasoningEffort": "推理强度",
       "conversationId": "会话",
-      "tokens": "Token",
+      "tokens": "令牌",
       "inputTokens": "输入",
       "cachedTokens": "缓存输入",
       "outputTokens": "输出",
@@ -973,7 +973,7 @@
       "agentRuns": "智能体运行",
       "llmCalls": "LLM 调用",
       "toolCalls": "工具调用",
-      "totalTokens": "Token",
+      "totalTokens": "令牌",
       "avgDuration": "平均耗时",
       "p95Duration": "P95 耗时",
       "errors": "错误"
@@ -1365,9 +1365,9 @@
       "spans": "跨度",
       "llmCalls": "{count} 次 LLM 调用",
       "errors": "{count} 个错误",
-      "spanDetail": "Span 详情",
-      "selectSpan": "选择一个 span 以查看其提示词、响应和属性。",
-      "spanUnavailable": "该 span 已不可用。"
+      "spanDetail": "跨度详情",
+      "selectSpan": "选择一个跨度以查看其提示词、响应和属性。",
+      "spanUnavailable": "该跨度已不可用。"
     },
     "event": {
       "meta": {

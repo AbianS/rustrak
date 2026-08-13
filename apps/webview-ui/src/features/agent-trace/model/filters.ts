@@ -100,6 +100,19 @@ export function agentDashboardQuery(
  * mostly restates the header, while the first generation is where the prompt
  * and the answer are.
  */
+/**
+ * A sortable instant for a span's start.
+ *
+ * A missing or unparseable timestamp sorts last rather than yielding `NaN`: a
+ * comparator that returns `NaN` leaves the order implementation-defined, which
+ * would make the default selection depend on the order rows arrived in.
+ */
+function sortableStart(value: string | null): number {
+  if (value == null) return Number.POSITIVE_INFINITY;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? Number.POSITIVE_INFINITY : parsed;
+}
+
 export function defaultSelectedSpanId(
   spans: {
     id: string;
@@ -111,7 +124,7 @@ export function defaultSelectedSpanId(
 
   const inOrder = [...spans].sort(
     (a, b) =>
-      Date.parse(a.start_timestamp ?? '') - Date.parse(b.start_timestamp ?? ''),
+      sortableStart(a.start_timestamp) - sortableStart(b.start_timestamp),
   );
 
   return (
