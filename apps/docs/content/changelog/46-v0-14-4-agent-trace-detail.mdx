@@ -1,0 +1,48 @@
+---
+version: v0.14.4
+title: Agent Trace Detail and Dashboard Totals
+description: Every gen_ai attribute a span carries is now readable, and the agents dashboard reports numbers rather than only shapes
+date: 2026-08-13
+tags: [server, webview-ui, client, agents]
+---
+
+## Spans carry their attributes, and now hand them over
+
+Every `gen_ai.*` payload an SDK sent was already stored and simply unreachable.
+
+- `GET /api/projects/{id}/spans/{span_id}` returns a span with its attribute bag: prompts, responses, tool arguments and results, system instructions, tool definitions
+- Kept off the list response on purpose. `spans.data` is never trimmed, so a trace's worth of prompts would dwarf the waterfall they are drawn from
+- The two on-disk shapes are normalized: Spans Protocol v2 stores the flat attribute bag, while the legacy standalone and transaction-embedded producers store the whole span object with attributes under its own `data` key. Callers see one flat shape either way
+- Attributes whose declared type contradicts their value are dropped, as Relay does. An object-valued attribute could otherwise masquerade as a whole attribute bag and hide its siblings
+
+## The trace page has a details panel
+
+- Two panes: the waterfall beside a details panel for the selected span, with the selection in the URL so it is server-rendered and shareable
+- Model, agent, reasoning effort, conversation, token breakdown, available tools, input and output, and the raw attributes
+- It opens on the first LLM call rather than on nothing, matching Sentry
+- Providers disagree about whether input tokens include cached ones, so the reading is picked that brings input plus output closest to the reported total. Subtracting cached from an input that never contained it loses tokens that were billed. A warning fires when the parts miss the total by more than a percent, and a total is derived when the provider reports only the parts
+- The header gains LLM calls, errors and the models used
+
+## The dashboard reports numbers
+
+It had six charts and no totals, and neither page could be scoped to a window or an environment.
+
+- `/agents/summary`, `/agents/models`, `/agents/tools/stats` and `/agents/environments`, surfaced as a totals row and two tables, per model and per tool
+- Every aggregate is filtered by window and environment, both held in the URL and preserved through trace pagination
+- The traces table gains started, LLM calls and errors
+- Cached-input and reasoning-output token counts are now stored, read under both attribute spellings since Relay renamed them and older data carries the old names
+
+Cost stays deliberately excluded. `gen_ai.cost.*` is not SDK data, Relay computes it from a pricing table, so there is nothing to pass through.
+
+## Fixes
+
+- Platform, release and environment are stamped on transaction-embedded spans and on the promoted agent root. Both were left NULL to be recovered by a JOIN, but the dashboard filters `spans` directly, so an environment filter dropped every one of them and agent runs read zero beside a non-zero LLM call count for the same traces
+- The collapse control in the waterfall was an interactive element nested inside another, and is now a sibling of the row link
+- The selected span is constrained to the loaded trace, and a network failure is no longer reported as a missing span
+- Spans with missing timestamps sort deterministically
+- Three endpoints stopped publishing a `limit` parameter they ignore
+
+## Improvements
+
+- 33 dependencies updated across the JS and Rust workspaces, all pinned exact
+- Two hydration flags moved from `useState` plus a mount effect to `useSyncExternalStore`, so the correction lands before the first paint instead of after it
