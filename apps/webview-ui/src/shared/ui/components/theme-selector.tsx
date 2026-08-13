@@ -3,12 +3,12 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
+import { useIsHydrated } from '@/shared/ui/hooks/use-is-hydrated';
 
 export function ThemeSelector() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const hydrated = useIsHydrated();
   const t = useTranslations('theme');
 
   const themes = [
@@ -19,16 +19,10 @@ export function ThemeSelector() {
 
   // The theme is not knowable on the server: next-themes reads localStorage
   // and the system preference, both of which only exist in the browser. There
-  // is no render-safe initial value to use instead, and useSyncExternalStore
-  // would still have to return something for the server snapshot. So the
-  // first paint renders a placeholder of the same size, which is what stops
-  // this being a flash rather than causing one.
-  // react-doctor-disable-next-line react-doctor/rendering-hydration-no-flicker
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
+  // is no render-safe initial value to use instead, so the server paints a
+  // placeholder of the same size, which is what stops this being a flash
+  // rather than causing one.
+  if (!hydrated) {
     return (
       <div className="flex gap-3">
         {themes.map((t) => (

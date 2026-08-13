@@ -8,7 +8,7 @@ license = "GPL-3.0-only"
 
 [dependencies]
 # Web framework
-actix-web = { version = "4.14.0", features = ["cookies"] }
+actix-web = { version = "4.14.1", features = ["cookies"] }
 actix-rt = "2.11.0"
 
 # Session management
@@ -53,7 +53,7 @@ uuid = { version = "1.24.0", features = ["v4", "serde"] }
 slug = "0.1.6"
 
 # Error handling
-thiserror = "2.0.19"
+thiserror = "2.0.20"
 
 # Random number generation for tokens
 rand = "0.10.2"
@@ -66,7 +66,7 @@ flate2 = "1.1.9"
 brotli = "8.0.4"
 
 # Async utilities
-futures-util = "0.3.33"
+futures-util = "0.3.34"
 bytes = "1.12.1"
 
 # Hashing (for grouping key hash)
@@ -79,7 +79,7 @@ sha2 = "0.11.0"
 actix-cors = "0.7.1"
 
 # Base64 encoding for pagination cursors
-base64 = "0.23.0"
+base64 = "0.23.1"
 
 # HTTP client for notifications
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls"] }
@@ -91,7 +91,7 @@ hmac = "0.13.0"
 url = "2.5.8"
 
 # Async trait support
-async-trait = "0.1.91"
+async-trait = "0.1.92"
 
 # Source map processing
 sourcemap = "9"
@@ -122,6 +122,9 @@ actix-test = "0.1.5"
 # Note: reqwest available from main dependencies
 
 # Database testing with real PostgreSQL containers
+# testcontainers held at 0.27: testcontainers-modules 0.15 (latest) still requires
+# testcontainers ^0.27, and 0.28 pulls bollard 0.21 whose pinned bollard-stubs
+# conflicts with bollard 0.20's. Bump once testcontainers-modules supports 0.28.
 testcontainers = "0.27.3"
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
 
