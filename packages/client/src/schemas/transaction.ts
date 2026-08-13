@@ -60,7 +60,7 @@ export const spanSchema = z.object({
   exclusive_time_ms: z.number().nullable(),
   is_segment: z.boolean(),
   segment_id: z.string().nullable(),
-  /** Only ever set for standalone spans — a transaction-embedded span has no parent row to inherit these from. */
+  /** Reported by the span itself, or stamped from its parent transaction. Null only for rows ingested before that stamping existed. */
   platform: z.string().nullable(),
   release: z.string().nullable(),
   environment: z.string().nullable(),
@@ -74,6 +74,24 @@ export const spanSchema = z.object({
   gen_ai_usage_input_tokens: z.number().nullable(),
   gen_ai_usage_output_tokens: z.number().nullable(),
   gen_ai_usage_total_tokens: z.number().nullable(),
+});
+
+/**
+ * One span together with its full attribute bag.
+ *
+ * The list response omits attributes on purpose: the server never trims
+ * `spans.data`, so a single AI span can carry a whole prompt and a trace's
+ * worth of them would dwarf the waterfall they are drawn from. Fetch them one
+ * span at a time via `spans.get()`, which is also how Sentry's agent drawer
+ * loads the selected node's attributes.
+ *
+ * `attributes` is flat (`{"gen_ai.request.messages": ...}`) whichever producer
+ * wrote the row — the server normalizes the two on-disk shapes away.
+ */
+export const spanDetailSchema = spanSchema.extend({
+  attributes: z.record(z.string(), z.any()),
+  /** Always absent for a Spans Protocol v2 span: v2 has no tags concept. */
+  tags: z.record(z.string(), z.any()).nullish(),
 });
 
 /**

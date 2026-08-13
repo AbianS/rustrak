@@ -2151,6 +2151,100 @@ export const handlers = [
     });
   }),
 
+  // Spans — one span with its raw attribute bag (the payload the list omits)
+  http.get(
+    `${BASE_URL}/api/projects/:projectId/spans/:spanId`,
+    ({ params }) => {
+      if (params.spanId !== 'd4e5f6a7-e89b-12d3-a456-426614174000') {
+        return HttpResponse.json(
+          { error: { type: 'NotFound', message: 'Span not found' } },
+          { status: 404 },
+        );
+      }
+      return HttpResponse.json({
+        id: 'd4e5f6a7-e89b-12d3-a456-426614174000',
+        transaction_id: null,
+        span_id: 'cccccccccccccccc',
+        trace_id: 'ffffffffffffffffffffffffffffffff',
+        parent_span_id: 'eeeeeeeeeeeeeeee',
+        op: 'gen_ai.chat',
+        description: 'chat claude-opus-5',
+        status: 'ok',
+        start_timestamp: '2026-07-16T12:00:00.000Z',
+        timestamp: '2026-07-16T12:00:01.000Z',
+        duration_ms: 1000.0,
+        exclusive_time_ms: null,
+        is_segment: false,
+        segment_id: 'eeeeeeeeeeeeeeee',
+        platform: null,
+        release: null,
+        environment: 'production',
+        gen_ai_operation_type: 'ai_client',
+        gen_ai_agent_name: null,
+        gen_ai_request_model: 'claude-opus-5',
+        gen_ai_response_model: 'claude-opus-5',
+        gen_ai_tool_name: null,
+        gen_ai_conversation_id: null,
+        gen_ai_usage_input_tokens: 10,
+        gen_ai_usage_output_tokens: 5,
+        gen_ai_usage_total_tokens: 15,
+        attributes: {
+          'gen_ai.operation.name': 'chat',
+          'gen_ai.request.model': 'claude-opus-5',
+          'gen_ai.request.messages':
+            '[{"role":"user","content":"what is the weather"}]',
+          'gen_ai.response.text': 'it is sunny',
+          'gen_ai.usage.input_tokens': 10,
+          'gen_ai.usage.output_tokens': 5,
+        },
+        tags: { environment: 'production' },
+      });
+    },
+  ),
+
+  // AI Agent Monitoring — dashboard headline totals
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/summary`, () => {
+    return HttpResponse.json({
+      agent_runs: 12,
+      llm_calls: 31,
+      tool_calls: 18,
+      error_count: 3,
+      total_tokens: 48210,
+      avg_duration_ms: 1840.5,
+      p95_duration_ms: 4210.0,
+    });
+  }),
+
+  // AI Agent Monitoring — per-model table
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/models`, () => {
+    return HttpResponse.json([
+      {
+        model: 'claude-opus-5',
+        requests: 18,
+        errors: 2,
+        avg_ms: 2100.0,
+        p95_ms: 5200.0,
+        input_tokens: 30000,
+        cached_input_tokens: 12000,
+        output_tokens: 8000,
+        reasoning_output_tokens: 2400,
+        total_tokens: 38000,
+      },
+    ]);
+  }),
+
+  // AI Agent Monitoring — per-tool table
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/tools/stats`, () => {
+    return HttpResponse.json([
+      { tool: 'web_search', calls: 14, errors: 1, avg_ms: 320.0, p95_ms: 910.0 },
+    ]);
+  }),
+
+  // AI Agent Monitoring — filterable environments
+  http.get(`${BASE_URL}/api/projects/:projectId/agents/environments`, () => {
+    return HttpResponse.json(['production', 'staging']);
+  }),
+
   // AI Agent Monitoring — Agent Runs over time
   http.get(`${BASE_URL}/api/projects/:projectId/agents/runs`, () => {
     return HttpResponse.json([
@@ -2190,6 +2284,8 @@ export const handlers = [
           duration_ms: 1000.0,
           total_tokens: 150,
           tool_call_count: 1,
+          llm_call_count: 2,
+          error_count: 0,
           started_at: '2026-07-16T12:00:00.000Z',
         },
       ],

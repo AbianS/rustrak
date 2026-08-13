@@ -34,6 +34,9 @@ export {
 } from './result.js';
 // Types
 export type {
+  AgentModelRow,
+  AgentSummary,
+  AgentToolRow,
   AcceptInvitation,
   ActivityEntry,
   AgentBreakdownOptions,
@@ -118,6 +121,7 @@ export type {
   SourceMapGcResult,
   SourceMapStorage,
   Span,
+  SpanDetail,
   StorageSummary,
   TagSummary,
   TagValueCount,

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
 import { useTransition } from 'react';
+import { cn } from '@/shared/lib/utils';
 import { Badge } from '@/shared/ui/components/shadcn/badge';
 import { Button } from '@/shared/ui/components/shadcn/button';
 
@@ -58,9 +59,12 @@ export function AgentTracesTable({
       <div className="flex-1 overflow-hidden flex flex-col border rounded-lg">
         <div className="shrink-0 flex items-center gap-4 px-4 py-3 bg-muted/50 border-b text-xs font-bold uppercase tracking-widest text-muted-foreground">
           <span className="flex-1">{t('columns.agents')}</span>
+          <span className="w-24 text-right">{t('columns.started')}</span>
           <span className="w-24 text-right">{t('columns.duration')}</span>
-          <span className="w-20 text-right">{t('columns.tokens')}</span>
+          <span className="w-16 text-right">{t('columns.llmCalls')}</span>
           <span className="w-16 text-right">{t('columns.tools')}</span>
+          <span className="w-20 text-right">{t('columns.tokens')}</span>
+          <span className="w-16 text-right">{t('columns.errors')}</span>
         </div>
         <div className="flex-1 overflow-auto divide-y">
           {traces.map((trace) => (
@@ -91,14 +95,32 @@ export function AgentTracesTable({
                   {trace.trace_id}
                 </span>
               </div>
+              <span className="w-24 text-right font-mono text-xs tabular-nums text-muted-foreground">
+                {format.relativeTime(new Date(trace.started_at))}
+              </span>
               <span className="w-24 text-right font-mono tabular-nums text-muted-foreground">
                 {formatMs(trace.duration_ms)}
               </span>
-              <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
-                {format.number(trace.total_tokens)}
+              <span className="w-16 text-right font-mono tabular-nums text-muted-foreground">
+                {format.number(trace.llm_call_count)}
               </span>
               <span className="w-16 text-right font-mono tabular-nums text-muted-foreground">
                 {format.number(trace.tool_call_count)}
+              </span>
+              <span className="w-20 text-right font-mono tabular-nums text-muted-foreground">
+                {format.number(trace.total_tokens, 'compact')}
+              </span>
+              {/* The only column that colours itself, and only when non-zero:
+                  a table where every cell competes for attention has none. */}
+              <span
+                className={cn(
+                  'w-16 text-right font-mono tabular-nums',
+                  trace.error_count > 0
+                    ? 'font-semibold text-destructive'
+                    : 'text-muted-foreground',
+                )}
+              >
+                {format.number(trace.error_count)}
               </span>
             </Link>
           ))}

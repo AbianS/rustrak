@@ -3,15 +3,24 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import {
   getAgentDuration,
+  getAgentEnvironments,
   getAgentModelsByCalls,
   getAgentModelsByTokens,
+  getAgentModelsTable,
   getAgentRuns,
+  getAgentSummary,
   getAgentTools,
+  getAgentToolsTable,
   getAgentTraces,
 } from '@/features/agent-trace/api/queries';
+import { resolveAgentFilters } from '@/features/agent-trace/model/filters';
 import { AgentBreakdownChart } from '@/features/agent-trace/ui/components/agent-breakdown-chart';
+import { AgentDashboardFilters } from '@/features/agent-trace/ui/components/agent-dashboard-filters';
 import { AgentDurationChart } from '@/features/agent-trace/ui/components/agent-duration-chart';
+import { AgentModelsTable } from '@/features/agent-trace/ui/components/agent-models-table';
+import { AgentSummaryTiles } from '@/features/agent-trace/ui/components/agent-summary-tiles';
 import { AgentTimeseriesChart } from '@/features/agent-trace/ui/components/agent-timeseries-chart';
+import { AgentToolsTable } from '@/features/agent-trace/ui/components/agent-tools-table';
 import { AgentTracesTable } from '@/features/agent-trace/ui/components/agent-traces-table';
 import { getProject } from '@/features/project/api/queries';
 import { loadAll } from '@/shared/lib/results';
@@ -26,7 +35,11 @@ import {
 
 interface AgentsPageProps {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    period?: string;
+    environment?: string;
+  }>;
 }
 
 export async function generateMetadata({
@@ -52,9 +65,22 @@ export default async function AgentsPage({
 }: AgentsPageProps) {
   const t = await getTranslations('projectPages');
   const { id } = await params;
-  const { page = '1' } = await searchParams;
+  const { page = '1', period, environment } = await searchParams;
   const projectId = parseInt(id, 10);
   const currentPage = Math.max(1, parseInt(page, 10) || 1);
+
+  // One window for every widget on the page: a chart on 24h beside a table on
+  // all-time is a reader's trap, not a feature.
+  const filters = resolveAgentFilters({ period, environment });
+  const series = {
+    period_hours: filters.periodHours,
+    interval_hours: filters.intervalHours,
+    environment: filters.environment,
+  };
+  const breakdown = {
+    period_hours: filters.periodHours,
+    environment: filters.environment,
+  };
 
   const projectResult = await getProject(projectId);
 
@@ -70,12 +96,22 @@ export default async function AgentsPage({
   // than the "no agent activity yet" onboarding state, which would tell a team
   // whose agents are running that they never instrumented anything.
   const loaded = await loadAll([
-    getAgentRuns(projectId),
-    getAgentDuration(projectId),
-    getAgentModelsByCalls(projectId),
-    getAgentModelsByTokens(projectId),
-    getAgentTools(projectId),
-    getAgentTraces(projectId, { page: currentPage, per_page: 20 }),
+    getAgentRuns(projectId, series),
+    getAgentDuration(projectId, series),
+    getAgentModelsByCalls(projectId, breakdown),
+    getAgentModelsByTokens(projectId, breakdown),
+    getAgentTools(projectId, breakdown),
+    getAgentTraces(projectId, {
+      page: currentPage,
+      per_page: 20,
+      environment: filters.environment,
+    }),
+    getAgentSummary(projectId, breakdown),
+    getAgentModelsTable(projectId, breakdown),
+    getAgentToolsTable(projectId, breakdown),
+    // Not filtered by the current environment: the picker has to keep
+    // offering the option you would switch back to.
+    getAgentEnvironments(projectId),
   ]);
 
   if (!loaded.success) {
@@ -88,8 +124,18 @@ export default async function AgentsPage({
     );
   }
 
-  const [runs, duration, modelsByCalls, modelsByTokens, tools, traces] =
-    loaded.data;
+  const [
+    runs,
+    duration,
+    modelsByCalls,
+    modelsByTokens,
+    tools,
+    traces,
+    summary,
+    modelRows,
+    toolRows,
+    environments,
+  ] = loaded.data;
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -98,6 +144,13 @@ export default async function AgentsPage({
         <p className="text-sm text-muted-foreground mt-0.5">
           {t('agents.subtitle', { project: project.name })}
         </p>
+        <div className="mt-3">
+          <AgentDashboardFilters
+            projectId={projectId}
+            current={{ period, environment }}
+            environments={environments}
+          />
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto w-full px-4 md:px-8 py-4 md:py-6">
@@ -113,6 +166,8 @@ export default async function AgentsPage({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
+            <AgentSummaryTiles summary={summary} />
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card size="sm">
                 <CardHeader>
@@ -173,6 +228,32 @@ export default async function AgentsPage({
                 </CardHeader>
                 <CardContent>
                   <AgentBreakdownChart rows={tools} />
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>{t('agents.cardModelsTable')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardModelsTableDescription')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AgentModelsTable rows={modelRows} />
+                </CardContent>
+              </Card>
+
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>{t('agents.cardToolsTable')}</CardTitle>
+                  <CardDescription>
+                    {t('agents.cardToolsTableDescription')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AgentToolsTable rows={toolRows} />
                 </CardContent>
               </Card>
             </div>

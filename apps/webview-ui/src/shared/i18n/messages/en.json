@@ -912,7 +912,10 @@
       "agents": "Agents",
       "duration": "Duration",
       "tokens": "Tokens",
-      "tools": "Tools"
+      "tools": "Tools",
+      "started": "Started",
+      "llmCalls": "LLM",
+      "errors": "Errors"
     },
     "unnamedAgent": "(unnamed agent)",
     "charts": {
@@ -945,6 +948,59 @@
       "outputTokens": "output tokens",
       "totalTokens": "total tokens",
       "genAiSection": "gen_ai"
+    },
+    "spanDetail": {
+      "agentName": "Agent",
+      "model": "Model",
+      "toolName": "Tool",
+      "reasoningEffort": "Reasoning effort",
+      "conversationId": "Conversation",
+      "tokens": "Tokens",
+      "inputTokens": "Input",
+      "cachedTokens": "Cached input",
+      "outputTokens": "Output",
+      "totalTokens": "Total",
+      "availableTools": "Available tools",
+      "input": "Input",
+      "systemInstructions": "System instructions",
+      "output": "Output",
+      "responseObject": "Response object",
+      "requestedToolCalls": "Requested tool calls",
+      "allAttributes": "All attributes",
+      "tokenMismatch": "These counts do not add up to the reported total — the SDK may be reporting them inconsistently."
+    },
+    "summary": {
+      "agentRuns": "Agent runs",
+      "llmCalls": "LLM calls",
+      "toolCalls": "Tool calls",
+      "totalTokens": "Tokens",
+      "avgDuration": "Avg duration",
+      "p95Duration": "P95 duration",
+      "errors": "Errors"
+    },
+    "filters": {
+      "allTime": "All time",
+      "allEnvironments": "All environments"
+    },
+    "modelsTable": {
+      "empty": "No model calls in this window.",
+      "model": "Model",
+      "requests": "Requests",
+      "errors": "Errors",
+      "avg": "Avg",
+      "p95": "P95",
+      "input": "Input",
+      "cached": "Cached",
+      "output": "Output",
+      "reasoning": "Reasoning"
+    },
+    "toolsTable": {
+      "empty": "No tool calls in this window.",
+      "tool": "Tool",
+      "calls": "Calls",
+      "errors": "Errors",
+      "avg": "Avg",
+      "p95": "P95"
     }
   },
   "tokens": {
@@ -1291,7 +1347,11 @@
       "cardTools": "Tool Calls by Tool",
       "cardToolsDescription": "Top tools by call count",
       "cardTraces": "Traces",
-      "cardTracesDescription": "One row per trace, aggregating every AI span it contains"
+      "cardTracesDescription": "One row per trace, aggregating every AI span it contains",
+      "cardModelsTable": "Models",
+      "cardModelsTableDescription": "Volume, failures, latency and token split per model.",
+      "cardToolsTable": "Tools",
+      "cardToolsTableDescription": "Call volume and failure rate per tool."
     },
     "trace": {
       "meta": {
@@ -1302,7 +1362,12 @@
       "unnamed": "(unnamed agent)",
       "tokens": "{count} tokens",
       "toolCalls": "{count, plural, =1 {# tool call} other {# tool calls}}",
-      "spans": "Spans"
+      "spans": "Spans",
+      "llmCalls": "{count} LLM calls",
+      "errors": "{count} errors",
+      "spanDetail": "Span detail",
+      "selectSpan": "Select a span to see its prompt, response and attributes.",
+      "spanUnavailable": "That span is no longer available."
     },
     "event": {
       "meta": {

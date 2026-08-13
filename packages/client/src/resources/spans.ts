@@ -1,10 +1,15 @@
 import type { RustrakError } from '../errors.js';
 import type { Result } from '../result.js';
-import { offsetPaginatedResponseSchema, spanSchema } from '../schemas/index.js';
+import {
+  offsetPaginatedResponseSchema,
+  spanDetailSchema,
+  spanSchema,
+} from '../schemas/index.js';
 import type {
   ListSpansOptions,
   OffsetPaginatedResponse,
   Span,
+  SpanDetail,
 } from '../types/index.js';
 import { BaseResource } from './base.js';
 
@@ -46,6 +51,24 @@ export class SpansResource extends BaseResource {
     return this.request(
       () => this.http.get(`api/projects/${projectId}/spans`, { searchParams }),
       offsetPaginatedResponseSchema(spanSchema),
+    );
+  }
+
+  /**
+   * Fetch one span together with its raw attribute bag — the `gen_ai.*`
+   * payload (prompts, responses, tool arguments and results) that `list()`
+   * omits so a trace's worth of spans stays cheap to load.
+   *
+   * `spanId` is the row id from a list item's `id`, not the SDK's 16-hex
+   * `span_id`.
+   */
+  async get(
+    projectId: number,
+    spanId: string,
+  ): Promise<Result<SpanDetail, RustrakError>> {
+    return this.request(
+      () => this.http.get(`api/projects/${projectId}/spans/${spanId}`),
+      spanDetailSchema,
     );
   }
 }

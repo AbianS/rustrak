@@ -2,7 +2,9 @@
 //!
 //! Pure logic, no DB — mirrors Relay's normalize_ai() / infer_ai_operation_type().
 
-use rustrak::services::gen_ai::{infer_operation_type, is_ai_span, normalize_gen_ai_attributes};
+use rustrak::services::gen_ai::{
+    extract_gen_ai_columns, infer_operation_type, is_ai_span, normalize_gen_ai_attributes,
+};
 use serde_json::json;
 
 // =============================================================================
@@ -256,4 +258,73 @@ fn test_normalize_is_noop_when_data_is_not_an_object() {
     for mut data in [json!("oops"), json!(42), json!([1, 2]), json!(true)] {
         normalize_gen_ai_attributes(&mut data, Some("gen_ai.invoke_agent"));
     }
+}
+
+// ── Cached / reasoning token extraction ─────────────────────────────────────
+
+#[test]
+fn test_extract_reads_cached_input_tokens_under_the_current_name() {
+    // Relay emits `gen_ai.usage.cache_read.input_tokens` at c455da18 — the
+    // `.cached` suffix spelling is gone from its normalization.
+    let mut data = json!({
+        "gen_ai.operation.type": "ai_client",
+        "gen_ai.usage.input_tokens": 1000,
+        "gen_ai.usage.cache_read.input_tokens": 400,
+        "gen_ai.usage.output_tokens": 200
+    });
+
+    let columns = extract_gen_ai_columns(&mut data, None);
+
+    assert_eq!(columns.usage_cached_input_tokens, Some(400.0));
+}
+
+#[test]
+fn test_extract_falls_back_to_the_retired_cached_spelling() {
+    // Spans ingested before the rename still carry the old attribute, and
+    // Sentry's own frontend reads both. So does Rustrak.
+    let mut data = json!({
+        "gen_ai.operation.type": "ai_client",
+        "gen_ai.usage.input_tokens": 1000,
+        "gen_ai.usage.input_tokens.cached": 400
+    });
+
+    let columns = extract_gen_ai_columns(&mut data, None);
+
+    assert_eq!(columns.usage_cached_input_tokens, Some(400.0));
+}
+
+#[test]
+fn test_extract_reads_reasoning_output_tokens_under_both_spellings() {
+    let mut current = json!({
+        "gen_ai.operation.type": "ai_client",
+        "gen_ai.usage.reasoning.output_tokens": 320
+    });
+    let mut retired = json!({
+        "gen_ai.operation.type": "ai_client",
+        "gen_ai.usage.output_tokens.reasoning": 320
+    });
+
+    assert_eq!(
+        extract_gen_ai_columns(&mut current, None).usage_reasoning_output_tokens,
+        Some(320.0)
+    );
+    assert_eq!(
+        extract_gen_ai_columns(&mut retired, None).usage_reasoning_output_tokens,
+        Some(320.0)
+    );
+}
+
+#[test]
+fn test_extract_leaves_cached_and_reasoning_none_when_absent() {
+    // A model that reports neither must store NULL, not 0: the Token Types
+    // widget has to tell "no prompt caching" from "caching reported zero".
+    let mut data = json!({
+        "gen_ai.operation.type": "ai_client",
+        "gen_ai.usage.input_tokens": 100
+    });
+
+    let columns = extract_gen_ai_columns(&mut data, None);
+
+    assert_eq!(columns.usage_cached_input_tokens, None);
+    assert_eq!(columns.usage_reasoning_output_tokens, None);
 }

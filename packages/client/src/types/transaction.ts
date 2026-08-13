@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type {
+  spanDetailSchema,
   spanSchema,
   transactionDetailSchema,
   transactionSchema,
@@ -20,6 +21,12 @@ export type TransactionDetail = z.infer<typeof transactionDetailSchema>;
  * A single indexed span extracted from a transaction.
  */
 export type Span = z.infer<typeof spanSchema>;
+
+/**
+ * A span plus its raw attribute bag — what `spans.get()` returns. The list
+ * shape (`Span`) deliberately carries no attributes.
+ */
+export type SpanDetail = z.infer<typeof spanDetailSchema>;
 
 /**
  * Aggregate performance stats for one (transaction_name, op) group.

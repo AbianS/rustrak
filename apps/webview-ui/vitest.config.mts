@@ -46,9 +46,22 @@ export default defineConfig({
     // `globals` is required by archunit's `toPassAsync` matcher, which the
     // rules assert with. Not a convenience.
     globals: true,
-    // Scoped to the one folder that holds rules, so a `.test.ts` added
-    // anywhere else is not silently collected into this suite.
-    include: ['src/__tests__/architecture/**/*.test.ts'],
+    // The architecture rules, plus unit tests for the portable core: a
+    // feature's `model` and `lib` segments, and `shared/lib`.
+    //
+    // That second entry is the narrowest widening that lets domain logic be
+    // test-driven. Those folders are already forbidden from importing `next`
+    // or React by the `portable-core` rule, so a test for one runs on plain
+    // Node and needs none of the harness described above as deliberately
+    // absent -- no jsdom, no React plugin, no testing-library, no
+    // `server-only` alias. A *rendering* test still needs all of it, and
+    // still has to arrive in the commit that needs it.
+    //
+    // Anywhere else, a `.test.ts` is still not collected.
+    include: [
+      'src/__tests__/architecture/**/*.test.ts',
+      'src/{features/*/{model,lib},shared/lib}/**/*.test.ts',
+    ],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', '**/e2e/**'],
     // Whichever test runs first pays for the whole graph extraction; the rest
     // cost milliseconds. That one test needs room on a cold runner, and since

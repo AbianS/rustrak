@@ -257,6 +257,9 @@ pub struct AgentTimeseriesQuery {
     /// Lookback window in hours (default: all time, no filter).
     pub period_hours: Option<i64>,
 
+    /// Restrict to spans reporting this environment (default: all).
+    pub environment: Option<String>,
+
     /// Bucket width in hours (default: 1).
     #[serde(default = "default_interval_hours")]
     #[cfg_attr(feature = "openapi", param(minimum = 1))]
@@ -275,6 +278,9 @@ pub struct AgentBreakdownQuery {
     /// Lookback window in hours (default: all time, no filter).
     pub period_hours: Option<i64>,
 
+    /// Restrict to spans reporting this environment (default: all).
+    pub environment: Option<String>,
+
     /// Max rows returned (default: 3, matching Sentry's own widget cap).
     #[serde(default = "default_breakdown_limit")]
     #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
@@ -289,6 +295,9 @@ fn default_breakdown_limit() -> i64 {
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
 pub struct AgentTracesQuery {
+    /// Restrict to spans reporting this environment (default: all).
+    pub environment: Option<String>,
+
     /// Page number (1-indexed, default: 1)
     #[serde(default = "default_page")]
     #[cfg_attr(feature = "openapi", param(minimum = 1))]
