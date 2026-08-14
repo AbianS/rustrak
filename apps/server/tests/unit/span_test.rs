@@ -58,6 +58,120 @@ mod level2 {
     }
 
     #[tokio::test]
+    async fn test_span_batch_skips_malformed_and_crosses_chunk_boundary() {
+        // Invalid items are skipped, while valid items survive the 64-item
+        // transaction boundary.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-batch".to_string(),
+                slug: None,
+                platform: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let valid = |span_id: String| {
+            serde_json::to_vec(&json!({
+                "op": "http.client",
+                "span_id": span_id,
+                "start_timestamp": 1234567890.0,
+                "timestamp": 1234567890.5,
+                "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            }))
+            .unwrap()
+        };
+        let mut items = vec![valid("0000000000000000".to_string()), b"{}".to_vec()];
+        items.extend((1..65).map(|i| valid(format!("{i:016x}"))));
+
+        SpanProcessor
+            .process_batch(items, &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+
+        #[cfg(feature = "postgres")]
+        const SPANS_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const SPANS_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+        let count: i64 = sqlx::query_scalar(SPANS_QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 65);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_failure_commits_earlier_chunks_only() {
+        // Pins the tx granularity of process_batch — the observable contract
+        // of chunking. A duplicate span_id in the SECOND chunk fails only
+        // that chunk, leaving the first chunk (64 spans) committed. A
+        // reverted parse-all/one-tx implementation rolls everything back
+        // (count 0), so this test fails if chunking is ever removed.
+        let db = TestDb::new().await;
+        let project = ProjectService::create(
+            &db.pool,
+            CreateProject {
+                name: "span-chunk-failure".to_string(),
+                slug: None,
+                platform: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // The production schema has no uniqueness on span_id — inject it so
+        // the duplicate below fails the INSERT instead of landing twice.
+        sqlx::query("CREATE UNIQUE INDEX test_spans_uniq_span_id ON spans(project_id, span_id)")
+            .execute(&db.pool)
+            .await
+            .unwrap();
+
+        let span_json = |span_id: &str, trace_id: &str| {
+            serde_json::to_vec(&json!({
+                "op": "http.client",
+                "span_id": span_id,
+                "start_timestamp": 1234567890.0,
+                "timestamp": 1234567890.5,
+                "trace_id": trace_id,
+            }))
+            .unwrap()
+        };
+
+        let trace_id = "d3d20f000885466b8c8f947c9b92b8d3";
+        let mut items: Vec<Vec<u8>> = (0..64)
+            .map(|i| span_json(&format!("{i:016x}"), trace_id))
+            .collect();
+        // Same span_id under another trace bypasses the application dedup key
+        // but violates the test-only unique index.
+        items.push(span_json(
+            "0000000000000000",
+            "e4e31f111996577c9f8a58d9c03c9e4",
+        ));
+
+        let result = SpanProcessor
+            .process_batch(items, &ctx(&db.pool, project.id))
+            .await;
+        assert!(result.is_err(), "the duplicate must fail the second chunk");
+
+        #[cfg(feature = "postgres")]
+        const SPANS_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
+        #[cfg(not(feature = "postgres"))]
+        const SPANS_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = ?";
+        let count: i64 = sqlx::query_scalar(SPANS_QUERY)
+            .bind(project.id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            count, 64,
+            "the first chunk committed before the duplicate failed the second"
+        );
+    }
+
+    #[tokio::test]
     async fn test_valid_span_stored_with_null_transaction_id() {
         // A standalone span (real Relay wire-format fixture, see
         // tests/integration/test_spans_standalone.py in the story's Dev Notes)

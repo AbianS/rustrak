@@ -171,9 +171,7 @@ pub async fn ingest_envelope(
             ingested_at,
             remote_addr: remote_addr.clone(),
         };
-        for span_payload in span_items {
-            processors.spans.process(span_payload, &ctx).await?;
-        }
+        processors.spans.process_batch(span_items, &ctx).await?;
     }
 
     // Persist v2 span batches inline for the same reason.
