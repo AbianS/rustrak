@@ -92,13 +92,11 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 /// Begins a transaction intended for writes.
 ///
 /// On SQLite this issues `BEGIN IMMEDIATE` so the write lock is acquired up
-/// front. The default `BEGIN` is *deferred*: a transaction that reads before it
-/// writes (as the digest does — `SELECT MAX(digest_order)` then `INSERT`) only
-/// takes a read lock first, then tries to upgrade to a write lock. Under
-/// concurrency that upgrade fails immediately with `SQLITE_BUSY_SNAPSHOT`
-/// ("database is locked") and `busy_timeout` does *not* retry it. Taking the
-/// write lock at `BEGIN` makes `busy_timeout` effective and serializes writers,
-/// which also prevents duplicate `digest_order` values.
+/// front. A read-then-write transaction (the digest's
+/// `SELECT MAX(digest_order)` → `INSERT`) must take the write lock at
+/// `BEGIN`: a deferred `BEGIN` fails the read→write upgrade with
+/// `SQLITE_BUSY_SNAPSHOT`, which `busy_timeout` does not retry. Taking
+/// the lock up front also prevents duplicate `digest_order` values.
 ///
 /// On PostgreSQL the default `BEGIN` is used (MVCC + advisory locks handle
 /// concurrency; `IMMEDIATE` is not valid Postgres syntax).

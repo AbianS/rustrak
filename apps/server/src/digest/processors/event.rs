@@ -24,6 +24,10 @@ pub struct ErrorProcessor {
     ingest_dir: PathBuf,
     rate_limit_config: RateLimitConfig,
     sourcemap_provider: Arc<dyn SourceMapProvider>,
+    /// Serializes digest writes (SQLite): digests queue here without
+    /// holding a pool connection.
+    #[cfg(feature = "sqlite")]
+    writer_slot: Arc<tokio::sync::Semaphore>,
 }
 
 impl ErrorProcessor {
@@ -36,6 +40,8 @@ impl ErrorProcessor {
             ingest_dir,
             rate_limit_config,
             sourcemap_provider,
+            #[cfg(feature = "sqlite")]
+            writer_slot: Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
@@ -106,6 +112,9 @@ impl ErrorProcessor {
         let (issue, grouping, issue_created, regressed) =
             find_or_create_issue_and_grouping_with_lock(
                 pool,
+                &metadata.event_id,
+                #[cfg(feature = "sqlite")]
+                &self.writer_slot,
                 metadata.project_id,
                 &grouping_key,
                 &grouping_key_hash,
@@ -204,15 +213,119 @@ impl Processor for ErrorProcessor {
     }
 }
 
-/// Finds an existing grouping or creates a new one along with its issue.
-/// Uses a PostgreSQL advisory lock per project to prevent race conditions
-/// when creating new issues with sequential digest_order values.
-/// On SQLite, the advisory lock is skipped since SQLite serializes writes.
-///
-/// Advisory locks are automatically released when the transaction commits or rolls back.
-/// Different projects can process events concurrently (locks are per-project).
+/// Write attempts per digest on SQLite. Bounded: sustained contention
+/// fails fast instead of piling up more waiters.
+const MAX_SQLITE_WRITE_ATTEMPTS: usize = 3;
+
+/// How long a digest may wait for the writer slot before the attempt
+/// counts as contended (and is retried).
+#[cfg(feature = "sqlite")]
+const WRITER_SLOT_BUDGET: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Backoff before retry `attempt` (0-based): 50ms, then 100ms — brief,
+/// so writers that timed out together don't retry in lockstep.
+fn sqlite_retry_delay(attempt: usize) -> std::time::Duration {
+    std::time::Duration::from_millis(50 << attempt)
+}
+
+/// True for transient SQLite write contention: the busy family (codes 5,
+/// 261, 517, 773) or a writer-slot budget expiry (pool-acquire timeout).
+/// Always false on Postgres.
+fn is_retryable_write_contention(err: &AppError) -> bool {
+    match err.kind() {
+        AppError::Database(sqlx::Error::Database(db)) => {
+            db.code().as_deref().is_some_and(is_sqlite_busy_code)
+        }
+        #[cfg(feature = "sqlite")]
+        AppError::Database(sqlx::Error::PoolTimedOut) => true,
+        _ => false,
+    }
+}
+
+/// Whether a SQLite extended result code string means "database is locked".
+fn is_sqlite_busy_code(code: &str) -> bool {
+    matches!(code, "5" | "261" | "517" | "773")
+}
+
+/// Finds the grouping or creates the issue, retrying the write tx when the
+/// database is busy. Only a whole-tx restart is safe (a `BUSY_SNAPSHOT`
+/// snapshot can never be resumed); SQLite attempts queue behind the writer
+/// slot without holding a connection. No-op on Postgres.
 #[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_with_lock(
+    pool: &DbPool,
+    event_id: &str,
+    #[cfg(feature = "sqlite")] writer_slot: &tokio::sync::Semaphore,
+    project_id: i32,
+    grouping_key: &str,
+    grouping_key_hash: &str,
+    timestamp: chrono::DateTime<Utc>,
+    denormalized: &DenormalizedFields,
+    level: Option<&str>,
+    platform: Option<&str>,
+) -> AppResult<(Issue, Grouping, bool, bool)> {
+    let mut attempt = 0usize;
+    loop {
+        let result = async {
+            // Take the writer slot first (SQLite only): digests queue here
+            // without holding a pool connection; an expired budget counts
+            // as contention and flows into the same retry loop.
+            #[cfg(feature = "sqlite")]
+            let _slot_permit = match tokio::time::timeout(WRITER_SLOT_BUDGET, writer_slot.acquire())
+                .await
+            {
+                Ok(Ok(permit)) => permit,
+                // Fail closed: a closed semaphore must not let the
+                // digest proceed unserialized.
+                Ok(Err(_)) | Err(_) => return Err(AppError::Database(sqlx::Error::PoolTimedOut)),
+            };
+            find_or_create_issue_and_grouping_once(
+                pool,
+                project_id,
+                grouping_key,
+                grouping_key_hash,
+                timestamp,
+                denormalized,
+                level,
+                platform,
+            )
+            .await
+        }
+        .await;
+
+        match result {
+            Err(e)
+                if is_retryable_write_contention(&e) && attempt + 1 < MAX_SQLITE_WRITE_ATTEMPTS =>
+            {
+                // Expected under load — one debug line per failed attempt;
+                // the healed episode itself is reported once at info below.
+                log::debug!(
+                    "SQLite write slot/lock busy for event {event_id}; attempt {}/{} failed, retrying",
+                    attempt + 1,
+                    MAX_SQLITE_WRITE_ATTEMPTS
+                );
+                tokio::time::sleep(sqlite_retry_delay(attempt)).await;
+                attempt += 1;
+            }
+            result => {
+                if attempt > 0 && result.is_ok() {
+                    log::info!(
+                        "SQLite write lock busy for event {event_id}; healed after {attempt} retries"
+                    );
+                }
+                return result;
+            }
+        }
+    }
+}
+
+/// One attempt at finding an existing grouping or creating a new issue.
+///
+/// Runs in a write transaction: `BEGIN IMMEDIATE` on SQLite (write lock
+/// up front, so `busy_timeout` can wait on it), plus a per-project
+/// advisory lock on Postgres.
+#[allow(clippy::too_many_arguments)]
+async fn find_or_create_issue_and_grouping_once(
     pool: &DbPool,
     project_id: i32,
     grouping_key: &str,
@@ -421,4 +534,35 @@ async fn find_or_create_issue_and_grouping_inner(
     .await?;
 
     Ok((issue, grouping, true, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn busy_codes_are_recognized_and_others_are_not() {
+        for code in ["5", "261", "517", "773"] {
+            assert!(is_sqlite_busy_code(code), "{code} must classify as busy");
+        }
+        assert!(
+            !is_sqlite_busy_code("2067"),
+            "a unique-constraint code is not a busy error"
+        );
+    }
+
+    #[test]
+    fn retries_back_off_exponentially_from_50ms() {
+        assert_eq!(sqlite_retry_delay(0), std::time::Duration::from_millis(50));
+        assert_eq!(sqlite_retry_delay(1), std::time::Duration::from_millis(100));
+    }
+
+    #[cfg(feature = "sqlite")]
+    #[test]
+    fn slot_timeout_counts_as_retryable_contention() {
+        let slot_busy = AppError::Database(sqlx::Error::PoolTimedOut);
+        assert!(is_retryable_write_contention(&slot_busy));
+        let other = AppError::Database(sqlx::Error::RowNotFound);
+        assert!(!is_retryable_write_contention(&other));
+    }
 }
