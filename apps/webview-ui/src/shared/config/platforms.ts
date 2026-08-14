@@ -227,8 +227,7 @@ export function platformLabel(id: string): string {
 // different file from `platformCategories.tsx` (that one gates per-product
 // features and does NOT drive the picker).
 //
-// Two deliberate divergences from Sentry, both recorded in
-// docs/sentry-compat/project-creation-and-settings.md:
+// Two deliberate divergences from Sentry:
 //
 //  1. Sentry's "All" tab is `createablePlatforms`, the union of every category
 //     EXCEPT gaming. Ours is genuinely every platform in PLATFORMS. Sentry can

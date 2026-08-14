@@ -149,20 +149,23 @@ rustrak/
 │   └── docs/             # Documentation site
 ├── packages/
 │   ├── client/           # TypeScript API client
+│   ├── mcp/              # MCP server over the client
+│   ├── benchmarks/       # Load and throughput benchmarks
 │   └── test-sentry/      # Test utilities for Sentry compatibility
 ├── .changeset/           # Versioning configuration
-├── .claude/             # AI context files
 ├── docker-compose*.yml   # Docker configurations
 └── CLAUDE.md            # Project context
 ```
 
 ### Component-Specific Context Files
 
-Each component has its own CLAUDE.md file with detailed context:
+Each component has its own CLAUDE.md describing its architecture and the rules
+that apply inside it. Read the one for the area you are touching:
 
 - Server: `apps/server/CLAUDE.md`
 - WebView UI: `apps/webview-ui/CLAUDE.md`
 - Client Package: `packages/client/CLAUDE.md`
+- MCP Server: `packages/mcp/CLAUDE.md`
 
 ## Code Standards
 

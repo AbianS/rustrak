@@ -4,8 +4,7 @@
 //! `vercelAIIntegration()`) send OTel-instrumented spans — including every
 //! AI Agent Monitoring span — in this batched, typed-attribute wire format,
 //! not the legacy one-span-per-item format (`models::transaction`'s inline
-//! span handling / `SpanProcessor`). See
-//! `_bmad-output/implementation-artifacts/story-span-v2-protocol.md`.
+//! span handling / `SpanProcessor`).
 //!
 //! Wire shape: `{"version":2,"items":[SpanV2Entry, ...]}`. Schema mirrors
 //! `relay-event-schema/src/protocol/span_v2/mod.rs` — notably there is no

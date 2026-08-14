@@ -1,379 +1,58 @@
-# Rustrak MCP - Model Context Protocol Server
+# @rustrak/mcp
 
-> **Context Note**: This is the **MCP package context** for Rustrak.
-> - Root context: `/CLAUDE.md`
-> - Server API: `apps/server/CLAUDE.md`
-> - WebView UI: `apps/webview-ui/CLAUDE.md`
-> - Client Package: `packages/client/CLAUDE.md`
+An MCP server that wraps `@rustrak/client` and exposes Rustrak as tools, so an
+assistant can list projects, inspect issues and stack traces, resolve errors,
+manage tokens and administer the team without leaving the tool it runs in.
+Root context: `/CLAUDE.md`.
 
-## Overview
+Runs over stdio as a local process, so there is no network port to open. The API
+token is read from the environment and never accepted as a tool argument.
 
-`@rustrak/mcp` is an MCP (Model Context Protocol) server that wraps `@rustrak/client` and exposes 27 tools so AI assistants (Claude Desktop, Cursor, etc.) can manage Rustrak error tracking directly — list projects, inspect issues, view stack traces, resolve errors, manage tokens, and administer the team (roles, invitations, project members) without leaving the AI tool.
-
-**Key Features:**
-- 18 tools covering projects, issues, events, tokens, and alert channels
-- stdio transport — runs as a local process, no network port needed
-- Secure — API token loaded from env vars, never passed as a tool argument
-- Safe destructive actions — `delete_issue` and `revoke_token` annotated with `destructiveHint`
-- Graceful errors — all API errors returned as `isError: true` content, never thrown
-
-## Architecture
+## Layout
 
 ```
-AI Client (Claude Desktop / Cursor / Claude Code)
-        │  stdio (JSON-RPC)
-        ▼
-┌─────────────────────┐
-│   @rustrak/mcp      │
-│   McpServer         │
-│   ├── projects      │  ← registerProjectTools()
-│   ├── issues        │  ← registerIssueTools()
-│   ├── events        │  ← registerEventTools()
-│   ├── tokens        │  ← registerTokenTools()
-│   └── alerts        │  ← registerAlertTools()
-└──────────┬──────────┘
-           │  HTTP (Bearer token)
-           ▼
-┌─────────────────────┐
-│   @rustrak/client   │  ← RustrakClient (injected)
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│   Rustrak Server    │
-│   (Rust/Actix-web)  │
-└─────────────────────┘
+src/
+├── index.ts     entry: loadConfig, build a RustrakClient, serve over stdio
+├── server.ts    createServer(client) returns the McpServer. Injected, so tests
+│                can drive it in-process over InMemoryTransport.
+├── config.ts    loadConfig: validates RUSTRAK_API_URL and RUSTRAK_API_TOKEN
+├── errors.ts    mcpJson, mcpDone, mcpRefusal and toMcpError
+└── tools/       one module per area: projects, issues, events, transactions,
+                 spans, agents, sessions, logs, stats, storage, team, tokens,
+                 alerts, health
 ```
 
-## Tech Stack
+## Adding a tool
 
-- **MCP SDK**: [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) v1.29.0
-- **Validation**: [Zod](https://zod.dev) v4+ (Standard Schema — compatible with SDK v1.10+)
-- **Client**: `@rustrak/client` workspace package
-- **Build Tool**: [tsup](https://tsup.egoist.dev) (ESM output, `"type": "module"`)
-- **Testing**: [Vitest](https://vitest.dev) + `InMemoryTransport` (in-process, no subprocess)
-- **TypeScript**: v5.9+ (strict mode, NodeNext module resolution)
+1. Put it in the module for its area, registered with `.registerTool()`.
+2. Describe the arguments with Zod. The SDK reads them as Standard Schema.
+3. Return through the helpers in `errors.ts`. Never throw: an API failure comes
+   back as `isError: true` content, because a thrown error kills the session
+   instead of telling the assistant what went wrong.
+4. Annotate anything destructive with `destructiveHint` so the client can
+   confirm before running it.
+5. Cover it in `tests/`, driving the real server over `InMemoryTransport`.
 
-## Project Structure
-
-```
-packages/mcp/
-├── CLAUDE.md              # This file
-├── README.md              # Usage and quick-start documentation
-├── package.json           # @rustrak/mcp (type: module, bin: rustrak-mcp)
-├── tsconfig.json          # Strict TypeScript, NodeNext module resolution
-├── tsup.config.ts         # ESM-only build, entry: src/index.ts
-├── vitest.config.ts       # pool: forks (ESM support), tests/**/*.test.ts
-│
-├── src/
-│   ├── index.ts           # Entry: loadConfig → RustrakClient → server → stdio
-│   ├── server.ts          # createServer(client): McpServer — factory, exported for testing
-│   ├── config.ts          # loadConfig(): validates RUSTRAK_API_URL + RUSTRAK_API_TOKEN
-│   ├── errors.ts          # mcpJson / mcpDone / mcpRefusal + toMcpError(error)
-│   │
-│   └── tools/
-│       ├── projects.ts    # list_projects, get_project, create_project
-│       ├── issues.ts      # list_issues, get_issue, resolve_issue, unresolve_issue, mute_issue, delete_issue
-│       ├── events.ts      # list_events, get_event
-│       ├── tokens.ts      # list_tokens, create_token, revoke_token
-│       └── alerts.ts      # list_alert_channels, test_alert_channel, list_alert_rules
-│
-├── tests/
-│   ├── setup.ts           # createTestEnv(mockClient): typed callTool wrapper
-│   ├── config.test.ts     # loadConfig env var validation
-│   │
-│   ├── tools/
-│   │   ├── projects.test.ts
-│   │   ├── issues.test.ts
-│   │   ├── events.test.ts
-│   │   ├── tokens.test.ts
-│   │   └── alerts.test.ts
-│   │
-│   └── integration/
-│       └── server.test.ts # listTools() → 18 tools, destructiveHint verified
-│
-└── dist/                  # Build output (ESM only)
-    └── index.js           # Executable MCP server (~12KB)
-```
-
-## Design Patterns
-
-### 1. Server Factory Pattern
-
-`createServer(client)` receives the injected `RustrakClient` — does not create it internally. This decouples configuration from the server and makes testing trivial.
-
-```typescript
-// src/server.ts
-export function createServer(client: RustrakClient): McpServer {
-  const server = new McpServer({ name: 'rustrak-mcp', version: VERSION });
-  registerProjectTools(server, client);
-  registerIssueTools(server, client);
-  registerEventTools(server, client);
-  registerTokenTools(server, client);
-  registerAlertTools(server, client);
-  return server;
-}
-```
-
-`VERSION` is read from `package.json` at module load, never written down in
-source. `packages/mcp` is in the `fixed` group in `.changeset/config.json`, so
-every release bumps package.json; a hardcoded copy would go stale between
-releases without anything failing. `../package.json` resolves to the package
-root from both `src/` and the bundled `dist/`, and npm always ships
-package.json regardless of the `files` list.
-
-**Why factory pattern?**
-- Decouples env config from server construction
-- `createServer(mockClient)` in tests — no real HTTP calls
-- Each tool file is independently testable
-
-### 2. Tool Registration Per File
-
-Each `src/tools/*.ts` file exports one `register*Tools(server, client)` function. No monolithic `server.ts`.
-
-```typescript
-// src/tools/issues.ts
-export function registerIssueTools(server: McpServer, client: RustrakClient) {
-  server.registerTool(
-    'list_issues',
-    {
-      description: 'List issues for a project.',
-      inputSchema: {
-        project_id: z.number().int().describe('Project ID'),
-        status: z.enum(['open', 'resolved', 'muted', 'all']).optional(),
-      },
-    },
-    async ({ project_id, status }) => {
-      const result = await client.issues.list(project_id, { status });
-      return mcpJson(result);
-    },
-  );
-}
-```
-
-**CRITICAL**: Always use `server.registerTool()`. All `server.tool()` overloads are deprecated in SDK v1.29.0.
-
-### 3. Error Translation (`src/errors.ts`)
-
-Tool handlers never throw and never `catch`. `@rustrak/client` returns
-`Result<T, RustrakError>` rather than throwing, so a failure is a value the
-handler renders, and a `try` around a client call could only hide a
-programming error.
-
-Three renderers, and every one of the 64 call sites goes through one of them:
-
-```typescript
-// src/errors.ts
-mcpJson(result)              // Result<T>    -> pretty-printed `result.data`, or the failure
-mcpDone(result, 'Deleted.')  // Result<void> -> a fixed confirmation, or the failure
-mcpRefusal('not confirmed')  // no call was made at all (an unconfirmed destructive tool)
-```
-
-`toMcpError(error: RustrakError)` is what the first two delegate to. It
-switches on `kind` over the closed union, so it is total:
-
-```typescript
-switch (error.kind) {
-  case 'not_found':        return mcpError(error.message);  // already reads `Resource not found: X`
-  case 'rate_limited':     return mcpError(`Rate limited. Retry after: ${error.retryAfter ?? '?'}s`);
-  case 'unauthenticated':  return mcpError('Authentication failed. Check RUSTRAK_API_TOKEN.');
-  case 'network':
-  case 'server_error':     return mcpError(`API error: ${error.message} The request may or may not have been applied; check the current state before retrying.`);
-  case 'forbidden':        return mcpError(`Not permitted: ${error.message} Retrying will not help.`);
-  default:                 return mcpError(`API error: ${error.message} Retrying will not help.`);
-}
-```
-
-The retry wording is contract, not decoration. `network` and `server_error`
-are the **indeterminate** failures: the request may have reached the server and
-been applied before the answer was lost. Everything else is deterministic and
-says so, because a model that cannot tell the two apart retries — and
-`create_ky_instance` already retries writes, while two of these tools delete
-data.
-
-**Rules:**
-- Never expose stack traces or internal paths in error text
-- Switch on `kind`; there are no error classes to `instanceof` any more
-- `default:` is the catch-all, and it is exhaustive because the union is closed
-- A `Result<void>` failure is a *value*: always go through `mcpDone`, never
-  ignore it, or the tool reports `removed successfully` after a 403
-- Say whether retrying can help. The model is the consumer of this text, and it
-  will act on it
-
-### 4. Destructive Tool Annotations
-
-Tools that permanently delete data are annotated with `destructiveHint: true`. Supported MCP clients will prompt for confirmation before executing.
-
-```typescript
-server.registerTool(
-  'delete_issue',
-  {
-    description: 'Permanently delete an issue and all its events.',
-    inputSchema: {
-      project_id: z.number().int().describe('Project ID'),
-      issue_id: z.string().describe('Issue ID'),
-    },
-    annotations: { destructiveHint: true },
-  },
-  async ({ project_id, issue_id }) => { ... },
-);
-```
-
-Destructive tools: `delete_issue`, `revoke_token`.
-
-### 5. Typed Test Wrapper (`callTool`)
-
-`mcpClient.callTool()` returns `{ [x: string]: unknown }` — the index signature makes `content` and `isError` unknown. The test setup uses a typed cast to fix this cleanly across all tests.
-
-```typescript
-// tests/setup.ts
-export type McpTextContent = { type: 'text'; text: string };
-export type McpToolResult = { isError?: boolean; content: McpTextContent[] };
-
-export async function createTestEnv(mockClient: unknown) {
-  const server = createServer(mockClient as never);
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const mcpClient = new Client({ name: 'test', version: '1.0.0' });
-  await server.connect(serverTransport);
-  await mcpClient.connect(clientTransport);
-  const callTool = (params: Parameters<typeof mcpClient.callTool>[0]): Promise<McpToolResult> =>
-    mcpClient.callTool(params) as Promise<McpToolResult>;
-  return { mcpClient, server, callTool };
-}
-```
-
-**Usage in tests:**
-```typescript
-let callTool: Awaited<ReturnType<typeof createTestEnv>>['callTool'];
-
-beforeEach(async () => {
-  testEnv = await createTestEnv(mockClient);
-  callTool = testEnv.callTool;
-});
-
-it('returns issues', async () => {
-  const result = await callTool({ name: 'list_issues', arguments: { project_id: 1 } });
-  expect(result.isError).toBeFalsy();
-  const parsed = JSON.parse(result.content[0].text);
-  expect(parsed.items).toBeDefined();
-});
-```
-
-## Key Rules for Agents
-
-**stdio transport:**
-- `console.log` is **FORBIDDEN** — corrupts the JSON-RPC stream
-- Only `console.error` for diagnostic output (goes to stderr, not stdout)
-
-**Auth:**
-- Credentials come from `RUSTRAK_API_URL` and `RUSTRAK_API_TOKEN` env vars only
-- Never accept tokens as tool arguments
-- `loadConfig()` exits with `process.exit(1)` if env vars are missing
-
-**Tool registration:**
-- Always `server.registerTool()` — never `server.tool()`
-- Input schema uses Zod v4 objects (Standard Schema)
-- Annotations go in the second argument: `{ description, inputSchema, annotations? }`
-
-**Error handling:**
-- Never write `try`/`catch` around a client call: the client returns failures, it does not throw them
-- Every handler ends in `mcpJson(result)` or `mcpDone(result, text)`
-- Never `throw` from a tool handler
-
-**Adding a new tool:**
-1. Add handler to the appropriate `src/tools/*.ts` file
-2. Write a failing test first (TDD — see `.claude/skills/tdd`)
-3. Implement the minimum code to pass
-4. Verify `mcpClient.listTools()` includes the new tool in `tests/integration/server.test.ts`
-
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests (33 tests)
-pnpm test
-
-# Watch mode
-pnpm dev
-
-# Type check
-pnpm check-types
-```
-
-### Test Coverage
-
-- **Config tests** (3 tests): missing URL, missing token, both present
-- **Tool tests** (25 tests): happy path + error cases for all 5 tool groups
-- **Integration tests** (5 tests): `listTools()` returns all 18 tools, `destructiveHint` on delete/revoke
-
-### InMemoryTransport
-
-Tests use `InMemoryTransport.createLinkedPair()` — in-process, no subprocess, no real network. Fast and deterministic.
-
-```typescript
-const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-await server.connect(serverTransport);
-await mcpClient.connect(clientTransport);
-```
+Since `@rustrak/client` never throws either, a tool body is normally a `Result`
+check and a formatted response. If you find yourself writing `try`/`catch`, that
+is the signal something is bypassing the client.
 
 ## Configuration
 
-### Environment Variables
+| Variable | Meaning |
+|---|---|
+| `RUSTRAK_API_URL` | Base URL of the Rustrak server |
+| `RUSTRAK_API_TOKEN` | Bearer token created at `/settings/tokens` |
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `RUSTRAK_API_TOKEN` | Yes | — | 40-char hex API token. Server exits if missing. |
-| `RUSTRAK_API_URL` | Yes | — | Base URL of your Rustrak server. Server exits if missing. |
+Both are required and validated at startup, so a misconfiguration fails
+immediately rather than on the first tool call.
 
-### Local Development (.mcp.json)
-
-The repo root `.mcp.json` is picked up by Claude Code automatically:
-
-```json
-{
-  "mcpServers": {
-    "rustrak": {
-      "command": "node",
-      "args": ["packages/mcp/dist/index.js"],
-      "env": {
-        "RUSTRAK_API_URL": "http://localhost:8080",
-        "RUSTRAK_API_TOKEN": "<your-token>"
-      }
-    }
-  }
-}
-```
-
-Build before connecting: `pnpm --filter @rustrak/mcp build`
-
-## Development
-
-### Building
+## Build and test
 
 ```bash
-pnpm build
-# Outputs: dist/index.js (ESM, ~12KB)
+pnpm --filter=@rustrak/mcp build     # ESM only, "type": "module", bin rustrak-mcp
+pnpm --filter=@rustrak/mcp test
 ```
 
-### Adding a New Tool Group
-
-1. Create `src/tools/new-group.ts` with `registerNewGroupTools(server, client)`
-2. Import and call it in `src/server.ts`
-3. Create `tests/tools/new-group.test.ts` (TDD — test first)
-4. Update the tool count in `tests/integration/server.test.ts`
-
-## Skills to Use
-
-When working on this package:
-- **tdd** — Write failing test first, then minimum implementation, then refactor
-- **typescript-strict** — Type-safe patterns, Zod usage
-- **rust-coder** — When understanding the server API to add new tools
-
-## References
-
-- **MCP TypeScript SDK**: https://github.com/modelcontextprotocol/typescript-sdk
-- **MCP Specification**: https://modelcontextprotocol.io
-- **Client Package**: `packages/client/CLAUDE.md`
-- **TDD Skill**: `.claude/skills/tdd/SKILL.md`
-- **Spec**: `_bmad-output/implementation-artifacts/spec-mcp-package.md`
+Tests run in-process with no subprocess, which keeps them fast enough to run on
+every change.

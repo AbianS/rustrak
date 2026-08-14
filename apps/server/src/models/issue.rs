@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-/// Canonical issue substatus values (Sentry-compatible). See
-/// `docs/sentry-compat/issue-165-roadmap.md` for the full 7-value set this
-/// project already committed to.
+/// Canonical issue substatus values (Sentry-compatible). This is the complete
+/// seven-value set Sentry defines; the constants below mirror it in full.
 pub const SUBSTATUS_ONGOING: &str = "ongoing";
 pub const SUBSTATUS_ESCALATING: &str = "escalating";
 pub const SUBSTATUS_REGRESSED: &str = "regressed";

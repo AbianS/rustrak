@@ -26,7 +26,7 @@ Every compose file in this repo pins `postgres:16-alpine` and mounts
 - `docker-compose.yml`
 - `docker-compose.dev.yml`
 - `README.md` (documented example)
-- `docs/deployment-guide.md` (documented example)
+- `apps/docs/content/configuration/production.mdx` (documented example)
 
 A move to 18 needs each of these updated, and existing users cannot simply bump
 the image tag — their data volume is mounted at the old path. An upgrade path

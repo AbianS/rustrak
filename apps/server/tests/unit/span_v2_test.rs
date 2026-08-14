@@ -1,7 +1,6 @@
 //! Unit tests for Sentry Spans Protocol v2 ingestion
 //! (application/vnd.sentry.items.span.v2+json).
 //!
-//! See _bmad-output/implementation-artifacts/story-span-v2-protocol.md.
 //! Discovered via a real @sentry/node 10.65 + Vercel AI SDK integration
 //! test (packages/test-sentry/demo/src/ai-agent.ts) — modern Sentry SDKs
 //! send AI-instrumented spans in this batched, typed-attribute wire format,

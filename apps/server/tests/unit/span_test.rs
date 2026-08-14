@@ -2,7 +2,6 @@
 //!
 //! Standalone spans are NOT containerized like logs — each envelope item
 //! holds exactly one flat span JSON object (Relay's legacy `Span` schema).
-//! See _bmad-output/implementation-artifacts/story-span-ingestion.md.
 
 use rustrak::ingest::envelope::{EnvelopeItemKind, ItemHeaders};
 

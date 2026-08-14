@@ -25,7 +25,6 @@
     "@biomejs/biome": "2.5.8",
     "@changesets/changelog-github": "0.7.0",
     "@changesets/cli": "2.31.1",
-    "bmad-method": "6.11.0",
     "react-doctor": "0.9.12",
     "turbo": "2.10.9",
     "typescript": "6.0.3"
