@@ -372,9 +372,11 @@ pub async fn assemble_bundle(
 
     // --- Steps 7+8: process each file entry, then delete chunks ---
     // We run in a transaction for the DB writes; store writes are outside (idempotent CAS).
-    // Write-first (INSERT opens the tx): deferred BEGIN deliberate — the disk
-    // reads + CAS stores run before the first INSERT, without the write lock
-    // (see db::begin_write).
+    // Write-first (INSERT opens the tx): deferred BEGIN deliberate — the first
+    // entry's disk read + CAS store run before the first INSERT, without the
+    // write lock (see db::begin_write). Later entries' reads/stores ride the
+    // open tx: accepted, since the CAS stores are idempotent and reads are
+    // local — staged I/O would be the fix if the lock hold ever matters.
     let mut tx = pool.begin().await?;
 
     for (file_path, file_info) in &files {
