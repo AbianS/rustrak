@@ -667,7 +667,9 @@ async fn test_concurrent_mixed_create_and_update() {
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -681,6 +683,7 @@ async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
         .expect("valid sqlite url")
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_millis(200));
     let pool = SqlitePoolOptions::new()
         .max_connections(6)
@@ -794,7 +797,9 @@ async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -805,6 +810,7 @@ async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
         .expect("valid sqlite url")
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_millis(200));
     let pool = SqlitePoolOptions::new()
         .max_connections(2)
@@ -878,7 +884,9 @@ async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -889,6 +897,7 @@ async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
         .expect("valid sqlite url")
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_millis(200));
     let pool = SqlitePoolOptions::new()
         .max_connections(2)
@@ -972,7 +981,9 @@ async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
 #[actix_web::test]
 async fn test_shared_processor_digests_concurrent_events() {
     use rustrak::digest::processors::Processor;
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -983,6 +994,7 @@ async fn test_shared_processor_digests_concurrent_events() {
         .expect("valid sqlite url")
         .create_if_missing(true)
         .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
         .busy_timeout(Duration::from_millis(200));
     let pool = Arc::new(
         SqlitePoolOptions::new()
