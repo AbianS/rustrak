@@ -115,7 +115,7 @@ rustrak/rustrak-server:postgres
 ```yaml
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine  # pinned at 16, no further — postgres:18 moved the data dir (see packages/benchmarks/POSTGRES-18-FINDINGS.md)
     environment:
       POSTGRES_USER: rustrak
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

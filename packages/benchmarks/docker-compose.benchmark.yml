@@ -14,7 +14,7 @@
 services:
   # PostgreSQL database with fixed resource limits
   postgres-bench:
-    image: postgres:${PG_VERSION:-16}-alpine
+    image: postgres:${PG_VERSION:-18}-alpine  # default 18 — the engine under evaluation; 16 selectable via PG_VERSION
     container_name: rustrak-postgres-bench
     environment:
       POSTGRES_USER: bench
@@ -49,7 +49,7 @@ services:
     # Mounting the old path on 18 makes the container refuse to start.
     # Callers set PG_DATA_MOUNT accordingly; run-matrix.sh does this per version.
     volumes:
-      - bench_postgres_data_${PG_VERSION:-16}:${PG_DATA_MOUNT:-/var/lib/postgresql/data}
+      - bench_postgres_data_${PG_VERSION:-18}:${PG_DATA_MOUNT:-/var/lib/postgresql}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bench -d rustrak_bench"]
       interval: 2s
