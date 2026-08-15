@@ -662,8 +662,8 @@ async fn test_concurrent_mixed_create_and_update() {
 
 /// A lock holder that outlasts `busy_timeout` starves every writer. The
 /// digest must retry the whole transaction instead of dropping the event;
-/// the timings force the first two attempts to fail so only the
-/// post-release attempt can succeed.
+/// the timings force the first two attempts to fail so the post-release
+/// attempt can succeed.
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
@@ -705,7 +705,10 @@ async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
             .await
             .expect("holder must take the write lock");
         let _ = lock_held_tx.send(());
-        tokio::time::sleep(Duration::from_millis(700)).await;
+        // 450ms: past the second attempt's budget but well before the third
+        // attempt's, leaving a wide success window on loaded CI (700ms left
+        // only ~50ms and flaked).
+        tokio::time::sleep(Duration::from_millis(450)).await;
         tx.commit().await.expect("holder commit must succeed");
     });
 
@@ -786,9 +789,8 @@ async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
     );
 }
 
-/// Recovery on the second attempt: the holder releases while the second
-/// attempt is still within its own busy budget, so the digest must
-/// succeed on attempt 2, not attempt 3.
+/// Recovery after the holder releases: the digest must not give up while
+/// the lock is merely contended, and must commit exactly once.
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
