@@ -43,17 +43,21 @@ with reflink, ZFS, APFS) the data files are reflinked rather than copied, so
 **even multi-GB databases upgrade in seconds**:
 
 ```bash
+# Paths are the official-image PGDATA defaults (16: /var/lib/postgresql/data,
+# 18: /var/lib/postgresql/18/docker); mount both volumes and run inside the
+# 18 container (which ships both major versions' binaries).
 pg_upgrade --clone \
-  --old-datadir=/var/lib/postgresql/16/data \
-  --new-datadir=/var/lib/postgresql/18/data \
+  --old-datadir=/var/lib/postgresql/data \
+  --new-datadir=/var/lib/postgresql/18/docker \
   --old-bindir=/usr/lib/postgresql/16/bin \
   --new-bindir=/usr/lib/postgresql/18/bin
 ```
 
 Both clusters must live on the same filesystem for `--clone`/`--link` to work.
 `--link` (hard links) is the fallback where reflinks are unsupported; plain
-dump/restore always works but copies everything. After the upgrade, start the
-18 server (volume now at `/var/lib/postgresql`) and drop the old cluster.
+dump/restore always works but copies everything. Keep the old cluster until
+the 18 server starts, the data validates, and a backup exists — only then
+drop it.
 
 **This, not raw throughput, is what the issue should weigh.**
 
