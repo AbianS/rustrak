@@ -12,6 +12,7 @@
     "bench:burst": "bash scripts/run-benchmark.sh burst",
     "bench:sustained": "bash scripts/run-benchmark.sh sustained",
     "bench:stress": "bash scripts/run-benchmark.sh stress",
+    "bench:quick": "bash scripts/quick-gate.sh",
     "docker:up": "docker compose -f docker-compose.benchmark.yml up -d && pnpm prepare-env",
     "docker:down": "docker compose -f docker-compose.benchmark.yml down -v",
     "docker:logs": "docker compose -f docker-compose.benchmark.yml logs -f",

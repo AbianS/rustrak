@@ -148,6 +148,13 @@ name = "gen_openapi"
 path = "src/bin/gen_openapi.rs"
 required-features = ["openapi"]
 
+# Quick perf gate probe (CI quick-bench job) — SQLite-only by design and
+# behind the `bench` feature so --all-targets builds skip it everywhere.
+[[bin]]
+name = "digest_bench"
+path = "src/bin/digest_bench.rs"
+required-features = ["bench"]
+
 [profile.release]
 opt-level = 3
 lto = true
@@ -168,6 +175,11 @@ default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
 openapi = ["dep:utoipa", "dep:utoipa-scalar"]
+# Enables the digest_bench probe (CI quick-bench job). Off by default so
+# `--all-targets` builds/clippy skip the bin on every branch — the probe is
+# written against the stack's unified ProcessorCtx and legitimately does not
+# compile on pre-slot APIs, which must not break ordinary builds.
+bench = []
 # Compiles the `ProjectService` test seams (`create_with_stale_slug` and the two
 # race helpers). Never enabled for the shipped binary: the self dev-dependency
 # below turns it on for test targets only, so `cargo test --release` builds
