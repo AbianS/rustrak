@@ -43,10 +43,11 @@ HEAD_SHA="$(git -C "$REPO" rev-parse HEAD)"
 
 mkdir -p "$TARGET_DIR"
 
-# run_side <sha> <label> -> prints the probe line; exit 0=ok, 2=skipped
-# (worktree cannot be prepared or the probe does not compile). Any other
-# exit code is the probe's own — crash/panic — and must be treated as a
-# real failure, never as a skip.
+# run_side <sha> <label> -> prints the probe line; exit 0=ok, 1=side failed,
+# 2=skipped. For the base side, 2 is a legitimate skip (worktree cannot be
+# prepared or the probe does not compile). For the head side, 2 must never be
+# returned: a head worktree-prep or build failure is a broken probe and has to
+# FAIL the gate (rc 1), never pass it.
 # Worktrees live at fixed paths and are REUSED when their HEAD still matches
 # AND the tree is clean: a fresh checkout would bump file mtimes and force a
 # crate recompile, while an untouched worktree keeps cargo's fingerprints
@@ -60,7 +61,13 @@ run_side() {
     : # reuse as-is (same SHA, clean tree)
   else
     git -C "$REPO" worktree remove --force "$QB_ROOT/$label" 2>/dev/null || true
-    git -C "$REPO" worktree add --detach "$QB_ROOT/$label" "$sha" >/dev/null 2>&1 || return 2
+    if ! git -C "$REPO" worktree add --detach "$QB_ROOT/$label" "$sha" >/dev/null 2>&1; then
+      if [ "$label" = "head" ]; then
+        echo "::error::quick-bench: head worktree could not be prepared (${sha:0:7}) — a git/path/cache error must not skip the gate" >&2
+        return 1
+      fi
+      return 2
+    fi
   fi
   if ! ( cd "$QB_ROOT/$label/apps/server" \
          && cargo build --release --quiet --features bench --bin digest_bench \
@@ -101,8 +108,8 @@ if HEAD_OUT="$(run_side "$HEAD_SHA" head)"; then
 else
   HEAD_RC=$?
   if [ "$HEAD_RC" -eq 2 ]; then
-    echo "::notice::quick-bench: head worktree could not be prepared (${HEAD_SHA:0:7}) — gate skipped"
-    exit 0
+    echo "::error::quick-bench: head worktree could not be prepared (${HEAD_SHA:0:7}) — the gate must not pass without a head measurement" >&2
+    exit 1
   fi
   echo "::error::quick-bench: probe failed ($HEAD_RC) on head ${HEAD_SHA:0:7} — the digest crashed, errored at runtime, or the probe does not compile"
   exit 1
