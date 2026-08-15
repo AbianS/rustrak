@@ -9,7 +9,7 @@ use rustrak::db::DbPool;
 // ── Postgres ─────────────────────────────────────────────────────────────────
 
 #[cfg(feature = "postgres")]
-use testcontainers::{runners::AsyncRunner, ContainerAsync};
+use testcontainers::{runners::AsyncRunner, ContainerAsync, ImageExt};
 #[cfg(feature = "postgres")]
 use testcontainers_modules::postgres::Postgres;
 
@@ -26,7 +26,13 @@ pub struct TestDb {
 #[cfg(feature = "postgres")]
 impl TestDb {
     pub async fn new() -> Self {
+        // testcontainers-modules 0.15 still defaults to postgres:11-alpine
+        // (EOL since Nov 2023); pin the current major instead — every major
+        // release brings real performance gains for the container-heavy
+        // suites, and a pinned tag keeps runs reproducible (floating
+        // `latest` would silently move when the next major drops).
         let container = Postgres::default()
+            .with_tag("18-alpine")
             .start()
             .await
             .expect("Failed to start PostgreSQL container");
