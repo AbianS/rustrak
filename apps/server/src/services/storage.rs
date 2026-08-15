@@ -148,6 +148,9 @@ impl StorageService {
         let cutoff = Utc::now() - chrono::Duration::days(older_than_days);
         let counts = Self::count_cleanup(pool, cutoff, project_id, filter).await?;
 
+        // Write-first (DELETE opens the tx): deferred BEGIN deliberate —
+        // IMMEDIATE would hold the write lock across the whole mass purge
+        // (see db::begin_write).
         let mut tx = pool.begin().await?;
 
         // Transactions first — their spans cascade away via ON DELETE CASCADE.

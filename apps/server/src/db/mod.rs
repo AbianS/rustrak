@@ -112,6 +112,11 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 ///
 /// On PostgreSQL the default `BEGIN` is used (MVCC + advisory locks handle
 /// concurrency; `IMMEDIATE` is not valid Postgres syntax).
+///
+/// Use ONLY for read-then-write transactions (a SELECT before the first
+/// write). Write-first txs must keep a plain `pool.begin()`: IMMEDIATE
+/// would hold the write lock across disk I/O and long loops for no benefit
+/// — those sites carry a comment saying so.
 pub async fn begin_write(pool: &DbPool) -> Result<sqlx::Transaction<'_, Db>, sqlx::Error> {
     #[cfg(feature = "sqlite")]
     {

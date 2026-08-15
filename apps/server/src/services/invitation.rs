@@ -136,6 +136,8 @@ impl InvitationService {
         // Create the user and consume the invitation atomically: if either step
         // fails the whole thing rolls back, so we never leave a created user with
         // an invitation still marked pending.
+        // Write-first (INSERT opens the tx; the read happens above) — deferred
+        // BEGIN deliberate, see db::begin_write.
         let mut tx = pool.begin().await?;
 
         let user = UsersService::create_user(&mut *tx, &req, role).await?;

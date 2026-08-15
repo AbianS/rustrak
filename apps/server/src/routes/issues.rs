@@ -458,6 +458,7 @@ pub async fn bulk_update_issues(
     // Status and priority are applied in one transaction so a request that sets
     // both never leaves issues with the new status but the old priority (or
     // vice versa) if one of the two updates fails partway through.
+    // Write-first (UPDATE opens the tx) — deferred BEGIN deliberate, see db::begin_write.
     let mut tx = pool.get_ref().begin().await?;
 
     let mut updated = 0u64;

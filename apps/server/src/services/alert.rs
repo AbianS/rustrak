@@ -258,6 +258,7 @@ impl AlertService {
         project_id: i32,
         input: CreateAlertRule,
     ) -> AppResult<AlertRule> {
+        // Write-first (INSERT opens the tx) — deferred BEGIN deliberate, see db::begin_write.
         let mut tx = pool.begin().await?;
 
         let rule = sqlx::query_as::<_, AlertRule>(
@@ -335,6 +336,7 @@ impl AlertService {
         id: i32,
         input: UpdateAlertRule,
     ) -> AppResult<AlertRule> {
+        // Write-first (UPDATE opens the tx) — deferred BEGIN deliberate, see db::begin_write.
         let mut tx = pool.begin().await?;
 
         let rule = sqlx::query_as::<_, AlertRule>(
