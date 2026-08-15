@@ -271,14 +271,16 @@ async fn find_or_create_issue_and_grouping_with_lock(
             // without holding a pool connection; an expired budget counts
             // as contention and flows into the same retry loop.
             #[cfg(feature = "sqlite")]
-            let _slot_permit = match tokio::time::timeout(WRITER_SLOT_BUDGET, writer_slot.acquire())
-                .await
-            {
-                Ok(Ok(permit)) => permit,
-                // Fail closed: a closed semaphore must not let the
-                // digest proceed unserialized.
-                Ok(Err(_)) | Err(_) => return Err(AppError::Database(sqlx::Error::PoolTimedOut)),
-            };
+            let _slot_permit =
+                match tokio::time::timeout(WRITER_SLOT_BUDGET, writer_slot.acquire()).await {
+                    Ok(Ok(permit)) => permit,
+                    // Budget expired: transient contention, retryable.
+                    Err(_) => return Err(AppError::Database(sqlx::Error::PoolTimedOut)),
+                    // Fail closed: a closed semaphore must not let the digest
+                    // proceed unserialized — and it is permanent, so fail
+                    // immediately instead of burning the remaining attempts.
+                    Ok(Err(_)) => return Err(AppError::WriterSlotExhausted),
+                };
             find_or_create_issue_and_grouping_once(
                 pool,
                 project_id,
@@ -564,5 +566,15 @@ mod tests {
         assert!(is_retryable_write_contention(&slot_busy));
         let other = AppError::Database(sqlx::Error::RowNotFound);
         assert!(!is_retryable_write_contention(&other));
+    }
+
+    #[cfg(feature = "sqlite")]
+    #[test]
+    fn closed_slot_is_permanent_not_retryable() {
+        // A closed writer semaphore can never grant a permit again: it must
+        // fail the digest immediately, not burn the remaining attempts.
+        assert!(!is_retryable_write_contention(
+            &AppError::WriterSlotExhausted
+        ));
     }
 }

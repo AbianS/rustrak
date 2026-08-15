@@ -216,6 +216,12 @@ pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 
+    /// The SQLite writer slot is gone: its semaphore was closed, so no
+    /// digest can ever acquire it. Permanent — never retryable (unlike the
+    /// budget-expiry `PoolTimedOut` path, which is transient contention).
+    #[error("SQLite writer slot is closed")]
+    WriterSlotExhausted,
+
     #[error("Internal server error: {0}")]
     Internal(String),
 
@@ -285,6 +291,7 @@ impl AppError {
             AppError::Forbidden(_) => "Forbidden",
             AppError::PayloadTooLarge(_) => "PayloadTooLarge",
             AppError::Database(_) => "DatabaseError",
+            AppError::WriterSlotExhausted => "WriterSlotExhausted",
             AppError::Internal(_) => "InternalError",
             AppError::WithFields(fielded) => fielded.inner.error_type(),
         }
@@ -309,6 +316,7 @@ impl ResponseError for AppError {
             AppError::Forbidden(_) => StatusCode::FORBIDDEN,
             AppError::PayloadTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             AppError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            AppError::WriterSlotExhausted => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::WithFields(fielded) => fielded.inner.status_code(),
         }
