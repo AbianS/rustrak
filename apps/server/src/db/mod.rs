@@ -10,11 +10,20 @@ use crate::config::DatabaseConfig;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 #[cfg(feature = "sqlite")]
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
+};
 #[cfg(feature = "sqlite")]
 use std::str::FromStr;
 #[cfg(feature = "sqlite")]
 use std::time::Duration;
+
+#[cfg(feature = "sqlite")]
+/// How long a SQLite connection waits on the write lock before failing
+/// with `SQLITE_BUSY`. The app-side writer slot serializes digest writes,
+/// so this only absorbs the remaining writers; the digest retry loop
+/// recovers from a holder that outlasts it.
+const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// The active SQLx database backend (selected by feature flag).
 #[cfg(feature = "postgres")]
@@ -58,8 +67,11 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         let opts = SqliteConnectOptions::from_str(&config.url)
             .map_err(|e| sqlx::Error::Configuration(e.into()))?
             .create_if_missing(true)
+            // WAL + NORMAL: skip the per-commit WAL fsync — shorter write-lock
+            // holds; on crash only the newest commits can be lost.
             .journal_mode(SqliteJournalMode::Wal)
-            .busy_timeout(Duration::from_secs(5));
+            .synchronous(SqliteSynchronous::Normal)
+            .busy_timeout(SQLITE_BUSY_TIMEOUT);
         let max_connections = if is_in_memory {
             1
         } else {
