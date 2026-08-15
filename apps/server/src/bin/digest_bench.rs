@@ -5,9 +5,10 @@
 //! catching order-of-magnitude regressions; the ratio cancels runner noise.
 //! Covers the stacked hot path: temp-file write/read, parse, grouping,
 //! issue create/reuse, one tx (event + counters), quota state, cleanup.
-//! Written against the unified `ProcessorCtx` (shared writer slot, lands
-//! with atomic-digests), so pre-slot bases skip with a notice. SQLite-only;
-//! `required-features = ["bench"]` keeps `--all-targets` builds clean.
+//! The probe applies the production SQLite settings (WAL, synchronous
+//! NORMAL, 500ms busy timeout) so it measures the shipped write path.
+//! SQLite-only; `required-features = ["bench"]` keeps `--all-targets`
+//! builds clean.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,8 +23,9 @@ use rustrak::services::sourcemap::DbSourceMapProvider;
 use rustrak::services::sourcemap_store::LocalSourceMapStore;
 use rustrak::services::ProjectService;
 use serde_json::json;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 use std::str::FromStr;
+use std::time::Duration;
 use tempfile::tempdir;
 use uuid::Uuid;
 
@@ -43,24 +45,30 @@ fn ctx(pool: &rustrak::db::DbPool, project_id: i32) -> ProcessorCtx {
         event_id: Uuid::nil(),
         ingested_at: Utc::now(),
         remote_addr: None,
-        writer_slot: Arc::new(tokio::sync::Semaphore::new(1)),
     }
 }
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let events: usize = std::env::var("BENCH_EVENTS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(200);
 
     let dir = tempdir().expect("create bench dir");
+    // Production write path: WAL + synchronous(NORMAL) + 500ms busy timeout,
+    // exactly what db::connect applies to the running server.
     let opts = SqliteConnectOptions::from_str(&format!(
         "sqlite://{}",
         dir.path().join("bench.db").display()
     ))
     .expect("parse sqlite url")
-    .create_if_missing(true);
+    .create_if_missing(true)
+    .journal_mode(SqliteJournalMode::Wal)
+    .synchronous(SqliteSynchronous::Normal)
+    .busy_timeout(Duration::from_millis(500));
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect_with(opts)

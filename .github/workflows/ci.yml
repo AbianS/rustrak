@@ -75,8 +75,15 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
+          # The probe runs PR-controlled code (cargo build + bench binary); no
+          # later step needs authenticated git, so don't hand the token to it.
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
       - run: bash packages/benchmarks/scripts/quick-gate.sh
         env:
+          # Explicit, not implicit: GITHUB_BASE_SHA is not a built-in variable.
+          # PR runs compare against the PR's base; workflow_dispatch uses the
+          # manual input (or the script's merge-base fallback when empty).
+          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           QUICK_BENCH_BASE_SHA: ${{ github.event.inputs.quick_bench_base }}

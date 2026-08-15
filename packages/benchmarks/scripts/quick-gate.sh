@@ -65,6 +65,10 @@ run_side() {
   if ! ( cd "$QB_ROOT/$label/apps/server" \
          && cargo build --release --quiet --features bench --bin digest_bench \
               --target-dir "$TARGET_DIR" ); then
+    if [ "$label" = "head" ]; then
+      echo "::error::quick-bench: probe does not compile against head ${sha:0:7} — the gate must not pass on a broken head probe" >&2
+      return 1
+    fi
     return 2
   fi
   ( cd "$QB_ROOT/$label/apps/server" && "$TARGET_DIR/release/digest_bench" )
@@ -97,10 +101,10 @@ if HEAD_OUT="$(run_side "$HEAD_SHA" head)"; then
 else
   HEAD_RC=$?
   if [ "$HEAD_RC" -eq 2 ]; then
-    echo "::notice::quick-bench: probe does not compile against this head (${HEAD_SHA:0:7}) — gate skipped; it activates once the shared writer slot API is in the base"
+    echo "::notice::quick-bench: head worktree could not be prepared (${HEAD_SHA:0:7}) — gate skipped"
     exit 0
   fi
-  echo "::error::quick-bench: probe failed ($HEAD_RC) on head ${HEAD_SHA:0:7} — the digest crashed or errored at runtime"
+  echo "::error::quick-bench: probe failed ($HEAD_RC) on head ${HEAD_SHA:0:7} — the digest crashed, errored at runtime, or the probe does not compile"
   exit 1
 fi
 echo "== quick-bench head ${HEAD_SHA:0:7} =="
