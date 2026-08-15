@@ -3,6 +3,13 @@ name: CI
 on:
   pull_request:
     branches: [main]
+  # Manual runs: optionally override the perf-gate baseline (defaults to
+  # the target branch head).
+  workflow_dispatch:
+    inputs:
+      quick_bench_base:
+        description: "Perf-gate baseline ref or SHA (default: target branch head)"
+        required: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -71,3 +78,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
       - run: bash packages/benchmarks/scripts/quick-gate.sh
+        env:
+          QUICK_BENCH_BASE_SHA: ${{ github.event.inputs.quick_bench_base }}
