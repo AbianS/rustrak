@@ -1152,3 +1152,102 @@ async fn test_non_digest_write_survives_a_lock_holder_the_digest_survives() {
         result.err()
     );
 }
+
+/// One slow write must not take the queued digests down with it. Serializing
+/// digests behind an app-level slot with its own deadline turns a single slow
+/// holder into a mass drop: every digest that cannot reach the front of the
+/// queue before its own budget expires is discarded, even though the database
+/// was available the whole time. The digest's tolerance for a holder must come
+/// from the write lock it is actually waiting on.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_a_slow_write_does_not_drop_queued_digests() {
+    use rustrak::digest::processors::{ErrorProcessor, Processor, ProcessorCtx};
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_queued.db"), 8).await);
+    let project = create_test_project(&pool, "Queued Digests").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    // One processor shared by every event: the production shape.
+    let processor = Arc::new(ErrorProcessor::new(
+        ingest_dir.clone(),
+        create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    ));
+
+    // 4s: longer than any app-level queueing deadline would tolerate, but well
+    // inside the write lock's own wait. Every digest must still land.
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = Arc::clone(&pool);
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+    lock_held_rx.await.expect("holder must signal");
+
+    let num_events = 5;
+    let mut handles = Vec::new();
+    for i in 0..num_events {
+        let pool = Arc::clone(&pool);
+        let ingest_dir = ingest_dir.clone();
+        let processor = Arc::clone(&processor);
+        let project_id = project.id;
+
+        handles.push(tokio::spawn(async move {
+            let (event_id, event_json) =
+                create_unique_event_json(&format!("Queued{}", i), &format!("Msg {}", i));
+            let event_bytes = serde_json::to_vec(&event_json).unwrap();
+            store_event(&ingest_dir, &event_id, &event_bytes)
+                .await
+                .expect("Failed to store event");
+            let metadata = EventMetadata {
+                event_id,
+                project_id,
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+            let ctx = ProcessorCtx {
+                pool: (*pool).clone(),
+                project_id,
+                event_id: Uuid::parse_str(&metadata.event_id).unwrap_or_else(|_| Uuid::nil()),
+                ingested_at: metadata.ingested_at,
+                remote_addr: metadata.remote_addr.clone(),
+            };
+            processor.process(metadata, &ctx).await
+        }));
+    }
+
+    let mut failures = Vec::new();
+    for handle in handles {
+        if let Err(e) = handle.await.expect("Task panicked") {
+            failures.push(format!("{:?}", e));
+        }
+    }
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        failures.is_empty(),
+        "queueing behind one slow write must not drop digests. {} of {} failed: {:#?}",
+        failures.len(),
+        num_events,
+        failures
+    );
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), num_events, "no event may be dropped");
+}

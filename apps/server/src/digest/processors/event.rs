@@ -24,10 +24,6 @@ pub struct ErrorProcessor {
     ingest_dir: PathBuf,
     rate_limit_config: RateLimitConfig,
     sourcemap_provider: Arc<dyn SourceMapProvider>,
-    /// Serializes digest writes (SQLite): digests queue here without
-    /// holding a pool connection.
-    #[cfg(feature = "sqlite")]
-    writer_slot: Arc<tokio::sync::Semaphore>,
 }
 
 impl ErrorProcessor {
@@ -40,8 +36,6 @@ impl ErrorProcessor {
             ingest_dir,
             rate_limit_config,
             sourcemap_provider,
-            #[cfg(feature = "sqlite")]
-            writer_slot: Arc::new(tokio::sync::Semaphore::new(1)),
         }
     }
 
@@ -113,8 +107,6 @@ impl ErrorProcessor {
             find_or_create_issue_and_grouping_with_lock(
                 pool,
                 &metadata.event_id,
-                #[cfg(feature = "sqlite")]
-                &self.writer_slot,
                 metadata.project_id,
                 &grouping_key,
                 &grouping_key_hash,
@@ -217,11 +209,6 @@ impl Processor for ErrorProcessor {
 /// fails fast instead of piling up more waiters.
 const MAX_SQLITE_WRITE_ATTEMPTS: usize = 3;
 
-/// How long a digest may wait for the writer slot before the attempt
-/// counts as contended (and is retried).
-#[cfg(feature = "sqlite")]
-const WRITER_SLOT_BUDGET: std::time::Duration = std::time::Duration::from_secs(1);
-
 /// Backoff before retry `attempt` (0-based): 50ms, then 100ms — brief,
 /// so writers that timed out together don't retry in lockstep.
 fn sqlite_retry_delay(attempt: usize) -> std::time::Duration {
@@ -229,15 +216,14 @@ fn sqlite_retry_delay(attempt: usize) -> std::time::Duration {
 }
 
 /// True for transient SQLite write contention: the busy family (codes 5,
-/// 261, 517, 773) or a writer-slot budget expiry (pool-acquire timeout).
-/// Always false on Postgres.
+/// 261, 517, 773). Always false on Postgres, whose SQLSTATEs never collide
+/// with these. Pool exhaustion is deliberately excluded: it is a capacity
+/// signal, and retrying it only lengthens the queue that caused it.
 fn is_retryable_write_contention(err: &AppError) -> bool {
     match err.kind() {
         AppError::Database(sqlx::Error::Database(db)) => {
             db.code().as_deref().is_some_and(is_sqlite_busy_code)
         }
-        #[cfg(feature = "sqlite")]
-        AppError::Database(sqlx::Error::PoolTimedOut) => true,
         _ => false,
     }
 }
@@ -248,14 +234,16 @@ fn is_sqlite_busy_code(code: &str) -> bool {
 }
 
 /// Finds the grouping or creates the issue, retrying the write tx when the
-/// database is busy. Only a whole-tx restart is safe (a `BUSY_SNAPSHOT`
-/// snapshot can never be resumed); SQLite attempts queue behind the writer
-/// slot without holding a connection. No-op on Postgres.
+/// database is busy. Only a whole-tx restart is safe: a `BUSY_SNAPSHOT`
+/// snapshot can never be resumed, and `busy_timeout` does not retry the
+/// read→write upgrade that produces it. Each attempt waits on the write lock
+/// itself, so a slow holder delays a digest instead of dropping it. No-op on
+/// Postgres, which serializes issue creation with a per-project advisory lock
+/// and never reports busy codes.
 #[allow(clippy::too_many_arguments)]
 async fn find_or_create_issue_and_grouping_with_lock(
     pool: &DbPool,
     event_id: &str,
-    #[cfg(feature = "sqlite")] writer_slot: &tokio::sync::Semaphore,
     project_id: i32,
     grouping_key: &str,
     grouping_key_hash: &str,
@@ -266,33 +254,16 @@ async fn find_or_create_issue_and_grouping_with_lock(
 ) -> AppResult<(Issue, Grouping, bool, bool)> {
     let mut attempt = 0usize;
     loop {
-        let result = async {
-            // Take the writer slot first (SQLite only): digests queue here
-            // without holding a pool connection; an expired budget counts
-            // as contention and flows into the same retry loop.
-            #[cfg(feature = "sqlite")]
-            let _slot_permit =
-                match tokio::time::timeout(WRITER_SLOT_BUDGET, writer_slot.acquire()).await {
-                    Ok(Ok(permit)) => permit,
-                    // Budget expired: transient contention, retryable.
-                    Err(_) => return Err(AppError::Database(sqlx::Error::PoolTimedOut)),
-                    // Fail closed: a closed semaphore must not let the digest
-                    // proceed unserialized — and it is permanent, so fail
-                    // immediately instead of burning the remaining attempts.
-                    Ok(Err(_)) => return Err(AppError::WriterSlotExhausted),
-                };
-            find_or_create_issue_and_grouping_once(
-                pool,
-                project_id,
-                grouping_key,
-                grouping_key_hash,
-                timestamp,
-                denormalized,
-                level,
-                platform,
-            )
-            .await
-        }
+        let result = find_or_create_issue_and_grouping_once(
+            pool,
+            project_id,
+            grouping_key,
+            grouping_key_hash,
+            timestamp,
+            denormalized,
+            level,
+            platform,
+        )
         .await;
 
         match result {
@@ -302,7 +273,7 @@ async fn find_or_create_issue_and_grouping_with_lock(
                 // Expected under load — one debug line per failed attempt;
                 // the healed episode itself is reported once at info below.
                 log::debug!(
-                    "SQLite write slot/lock busy for event {event_id}; attempt {}/{} failed, retrying",
+                    "SQLite write lock busy for event {event_id}; attempt {}/{} failed, retrying",
                     attempt + 1,
                     MAX_SQLITE_WRITE_ATTEMPTS
                 );
@@ -559,22 +530,17 @@ mod tests {
         assert_eq!(sqlite_retry_delay(1), std::time::Duration::from_millis(100));
     }
 
-    #[cfg(feature = "sqlite")]
     #[test]
-    fn slot_timeout_counts_as_retryable_contention() {
-        let slot_busy = AppError::Database(sqlx::Error::PoolTimedOut);
-        assert!(is_retryable_write_contention(&slot_busy));
-        let other = AppError::Database(sqlx::Error::RowNotFound);
-        assert!(!is_retryable_write_contention(&other));
-    }
-
-    #[cfg(feature = "sqlite")]
-    #[test]
-    fn closed_slot_is_permanent_not_retryable() {
-        // A closed writer semaphore can never grant a permit again: it must
-        // fail the digest immediately, not burn the remaining attempts.
-        assert!(!is_retryable_write_contention(
-            &AppError::WriterSlotExhausted
-        ));
+    fn only_lock_contention_is_retryable() {
+        // A busy database is a wait; everything else is a decision the retry
+        // loop cannot change by trying again.
+        assert!(!is_retryable_write_contention(&AppError::Database(
+            sqlx::Error::RowNotFound
+        )));
+        // Pool exhaustion is capacity, not lock contention: retrying it would
+        // add three more waiters to the queue that caused it.
+        assert!(!is_retryable_write_contention(&AppError::Database(
+            sqlx::Error::PoolTimedOut
+        )));
     }
 }
