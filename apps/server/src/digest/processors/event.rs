@@ -102,43 +102,25 @@ impl ErrorProcessor {
         // 5. Extract denormalized fields
         let denormalized = get_denormalized_fields(&event_data);
 
-        // 6. Find or create Grouping/Issue (within a transaction with advisory lock)
-        let (issue, grouping, issue_created, regressed) =
-            find_or_create_issue_and_grouping_with_lock(
-                pool,
-                &metadata.event_id,
-                metadata.project_id,
-                &grouping_key,
-                &grouping_key_hash,
-                metadata.ingested_at,
-                &denormalized,
-                event_data.get("level").and_then(|l| l.as_str()),
-                event_data.get("platform").and_then(|p| p.as_str()),
-            )
-            .await?;
-
-        // 7. Create Event. No digest_order to compute -- events order within
-        // an issue by (timestamp, id) (see idx_events_issue_timestamp), which
-        // needs no per-issue counter to derive or keep in sync.
-        EventService::create(
+        // 6+7. Write the digest: grouping, issue, the event itself and the
+        // project's stored-event counter, in one transaction, retried as a
+        // whole when SQLite reports the database busy.
+        let (issue, issue_created, regressed) = write_digest(
             pool,
-            event_id,
-            metadata.project_id,
-            issue.id,
-            grouping.id,
-            &event_data,
-            metadata.ingested_at,
-            &denormalized,
-            metadata.remote_addr.as_deref(),
+            &DigestWrite {
+                event_id,
+                raw_event_id: &metadata.event_id,
+                project_id: metadata.project_id,
+                grouping_key: &grouping_key,
+                grouping_key_hash: &grouping_key_hash,
+                timestamp: metadata.ingested_at,
+                denormalized: &denormalized,
+                level: event_data.get("level").and_then(|l| l.as_str()),
+                platform: event_data.get("platform").and_then(|p| p.as_str()),
+                event_data: &event_data,
+                remote_addr: metadata.remote_addr.as_deref(),
+            },
         )
-        .await?;
-
-        // 8. Update project counters and rate limit state
-        sqlx::query(
-            "UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1",
-        )
-        .bind(metadata.project_id)
-        .execute(pool)
         .await?;
 
         // 8b. Sentry-parity platform auto-detection (set once, never overwritten)
@@ -233,38 +215,37 @@ fn is_sqlite_busy_code(code: &str) -> bool {
     matches!(code, "5" | "261" | "517" | "773")
 }
 
-/// Finds the grouping or creates the issue, retrying the write tx when the
-/// database is busy. Only a whole-tx restart is safe: a `BUSY_SNAPSHOT`
-/// snapshot can never be resumed, and `busy_timeout` does not retry the
-/// read→write upgrade that produces it. Each attempt waits on the write lock
-/// itself, so a slow holder delays a digest instead of dropping it. No-op on
-/// Postgres, which serializes issue creation with a per-project advisory lock
-/// and never reports busy codes.
-#[allow(clippy::too_many_arguments)]
-async fn find_or_create_issue_and_grouping_with_lock(
-    pool: &DbPool,
-    event_id: &str,
+/// Everything one digest writes, gathered so the retried transaction takes a
+/// single argument instead of a dozen positional ones.
+struct DigestWrite<'a> {
+    event_id: Uuid,
+    /// The event id as it arrived, for log lines. Not the primary key.
+    raw_event_id: &'a str,
     project_id: i32,
-    grouping_key: &str,
-    grouping_key_hash: &str,
+    grouping_key: &'a str,
+    grouping_key_hash: &'a str,
     timestamp: chrono::DateTime<Utc>,
-    denormalized: &DenormalizedFields,
-    level: Option<&str>,
-    platform: Option<&str>,
-) -> AppResult<(Issue, Grouping, bool, bool)> {
+    denormalized: &'a DenormalizedFields,
+    level: Option<&'a str>,
+    platform: Option<&'a str>,
+    event_data: &'a serde_json::Value,
+    remote_addr: Option<&'a str>,
+}
+
+/// Writes the digest, retrying the whole transaction when the database is
+/// busy. Only a whole-tx restart is safe: a `BUSY_SNAPSHOT` snapshot can never
+/// be resumed, and `busy_timeout` does not retry the read→write upgrade that
+/// produces it. Each attempt waits on the write lock itself, so a slow holder
+/// delays a digest instead of dropping it. On Postgres the retry never
+/// triggers: a per-project advisory lock serializes issue creation and no busy
+/// code is ever reported.
+///
+/// Returns the issue plus whether it was created and whether it regressed.
+async fn write_digest(pool: &DbPool, write: &DigestWrite<'_>) -> AppResult<(Issue, bool, bool)> {
     let mut attempt = 0usize;
+    let event_id = write.raw_event_id;
     loop {
-        let result = find_or_create_issue_and_grouping_once(
-            pool,
-            project_id,
-            grouping_key,
-            grouping_key_hash,
-            timestamp,
-            denormalized,
-            level,
-            platform,
-        )
-        .await;
+        let result = write_digest_once(pool, write).await;
 
         match result {
             Err(e)
@@ -292,22 +273,15 @@ async fn find_or_create_issue_and_grouping_with_lock(
     }
 }
 
-/// One attempt at finding an existing grouping or creating a new issue.
+/// One attempt at the digest's writes.
 ///
 /// Runs in a write transaction: `BEGIN IMMEDIATE` on SQLite (write lock
 /// up front, so `busy_timeout` can wait on it), plus a per-project
 /// advisory lock on Postgres.
-#[allow(clippy::too_many_arguments)]
-async fn find_or_create_issue_and_grouping_once(
+async fn write_digest_once(
     pool: &DbPool,
-    project_id: i32,
-    grouping_key: &str,
-    grouping_key_hash: &str,
-    timestamp: chrono::DateTime<Utc>,
-    denormalized: &DenormalizedFields,
-    level: Option<&str>,
-    platform: Option<&str>,
-) -> AppResult<(Issue, Grouping, bool, bool)> {
+    write: &DigestWrite<'_>,
+) -> AppResult<(Issue, bool, bool)> {
     // Start a write transaction. On SQLite this is `BEGIN IMMEDIATE` so the
     // read-then-write below (SELECT MAX(digest_order) → INSERT) takes the write
     // lock up front instead of failing with "database is locked" on upgrade.
@@ -317,28 +291,17 @@ async fn find_or_create_issue_and_grouping_once(
     // SQLite serializes all writes, so no advisory lock needed.
     #[cfg(feature = "postgres")]
     sqlx::query("SELECT pg_advisory_xact_lock($1)")
-        .bind(project_id as i64)
+        .bind(write.project_id as i64)
         .execute(&mut *tx)
         .await?;
 
-    // Now we have exclusive access to issue creation for this project
-    let result = find_or_create_issue_and_grouping_inner(
-        &mut tx,
-        project_id,
-        grouping_key,
-        grouping_key_hash,
-        timestamp,
-        denormalized,
-        level,
-        platform,
-    )
-    .await;
+    let result = write_digest_rows(&mut tx, write).await;
 
     match result {
-        Ok((issue, grouping, created, regressed)) => {
+        Ok(landed) => {
             // Commit the transaction (releases the advisory lock)
             tx.commit().await?;
-            Ok((issue, grouping, created, regressed))
+            Ok(landed)
         }
         Err(e) => {
             // Rollback on error (also releases the advisory lock)
@@ -346,6 +309,54 @@ async fn find_or_create_issue_and_grouping_once(
             Err(e)
         }
     }
+}
+
+/// The digest's writes, all inside the caller's transaction.
+///
+/// The issue counters (`digested_event_count`, `stored_event_count`) and the
+/// project's `stored_event_count` claim the event row inserted here, so all of
+/// it commits together or none of it does. Deliberately kept to inserts and
+/// counter bumps: quota state counts rows over time windows, and running those
+/// scans here would hold the write lock across a full table scan, which is the
+/// pathological holder the retry loop exists to survive.
+async fn write_digest_rows(
+    tx: &mut sqlx::Transaction<'_, DbBackend>,
+    write: &DigestWrite<'_>,
+) -> AppResult<(Issue, bool, bool)> {
+    let (issue, grouping, created, regressed) = find_or_create_issue_and_grouping_inner(
+        tx,
+        write.project_id,
+        write.grouping_key,
+        write.grouping_key_hash,
+        write.timestamp,
+        write.denormalized,
+        write.level,
+        write.platform,
+    )
+    .await?;
+
+    // No digest_order to compute: events order within an issue by
+    // (timestamp, id) (see idx_events_issue_timestamp), which needs no
+    // per-issue counter to derive or keep in sync.
+    EventService::create(
+        &mut **tx,
+        write.event_id,
+        write.project_id,
+        issue.id,
+        grouping.id,
+        write.event_data,
+        write.timestamp,
+        write.denormalized,
+        write.remote_addr,
+    )
+    .await?;
+
+    sqlx::query("UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1")
+        .bind(write.project_id)
+        .execute(&mut **tx)
+        .await?;
+
+    Ok((issue, created, regressed))
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction

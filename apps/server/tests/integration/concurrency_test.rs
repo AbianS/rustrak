@@ -1121,9 +1121,11 @@ async fn test_non_digest_write_survives_a_lock_holder_the_digest_survives() {
     let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_plain_write.db"), 5).await);
     let project = create_test_project(&pool, "Plain Write").await;
 
-    // 3s: comfortably inside the window a digest survives (three attempts,
-    // each backed by the shipped busy_timeout), so an ordinary write must
-    // survive it too. Anything less would let the two diverge silently.
+    // 3s sits between the two values this test has to tell apart: far above
+    // any sub-second busy_timeout (500ms already failed this write), and far
+    // below the 5s the server ships, leaving ~2s of slack against a measured
+    // jitter of tens of milliseconds. Shortening it would let a regression
+    // that halves the timeout slip through.
     let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
     let holder_pool = Arc::clone(&pool);
     let holder = tokio::spawn(async move {
@@ -1250,4 +1252,83 @@ async fn test_a_slow_write_does_not_drop_queued_digests() {
     .await
     .expect("Failed to list issues");
     assert_eq!(issues.len(), num_events, "no event may be dropped");
+}
+
+/// A digest is one write or none. The issue row, its counters and the event
+/// row have to land together: if the event cannot be written, an issue whose
+/// `stored_event_count` already claims it must not survive. Otherwise the
+/// counters describe an event nobody can open, and nothing ever repairs them
+/// because `process()` deletes the temp file on failure.
+///
+/// The failure is injected with a trigger rather than timed, so the test
+/// pins the invariant instead of a race window.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_a_digest_that_cannot_store_its_event_leaves_no_issue_behind() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_atomic.db"), 5).await);
+    let project = create_test_project(&pool, "Atomic Digest").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    sqlx::query(
+        "CREATE TRIGGER reject_event_insert BEFORE INSERT ON events \
+         BEGIN SELECT RAISE(ABORT, 'injected: event store unavailable'); END",
+    )
+    .execute(pool.as_ref())
+    .await
+    .expect("Failed to install the fault-injection trigger");
+
+    let (event_id, event_json) = create_unique_event_json("AtomicError", "Msg");
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(&ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    let result = process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "a digest that cannot store its event must fail"
+    );
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert!(
+        issues.is_empty(),
+        "the issue must roll back with the event, not survive counting an \
+         event that was never stored: {:?}",
+        issues
+            .iter()
+            .map(|i| (i.digest_order, i.stored_event_count))
+            .collect::<Vec<_>>()
+    );
+
+    let groupings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM groupings WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(pool.as_ref())
+        .await
+        .expect("Failed to count groupings");
+    assert_eq!(groupings, 0, "the grouping must roll back with the issue");
 }

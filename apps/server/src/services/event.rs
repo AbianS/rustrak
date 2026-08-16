@@ -118,10 +118,15 @@ impl EventService {
         Ok(event)
     }
 
-    /// Creates a new event
+    /// Creates a new event.
+    ///
+    /// Takes an executor rather than the pool so the digest can insert the
+    /// event inside the same transaction that creates the issue and bumps its
+    /// counters: those counters claim this row, so they have to commit or roll
+    /// back together.
     #[allow(clippy::too_many_arguments)]
-    pub async fn create(
-        pool: &DbPool,
+    pub async fn create<'e, E>(
+        executor: E,
         event_id: Uuid,
         project_id: i32,
         issue_id: Uuid,
@@ -130,7 +135,10 @@ impl EventService {
         ingested_at: DateTime<Utc>,
         denormalized: &DenormalizedFields,
         remote_addr: Option<&str>,
-    ) -> AppResult<Event> {
+    ) -> AppResult<Event>
+    where
+        E: sqlx::Executor<'e, Database = crate::db::Db>,
+    {
         // Extract fields from event_data
         let timestamp = event_data
             .get("timestamp")
@@ -226,7 +234,7 @@ impl EventService {
         .bind(sdk_name)
         .bind(sdk_version)
         .bind(remote_addr_str)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await?;
 
         Ok(event)
