@@ -20,46 +20,18 @@ mounted at `/var/lib/postgresql` (it creates a version-named subdirectory
 inside), **not** at `/var/lib/postgresql/data`, which was correct through 17.
 Mounting the old path makes an 18 container refuse to start.
 
-The user-facing compose files pin `postgres:16-alpine` (each with an inline
-"no further" comment) and mount `/var/lib/postgresql/data`:
+Every compose file in this repo pins `postgres:16-alpine` and mounts
+`/var/lib/postgresql/data`:
 
 - `docker-compose.yml`
 - `docker-compose.dev.yml`
-- `apps/docs/content/configuration/database.mdx` (documented example)
-- `apps/docs/content/getting-started/installation.mdx` (documented example)
-
-`packages/benchmarks/docker-compose.benchmark.yml` is the exception: it
-defaults to 18 (the engine under evaluation, issue #202) and its default
-mount follows 18's relocated data directory; `PG_VERSION=16` still selects 16.
+- `README.md` (documented example)
+- `apps/docs/content/configuration/production.mdx` (documented example)
 
 A move to 18 needs each of these updated, and existing users cannot simply bump
-the image tag — their data volume is mounted at the old path.
-
-### Upgrading (pg_upgrade)
-
-Run with both data directories mounted — old at the 16-era path, new at the
-18-era path — preferring `--clone`: on a copy-on-write filesystem (btrfs, XFS
-with reflink, ZFS, APFS) the data files are reflinked rather than copied, so
-**even multi-GB databases upgrade in seconds**:
-
-```bash
-# Paths are the official-image PGDATA defaults (16: /var/lib/postgresql/data,
-# 18: /var/lib/postgresql/18/docker); mount both volumes and run inside the
-# 18 container (which ships both major versions' binaries).
-pg_upgrade --clone \
-  --old-datadir=/var/lib/postgresql/data \
-  --new-datadir=/var/lib/postgresql/18/docker \
-  --old-bindir=/usr/lib/postgresql/16/bin \
-  --new-bindir=/usr/lib/postgresql/18/bin
-```
-
-Both clusters must live on the same filesystem for `--clone`/`--link` to work.
-`--link` (hard links) is the fallback where reflinks are unsupported; plain
-dump/restore always works but copies everything. Keep the old cluster until
-the 18 server starts, the data validates, and a backup exists — only then
-drop it.
-
-**This, not raw throughput, is what the issue should weigh.**
+the image tag — their data volume is mounted at the old path. An upgrade path
+(pg_upgrade, or dump/restore) has to be documented. **This, not raw throughput,
+is what the issue should weigh.**
 
 ### 3. The benchmark suite was measuring SQLite, not PostgreSQL
 

@@ -40,7 +40,7 @@ Create a `docker-compose.yml` file with the following content:
 ```yaml
 services:
   postgres:
-    image: postgres:16-alpine  # pinned at 16, no further — postgres:18 moved the data dir (see packages/benchmarks/POSTGRES-18-FINDINGS.md)
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

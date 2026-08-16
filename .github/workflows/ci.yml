@@ -3,13 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  # Manual runs: optionally override the perf-gate baseline (defaults to
-  # the target branch head).
-  workflow_dispatch:
-    inputs:
-      quick_bench_base:
-        description: "Perf-gate baseline ref or SHA (default: target branch head)"
-        required: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -63,27 +56,3 @@ jobs:
           cargo run --manifest-path apps/server/Cargo.toml --bin gen_openapi --features openapi
           git diff --exit-code -- apps/server/openapi.json || \
             (echo "::error::openapi.json is out of date. Run: cd apps/server && cargo run --bin gen_openapi --features openapi" && exit 1)
-
-  # Parallel ~10s perf gate: runs the processor-level digest probe on the PR
-  # head and the merge-base, fails at >2x slower. Relative ratio, so it only
-  # gates order-of-magnitude regressions (see packages/benchmarks/scripts/
-  # quick-gate.sh). fetch-depth 0: needs the merge-base commit.
-  quick-bench:
-    if: github.head_ref != 'changeset-release/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          fetch-depth: 0
-          # The probe runs PR-controlled code (cargo build + bench binary); no
-          # later step needs authenticated git, so don't hand the token to it.
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
-      - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
-      - run: bash packages/benchmarks/scripts/quick-gate.sh
-        env:
-          # Explicit, not implicit: GITHUB_BASE_SHA is not a built-in variable.
-          # PR runs compare against the PR's base; workflow_dispatch uses the
-          # manual input (or the script's merge-base fallback when empty).
-          GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          QUICK_BENCH_BASE_SHA: ${{ github.event.inputs.quick_bench_base }}

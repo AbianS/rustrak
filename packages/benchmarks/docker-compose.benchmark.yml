@@ -3,12 +3,9 @@
 #
 # The PostgreSQL major version is parameterized so the same environment can be
 # rebuilt against different engines (16 vs 18) with everything else held fixed.
-# PG_DATA_MOUNT must match the version's image layout (see run-matrix.sh):
-#   16 -> /var/lib/postgresql/data   18 -> /var/lib/postgresql
-# Direct invocations must set it too, or Docker mounts an anonymous volume at
-# the real data path and the named volume goes unused (data lost on removal):
-#   PG_VERSION=16 PG_DATA_MOUNT=/var/lib/postgresql/data docker compose -f docker-compose.benchmark.yml up -d
-#   PG_VERSION=18 PG_DATA_MOUNT=/var/lib/postgresql docker compose -f docker-compose.benchmark.yml up -d
+#
+#   PG_VERSION=16 docker compose -f docker-compose.benchmark.yml up -d
+#   PG_VERSION=18 docker compose -f docker-compose.benchmark.yml up -d
 #
 # Each version gets its own named volume: a PG18 server cannot start on a data
 # directory initialized by PG16, and reusing one volume would silently compare
@@ -17,7 +14,7 @@
 services:
   # PostgreSQL database with fixed resource limits
   postgres-bench:
-    image: postgres:${PG_VERSION:-18}-alpine  # default 18 — the engine under evaluation; 16 selectable via PG_VERSION
+    image: postgres:${PG_VERSION:-16}-alpine
     container_name: rustrak-postgres-bench
     environment:
       POSTGRES_USER: bench
@@ -52,7 +49,7 @@ services:
     # Mounting the old path on 18 makes the container refuse to start.
     # Callers set PG_DATA_MOUNT accordingly; run-matrix.sh does this per version.
     volumes:
-      - bench_postgres_data_${PG_VERSION:-18}:${PG_DATA_MOUNT:-/var/lib/postgresql}
+      - bench_postgres_data_${PG_VERSION:-16}:${PG_DATA_MOUNT:-/var/lib/postgresql/data}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bench -d rustrak_bench"]
       interval: 2s
