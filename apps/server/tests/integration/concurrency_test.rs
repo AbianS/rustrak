@@ -974,9 +974,9 @@ async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
     );
 }
 
-/// The production shape: one shared `ErrorProcessor` (one writer slot)
-/// driving many concurrent events — guards against deadlock/livelock;
-/// every digest must still land its issue exactly once.
+/// The production shape: one shared `ErrorProcessor` driving many concurrent
+/// events — guards against deadlock/livelock; every digest must still land
+/// its issue exactly once.
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_shared_processor_digests_concurrent_events() {
@@ -1080,5 +1080,75 @@ async fn test_shared_processor_digests_concurrent_events() {
     assert_eq!(
         digest_orders, expected,
         "digest_order must be 1-{num_events} with no gaps/duplicates"
+    );
+}
+
+// =============================================================================
+// Regression: the shipped SQLite pool settings
+// =============================================================================
+
+/// Builds a pool through the production path (`db::create_pool`), so the test
+/// pins the settings the server actually ships rather than its own overrides.
+#[cfg(feature = "sqlite")]
+async fn production_pool(db_path: &std::path::Path, max_connections: u32) -> rustrak::db::DbPool {
+    let config = rustrak::config::DatabaseConfig {
+        url: format!("sqlite://{}?mode=rwc", db_path.display()),
+        max_connections,
+        min_connections: 1,
+        acquire_timeout: std::time::Duration::from_secs(5),
+        idle_timeout: std::time::Duration::from_secs(600),
+        max_lifetime: std::time::Duration::from_secs(1800),
+    };
+    let pool = rustrak::db::create_pool(&config)
+        .await
+        .expect("Failed to create production SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+    pool
+}
+
+/// The digest retry loop covers the digest only. Every other writer —
+/// sourcemap assembly, the storage purge, bulk issue updates, alert rules,
+/// the transaction/span/log processors — has a single shot at the write
+/// lock, so the shipped `busy_timeout` is their entire tolerance. A holder
+/// that outlasts it turns an ordinary write into a 500, and there is no
+/// retry to heal it.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_non_digest_write_survives_a_lock_holder_the_digest_survives() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_plain_write.db"), 5).await);
+    let project = create_test_project(&pool, "Plain Write").await;
+
+    // 3s: comfortably inside the window a digest survives (three attempts,
+    // each backed by the shipped busy_timeout), so an ordinary write must
+    // survive it too. Anything less would let the two diverge silently.
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = Arc::clone(&pool);
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+    lock_held_rx.await.expect("holder must signal");
+
+    let result = sqlx::query(
+        "UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1",
+    )
+    .bind(project.id)
+    .execute(pool.as_ref())
+    .await;
+
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        result.is_ok(),
+        "an ordinary write must wait out a lock holder, not fail with \
+         \"database is locked\": {:?}",
+        result.err()
     );
 }

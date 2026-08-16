@@ -19,11 +19,13 @@ use std::str::FromStr;
 use std::time::Duration;
 
 #[cfg(feature = "sqlite")]
-/// How long a SQLite connection waits on the write lock before failing
-/// with `SQLITE_BUSY`. The app-side writer slot serializes digest writes,
-/// so this only absorbs the remaining writers; the digest retry loop
-/// recovers from a holder that outlasts it.
-const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_millis(500);
+/// How long a SQLite connection waits on the write lock before failing with
+/// `SQLITE_BUSY`. This is the *whole* tolerance of every writer that is not
+/// the digest (sourcemap assembly, the storage purge, bulk issue updates,
+/// alert rules, the transaction/span/log processors): they get one shot at
+/// the lock and no retry, so shortening it turns a slow holder into a 500.
+/// 5s is the value SQLite's own guidance pairs with WAL.
+const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The active SQLx database backend (selected by feature flag).
 #[cfg(feature = "postgres")]
@@ -67,8 +69,12 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         let opts = SqliteConnectOptions::from_str(&config.url)
             .map_err(|e| sqlx::Error::Configuration(e.into()))?
             .create_if_missing(true)
-            // WAL + NORMAL: skip the per-commit WAL fsync — shorter write-lock
-            // holds; on crash only the newest commits can be lost.
+            // WAL + NORMAL is SQLite's own recommended pairing: the per-commit
+            // WAL fsync is dropped, so write-lock holds get shorter. Commits
+            // stay atomic and survive an application crash; only an OS crash
+            // or power loss can roll back the newest ones, which is the right
+            // trade for a stream of error events. Documented for operators in
+            // apps/docs/content/configuration/database.mdx.
             .journal_mode(SqliteJournalMode::Wal)
             .synchronous(SqliteSynchronous::Normal)
             .busy_timeout(SQLITE_BUSY_TIMEOUT);
