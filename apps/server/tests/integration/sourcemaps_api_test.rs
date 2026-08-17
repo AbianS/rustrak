@@ -179,6 +179,33 @@ async fn insert_assembly_job_with_state(
     .expect("insert assembly_jobs must succeed");
 }
 
+async fn set_assembly_job_state(
+    pool: &rustrak::db::DbPool,
+    checksum: &str,
+    project_id: i32,
+    state: &str,
+) {
+    #[cfg(feature = "postgres")]
+    sqlx::query(
+        "UPDATE assembly_jobs SET state = $1 WHERE bundle_checksum = $2 AND project_id = $3",
+    )
+    .bind(state)
+    .bind(checksum)
+    .bind(project_id)
+    .execute(pool)
+    .await
+    .expect("update assembly_jobs state must succeed");
+
+    #[cfg(not(feature = "postgres"))]
+    sqlx::query("UPDATE assembly_jobs SET state = ? WHERE bundle_checksum = ? AND project_id = ?")
+        .bind(state)
+        .bind(checksum)
+        .bind(project_id)
+        .execute(pool)
+        .await
+        .expect("update assembly_jobs state must succeed");
+}
+
 /// Binds a UUID-typed column: Postgres requires a native `Uuid` value (a bare
 /// `&str` is sent as `text`, which Postgres refuses to assign into a `uuid`
 /// column — code 42804), while SQLite's `uuid` columns are untyped `TEXT` and
@@ -649,7 +676,7 @@ async fn test_assemble_before_upload_returns_not_found_with_missing_chunks() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 202, "missing chunks must return 202");
+    assert_eq!(resp.status(), 200, "missing chunks must return 200");
 
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(body["state"], "not_found");
@@ -732,6 +759,120 @@ async fn test_assemble_after_upload_enqueues_job_returns_created() {
     assert!(
         missing.is_empty(),
         "no chunks should be missing after upload"
+    );
+}
+
+/// sentry-cli `--wait` polls assemble until `state` is terminal. Every poll
+/// must be HTTP 200; missing chunks are `state: "not_found"`, not 202.
+#[actix_web::test]
+async fn test_assemble_wait_poll_returns_ok_after_chunks_uploaded() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "assemble-wait-poll".to_string(),
+            slug: Some("assemble-wait-poll".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let bundle = build_test_artifact_bundle();
+    let chunk_sha1 = sha1_hex(&bundle);
+    let bundle_checksum = sha1_hex(&bundle);
+    let auth = format!("Bearer {}", token);
+
+    let assemble_body = serde_json::json!({
+        "checksum": bundle_checksum,
+        "chunks": [chunk_sha1],
+        "projects": [project.slug]
+    });
+
+    let missing_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", auth.clone()))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(&assemble_body)
+        .to_request();
+    let missing_resp = test::call_service(&app, missing_req).await;
+    assert_eq!(
+        missing_resp.status(),
+        200,
+        "assemble with missing chunks must return 200, not 202"
+    );
+    let missing_body: Value = test::read_body_json(missing_resp).await;
+    assert_eq!(missing_body["state"], "not_found");
+    let missing = missing_body["missingChunks"]
+        .as_array()
+        .expect("missingChunks must be an array");
+    assert!(
+        missing.iter().any(|c| c == &chunk_sha1),
+        "missingChunks must include the uploaded checksum; got: {:?}",
+        missing
+    );
+
+    let boundary = "waitpollboundary";
+    let upload_body = build_multipart(boundary, &[(chunk_sha1.as_str(), bundle.as_slice())]);
+    let upload_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/chunk-upload/")
+        .insert_header(("Authorization", auth.clone()))
+        .insert_header((
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        ))
+        .set_payload(upload_body)
+        .to_request();
+    let upload_resp = test::call_service(&app, upload_req).await;
+    assert_eq!(upload_resp.status(), 200, "chunk-upload must succeed");
+
+    let created_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", auth.clone()))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(&assemble_body)
+        .to_request();
+    let created_resp = test::call_service(&app, created_req).await;
+    assert_eq!(created_resp.status(), 200);
+    let created_body: Value = test::read_body_json(created_resp).await;
+    let created_state = created_body["state"].as_str().unwrap_or("");
+    assert!(
+        created_state == "created" || created_state == "assembling",
+        "after chunks exist, assemble must enqueue the job; got state={}",
+        created_state
+    );
+
+    // The integration suite does not run AssemblyWorker; mark the job complete
+    // the same way the worker would, then poll assemble again (sentry-cli --wait).
+    set_assembly_job_state(&db.pool, &bundle_checksum, project.id, "ok").await;
+
+    let ok_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", auth))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(&assemble_body)
+        .to_request();
+    let ok_resp = test::call_service(&app, ok_req).await;
+    assert_eq!(ok_resp.status(), 200);
+    let ok_body: Value = test::read_body_json(ok_resp).await;
+    assert_eq!(
+        ok_body["state"], "ok",
+        "polling assemble after the job completes must return state=ok; got: {}",
+        ok_body["state"]
     );
 }
 
@@ -2088,7 +2229,7 @@ async fn test_assemble_with_numeric_project_id_returns_not_found_or_created() {
     // GIVEN: a project exists with a known numeric ID
     // WHEN:  assemble is called with projects: ["<numeric_id>"] instead of the slug
     // THEN:  it does NOT return 404 (project found by ID fallback)
-    //        returns 202 not_found (chunks missing) rather than 404 project not found
+    //        returns 200 not_found (chunks missing) rather than 404 project not found
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
 
@@ -2129,7 +2270,7 @@ async fn test_assemble_with_numeric_project_id_returns_not_found_or_created() {
 
     let resp = test::call_service(&app, req).await;
     // Must NOT be 404 — project was found by numeric ID fallback
-    // Should be 202 (missing chunks) since no chunks uploaded
+    // Should be 200 (missing chunks) since no chunks uploaded
     assert_ne!(
         resp.status(),
         404,
@@ -2137,9 +2278,11 @@ async fn test_assemble_with_numeric_project_id_returns_not_found_or_created() {
     );
     assert_eq!(
         resp.status(),
-        202,
-        "assemble with numeric project ID and missing chunks must return 202"
+        200,
+        "assemble with numeric project ID and missing chunks must return 200"
     );
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["state"], "not_found");
 }
 
 // ---------------------------------------------------------------------------

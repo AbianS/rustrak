@@ -203,8 +203,7 @@ pub async fn chunk_upload(
     params(("org_slug" = String, Path, description = "Organization slug")),
     request_body = AssembleBody,
     responses(
-        (status = 200, description = "Assembly job state (ok / created / processing)", body = AssembleResponse),
-        (status = 202, description = "Missing chunks — upload required", body = AssembleResponse),
+        (status = 200, description = "Assembly job state (not_found / created / assembling / ok / error). Missing chunks are listed in missingChunks.", body = AssembleResponse),
         (status = 400, description = "Bad request or checksum mismatch", body = crate::error::ErrorResponse),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
@@ -269,7 +268,7 @@ pub async fn artifact_bundle_assemble(
     // Check for missing chunks
     let missing = get_missing_chunks(pool.get_ref(), &body.chunks).await?;
     if !missing.is_empty() {
-        return Ok(HttpResponse::Accepted().json(AssembleResponse {
+        return Ok(HttpResponse::Ok().json(AssembleResponse {
             state: "not_found".to_string(),
             missing_chunks: missing,
             detail: None,
