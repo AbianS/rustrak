@@ -488,3 +488,70 @@ async fn test_rewrite_image_missing_code_file() {
     let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
     assert_eq!(frame["filename"], orig["filename"]);
 }
+
+// ---------------------------------------------------------------------------
+// Hermes / Metro maps (`x_facebook_sources`)
+// ---------------------------------------------------------------------------
+
+/// Minimal Hermes map: generated line 0 / col 0 → `src/App.tsx` line 4,
+/// function name `foo` from `x_facebook_sources`.
+///
+/// Adapted from getsentry/rust-sourcemap tests/fixtures/react-native-hermes.
+fn make_hermes_sourcemap() -> Bytes {
+    let json = r#"{
+        "version": 3,
+        "sources": ["src/App.tsx"],
+        "sourcesContent": ["line 1\nline 2\nline 3\nline 4\nfunction foo() {\n  throw new Error('boom');\n}"],
+        "names": [],
+        "mappings": "AAIA",
+        "x_facebook_sources": [[{"names": ["foo"], "mappings": "AAA"}]]
+    }"#;
+    Bytes::from(json)
+}
+
+#[tokio::test]
+async fn test_rewrite_hermes_map() {
+    let provider = FakeSourceMapProvider::with_data(make_hermes_sourcemap());
+    // Hermes frames are reported as lineno=1, colno=bytecode_offset (here 0).
+    let mut event = json!({
+        "debug_meta": {
+            "images": [{"code_file": "index.android.bundle", "debug_id": "abc123"}]
+        },
+        "exception": {
+            "values": [{
+                "stacktrace": {
+                    "frames": [{
+                        "filename": "index.android.bundle",
+                        "lineno": 1,
+                        "colno": 0,
+                        "function": "?anon_0_"
+                    }]
+                }
+            }]
+        }
+    });
+
+    rewrite_frames(&provider, 1, &mut event).await.unwrap();
+
+    let frame = &event["exception"]["values"][0]["stacktrace"]["frames"][0];
+    assert_eq!(
+        frame["filename"].as_str().unwrap(),
+        "src/App.tsx",
+        "Hermes map must rewrite filename to the original source"
+    );
+    assert_eq!(
+        frame["lineno"].as_u64().unwrap(),
+        5,
+        "Hermes map must rewrite lineno (src_line 4 + 1)"
+    );
+    assert_eq!(
+        frame["function"].as_str().unwrap(),
+        "foo",
+        "Hermes map must resolve the original function name from x_facebook_sources"
+    );
+    assert_eq!(
+        frame["context_line"].as_str().unwrap(),
+        "function foo() {",
+        "context_line must come from the original Hermes source"
+    );
+}

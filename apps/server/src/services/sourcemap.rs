@@ -673,13 +673,21 @@ async fn rewrite_frames_under(
                 }
             };
 
-            // 3d. Parse source map
-            let sm = match sourcemap::SourceMap::from_reader(Cursor::new(&entry.data)) {
-                Ok(sm) => sm,
+            // 3d. Parse source map — DecodedMap auto-detects Hermes (`x_facebook_sources`)
+            // vs regular maps. SourceMap::from_reader returns IncompatibleSourceMap for Hermes.
+            let decoded = match sourcemap::DecodedMap::from_reader(Cursor::new(&entry.data)) {
+                Ok(m) => m,
                 Err(e) => {
                     log::warn!("failed to parse source map for {}: {}", debug_id, e);
                     continue;
                 }
+            };
+
+            // Indexed maps need embedded sections for lookup + contents; skip them.
+            let sm: &sourcemap::SourceMap = match &decoded {
+                sourcemap::DecodedMap::Regular(sm) => sm,
+                sourcemap::DecodedMap::Hermes(smh) => smh,
+                sourcemap::DecodedMap::Index(_) => continue,
             };
 
             // 3e. Normalize position — use let-else, NOT '?' (normalize returns Option not Result)
@@ -690,7 +698,7 @@ async fn rewrite_frames_under(
             };
 
             // 3f. Lookup token
-            let Some(token) = sm.lookup_token(norm_lineno, norm_colno) else {
+            let Some(token) = decoded.lookup_token(norm_lineno, norm_colno) else {
                 continue;
             };
 
@@ -701,6 +709,9 @@ async fn rewrite_frames_under(
 
             // 3h. Original file from token
             let original_file = token.get_source().unwrap_or("").to_string();
+            let src_line = token.get_src_line();
+            let src_col = token.get_src_col();
+            let token_name = token.get_name().map(|n| n.to_string());
 
             // 3i. Find source index via linear search (NEVER assume sourcesContent[0])
             let source_idx = (0..sm.get_source_count())
@@ -713,7 +724,7 @@ async fn rewrite_frames_under(
                 .unwrap_or_default();
 
             // 3k. Compute context window bounds
-            let l = token.get_src_line() as usize;
+            let l = src_line as usize;
             let pre_start = l.saturating_sub(3);
             let post_end = lines.len().min(l + 4);
 
@@ -724,11 +735,14 @@ async fn rewrite_frames_under(
                 .unwrap_or("")
                 .to_string();
 
-            let new_lineno = token.get_src_line() + 1; // back to 1-indexed
-            let new_colno = token.get_src_col();
-            let new_function = token
-                .get_name()
+            let new_lineno = src_line + 1; // back to 1-indexed
+            let new_colno = src_col;
+            // Hermes resolves names from x_facebook_sources (line==0, col=bytecode offset).
+            // Regular maps return None without a minified SourceView; fall back to token name.
+            let new_function = decoded
+                .get_original_function_name(norm_lineno, norm_colno, Some(&existing_function), None)
                 .map(|n| n.to_string())
+                .or(token_name)
                 .unwrap_or(existing_function);
             let context_line = lines.get(l).cloned().unwrap_or_default();
             let pre_context: Vec<serde_json::Value> = lines
@@ -900,6 +914,33 @@ mod tests {
         assert_eq!(
             frame["function"], "originalFunction",
             "function name should be resolved from names table"
+        );
+    }
+
+    /// Metro/Hermes maps include `x_facebook_sources`. SourceMap::from_reader
+    /// rejects them; DecodedMap::from_reader does not.
+    const HERMES_SOURCEMAP: &str = r#"{
+        "version": 3,
+        "sources": ["src/App.tsx"],
+        "sourcesContent": ["line 1\nline 2\nline 3\nline 4\nfunction foo() {\n  throw new Error('boom');\n}"],
+        "names": [],
+        "mappings": "AAIA",
+        "x_facebook_sources": [[{"names": ["foo"], "mappings": "AAA"}]]
+    }"#;
+
+    #[test]
+    fn hermes_map_parses_as_decoded_map_not_regular() {
+        let data = HERMES_SOURCEMAP.as_bytes();
+        let regular = sourcemap::SourceMap::from_reader(Cursor::new(data));
+        assert!(
+            matches!(regular, Err(sourcemap::Error::IncompatibleSourceMap)),
+            "regular SourceMap::from_reader must reject Hermes maps; got {:?}",
+            regular.err()
+        );
+        let decoded = sourcemap::DecodedMap::from_reader(Cursor::new(data)).unwrap();
+        assert!(
+            matches!(decoded, sourcemap::DecodedMap::Hermes(_)),
+            "DecodedMap must detect Hermes from x_facebook_sources"
         );
     }
 }
