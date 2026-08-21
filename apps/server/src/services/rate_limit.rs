@@ -154,11 +154,20 @@ impl RateLimitService {
     ) -> AppResult<()> {
         let now = Utc::now();
 
-        // Counters were committed with the digest; only refresh derived quota
-        // state outside the write transaction.
-        Self::update_installation_quota(pool, config, now, installation_count).await?;
+        // The counters are committed already; refresh derived quota rows
+        // independently where the backend can benefit from it. SQLite keeps
+        // its two writes serial because it has one writer at a time.
+        #[cfg(feature = "postgres")]
+        tokio::try_join!(
+            Self::update_installation_quota(pool, config, now, installation_count),
+            Self::update_project_quota(pool, project_id, config, now, project_count),
+        )?;
 
-        Self::update_project_quota(pool, project_id, config, now, project_count).await?;
+        #[cfg(feature = "sqlite")]
+        {
+            Self::update_installation_quota(pool, config, now, installation_count).await?;
+            Self::update_project_quota(pool, project_id, config, now, project_count).await?;
+        }
 
         Ok(())
     }
