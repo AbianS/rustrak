@@ -105,6 +105,15 @@ async fn test_event_alert_history_is_scoped_to_project() {
     .await
     .expect("legacy alert history insert must succeed");
 
+    assert!(AlertService::event_alert_exists(
+        &db.pool,
+        first_project,
+        event_id,
+        AlertType::NewIssue,
+    )
+    .await
+    .expect("first project legacy lookup must succeed"));
+
     assert!(!AlertService::event_alert_exists(
         &db.pool,
         second_project,
