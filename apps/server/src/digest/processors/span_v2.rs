@@ -103,6 +103,8 @@ impl Processor for SpanV2Processor {
                     $24, $25,
                     $26, $27, $28, $29, $30
                 )
+                ON CONFLICT (project_id, trace_id, span_id)
+                    WHERE transaction_id IS NULL DO NOTHING
                 "#,
             )
             .bind(Uuid::new_v4())

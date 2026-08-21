@@ -91,6 +91,10 @@ mod level2 {
         .unwrap();
 
         SpanProcessor
+            .process(payload.clone(), &ctx(&db.pool, project.id))
+            .await
+            .unwrap();
+        SpanProcessor
             .process(payload, &ctx(&db.pool, project.id))
             .await
             .unwrap();
@@ -100,11 +104,17 @@ mod level2 {
         #[cfg(not(feature = "postgres"))]
         const QUERY: &str = "SELECT span_id, trace_id, parent_span_id, op, description, transaction_id, duration_ms FROM spans WHERE project_id = ?";
 
-        let row = sqlx::query(QUERY)
+        let rows = sqlx::query(QUERY)
             .bind(project.id)
-            .fetch_one(&db.pool)
+            .fetch_all(&db.pool)
             .await
             .unwrap();
+        assert_eq!(
+            rows.len(),
+            1,
+            "replaying a standalone span must not duplicate it"
+        );
+        let row = rows.into_iter().next().unwrap();
 
         let span_id: Option<String> = row.get("span_id");
         let trace_id: Option<String> = row.get("trace_id");

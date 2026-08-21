@@ -84,6 +84,7 @@ mod level2 {
             remote_addr: None,
         };
 
+        LogsProcessor.process(body.clone(), &ctx).await.unwrap();
         LogsProcessor.process(body, &ctx).await.unwrap();
 
         #[cfg(feature = "postgres")]
@@ -99,7 +100,11 @@ mod level2 {
             .await
             .unwrap();
 
-        assert_eq!(rows.len(), 2, "two-item container → two log rows");
+        assert_eq!(
+            rows.len(),
+            2,
+            "replaying a container must not duplicate rows"
+        );
         let level0: String = rows[0].get("level");
         let body0: String = rows[0].get("body");
         let trace0: String = rows[0].get("trace_id");
