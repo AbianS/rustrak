@@ -8,7 +8,8 @@ use chrono::{Duration, Utc};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
 use rustrak::services::{
-    DbSourceMapProvider, LocalSourceMapStore, ProjectService, SourceMapProvider, SourceMapStore,
+    DbSourceMapProvider, LocalSourceMapStore, ProjectService, RateLimitService, SourceMapProvider,
+    SourceMapStore,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -73,21 +74,61 @@ async fn set_project_quota_exceeded(
     project_id: i32,
     until: chrono::DateTime<Utc>,
 ) {
-    sqlx::query("UPDATE projects SET quota_exceeded_until = $1 WHERE id = $2")
-        .bind(until)
-        .bind(project_id)
-        .execute(pool)
-        .await
-        .expect("Failed to set project quota");
+    sqlx::query(
+        "UPDATE projects SET quota_exceeded_until = $1, next_quota_check = 1 WHERE id = $2",
+    )
+    .bind(until)
+    .bind(project_id)
+    .execute(pool)
+    .await
+    .expect("Failed to set project quota");
 }
 
 /// Sets installation quota exceeded until the given time
 async fn set_installation_quota_exceeded(pool: &rustrak::db::DbPool, until: chrono::DateTime<Utc>) {
-    sqlx::query("UPDATE installation SET quota_exceeded_until = $1 WHERE id = 1")
-        .bind(until)
-        .execute(pool)
+    sqlx::query(
+        "UPDATE installation SET quota_exceeded_until = $1, next_quota_check = 1 WHERE id = 1",
+    )
+    .bind(until)
+    .execute(pool)
+    .await
+    .expect("Failed to set installation quota");
+}
+
+#[actix_web::test]
+async fn stale_quota_cache_is_refreshed_before_the_next_ingest() {
+    let db = TestDb::new().await;
+    let (project_id, _) = create_test_project(&db.pool, "Stale Quota Cache").await;
+    let config = default_rate_limit_config();
+    sqlx::query("UPDATE installation SET next_quota_check = 1 WHERE id = 1")
+        .execute(&db.pool)
         .await
-        .expect("Failed to set installation quota");
+        .unwrap();
+    sqlx::query("UPDATE projects SET next_quota_check = 1 WHERE id = $1")
+        .bind(project_id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .unwrap();
+    let stale_until = Utc::now() + Duration::minutes(10);
+    set_project_quota_exceeded(&db.pool, project_id, stale_until).await;
+    sqlx::query("UPDATE projects SET next_quota_check = 0 WHERE id = $1")
+        .bind(project_id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    assert!(RateLimitService::check_quota(&db.pool, &project, &config)
+        .await
+        .unwrap()
+        .is_none());
+    let refreshed = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .unwrap();
+    assert!(refreshed.quota_exceeded_until.is_none());
+    assert!(refreshed.next_quota_check > i64::from(refreshed.digested_event_count));
 }
 
 /// Creates a minimal valid Sentry envelope

@@ -5,11 +5,14 @@ use chrono::Utc;
 use crate::auth::SentryAuth;
 use crate::config::Config;
 use crate::db::DbPool;
-use crate::digest::processors::{Processor, ProcessorCtx, Processors, SessionItem};
+use crate::digest::processors::{
+    is_retryable_write_contention, Processor, ProcessorCtx, Processors, SessionItem,
+};
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
-    decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeItemKind,
-    EnvelopeParser, EventMetadata, MAX_COMPRESSED_SIZE,
+    decompress_body, get_content_encoding, get_ingest_dir, list_pending_event_metadata,
+    store_event_with_metadata, EnvelopeItemKind, EnvelopeParser, EventMetadata,
+    MAX_COMPRESSED_SIZE,
 };
 use crate::services::RateLimitService;
 
@@ -32,7 +35,9 @@ pub async fn ingest_envelope(
     processors: web::Data<Processors>,
 ) -> AppResult<HttpResponse> {
     // 0. Check rate limits (fail fast before processing)
-    if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
+    if let Some(exceeded) =
+        RateLimitService::check_quota(pool.get_ref(), &auth.project, &config.rate_limit).await?
+    {
         log::warn!(
             "Rate limit exceeded for project {}: retry_after={}s",
             auth.project.id,
@@ -242,18 +247,17 @@ pub async fn ingest_envelope(
     let _: serde_json::Value = serde_json::from_slice(&event_item)
         .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
 
-    // 7. Store event in filesystem
-    store_event(&ingest_dir, &event_id, &event_item).await?;
-
-    // 8. Create metadata
+    // 7. Create metadata and store it beside the raw event so a failed digest
+    // can be recovered after the process restarts.
     let metadata = EventMetadata {
         event_id: event_id.clone(),
         project_id: auth.project.id,
         ingested_at,
         remote_addr,
     };
+    store_event_with_metadata(&ingest_dir, &event_id, &event_item, &metadata).await?;
 
-    // 9. Spawn digest task — the ErrorProcessor reads the temp file and runs
+    // 8. Spawn digest task — the ErrorProcessor reads the temp file and runs
     //    grouping/issue creation. It owns ingest_dir/rate_limit/sourcemap deps.
     let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
@@ -267,13 +271,78 @@ pub async fn ingest_envelope(
             ingested_at: metadata.ingested_at,
             remote_addr: metadata.remote_addr.clone(),
         };
-        if let Err(e) = processors.errors.process(metadata, &ctx).await {
-            log::error!("Failed to digest event {}: {:?}", event_id_log, e);
+        for attempt in 0..4 {
+            match processors.errors.process(metadata.clone(), &ctx).await {
+                Ok(()) => break,
+                Err(e) if is_retryable_write_contention(&e) && attempt < 3 => {
+                    let delay = std::time::Duration::from_millis(250 << attempt);
+                    log::warn!(
+                        "Digest {} remains locked; retrying after {:?}: {:?}",
+                        event_id_log,
+                        delay,
+                        e
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+                Err(e) => {
+                    log::error!(
+                        "Failed to digest event {}; it remains queued: {:?}",
+                        event_id_log,
+                        e
+                    );
+                    break;
+                }
+            }
         }
     });
 
-    // 10. Return immediately (CORS handled by middleware)
+    // 9. Return immediately (CORS handled by middleware)
     Ok(HttpResponse::Ok().json(IngestResponse { id: Some(event_id) }))
+}
+
+/// Replays event files left by a previous process after a digest failure.
+pub async fn recover_pending_events(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) {
+    const RECOVERY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+    loop {
+        recover_pending_events_once(pool.clone(), processors.clone(), ingest_dir.clone()).await;
+        tokio::time::sleep(RECOVERY_INTERVAL).await;
+    }
+}
+
+/// Performs one bounded recovery scan; kept separate so startup workers and
+/// tests can exercise exactly one replay pass.
+pub async fn recover_pending_events_once(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) {
+    let pending = match list_pending_event_metadata(&ingest_dir).await {
+        Ok(pending) => pending,
+        Err(e) => {
+            log::error!("Failed to scan pending event metadata: {:?}", e);
+            return;
+        }
+    };
+
+    for metadata in pending {
+        let event_id = metadata.event_id.clone();
+        let ctx = ProcessorCtx {
+            pool: pool.clone(),
+            project_id: metadata.project_id,
+            event_id: uuid::Uuid::parse_str(&metadata.event_id)
+                .unwrap_or_else(|_| uuid::Uuid::nil()),
+            ingested_at: metadata.ingested_at,
+            remote_addr: metadata.remote_addr.clone(),
+        };
+        if let Err(e) = processors.errors.process(metadata, &ctx).await {
+            log::warn!("Pending digest {} remains queued: {:?}", event_id, e);
+        }
+    }
 }
 
 /// Builds a [`ProcessorCtx`] for session items, which carry no event id.

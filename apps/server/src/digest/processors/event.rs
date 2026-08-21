@@ -2,7 +2,8 @@ use super::{Processor, ProcessorCtx};
 use crate::config::RateLimitConfig;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::ingest::{delete_event, read_event, EventMetadata};
+use crate::ingest::storage::{delete_event_at, read_event_with_location};
+use crate::ingest::EventMetadata;
 use crate::models::{Grouping, Issue};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
@@ -39,28 +40,41 @@ impl ErrorProcessor {
         }
     }
 
-    /// The digest pipeline body. Guarantees the temp file is deleted on failure.
+    /// The digest pipeline body. Retryable contention leaves the durable event queued.
     async fn process_impl(&self, metadata: &EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
         let pool = &ctx.pool;
         let _digested_at = Utc::now();
 
-        // 0. Double-check rate limits (for backlog scenarios)
+        // 0. Read the event before quota checks so cleanup can target the exact
+        // project-scoped file that was read.
         let project = ProjectService::get_by_id(pool, metadata.project_id).await?;
-        if let Some(_exceeded) = RateLimitService::check_quota(pool, &project).await? {
+        let (event_bytes, storage_location) =
+            read_event_with_location(&self.ingest_dir, metadata.project_id, &metadata.event_id)
+                .await?;
+
+        // 1. Double-check rate limits (for backlog scenarios)
+        if let Some(_exceeded) =
+            RateLimitService::check_quota(pool, &project, &self.rate_limit_config).await?
+        {
             log::warn!(
                 "Event {} discarded due to quota exceeded (backlog)",
                 metadata.event_id
             );
-            delete_event(&self.ingest_dir, &metadata.event_id).await?;
+            delete_event_at(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+                storage_location,
+            )
+            .await?;
             return Ok(());
         }
 
-        // 1. Read event from filesystem
-        let event_bytes = read_event(&self.ingest_dir, &metadata.event_id).await?;
+        // 2. Parse event from filesystem
         let mut event_data: serde_json::Value = serde_json::from_slice(&event_bytes)
             .map_err(|e| AppError::Internal(format!("Invalid event JSON: {}", e)))?;
 
-        // 1b. Rewrite stack frames using source maps (non-fatal)
+        // 2b. Rewrite stack frames using source maps (non-fatal)
         if let Err(e) = crate::services::sourcemap::rewrite_frames(
             self.sourcemap_provider.as_ref(),
             metadata.project_id,
@@ -75,7 +89,7 @@ impl ErrorProcessor {
             );
         }
 
-        // 1c. Trim oversized fields (deep context windows, frame vars, huge
+        // 2c. Trim oversized fields (deep context windows, frame vars, huge
         // breadcrumb trails) for events whose raw payload came in above the
         // original per-item budget — see services::event_trim. Only runs for
         // the (rare) events that needed the relaxed ingest ceiling, so this
@@ -84,28 +98,34 @@ impl ErrorProcessor {
             crate::services::trim_oversized_event(&mut event_data);
         }
 
-        // 2. Parse event_id as UUID
+        // 3. Parse event_id as UUID
         let event_id = Uuid::parse_str(&metadata.event_id)
             .map_err(|_| AppError::Validation("Invalid event_id".to_string()))?;
 
-        // 3. Check for duplicates
+        // 4. Check for duplicates
         if EventService::exists(pool, metadata.project_id, event_id).await? {
             log::warn!("Duplicate event_id: {}", metadata.event_id);
-            delete_event(&self.ingest_dir, &metadata.event_id).await?;
+            delete_event_at(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+                storage_location,
+            )
+            .await?;
             return Ok(());
         }
 
-        // 4. Calculate grouping key and hash
+        // 5. Calculate grouping key and hash
         let grouping_key = calculate_grouping_key(&event_data);
         let grouping_key_hash = hash_grouping_key(&grouping_key);
 
-        // 5. Extract denormalized fields
+        // 6. Extract denormalized fields
         let denormalized = get_denormalized_fields(&event_data);
 
-        // 6+7. Write the digest: grouping, issue, the event itself and the
+        // 7+8. Write the digest: grouping, issue, the event itself and the
         // project's stored-event counter, in one transaction, retried as a
         // whole when SQLite reports the database busy.
-        let (issue, issue_created, regressed) = write_digest(
+        let (issue, issue_created, regressed, installation_count, project_count) = write_digest(
             pool,
             &DigestWrite {
                 event_id,
@@ -123,18 +143,50 @@ impl ErrorProcessor {
         )
         .await?;
 
-        // 8b. Sentry-parity platform auto-detection (set once, never overwritten)
+        // 9b. Sentry-parity platform auto-detection (set once, never overwritten).
+        // Best-effort: the digest transaction already committed the event, so
+        // ancillary project metadata must not make the durable event fail.
         if let Some(event_platform) = event_data.get("platform").and_then(|p| p.as_str()) {
-            ProjectService::infer_platform_from_event(pool, metadata.project_id, event_platform)
-                .await?;
+            if let Err(e) =
+                ProjectService::infer_platform_from_event(pool, metadata.project_id, event_platform)
+                    .await
+            {
+                log::warn!(
+                    "platform inference failed for project {} (best-effort; a later event can self-heal): {:?}",
+                    metadata.project_id,
+                    e
+                );
+            }
         }
 
-        // Update rate limiting quotas (handles digested_event_count)
-        RateLimitService::update_quota_state(pool, metadata.project_id, &self.rate_limit_config)
-            .await?;
+        // Update rate limiting quotas (handles digested_event_count).
+        // Best-effort: the digest transaction already committed the event and
+        // its counters; a refresh failure must not make the async processor
+        // report a durable event as failed. A later digest can re-advance state.
+        if let Err(e) = RateLimitService::update_quota_state(
+            pool,
+            metadata.project_id,
+            &self.rate_limit_config,
+            installation_count,
+            project_count,
+        )
+        .await
+        {
+            log::warn!(
+                "quota state update failed for project {} (best-effort; a later digest can self-heal): {:?}",
+                metadata.project_id,
+                e
+            );
+        }
 
-        // 9. Delete temporary file
-        delete_event(&self.ingest_dir, &metadata.event_id).await?;
+        // 10. Delete the durable event file
+        delete_event_at(
+            &self.ingest_dir,
+            metadata.project_id,
+            &metadata.event_id,
+            storage_location,
+        )
+        .await?;
 
         log::info!(
             "Digested event {} -> issue {} ({})",
@@ -143,7 +195,7 @@ impl ErrorProcessor {
             if issue_created { "new" } else { "existing" }
         );
 
-        // 10. Trigger alerts for new issues and regressions
+        // 11. Trigger alerts for new issues and regressions
         if issue_created || regressed {
             let pool = pool.clone();
             let project = project.clone();
@@ -174,16 +226,52 @@ impl Processor for ErrorProcessor {
 
     async fn process(&self, metadata: EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
         let result = self.process_impl(&metadata, ctx).await;
-        if result.is_err() {
-            if let Err(e) = delete_event(&self.ingest_dir, &metadata.event_id).await {
-                log::warn!(
-                    "Failed to clean up orphaned event file {}: {:?}",
+        if let Err(e) = &result {
+            if should_retain_event(e) {
+                return result;
+            }
+            match read_event_with_location(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+            )
+            .await
+            {
+                Ok((_, location)) => {
+                    if let Err(e) = delete_event_at(
+                        &self.ingest_dir,
+                        metadata.project_id,
+                        &metadata.event_id,
+                        location,
+                    )
+                    .await
+                    {
+                        log::warn!(
+                            "Failed to clean up orphaned event file {}: {:?}",
+                            metadata.event_id,
+                            e
+                        );
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Failed to locate orphaned event file {}: {:?}",
                     metadata.event_id,
                     e
-                );
+                ),
             }
         }
         result
+    }
+}
+
+fn should_retain_event(err: &AppError) -> bool {
+    match err.kind() {
+        AppError::Database(_) => true,
+        AppError::Internal(message) => {
+            message.starts_with("Failed to read event file")
+                || message.starts_with("Invalid pending event")
+        }
+        _ => false,
     }
 }
 
@@ -201,7 +289,7 @@ fn sqlite_retry_delay(attempt: usize) -> std::time::Duration {
 /// 261, 517, 773). Always false on Postgres, whose SQLSTATEs never collide
 /// with these. Pool exhaustion is deliberately excluded: it is a capacity
 /// signal, and retrying it only lengthens the queue that caused it.
-fn is_retryable_write_contention(err: &AppError) -> bool {
+pub(crate) fn is_retryable_write_contention(err: &AppError) -> bool {
     match err.kind() {
         AppError::Database(sqlx::Error::Database(db)) => {
             db.code().as_deref().is_some_and(is_sqlite_busy_code)
@@ -240,8 +328,11 @@ struct DigestWrite<'a> {
 /// triggers: a per-project advisory lock serializes issue creation and no busy
 /// code is ever reported.
 ///
-/// Returns the issue plus whether it was created and whether it regressed.
-async fn write_digest(pool: &DbPool, write: &DigestWrite<'_>) -> AppResult<(Issue, bool, bool)> {
+/// Returns the issue, lifecycle flags, and committed quota-counter values.
+async fn write_digest(
+    pool: &DbPool,
+    write: &DigestWrite<'_>,
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     let mut attempt = 0usize;
     let event_id = write.raw_event_id;
     loop {
@@ -281,7 +372,7 @@ async fn write_digest(pool: &DbPool, write: &DigestWrite<'_>) -> AppResult<(Issu
 async fn write_digest_once(
     pool: &DbPool,
     write: &DigestWrite<'_>,
-) -> AppResult<(Issue, bool, bool)> {
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     // Start a write transaction. On SQLite this is `BEGIN IMMEDIATE` so the
     // read-then-write below (SELECT MAX(digest_order) → INSERT) takes the write
     // lock up front instead of failing with "database is locked" on upgrade.
@@ -322,7 +413,7 @@ async fn write_digest_once(
 async fn write_digest_rows(
     tx: &mut sqlx::Transaction<'_, DbBackend>,
     write: &DigestWrite<'_>,
-) -> AppResult<(Issue, bool, bool)> {
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     let (issue, grouping, created, regressed) = find_or_create_issue_and_grouping_inner(
         tx,
         write.project_id,
@@ -351,12 +442,10 @@ async fn write_digest_rows(
     )
     .await?;
 
-    sqlx::query("UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1")
-        .bind(write.project_id)
-        .execute(&mut **tx)
-        .await?;
+    let (installation_count, project_count) =
+        RateLimitService::increment_quota_counters(&mut **tx, write.project_id).await?;
 
-    Ok((issue, created, regressed))
+    Ok((issue, created, regressed, installation_count, project_count))
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction
@@ -552,6 +641,22 @@ mod tests {
         // add three more waiters to the queue that caused it.
         assert!(!is_retryable_write_contention(&AppError::Database(
             sqlx::Error::PoolTimedOut
+        )));
+    }
+
+    #[test]
+    fn database_and_event_read_failures_are_retained_for_recovery() {
+        assert!(should_retain_event(&AppError::Database(
+            sqlx::Error::PoolTimedOut
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "Failed to read event file: connection reset".to_string(),
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "Invalid pending event record: truncated".to_string(),
+        )));
+        assert!(!should_retain_event(&AppError::Validation(
+            "Invalid event JSON".to_string(),
         )));
     }
 }
