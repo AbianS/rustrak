@@ -715,8 +715,20 @@ impl AlertService {
         rule_channel: &AlertRuleChannel,
         max_retries: i32,
     ) -> AppResult<()> {
-        let payload: AlertPayload = serde_json::from_value(history.payload.clone())
-            .map_err(|e| AppError::Internal(format!("invalid alert payload: {}", e)))?;
+        let payload: AlertPayload = match serde_json::from_value(history.payload.clone()) {
+            Ok(payload) => payload,
+            Err(error) => {
+                let message = format!("invalid alert payload: {error}");
+                sqlx::query(
+                    "UPDATE alert_history SET status = 'failed', next_retry_at = NULL, error_message = $2 WHERE id = $1",
+                )
+                .bind(history.id)
+                .bind(message)
+                .execute(pool)
+                .await?;
+                return Ok(());
+            }
+        };
         Self::dispatch_history(
             pool,
             history.id,
