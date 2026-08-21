@@ -110,7 +110,14 @@ impl ErrorProcessor {
             let existing =
                 EventService::get_by_event_id(pool, metadata.project_id, event_id).await?;
             if let (Some(alert_type), Some(issue_id)) = (existing.alert_type, existing.issue_id) {
-                if !AlertService::event_alert_exists(pool, event_id, alert_type).await? {
+                if !AlertService::event_alert_exists(
+                    pool,
+                    metadata.project_id,
+                    event_id,
+                    alert_type,
+                )
+                .await?
+                {
                     let issue = IssueService::get_by_id(pool, issue_id).await?;
                     AlertService::trigger_event_alert(
                         pool,

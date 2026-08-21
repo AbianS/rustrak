@@ -17,8 +17,8 @@ use crate::models::{
 };
 use crate::services::notification::create_dispatcher;
 
-fn event_alert_id(event_id: Uuid, alert_type: &AlertType) -> String {
-    format!("event-{event_id}-{alert_type}")
+fn event_alert_id(project_id: i32, event_id: Uuid, alert_type: &AlertType) -> String {
+    format!("event-{project_id}-{event_id}-{alert_type}")
 }
 
 pub struct AlertService;
@@ -484,7 +484,7 @@ impl AlertService {
             issue,
             alert_type,
             dashboard_url,
-            Some(event_alert_id(event_id, &alert_type)),
+            Some(event_alert_id(project.id, event_id, &alert_type)),
         )
         .await
     }
@@ -700,14 +700,18 @@ impl AlertService {
     /// Returns whether durable history already exists for an event alert.
     pub async fn event_alert_exists(
         pool: &DbPool,
+        project_id: i32,
         event_id: Uuid,
         alert_type: AlertType,
     ) -> AppResult<bool> {
-        let prefix = format!("event-{event_id}-{alert_type}-%");
+        let prefix = format!("event-{project_id}-{event_id}-{alert_type}-%");
+        let legacy_prefix = format!("event-{event_id}-{alert_type}-%");
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM alert_history WHERE idempotency_key LIKE $1)",
+            "SELECT EXISTS(SELECT 1 FROM alert_history WHERE project_id = $1 AND (idempotency_key LIKE $2 OR idempotency_key LIKE $3))",
         )
+        .bind(project_id)
         .bind(prefix)
+        .bind(legacy_prefix)
         .fetch_one(pool)
         .await?;
         Ok(exists)
@@ -968,12 +972,16 @@ mod tests {
     fn event_alert_id_is_stable_across_retries() {
         let event_id = Uuid::nil();
         assert_eq!(
-            event_alert_id(event_id, &AlertType::NewIssue),
-            event_alert_id(event_id, &AlertType::NewIssue)
+            event_alert_id(1, event_id, &AlertType::NewIssue),
+            event_alert_id(1, event_id, &AlertType::NewIssue)
         );
         assert_ne!(
-            event_alert_id(event_id, &AlertType::NewIssue),
-            event_alert_id(event_id, &AlertType::Regression)
+            event_alert_id(1, event_id, &AlertType::NewIssue),
+            event_alert_id(1, event_id, &AlertType::Regression)
+        );
+        assert_ne!(
+            event_alert_id(1, event_id, &AlertType::NewIssue),
+            event_alert_id(2, event_id, &AlertType::NewIssue)
         );
     }
 

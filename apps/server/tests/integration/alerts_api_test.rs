@@ -15,6 +15,7 @@ use rustrak::routes;
 use rustrak::services::{AlertService, ProjectService};
 use serde_json::json;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Creates a test config
 fn create_test_config() -> Config {
@@ -66,6 +67,42 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
     .await
     .expect("Failed to create test project");
     project.id
+}
+
+#[tokio::test]
+async fn test_event_alert_history_is_scoped_to_project() {
+    let db = TestDb::new().await;
+    let first_project = create_test_project(&db.pool).await;
+    let second_project = create_test_project(&db.pool).await;
+    let event_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'test', 'pending', $2)",
+    )
+    .bind(first_project)
+    .bind(format!(
+        "event-{first_project}-{event_id}-new_issue-integration"
+    ))
+    .execute(&db.pool)
+    .await
+    .expect("alert history insert must succeed");
+
+    assert!(AlertService::event_alert_exists(
+        &db.pool,
+        first_project,
+        event_id,
+        AlertType::NewIssue
+    )
+    .await
+    .expect("first project lookup must succeed"));
+    assert!(!AlertService::event_alert_exists(
+        &db.pool,
+        second_project,
+        event_id,
+        AlertType::NewIssue,
+    )
+    .await
+    .expect("second project lookup must succeed"));
 }
 
 // =============================================================================
