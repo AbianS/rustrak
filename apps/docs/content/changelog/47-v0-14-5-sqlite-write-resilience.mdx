@@ -1,0 +1,74 @@
+---
+version: v0.14.5
+title: SQLite Write Resilience and Hermes Source Maps
+description: Bursts no longer lose events to a busy write lock, React Native stack traces symbolicate, and sentry-cli stops hanging on assemble
+date: 2026-08-21
+tags: [server, sqlite, sourcemaps]
+---
+
+## A busy write lock no longer costs you events
+
+`busy_timeout` queues writers, but it drops the event when the lock is held past
+it. SQLite gives no safe way to resume a transaction that lost its snapshot, so
+the only correct recovery is to run the whole thing again.
+
+- A digest that hits a busy error retries its entire write transaction, up to
+  three times with 50/100ms backoff, and reports the healed episode once it
+  succeeds ([@reneleonhardt](https://github.com/reneleonhardt))
+- Grouping, issue, event and the project's stored-event counter now commit or
+  roll back together. A failure between them used to leave an issue counting an
+  event nobody could open, with nothing to repair it, since a failed digest
+  deletes the payload from the temp store
+- Quota state stays outside that transaction on purpose. It counts rows over
+  time windows with a scan that cannot use the index, and holding the write lock
+  across it would recreate the pathological holder the retry loop exists to
+  survive
+- Pool exhaustion is deliberately not retried. It is a capacity signal, and
+  retrying it only lengthens the queue that caused it
+- The SQLite issue delete moved onto `BEGIN IMMEDIATE`, since it reads counters
+  before it writes. The write-first transactions that must keep a deferred
+  `BEGIN` now say so in place: promoting them would hold the write lock across
+  disk I/O and mass purges for no benefit
+  ([@reneleonhardt](https://github.com/reneleonhardt))
+- All of it is a no-op on PostgreSQL, where a per-project advisory lock
+  serializes issue creation and no busy code is ever reported
+
+## Hermes and Metro source maps symbolicate
+
+React Native bundles ship maps with `x_facebook_sources`, which the regular
+source map parser rejects outright, so every frame skipped the rewrite and stack
+traces stayed minified.
+
+- Maps are parsed with `DecodedMap`, which detects Hermes and regular maps alike
+  ([@roberteggl](https://github.com/roberteggl))
+- Original function names are resolved from the Hermes scope data, falling back
+  to the token name for regular maps
+- Indexed maps are skipped rather than mis-parsed
+
+## sentry-cli stops hanging on chunk upload
+
+- `POST .../files/difs/assemble` always returns HTTP 200 and carries the outcome
+  in the body. `sentry-cli --wait` polls until the state is `ok` and treats any
+  non-200 as an unknown error; the missing-chunk case already reported
+  `not_found`, only the status code was wrong
+  ([@roberteggl](https://github.com/roberteggl))
+- A poll that arrives after assembly finished is answered from the assembly job
+  before the chunk check. The worker deletes consumed chunk rows on success, so
+  checking chunks first made every post-completion poll report `not_found` and
+  `--wait` never returned. Sentry's own blobs persist after assembly, which is
+  why the order matters here and not there. Error jobs still fall through to the
+  re-queue path
+
+## Improvements
+
+- WAL now runs with `synchronous=NORMAL`, removing one disk flush per commit from
+  the write path ([@reneleonhardt](https://github.com/reneleonhardt)). The
+  durability trade this makes, and when to pick PostgreSQL instead, is documented
+  under Configuration → Database
+- `busy_timeout` stays at 5s, the value SQLite's own guidance pairs with WAL.
+  Every writer outside the digest, sourcemap assembly, the storage purge, bulk
+  issue updates, alert rules, the transaction, span and log processors, gets one
+  shot at the write lock, so the timeout is their entire tolerance. A regression
+  test now builds its pool through `db::create_pool`, pinning the settings the
+  server actually ships instead of its own overrides
+- 18 dependencies updated across the JS and Rust workspaces, all pinned exact
