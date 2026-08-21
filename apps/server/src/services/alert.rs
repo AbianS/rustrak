@@ -767,8 +767,7 @@ impl AlertService {
             .execute(pool)
             .await?;
         } else {
-            let delay_secs =
-                std::cmp::min(60 * 2_i64.pow(attempt_count.saturating_sub(1) as u32), 3600);
+            let delay_secs = retry_delay(attempt_count);
             let next_retry = Utc::now() + Duration::seconds(delay_secs);
             sqlx::query(
                 "UPDATE alert_history SET status = 'pending', attempt_count = $2, error_message = $3, http_status_code = $4, next_retry_at = $5 WHERE id = $1",
@@ -923,6 +922,11 @@ impl AlertService {
     }
 }
 
+fn retry_delay(attempt_count: i32) -> i64 {
+    let exponent = attempt_count.saturating_sub(1).min(6) as u32;
+    std::cmp::min(60 * 2_i64.pow(exponent), 3600)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -964,5 +968,11 @@ mod tests {
         });
         let payload: AlertPayload = serde_json::from_value(stored.clone()).unwrap();
         assert_eq!(serde_json::to_value(payload).unwrap(), stored);
+    }
+
+    #[test]
+    fn retry_delay_is_bounded_for_large_attempt_counts() {
+        assert_eq!(retry_delay(1), 60);
+        assert_eq!(retry_delay(i32::MAX), 3600);
     }
 }
