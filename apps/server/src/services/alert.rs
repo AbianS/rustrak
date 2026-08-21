@@ -855,7 +855,9 @@ impl AlertService {
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
-            WHERE status = 'pending' AND next_retry_at <= CURRENT_TIMESTAMP AND attempt_count < $1
+            WHERE status = 'pending'
+              AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+              AND attempt_count < $1
             ORDER BY next_retry_at
             LIMIT 100
             "#,
@@ -873,7 +875,7 @@ impl AlertService {
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
             WHERE status = 'pending'
-              AND datetime(next_retry_at) <= datetime('now')
+              AND (next_retry_at IS NULL OR datetime(next_retry_at) <= datetime('now'))
               AND attempt_count < $1
             ORDER BY next_retry_at
             LIMIT 100

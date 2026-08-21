@@ -115,6 +115,36 @@ async fn test_event_alert_history_is_scoped_to_project() {
     .expect("second project lookup must succeed"));
 }
 
+#[tokio::test]
+async fn test_alert_retry_queue_processes_pending_history_without_retry_time() {
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'unconfigured', 'pending', $2)",
+    )
+    .bind(project_id)
+    .bind(format!("retry-null-next-{project_id}"))
+    .execute(&db.pool)
+    .await
+    .expect("pending alert history insert must succeed");
+
+    assert_eq!(
+        AlertService::process_retry_queue(&db.pool, 5)
+            .await
+            .expect("retry queue processing must succeed"),
+        1
+    );
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM alert_history WHERE idempotency_key = $1")
+            .bind(format!("retry-null-next-{project_id}"))
+            .fetch_one(&db.pool)
+            .await
+            .expect("retry status lookup must succeed");
+    assert_eq!(status, "failed");
+}
+
 // =============================================================================
 // Service-Level Tests (Direct Database)
 // =============================================================================
