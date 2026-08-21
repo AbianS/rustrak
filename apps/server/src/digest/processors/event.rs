@@ -8,7 +8,7 @@ use crate::models::{AlertType, Grouping, Issue};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
-    DenormalizedFields, EventService, ProjectService, RateLimitService,
+    DenormalizedFields, EventService, IssueService, ProjectService, RateLimitService,
 };
 use chrono::Utc;
 use std::path::PathBuf;
@@ -107,8 +107,23 @@ impl ErrorProcessor {
         // 4. Check for duplicates
         if EventService::exists(pool, metadata.project_id, event_id).await? {
             log::warn!("Duplicate event_id: {}", metadata.event_id);
-            // A duplicate event does not tell us whether its original digest
-            // created or regressed the issue; replay must not invent an alert.
+            let existing =
+                EventService::get_by_event_id(pool, metadata.project_id, event_id).await?;
+            if let (Some(alert_type), Some(issue_id)) = (existing.alert_type, existing.issue_id) {
+                if !AlertService::event_alert_exists(pool, event_id, alert_type).await? {
+                    let issue = IssueService::get_by_id(pool, issue_id).await?;
+                    AlertService::trigger_event_alert(
+                        pool,
+                        &project,
+                        &issue,
+                        alert_type,
+                        event_id,
+                        &std::env::var("DASHBOARD_URL")
+                            .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+                    )
+                    .await?;
+                }
+            }
             delete_after_success(
                 pool,
                 &self.ingest_dir,
@@ -513,6 +528,7 @@ async fn write_digest_rows(
         write.timestamp,
         write.denormalized,
         write.remote_addr,
+        alert_type_for_lifecycle(created, regressed),
     )
     .await?;
 
@@ -683,6 +699,16 @@ async fn find_or_create_issue_and_grouping_inner(
     Ok((issue, grouping, true, false))
 }
 
+fn alert_type_for_lifecycle(created: bool, regressed: bool) -> Option<AlertType> {
+    if created {
+        Some(AlertType::NewIssue)
+    } else if regressed {
+        Some(AlertType::Regression)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -696,6 +722,19 @@ mod tests {
             !is_sqlite_busy_code("2067"),
             "a unique-constraint code is not a busy error"
         );
+    }
+
+    #[test]
+    fn persists_only_alerting_lifecycles() {
+        assert_eq!(
+            alert_type_for_lifecycle(true, false),
+            Some(AlertType::NewIssue)
+        );
+        assert_eq!(
+            alert_type_for_lifecycle(false, true),
+            Some(AlertType::Regression)
+        );
+        assert_eq!(alert_type_for_lifecycle(false, false), None);
     }
 
     #[test]

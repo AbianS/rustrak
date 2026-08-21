@@ -698,8 +698,12 @@ impl AlertService {
     }
 
     /// Returns whether durable history already exists for an event alert.
-    pub async fn event_alert_exists(pool: &DbPool, event_id: Uuid) -> AppResult<bool> {
-        let prefix = format!("event-{}-%", event_id);
+    pub async fn event_alert_exists(
+        pool: &DbPool,
+        event_id: Uuid,
+        alert_type: AlertType,
+    ) -> AppResult<bool> {
+        let prefix = format!("event-{event_id}-{alert_type}-%");
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM alert_history WHERE idempotency_key LIKE $1)",
         )
