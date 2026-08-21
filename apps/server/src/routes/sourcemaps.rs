@@ -294,7 +294,10 @@ pub async fn artifact_bundle_assemble(
     }
 
     // INSERT ... ON CONFLICT: re-queue if the existing job errored, otherwise leave it.
-    // chunks = EXCLUDED.chunks: update the chunk list so a re-submit with corrected chunks is honoured.
+    // Keep ownership rows in the same transaction so a worker cannot complete
+    // between the job update and the reference insert.
+    let mut tx = pool.begin().await?;
+
     #[cfg(feature = "postgres")]
     let job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(
         r#"
@@ -309,7 +312,7 @@ pub async fn artifact_bundle_assemble(
     .bind(&body.checksum)
     .bind(project_id)
     .bind(&body.chunks as &Vec<String>)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&mut *tx)
     .await?;
 
     #[cfg(not(feature = "postgres"))]
@@ -329,11 +332,12 @@ pub async fn artifact_bundle_assemble(
         .bind(&body.checksum)
         .bind(project_id)
         .bind(&chunks_json)
-        .fetch_optional(pool.get_ref())
+        .fetch_optional(&mut *tx)
         .await?
     };
 
     // If None (conflict — job already exists): fetch existing
+    let inserted_job = job.is_some();
     let job = match job {
         Some(j) => j,
         None => {
@@ -342,10 +346,28 @@ pub async fn artifact_bundle_assemble(
             )
             .bind(&body.checksum)
             .bind(project_id)
-            .fetch_one(pool.get_ref())
+            .fetch_one(&mut *tx)
             .await?
         }
     };
+
+    if inserted_job {
+        sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
+            .bind(job.id)
+            .execute(&mut *tx)
+            .await?;
+        for checksum in &body.chunks {
+            sqlx::query(
+                "INSERT INTO assembly_job_chunks(job_id, checksum) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            )
+            .bind(job.id)
+            .bind(checksum)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    tx.commit().await?;
 
     Ok(assembly_state_response(
         job.state.as_str(),

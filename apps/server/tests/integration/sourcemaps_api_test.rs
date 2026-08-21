@@ -941,6 +941,14 @@ async fn test_assemble_poll_returns_ok_after_worker_deleted_chunks() {
     // Simulate the assembly worker completing: job goes ok AND the consumed
     // chunk rows are deleted (assemble_bundle step 8).
     set_assembly_job_state(&db.pool, &bundle_checksum, project.id, "ok").await;
+    sqlx::query(
+        "DELETE FROM assembly_job_chunks WHERE job_id = (SELECT id FROM assembly_jobs WHERE bundle_checksum = $1 AND project_id = $2)",
+    )
+    .bind(&bundle_checksum)
+    .bind(project.id)
+    .execute(&db.pool)
+    .await
+    .expect("job chunk ownership delete must succeed");
     sqlx::query("DELETE FROM chunk WHERE checksum = $1")
         .bind(&chunk_sha1)
         .execute(&db.pool)
@@ -1592,6 +1600,107 @@ async fn test_assemble_bundle_finds_manifest_json() {
         "assemble_bundle must succeed; got: {:?}",
         result.err()
     );
+}
+
+#[actix_web::test]
+async fn test_assemble_bundle_keeps_chunk_owned_by_another_job() {
+    let db = TestDb::new().await;
+    let project_a = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "shared-chunk-a".to_string(),
+            slug: Some("shared-chunk-a".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("project A creation must succeed");
+    let project_b = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "shared-chunk-b".to_string(),
+            slug: Some("shared-chunk-b".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("project B creation must succeed");
+
+    let bundle = build_test_artifact_bundle();
+    let checksum = sha1_hex(&bundle);
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(checksum.clone(), bundle)],
+        20 * 1024 * 1024,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let chunks = vec![checksum.clone()];
+    let job_a = insert_assembly_job_with_state_and_chunks(
+        &db.pool,
+        &checksum,
+        project_a.id,
+        "assembling",
+        None,
+        &chunks,
+    )
+    .await;
+    let job_b = insert_assembly_job_with_state_and_chunks(
+        &db.pool,
+        &checksum,
+        project_b.id,
+        "assembling",
+        None,
+        &chunks,
+    )
+    .await;
+    insert_assembly_job_chunk(&db.pool, job_a, &checksum).await;
+    insert_assembly_job_chunk(&db.pool, job_b, &checksum).await;
+
+    let config = create_test_config();
+    let store: std::sync::Arc<dyn rustrak::services::SourceMapStore> = std::sync::Arc::new(
+        rustrak::services::LocalSourceMapStore::new(&config.sourcemap_storage_path),
+    );
+    rustrak::services::sourcemap::assemble_bundle_for_job(
+        &db.pool,
+        store.as_ref(),
+        project_a.id,
+        &checksum,
+        &chunks,
+        100 * 1024 * 1024,
+        job_a,
+    )
+    .await
+    .expect("first assembly must succeed");
+
+    let retained: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chunk WHERE checksum = $1")
+        .bind(&checksum)
+        .fetch_one(&db.pool)
+        .await
+        .expect("chunk count must succeed");
+    assert_eq!(
+        retained, 1,
+        "a shared chunk must survive the first assembly"
+    );
+
+    rustrak::services::sourcemap::assemble_bundle_for_job(
+        &db.pool,
+        store.as_ref(),
+        project_b.id,
+        &checksum,
+        &chunks,
+        100 * 1024 * 1024,
+        job_b,
+    )
+    .await
+    .expect("second assembly must succeed");
+    let deleted: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chunk WHERE checksum = $1")
+        .bind(&checksum)
+        .fetch_one(&db.pool)
+        .await
+        .expect("chunk count must succeed");
+    assert_eq!(deleted, 0, "the last owner may release the chunk");
 }
 
 // =============================================================================
@@ -2384,37 +2493,50 @@ async fn insert_assembly_job_with_state_and_chunks(
     state: &str,
     detail: Option<&str>,
     chunks: &[String],
-) {
+) -> i64 {
     #[cfg(feature = "postgres")]
-    sqlx::query(
+    let id: i64 = sqlx::query_scalar(
         "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
-         VALUES ($1, $2, $3, $4, $5)",
+         VALUES ($1, $2, $3, $4, $5) RETURNING id",
     )
     .bind(checksum)
     .bind(project_id)
     .bind(chunks)
     .bind(state)
     .bind(detail)
-    .execute(pool)
+    .fetch_one(pool)
     .await
     .expect("insert assembly_jobs must succeed");
 
     #[cfg(not(feature = "postgres"))]
-    {
+    let id: i64 = {
         let chunks_json = serde_json::to_string(chunks).expect("chunks serialization must succeed");
-        sqlx::query(
+        sqlx::query_scalar(
             "INSERT INTO assembly_jobs(bundle_checksum, project_id, chunks, state, detail) \
-             VALUES (?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(checksum)
         .bind(project_id)
         .bind(&chunks_json)
         .bind(state)
         .bind(detail)
-        .execute(pool)
+        .fetch_one(pool)
         .await
-        .expect("insert assembly_jobs must succeed");
-    }
+        .expect("insert assembly_jobs must succeed")
+    };
+
+    id
+}
+
+async fn insert_assembly_job_chunk(pool: &rustrak::db::DbPool, job_id: i64, checksum: &str) {
+    sqlx::query(
+        "INSERT INTO assembly_job_chunks(job_id, checksum) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+    )
+    .bind(job_id)
+    .bind(checksum)
+    .execute(pool)
+    .await
+    .expect("insert assembly_job_chunks must succeed");
 }
 
 async fn fetch_assembly_job_chunks(

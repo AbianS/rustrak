@@ -258,6 +258,50 @@ pub async fn assemble_bundle(
     chunk_checksums: &[String],
     max_bundle_size_bytes: usize,
 ) -> AppResult<()> {
+    assemble_bundle_inner(
+        pool,
+        store,
+        project_id,
+        bundle_checksum,
+        chunk_checksums,
+        max_bundle_size_bytes,
+        None,
+    )
+    .await
+}
+
+/// Assembles a worker-owned job and commits its terminal state with the source
+/// metadata and chunk deletion.
+pub async fn assemble_bundle_for_job(
+    pool: &DbPool,
+    store: &dyn SourceMapStore,
+    project_id: i32,
+    bundle_checksum: &str,
+    chunk_checksums: &[String],
+    max_bundle_size_bytes: usize,
+    job_id: i64,
+) -> AppResult<()> {
+    assemble_bundle_inner(
+        pool,
+        store,
+        project_id,
+        bundle_checksum,
+        chunk_checksums,
+        max_bundle_size_bytes,
+        Some(job_id),
+    )
+    .await
+}
+
+async fn assemble_bundle_inner(
+    pool: &DbPool,
+    store: &dyn SourceMapStore,
+    project_id: i32,
+    bundle_checksum: &str,
+    chunk_checksums: &[String],
+    max_bundle_size_bytes: usize,
+    job_id: Option<i64>,
+) -> AppResult<()> {
     // --- Step 1: fetch + join chunk bytes ---
     let mut joined: Vec<u8> = Vec::new();
     for checksum in chunk_checksums {
@@ -532,9 +576,19 @@ pub async fn assemble_bundle(
         .await?;
     }
 
-    // --- Step 8: delete chunk rows ---
+    // --- Step 8: release this job's chunk references and delete only chunks
+    // no other pending or retryable job still owns. ---
+    if let Some(job_id) = job_id {
+        sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
     #[cfg(feature = "postgres")]
-    sqlx::query("DELETE FROM chunk WHERE checksum = ANY($1)")
+    sqlx::query(
+        "DELETE FROM chunk c WHERE c.checksum = ANY($1) AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks r WHERE r.checksum = c.checksum)",
+    )
         .bind(chunk_checksums)
         .execute(&mut *tx)
         .await?;
@@ -548,8 +602,33 @@ pub async fn assemble_bundle(
             for c in chunk_checksums {
                 sep.push_bind(c);
             }
-            qb.push(")");
+            qb.push(") AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks r WHERE r.checksum = chunk.checksum)");
             qb.build().execute(&mut *tx).await?;
+        }
+    }
+
+    if let Some(job_id) = job_id {
+        #[cfg(feature = "postgres")]
+        let updated = sqlx::query(
+            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = NOW() WHERE id = $1 AND state = 'assembling'",
+        )
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        #[cfg(not(feature = "postgres"))]
+        let updated = sqlx::query(
+            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = datetime('now') WHERE id = $1 AND state = 'assembling'",
+        )
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        if updated.rows_affected() != 1 {
+            return Err(AppError::Internal(format!(
+                "assembly job {} was not assembling",
+                job_id
+            )));
         }
     }
 

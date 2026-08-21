@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::models::source_file::AssemblyJob;
-use crate::services::sourcemap::assemble_bundle;
+use crate::services::sourcemap::assemble_bundle_for_job;
 use crate::services::sourcemap_store::SourceMapStore;
 
 pub struct AssemblyWorker {
@@ -156,20 +156,20 @@ impl AssemblyWorker {
             job.bundle_checksum
         );
 
-        let result = assemble_bundle(
+        let result = assemble_bundle_for_job(
             &self.pool,
             self.store.as_ref(),
             job.project_id,
             &job.bundle_checksum,
             job.chunk_list(),
             self.max_bundle_size_bytes,
+            job.id,
         )
         .await;
 
         match result {
             Ok(()) => {
                 log::info!("Assembly worker: job {} completed successfully", job.id);
-                self.mark_success(job.id).await?;
             }
             Err(e) => {
                 let detail = format!("{:?}", e);
@@ -177,26 +177,6 @@ impl AssemblyWorker {
                 self.mark_failure(job.id, &detail).await?;
             }
         }
-
-        Ok(())
-    }
-
-    async fn mark_success(&self, job_id: i64) -> Result<(), sqlx::Error> {
-        #[cfg(feature = "postgres")]
-        sqlx::query(
-            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = NOW() WHERE id = $1",
-        )
-        .bind(job_id)
-        .execute(&self.pool)
-        .await?;
-
-        #[cfg(not(feature = "postgres"))]
-        sqlx::query(
-            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = datetime('now') WHERE id = $1",
-        )
-        .bind(job_id)
-        .execute(&self.pool)
-        .await?;
 
         Ok(())
     }
