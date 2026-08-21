@@ -150,26 +150,22 @@ pub async fn ingest_envelope(
     }
 
     // 5. Resolve event_id — only required when there is an event item.
-    //    If the SDK omitted it, auto-generate (mirrors Relay's get_or_insert_with(EventId::new)).
+    //    If the SDK omitted it, derive it from the durable delivery identity.
     //    For session-only envelopes, pass through whatever the SDK provided (may be None).
-    let event_id: Option<String> = if requires_event_id {
-        let id = envelope
-            .headers
-            .event_id
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
-        uuid::Uuid::parse_str(&id)
-            .map_err(|_| AppError::Validation("event_id must be a valid UUID".to_string()))?;
-        Some(id)
-    } else {
-        envelope.headers.event_id.clone()
-    };
+    let event_id = resolve_event_id(envelope.headers.event_id, delivery_id, requires_event_id);
+    if requires_event_id {
+        if let Some(id) = &event_id {
+            uuid::Uuid::parse_str(id)
+                .map_err(|_| AppError::Validation("event_id must be a valid UUID".to_string()))?;
+        }
+    }
 
     // Persist direct items before the early return; otherwise 200 could suppress
     // an SDK retry for data that was never stored.
     if let Some(txn_payload) = transaction_item {
         let event_id_txn = event_id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
+            .unwrap_or_else(|| delivery_id.simple().to_string());
         let parsed_id =
             uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
         let ctx = ProcessorCtx {
@@ -377,6 +373,18 @@ fn stable_delivery_id(event_id: Option<&str>, envelope: &[u8]) -> uuid::Uuid {
         })
 }
 
+fn resolve_event_id(
+    event_id: Option<String>,
+    delivery_id: uuid::Uuid,
+    requires_event_id: bool,
+) -> Option<String> {
+    if requires_event_id {
+        Some(event_id.unwrap_or_else(|| delivery_id.simple().to_string()))
+    } else {
+        event_id
+    }
+}
+
 /// POST /api/{project_id}/store/
 /// Legacy endpoint (deprecated)
 pub async fn ingest_store(
@@ -416,7 +424,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
-    use super::{next_recovery_delay, stable_delivery_id};
+    use super::{next_recovery_delay, resolve_event_id, stable_delivery_id};
     use std::time::Duration;
 
     #[test]
@@ -453,6 +461,24 @@ mod tests {
         assert_eq!(
             stable_delivery_id(Some(&event_id.to_string()), b"ignored"),
             event_id
+        );
+    }
+
+    #[test]
+    fn headerless_required_event_uses_delivery_id() {
+        let delivery_id = uuid::Uuid::nil();
+        assert_eq!(
+            resolve_event_id(None, delivery_id, true),
+            Some(delivery_id.simple().to_string())
+        );
+    }
+
+    #[test]
+    fn session_event_id_is_not_synthesized() {
+        assert_eq!(resolve_event_id(None, uuid::Uuid::nil(), false), None);
+        assert_eq!(
+            resolve_event_id(Some("session-id".to_string()), uuid::Uuid::nil(), false),
+            Some("session-id".to_string())
         );
     }
 }
