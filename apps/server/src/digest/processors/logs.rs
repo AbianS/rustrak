@@ -28,7 +28,7 @@ impl Processor for LogsProcessor {
 
         for (index, log) in logs.into_iter().enumerate() {
             let id = Uuid::new_v4();
-            let dedupe_key = format!("{container_hash}:{index}");
+            let dedupe_key = dedupe_key(&container_hash, index, ctx.event_id);
             let timestamp = epoch_to_datetime(log.timestamp).unwrap_or(ctx.ingested_at);
             let level = normalize_level(&log.level);
             let severity_number = severity_number(&level);
@@ -68,6 +68,10 @@ impl Processor for LogsProcessor {
         tx.commit().await?;
         Ok(())
     }
+}
+
+fn dedupe_key(container_hash: &str, index: usize, delivery_id: Uuid) -> String {
+    format!("{container_hash}:{delivery_id}:{index}")
 }
 
 /// Converts an epoch-seconds float (with sub-second precision) to a UTC instant.
@@ -124,5 +128,26 @@ fn empty_to_none(s: &str) -> Option<String> {
         None
     } else {
         Some(s.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dedupe_key;
+    use uuid::Uuid;
+
+    #[test]
+    fn log_dedupe_key_distinguishes_deliveries() {
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+
+        assert_eq!(
+            dedupe_key("container", 0, first),
+            dedupe_key("container", 0, first)
+        );
+        assert_ne!(
+            dedupe_key("container", 0, first),
+            dedupe_key("container", 0, second)
+        );
     }
 }

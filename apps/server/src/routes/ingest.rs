@@ -76,6 +76,12 @@ pub async fn ingest_envelope(
     let mut span_items: Vec<Vec<u8>> = Vec::new();
     let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
     let mut requires_event_id = false;
+    let delivery_id = envelope
+        .headers
+        .event_id
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .unwrap_or_else(uuid::Uuid::new_v4);
     for item_kind in envelope.items {
         if item_kind.requires_event() {
             requires_event_id = true;
@@ -92,14 +98,26 @@ pub async fn ingest_envelope(
                 }
             }
             EnvelopeItemKind::Session(s) => {
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
                 processors
                     .sessions
                     .process(SessionItem::Update(s), &ctx)
                     .await?;
             }
             EnvelopeItemKind::Sessions(s) => {
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
                 processors
                     .sessions
                     .process(SessionItem::Aggregates(s), &ctx)
@@ -108,7 +126,13 @@ pub async fn ingest_envelope(
             EnvelopeItemKind::Log(payload) => {
                 // Logs are processed inline (parse container + store): the work is
                 // bounded and storing before responding keeps the batch durable.
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
                 processors.logs.process(payload, &ctx).await?;
             }
             EnvelopeItemKind::Span(payload) => {
@@ -333,13 +357,14 @@ fn next_recovery_delay(
 fn direct_store_ctx(
     pool: &web::Data<DbPool>,
     project_id: i32,
+    event_id: uuid::Uuid,
     ingested_at: chrono::DateTime<Utc>,
     remote_addr: &Option<String>,
 ) -> ProcessorCtx {
     ProcessorCtx {
         pool: pool.get_ref().clone(),
         project_id,
-        event_id: uuid::Uuid::nil(),
+        event_id,
         ingested_at,
         remote_addr: remote_addr.clone(),
     }
