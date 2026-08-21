@@ -127,7 +127,8 @@ impl ErrorProcessor {
                     .await?;
                 }
             }
-            delete_event_at(
+            delete_after_success(
+                pool,
                 &self.ingest_dir,
                 metadata.project_id,
                 &metadata.event_id,
@@ -236,8 +237,10 @@ impl ErrorProcessor {
             .await?;
         }
 
-        // 11. Delete the durable event file only after the alert is enqueued.
-        delete_event_at(
+        // 11. Delete after the event and alert writes complete; SQLite also
+        // requires a successful durability checkpoint.
+        delete_after_success(
+            pool,
             &self.ingest_dir,
             metadata.project_id,
             &metadata.event_id,
@@ -308,6 +311,51 @@ fn should_retain_event(err: &AppError) -> bool {
         }
         _ => false,
     }
+}
+
+#[cfg(feature = "sqlite")]
+async fn delete_after_success(
+    pool: &DbPool,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    event_id: &str,
+    storage_location: crate::ingest::storage::EventStorageLocation,
+) -> AppResult<()> {
+    if matches!(
+        storage_location,
+        crate::ingest::storage::EventStorageLocation::Legacy
+    ) {
+        delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+        return Ok(());
+    }
+
+    for attempt in 0..3 {
+        if crate::db::checkpoint_full(pool).await? {
+            delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+            return Ok(());
+        }
+        if attempt < 2 {
+            tokio::time::sleep(sqlite_retry_delay(attempt)).await;
+        }
+    }
+
+    log::warn!(
+        "SQLite durability checkpoint busy; retaining event file {}",
+        event_id
+    );
+    Ok(())
+}
+
+#[cfg(feature = "postgres")]
+async fn delete_after_success(
+    _pool: &DbPool,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    event_id: &str,
+    storage_location: crate::ingest::storage::EventStorageLocation,
+) -> AppResult<()> {
+    delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+    Ok(())
 }
 
 /// Write attempts per digest on SQLite. Bounded: sustained contention

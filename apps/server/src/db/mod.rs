@@ -152,3 +152,12 @@ pub async fn run_migrations(pool: &DbPool) -> Result<(), sqlx::migrate::MigrateE
 pub async fn health_check(pool: &DbPool) -> bool {
     sqlx::query("SELECT 1").execute(pool).await.is_ok()
 }
+
+/// Runs a full SQLite WAL checkpoint and reports whether it completed.
+#[cfg(feature = "sqlite")]
+pub async fn checkpoint_full(pool: &DbPool) -> Result<bool, sqlx::Error> {
+    let busy: i64 = sqlx::query_scalar("PRAGMA wal_checkpoint(FULL)")
+        .fetch_one(pool)
+        .await?;
+    Ok(busy == 0)
+}
