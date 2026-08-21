@@ -25,8 +25,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check
-          arguments: --features postgres,openapi
+          command: check advisories licenses
+          arguments: --all-features
           manifest-path: apps/server/Cargo.toml
 
   cargo-audit:
@@ -38,7 +38,7 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked --quiet
       - name: Run cargo audit
-        run: cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2026-0097
+        run: cargo audit
         working-directory: apps/server
 
   clippy:
