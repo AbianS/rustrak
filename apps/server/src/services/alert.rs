@@ -752,7 +752,7 @@ impl AlertService {
         let result = create_dispatcher(integration.provider_type)
             .send(&integration, &rule_channel.routing_override, payload)
             .await;
-        let attempt_count = previous_attempt_count + 1;
+        let attempt_count = next_attempt_count(previous_attempt_count);
 
         if result.success {
             sqlx::query(
@@ -941,6 +941,10 @@ fn retry_delay(attempt_count: i32, history_id: i64) -> i64 {
     std::cmp::min(base + jitter, 3600)
 }
 
+fn next_attempt_count(previous: i32) -> i32 {
+    previous.max(0).saturating_add(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -990,5 +994,11 @@ mod tests {
         assert_eq!(retry_delay(1, 29), 89);
         assert_eq!(retry_delay(-1, 0), 60);
         assert_eq!(retry_delay(i32::MAX, i64::MAX), 3600);
+    }
+
+    #[test]
+    fn next_attempt_count_is_bounded() {
+        assert_eq!(next_attempt_count(-1), 1);
+        assert_eq!(next_attempt_count(i32::MAX), i32::MAX);
     }
 }
