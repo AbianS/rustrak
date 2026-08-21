@@ -4,6 +4,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::db::DbPool;
+use crate::error::AppResult;
 use crate::models::source_file::AssemblyJob;
 use crate::services::sourcemap::assemble_bundle_for_job;
 use crate::services::sourcemap_store::SourceMapStore;
@@ -46,7 +47,7 @@ impl AssemblyWorker {
         }
     }
 
-    pub async fn run_once(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run_once(&self) -> AppResult<()> {
         self.poll_once().await
     }
 
@@ -79,7 +80,7 @@ impl AssemblyWorker {
     }
 
     /// Claim and process one job, if available.
-    async fn poll_once(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn poll_once(&self) -> AppResult<()> {
         #[cfg(feature = "postgres")]
         let job: Option<AssemblyJob> = {
             sqlx::query_as(
