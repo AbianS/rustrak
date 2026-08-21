@@ -258,28 +258,44 @@ pub async fn recover_pending_events(
     processors: web::Data<Processors>,
     ingest_dir: std::path::PathBuf,
 ) {
-    const RECOVERY_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+    let mut previous_delay = None;
 
     loop {
-        recover_pending_events_once(pool.clone(), processors.clone(), ingest_dir.clone()).await;
-        tokio::time::sleep(RECOVERY_INTERVAL).await;
+        let has_pending = recover_pending_events_once_with_status(
+            pool.clone(),
+            processors.clone(),
+            ingest_dir.clone(),
+        )
+        .await;
+        let delay = next_recovery_delay(previous_delay, has_pending);
+        previous_delay = has_pending.then_some(delay);
+        tokio::time::sleep(delay).await;
     }
 }
 
-/// Performs one bounded recovery scan.
+/// Processes the current set of pending event files once.
 pub async fn recover_pending_events_once(
     pool: DbPool,
     processors: web::Data<Processors>,
     ingest_dir: std::path::PathBuf,
 ) {
+    let _ = recover_pending_events_once_with_status(pool, processors, ingest_dir).await;
+}
+
+async fn recover_pending_events_once_with_status(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) -> bool {
     let pending = match list_pending_event_metadata(&ingest_dir).await {
         Ok(pending) => pending,
         Err(e) => {
             log::error!("Failed to scan pending event metadata: {:?}", e);
-            return;
+            return true;
         }
     };
 
+    let mut has_pending = false;
     for metadata in pending {
         let event_id = metadata.event_id.clone();
         let ctx = ProcessorCtx {
@@ -291,9 +307,26 @@ pub async fn recover_pending_events_once(
             remote_addr: metadata.remote_addr.clone(),
         };
         if let Err(e) = processors.errors.process(metadata, &ctx).await {
+            has_pending = true;
             log::warn!("Pending digest {} remains queued: {:?}", event_id, e);
         }
     }
+    has_pending
+}
+
+fn next_recovery_delay(
+    previous_delay: Option<std::time::Duration>,
+    has_pending: bool,
+) -> std::time::Duration {
+    const MIN: std::time::Duration = std::time::Duration::from_secs(1);
+    const MAX: std::time::Duration = std::time::Duration::from_secs(30);
+
+    if !has_pending {
+        return MAX;
+    }
+    previous_delay
+        .map(|delay| delay.saturating_mul(2).min(MAX))
+        .unwrap_or(MIN)
 }
 
 /// Builds a [`ProcessorCtx`] for session items, which carry no event id.
@@ -347,4 +380,31 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::method(actix_web::http::Method::OPTIONS).to(options),
             ),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::next_recovery_delay;
+    use std::time::Duration;
+
+    #[test]
+    fn recovery_backoff_starts_small_and_caps() {
+        assert_eq!(next_recovery_delay(None, true), Duration::from_secs(1));
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(8)), true),
+            Duration::from_secs(16)
+        );
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(30)), true),
+            Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn recovery_backoff_resets_when_idle() {
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(16)), false),
+            Duration::from_secs(30)
+        );
+    }
 }
