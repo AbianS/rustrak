@@ -182,23 +182,39 @@ impl ErrorProcessor {
         }
 
         // Update rate limiting quotas (handles digested_event_count).
-        // Best-effort: the digest transaction already committed the event and
-        // its counters; a refresh failure must not make the async processor
-        // report a durable event as failed. A later digest can re-advance state.
-        if let Err(e) = RateLimitService::update_quota_state(
-            pool,
-            metadata.project_id,
-            &self.rate_limit_config,
-            installation_count,
-            project_count,
-        )
-        .await
-        {
-            log::warn!(
-                "quota state update failed for project {} (best-effort; a later digest can self-heal): {:?}",
+        // Best-effort: counters already committed with the event; a failed
+        // quota-state refresh self-heals on the next digest and must not
+        // fail an event that is already durable. One retry on contention
+        // absorbs a collision with the next digest's transaction.
+        let mut quota_attempt = 0;
+        loop {
+            match RateLimitService::update_quota_state(
+                pool,
                 metadata.project_id,
-                e
-            );
+                &self.rate_limit_config,
+                installation_count,
+                project_count,
+            )
+            .await
+            {
+                Ok(()) => break,
+                Err(e)
+                    if should_retry_quota_state(
+                        quota_attempt,
+                        is_retryable_write_contention(&e),
+                    ) =>
+                {
+                    tokio::time::sleep(sqlite_retry_delay(quota_attempt)).await;
+                    quota_attempt += 1;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "quota state update failed for project {} (best-effort, will self-heal): {:?}",
+                        metadata.project_id, e
+                    );
+                    break;
+                }
+            }
         }
 
         // 10. Persist alert history before deleting the only durable source.
@@ -297,6 +313,16 @@ fn should_retain_event(err: &AppError) -> bool {
 /// Write attempts per digest on SQLite. Bounded: sustained contention
 /// fails fast instead of piling up more waiters.
 const MAX_SQLITE_WRITE_ATTEMPTS: usize = 3;
+
+/// Attempts for the post-commit quota-state check: one 50ms retry absorbs
+/// a collision with the next digest's transaction, then warn and self-heal.
+const QUOTA_STATE_ATTEMPTS: usize = 2;
+
+/// Whether to retry the quota-state check: transient contention only,
+/// at most [`QUOTA_STATE_ATTEMPTS`] times.
+fn should_retry_quota_state(attempt: usize, contention: bool) -> bool {
+    attempt + 1 < QUOTA_STATE_ATTEMPTS && contention
+}
 
 /// Backoff before retry `attempt` (0-based): 50ms, then 100ms — brief,
 /// so writers that timed out together don't retry in lockstep.
@@ -653,6 +679,9 @@ mod tests {
     fn only_lock_contention_is_retryable() {
         // A busy database is a wait; everything else is a decision the retry
         // loop cannot change by trying again.
+        assert!(should_retry_quota_state(0, true));
+        assert!(!should_retry_quota_state(1, true));
+        assert!(!should_retry_quota_state(0, false));
         assert!(!is_retryable_write_contention(&AppError::Database(
             sqlx::Error::RowNotFound
         )));
