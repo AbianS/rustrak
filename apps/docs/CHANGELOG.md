@@ -1,5 +1,11 @@
 # docs
 
+## 0.15.5
+
+### Patch Changes
+
+- [`28593c2`](https://github.com/rustrak/rustrak/commit/28593c2e387046ac7cdd55477ea4975fe05b08a5) Thanks [@AbianS](https://github.com/AbianS)! - Document the SQLite durability trade-off: WAL with `synchronous=NORMAL` survives a crash of the Rustrak process but not an OS crash or a power loss, and PostgreSQL is the answer for deployments that cannot accept it.
+
 ## 0.15.4
 
 ### Patch Changes
