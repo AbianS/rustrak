@@ -35,7 +35,7 @@
   "devDependencies": {
     "@sentry/esbuild-plugin": "5.4.0",
     "@types/node": "26.2.0",
-    "ai": "7.0.64",
+    "ai": "7.0.73",
     "esbuild": "0.28.2",
     "tsup": "8.5.1",
     "tsx": "4.23.12",
