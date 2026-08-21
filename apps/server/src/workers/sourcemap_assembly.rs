@@ -40,10 +40,14 @@ impl AssemblyWorker {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         loop {
             interval.tick().await;
-            if let Err(e) = self.poll_once().await {
+            if let Err(e) = self.run_once().await {
                 log::error!("Assembly worker poll error: {:?}", e);
             }
         }
+    }
+
+    pub async fn run_once(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.poll_once().await
     }
 
     /// Reset assembling jobs whose lock has expired (crash recovery).
@@ -224,18 +228,23 @@ impl AssemblyWorker {
                 .fetch_one(&mut *tx)
                 .await?;
         if retry_count >= max_retries {
-            // Delete only chunks that this terminal job owns exclusively;
-            // shared chunks remain available to the other assembly.
-            sqlx::query(
-                "DELETE FROM chunk WHERE EXISTS (SELECT 1 FROM assembly_job_chunks owned WHERE owned.job_id = $1 AND owned.checksum = chunk.checksum) AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks retained WHERE retained.checksum = chunk.checksum AND retained.job_id <> $1)",
-            )
-            .bind(job_id)
-            .execute(&mut *tx)
-            .await?;
+            let owned_checksums: Vec<String> =
+                sqlx::query_scalar("SELECT checksum FROM assembly_job_chunks WHERE job_id = $1")
+                    .bind(job_id)
+                    .fetch_all(&mut *tx)
+                    .await?;
             sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
                 .bind(job_id)
                 .execute(&mut *tx)
                 .await?;
+            for checksum in owned_checksums {
+                sqlx::query(
+                    "DELETE FROM chunk WHERE checksum = $1 AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks WHERE checksum = $1)",
+                )
+                .bind(checksum)
+                .execute(&mut *tx)
+                .await?;
+            }
         }
 
         tx.commit().await

@@ -28,6 +28,7 @@ use serde_json::Value;
 use sha1::{Digest as _, Sha1};
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 // =============================================================================
 // Test helpers
@@ -2215,15 +2216,93 @@ async fn test_worker_restart_recovery_resets_stuck_assembling_jobs() {
 }
 
 #[actix_web::test]
-#[ignore = "requires AssemblyWorker with retry logic to exhaust retries"]
-async fn test_worker_exhausts_retries_sets_error_state() {
-    // GIVEN: an assembly_jobs row with state='created', retry_count = max_retries - 1,
-    //        AND a bundle that will always fail (e.g. invalid ZIP data)
-    // WHEN:  the worker processes the job and it fails
-    // THEN:  assembly_jobs.state = 'error'
-    //        AND assembly_jobs.detail contains the last error message
-    //        AND retry_count == max_retries
-    todo!("enable once AssemblyWorker retry logic is injectable in tests")
+async fn test_worker_terminal_failure_releases_exclusive_chunks_only() {
+    let db = TestDb::new().await;
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "terminal-cleanup".to_string(),
+            slug: Some("terminal-cleanup".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let shared = b"not a zip archive".to_vec();
+    let exclusive = b"another invalid archive".to_vec();
+    let shared_checksum = sha1_hex(&shared);
+    let exclusive_checksum = sha1_hex(&exclusive);
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![
+            (shared_checksum.clone(), shared),
+            (exclusive_checksum.clone(), exclusive),
+        ],
+        20 * 1024 * 1024,
+    )
+    .await
+    .expect("chunk storage must succeed");
+
+    let job = insert_assembly_job_with_state_and_chunks(
+        &db.pool,
+        &shared_checksum,
+        project.id,
+        "created",
+        None,
+        &[shared_checksum.clone(), exclusive_checksum.clone()],
+    )
+    .await;
+    let other_job = insert_assembly_job_with_state_and_chunks(
+        &db.pool,
+        &exclusive_checksum,
+        project.id,
+        "assembling",
+        None,
+        std::slice::from_ref(&shared_checksum),
+    )
+    .await;
+    insert_assembly_job_chunk(&db.pool, job, &shared_checksum).await;
+    insert_assembly_job_chunk(&db.pool, job, &exclusive_checksum).await;
+    insert_assembly_job_chunk(&db.pool, other_job, &shared_checksum).await;
+    sqlx::query("UPDATE assembly_jobs SET retry_count = max_retries - 1 WHERE id = $1")
+        .bind(job)
+        .execute(&db.pool)
+        .await
+        .expect("retry setup must succeed");
+
+    let store = Arc::new(LocalSourceMapStore::new(
+        std::env::temp_dir().join(format!("rustrak-assembly-{}", Uuid::new_v4())),
+    ));
+    let worker = rustrak::workers::sourcemap_assembly::AssemblyWorker::new(
+        db.pool.clone(),
+        store,
+        100 * 1024 * 1024,
+    );
+    worker.run_once().await.expect("worker poll must succeed");
+
+    let state: String = sqlx::query_scalar("SELECT state FROM assembly_jobs WHERE id = $1")
+        .bind(job)
+        .fetch_one(&db.pool)
+        .await
+        .expect("job state lookup must succeed");
+    assert_eq!(state, "error");
+    let owned: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM assembly_job_chunks WHERE job_id = $1")
+            .bind(job)
+            .fetch_one(&db.pool)
+            .await
+            .expect("ownership lookup must succeed");
+    assert_eq!(owned, 0);
+
+    for (checksum, expected) in [(&shared_checksum, 1i64), (&exclusive_checksum, 0i64)] {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chunk WHERE checksum = $1")
+            .bind(checksum)
+            .fetch_one(&db.pool)
+            .await
+            .expect("chunk lookup must succeed");
+        assert_eq!(count, expected, "unexpected retention for {checksum}");
+    }
 }
 
 // =============================================================================
