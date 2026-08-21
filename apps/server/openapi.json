@@ -68,17 +68,7 @@
         },
         "responses": {
           "200": {
-            "description": "Assembly job state (ok / created / processing)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AssembleResponse"
-                }
-              }
-            }
-          },
-          "202": {
-            "description": "Missing chunks — upload required",
+            "description": "Assembly job state (not_found / created / assembling / ok / error). Missing chunks are listed in missingChunks.",
             "content": {
               "application/json": {
                 "schema": {

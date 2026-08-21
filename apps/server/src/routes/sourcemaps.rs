@@ -203,8 +203,7 @@ pub async fn chunk_upload(
     params(("org_slug" = String, Path, description = "Organization slug")),
     request_body = AssembleBody,
     responses(
-        (status = 200, description = "Assembly job state (ok / created / processing)", body = AssembleResponse),
-        (status = 202, description = "Missing chunks — upload required", body = AssembleResponse),
+        (status = 200, description = "Assembly job state (not_found / created / assembling / ok / error). Missing chunks are listed in missingChunks.", body = AssembleResponse),
         (status = 400, description = "Bad request or checksum mismatch", body = crate::error::ErrorResponse),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
         (status = 404, description = "Project not found", body = crate::error::ErrorResponse),
@@ -266,10 +265,28 @@ pub async fn artifact_bundle_assemble(
     )
     .await?;
 
+    // A finished (or in-flight) job answers the poll before the chunk check:
+    // the assembly worker deletes the consumed chunk rows on success, so a
+    // sentry-cli `--wait` poll after completion would otherwise see its own
+    // chunks as missing forever. Error jobs fall through so a re-submit with
+    // corrected chunks can re-queue via the ON CONFLICT below.
+    let existing_job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(
+        "SELECT * FROM assembly_jobs WHERE bundle_checksum = $1 AND project_id = $2",
+    )
+    .bind(&body.checksum)
+    .bind(project_id)
+    .fetch_optional(pool.get_ref())
+    .await?;
+    if let Some(job) = existing_job {
+        if job.state != "error" {
+            return Ok(assembly_state_response(job.state.as_str(), job.detail));
+        }
+    }
+
     // Check for missing chunks
     let missing = get_missing_chunks(pool.get_ref(), &body.chunks).await?;
     if !missing.is_empty() {
-        return Ok(HttpResponse::Accepted().json(AssembleResponse {
+        return Ok(HttpResponse::Ok().json(AssembleResponse {
             state: "not_found".to_string(),
             missing_chunks: missing,
             detail: None,
