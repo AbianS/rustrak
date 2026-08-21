@@ -608,8 +608,7 @@ impl AlertService {
             project.name
         );
 
-        // 4. Reserve the cooldown and enqueue every delivery atomically. A
-        // failed enqueue must leave the rule eligible for durable event retry.
+        // 4. Reserve the cooldown and record every delivery atomically.
         let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
         let mut tx = pool.begin().await?;
 
@@ -641,10 +640,15 @@ impl AlertService {
         .execute(&mut *tx)
         .await?;
 
-        if updated.rows_affected() == 0 {
+        let cooldown_suppressed = updated.rows_affected() == 0;
+        if cooldown_suppressed {
             log::debug!("Alert rule {} not found or in cooldown period", rule.id);
-            return Ok(());
         }
+        let history_status = if cooldown_suppressed {
+            "skipped"
+        } else {
+            "pending"
+        };
 
         let mut history_ids = Vec::with_capacity(channels.len());
         for (rule_channel, integration) in &channels {
@@ -657,7 +661,7 @@ impl AlertService {
                     alert_type, channel_type, channel_name, payload,
                     status, idempotency_key
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (idempotency_key) DO NOTHING
                 RETURNING id
                 "#,
@@ -670,15 +674,22 @@ impl AlertService {
             .bind(integration.provider_type.to_string())
             .bind(&integration.name)
             .bind(serde_json::to_value(&payload).map_err(|e| AppError::Internal(e.to_string()))?)
+            .bind(history_status)
             .bind(&idempotency_key)
             .fetch_optional(&mut *tx)
             .await?;
 
-            if let Some(history_id) = history_id {
-                history_ids.push((history_id.0, rule_channel.clone()));
+            if !cooldown_suppressed {
+                if let Some(history_id) = history_id {
+                    history_ids.push((history_id.0, rule_channel.clone()));
+                }
             }
         }
         tx.commit().await?;
+
+        if cooldown_suppressed {
+            return Ok(());
+        }
 
         // 5. Attempt each durable delivery before the event worker deletes its
         // source record; committed pending rows cover a crash during dispatch.

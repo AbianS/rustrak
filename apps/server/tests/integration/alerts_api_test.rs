@@ -6,13 +6,15 @@
 use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
+use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::models::{
     AlertRuleChannelInput, AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel,
     UpdateAlertRule, UpdateNotificationChannel,
 };
 use rustrak::routes;
-use rustrak::services::{AlertService, ProjectService};
+use rustrak::services::grouping::DenormalizedFields;
+use rustrak::services::{AlertService, IssueService, ProjectService};
 use serde_json::json;
 use std::time::Duration;
 use uuid::Uuid;
@@ -152,6 +154,94 @@ async fn test_alert_retry_queue_processes_pending_history_without_retry_time() {
             .await
             .expect("retry status lookup must succeed");
     assert_eq!(status, "failed");
+}
+
+#[tokio::test]
+async fn test_event_alert_cooldown_is_a_durable_replay_barrier() {
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+    let channel = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Cooldown Webhook".to_string(),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook" }),
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("channel creation must succeed");
+    let rule = AlertService::create_rule(
+        &db.pool,
+        project_id,
+        CreateAlertRule {
+            name: "Cooldown Rule".to_string(),
+            alert_type: AlertType::NewIssue,
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel.id,
+                routing_override: json!({}),
+            }],
+            conditions: json!({}),
+            cooldown_minutes: 60,
+        },
+    )
+    .await
+    .expect("rule creation must succeed");
+    sqlx::query("UPDATE alert_rules SET last_triggered_at = $1 WHERE id = $2")
+        .bind(Utc::now())
+        .bind(rule.id)
+        .execute(&db.pool)
+        .await
+        .expect("cooldown setup must succeed");
+
+    let issue = IssueService::create(
+        &db.pool,
+        project_id,
+        Utc::now(),
+        &DenormalizedFields {
+            calculated_type: "Error".to_string(),
+            calculated_value: "cooldown replay".to_string(),
+            transaction: "/test".to_string(),
+            last_frame_filename: "test.rs".to_string(),
+            last_frame_module: "test".to_string(),
+            last_frame_function: "test".to_string(),
+            culprit: "test".to_string(),
+            logger: String::new(),
+            release: String::new(),
+        },
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .expect("issue creation must succeed");
+    let event_id = Uuid::new_v4();
+
+    AlertService::trigger_event_alert(
+        &db.pool,
+        &project,
+        &issue,
+        AlertType::NewIssue,
+        event_id,
+        "https://dashboard.example.com",
+    )
+    .await
+    .expect("cooldown suppression must succeed");
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM alert_history WHERE idempotency_key LIKE $1")
+            .bind(format!("event-{project_id}-{event_id}-new_issue-%"))
+            .fetch_one(&db.pool)
+            .await
+            .expect("suppressed alert history must exist");
+    assert_eq!(status, "skipped");
+    assert!(
+        AlertService::event_alert_exists(&db.pool, project_id, event_id, AlertType::NewIssue,)
+            .await
+            .expect("replay barrier lookup must succeed")
+    );
 }
 
 // =============================================================================
