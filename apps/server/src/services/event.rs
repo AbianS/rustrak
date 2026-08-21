@@ -275,11 +275,14 @@ impl EventService {
         project_id: i32,
         event_id: Uuid,
     ) -> AppResult<Option<Uuid>> {
-        sqlx::query_scalar("SELECT issue_id FROM events WHERE project_id = $1 AND event_id = $2")
-            .bind(project_id)
-            .bind(event_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(AppError::Database)
+        sqlx::query_scalar::<_, Option<Uuid>>(
+            "SELECT issue_id FROM events WHERE project_id = $1 AND event_id = $2",
+        )
+        .bind(project_id)
+        .bind(event_id)
+        .fetch_optional(pool)
+        .await
+        .map(|issue_id| issue_id.flatten())
+        .map_err(AppError::Database)
     }
 }
