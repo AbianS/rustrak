@@ -161,8 +161,11 @@ async fn main() -> std::io::Result<()> {
     let alert_pool = db_pool.clone();
     tokio::spawn(async move {
         loop {
-            if let Err(e) =
-                rustrak::services::AlertService::process_retry_queue(&alert_pool, 5).await
+            if let Err(e) = rustrak::services::AlertService::process_retry_queue(
+                &alert_pool,
+                rustrak::services::alert::MAX_ALERT_RETRIES,
+            )
+            .await
             {
                 log::error!("Alert retry worker error: {:?}", e);
             }

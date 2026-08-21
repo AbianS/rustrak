@@ -23,6 +23,8 @@ fn event_alert_id(event_id: Uuid, alert_type: &AlertType) -> String {
 
 pub struct AlertService;
 
+pub const MAX_ALERT_RETRIES: i32 = 5;
+
 impl AlertService {
     // =========================================================================
     // Alert Integration CRUD (replaces Notification Channel CRUD)
@@ -681,7 +683,15 @@ impl AlertService {
         // 5. Attempt each durable delivery before the event worker deletes its
         // source record; committed pending rows cover a crash during dispatch.
         for (history_id, rule_channel) in history_ids {
-            Self::dispatch_history(pool, history_id, 0, &payload, &rule_channel, 5).await?;
+            Self::dispatch_history(
+                pool,
+                history_id,
+                0,
+                &payload,
+                &rule_channel,
+                MAX_ALERT_RETRIES,
+            )
+            .await?;
         }
 
         Ok(())
