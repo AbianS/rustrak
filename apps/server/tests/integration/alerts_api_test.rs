@@ -95,6 +95,16 @@ async fn test_event_alert_history_is_scoped_to_project() {
     )
     .await
     .expect("first project lookup must succeed"));
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'legacy', 'pending', $2)",
+    )
+    .bind(first_project)
+    .bind(format!("event-{event_id}-new_issue-integration"))
+    .execute(&db.pool)
+    .await
+    .expect("legacy alert history insert must succeed");
+
     assert!(!AlertService::event_alert_exists(
         &db.pool,
         second_project,
