@@ -152,6 +152,10 @@ mod level2 {
             remote_addr: None,
         };
 
+        TransactionProcessor
+            .process(payload.clone(), &ctx)
+            .await
+            .unwrap();
         TransactionProcessor.process(payload, &ctx).await.unwrap();
 
         #[cfg(feature = "postgres")]
@@ -171,6 +175,16 @@ mod level2 {
         let duration_ms: f64 = row.get("duration_ms");
         assert_eq!(name, "/api/users");
         assert_eq!(duration_ms, 10_000.0, "10s transaction → 10000ms");
+
+        let transaction_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM transactions WHERE project_id = $1 AND event_id = $2",
+        )
+        .bind(project.id)
+        .bind(ctx.event_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+        assert_eq!(transaction_count, 1);
     }
 
     #[tokio::test]

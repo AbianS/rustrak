@@ -77,12 +77,10 @@ impl Processor for TransactionProcessor {
         let id = Uuid::new_v4();
 
         // Parent transaction + its extracted spans are written in one DB
-        // transaction: a failed span insert must not leave a committed parent
-        // row behind (a retry would then collide on UNIQUE(project_id, event_id)
-        // and the spans could never be recovered).
+        // transaction, and a retry with the same event id is a no-op.
         let mut tx = ctx.pool.begin().await?;
 
-        sqlx::query(
+        let inserted = sqlx::query(
             r#"
             INSERT INTO transactions (
                 id, event_id, project_id,
@@ -101,6 +99,7 @@ impl Processor for TransactionProcessor {
                 $18, $19, $20,
                 $21, $22, $23
             )
+            ON CONFLICT (project_id, event_id) DO NOTHING
             "#,
         )
         .bind(id)
@@ -128,6 +127,10 @@ impl Processor for TransactionProcessor {
         .bind(ctx.ingested_at)
         .execute(&mut *tx)
         .await?;
+
+        if inserted.rows_affected() == 0 {
+            return Ok(());
+        }
 
         // Extract each span into the indexed `spans` table. Mirrors Relay's span
         // extraction (DataCategory::SpanIndexed): individually queryable rows
