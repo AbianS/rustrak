@@ -47,7 +47,7 @@ sqlx = { version = "0.9.0", features = [
 ] }
 
 # UUID generation
-uuid = { version = "1.24.0", features = ["v4", "serde"] }
+uuid = { version = "1.24.1", features = ["v4", "serde"] }
 
 # Slug generation
 slug = "0.1.6"
