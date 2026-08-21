@@ -1,5 +1,13 @@
 # @rustrak/server
 
+## 0.14.6
+
+### Patch Changes
+
+- [`75b09f0`](https://github.com/rustrak/rustrak/commit/75b09f0fb8af90ddd95e5c23018623ccd8a1e910) Thanks [@AbianS](https://github.com/AbianS)! - Fix the dashboard Docker image crash-looping on startup. Next.js 16.3.1 ships @swc/helpers 0.5.23, whose `module-sync` exports condition makes `require()` on Node >= 22.10 resolve to `esm/` files that the standalone output trace never includes. Pin `next>@swc/helpers` to 0.5.15 until Next traces the `esm/` directory (vercel/next.js#93852).
+
+- [`75b09f0`](https://github.com/rustrak/rustrak/commit/75b09f0fb8af90ddd95e5c23018623ccd8a1e910) Thanks [@AbianS](https://github.com/AbianS)! - Fix the agent trace waterfall growing past the viewport when a span label is very long, pushing the span detail panel out of view. The waterfall pane now shrinks and truncates instead.
+
 ## 0.14.5
 
 ### Patch Changes
