@@ -229,7 +229,10 @@ export default async function AgentTraceDetailPage({
           panel scrolls independently: a long prompt must not push the
           waterfall out of view, since reading them side by side is the point. */}
       <div className="flex-1 min-h-0 w-full px-4 md:px-8 py-4 md:py-6 flex flex-col lg:flex-row gap-4 overflow-auto lg:overflow-hidden">
-        <section className="rounded-lg border flex flex-col min-h-0 lg:flex-1">
+        {/* min-w-0 lets this pane shrink below its content's intrinsic width —
+    without it a long span label makes the pane grow and push the details
+    panel out of the clipped container instead of truncating. */}
+        <section className="rounded-lg border flex flex-col min-h-0 min-w-0 lg:flex-1">
           <div className="border-b px-4 py-2.5 flex items-center justify-between shrink-0">
             <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
               {t('trace.spans')}

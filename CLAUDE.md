@@ -53,6 +53,12 @@ CREATE_SUPERUSER="admin@example.com:password" cargo run
 - Rust goes through `rustfmt` and `clippy`. TypeScript through Biome.
 - Commit messages are conventional and in English: `type: description`.
 - Tests come with the change, not after it.
+- `next>@swc/helpers` is pinned to `0.5.15` in the root `pnpm.overrides`.
+  Next 16.3.1 ships `@swc/helpers@0.5.23`, whose `module-sync` exports
+  condition makes `require()` on Node >= 22.10 resolve to `esm/` files that
+  Next's standalone trace never copies, crash-looping the dashboard image
+  (vercel/next.js#93852). Remove the override once Next traces the `esm/`
+  dir; verify by booting `.next/standalone/apps/webview-ui/server.js`.
 
 ## Versioning
 

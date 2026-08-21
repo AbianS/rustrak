@@ -36,7 +36,8 @@
   "pnpm": {
     "overrides": {
       "nextra>zod": "4.3.5",
-      "nextra-theme-docs>zod": "4.3.5"
+      "nextra-theme-docs>zod": "4.3.5",
+      "next>@swc/helpers": "0.5.15"
     }
   }
 }

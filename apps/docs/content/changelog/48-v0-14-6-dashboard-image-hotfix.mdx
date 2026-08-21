@@ -1,0 +1,18 @@
+---
+version: v0.14.6
+title: Dashboard Image Hotfix
+description: Fixes the v0.14.5 dashboard Docker image failing to start.
+date: 2026-08-21
+tags: [dashboard, docker, hotfix]
+---
+
+## Dashboard image startup fix
+
+The v0.14.5 dashboard image crash-looped on startup with `Cannot find module '@swc/helpers/esm/_interop_require_default.js'`. Next.js 16.3.1 bumped its internal `@swc/helpers` to 0.5.23, whose new `module-sync` exports condition makes `require()` on Node 22.10+ resolve to `esm/` files that Next's standalone output never copies into the image.
+
+- Pin `next>@swc/helpers` to 0.5.15 via a pnpm override until Next traces the `esm/` directory upstream (vercel/next.js#93852)
+- `next dev` was unaffected, which is why the break only surfaced in production
+
+## Improvements
+
+- The agent trace waterfall no longer grows past the viewport when a span label is very long; the pane truncates instead of pushing the span detail panel out of view
