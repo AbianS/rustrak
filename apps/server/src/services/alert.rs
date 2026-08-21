@@ -767,7 +767,7 @@ impl AlertService {
             .execute(pool)
             .await?;
         } else {
-            let delay_secs = retry_delay(attempt_count);
+            let delay_secs = retry_delay(attempt_count, history_id);
             let next_retry = Utc::now() + Duration::seconds(delay_secs);
             sqlx::query(
                 "UPDATE alert_history SET status = 'pending', attempt_count = $2, error_message = $3, http_status_code = $4, next_retry_at = $5 WHERE id = $1",
@@ -922,9 +922,11 @@ impl AlertService {
     }
 }
 
-fn retry_delay(attempt_count: i32) -> i64 {
+fn retry_delay(attempt_count: i32, history_id: i64) -> i64 {
     let exponent = attempt_count.saturating_sub(1).min(6) as u32;
-    std::cmp::min(60 * 2_i64.pow(exponent), 3600)
+    let base = 60 * 2_i64.pow(exponent);
+    let jitter = history_id.rem_euclid(30);
+    std::cmp::min(base + jitter, 3600)
 }
 
 #[cfg(test)]
@@ -972,7 +974,8 @@ mod tests {
 
     #[test]
     fn retry_delay_is_bounded_for_large_attempt_counts() {
-        assert_eq!(retry_delay(1), 60);
-        assert_eq!(retry_delay(i32::MAX), 3600);
+        assert_eq!(retry_delay(1, 0), 60);
+        assert_eq!(retry_delay(1, 29), 89);
+        assert_eq!(retry_delay(i32::MAX, i64::MAX), 3600);
     }
 }
