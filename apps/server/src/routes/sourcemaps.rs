@@ -297,6 +297,24 @@ pub async fn artifact_bundle_assemble(
     // Keep ownership rows in the same transaction so a worker cannot complete
     // between the job update and the reference insert.
     let mut tx = pool.begin().await?;
+    let mut missing = Vec::new();
+    for checksum in &body.chunks {
+        let present: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM chunk WHERE checksum = $1)")
+                .bind(checksum)
+                .fetch_one(&mut *tx)
+                .await?;
+        if !present {
+            missing.push(checksum.clone());
+        }
+    }
+    if !missing.is_empty() {
+        return Ok(HttpResponse::Ok().json(AssembleResponse {
+            state: "not_found".to_string(),
+            missing_chunks: missing,
+            detail: None,
+        }));
+    }
 
     #[cfg(feature = "postgres")]
     let job: Option<crate::models::source_file::AssemblyJob> = sqlx::query_as(
