@@ -17,6 +17,10 @@ use crate::models::{
 };
 use crate::services::notification::create_dispatcher;
 
+fn event_alert_id(event_id: Uuid, alert_type: &AlertType) -> String {
+    format!("event-{event_id}-{alert_type}")
+}
+
 pub struct AlertService;
 
 impl AlertService {
@@ -434,7 +438,15 @@ impl AlertService {
         issue: &Issue,
         dashboard_url: &str,
     ) -> AppResult<()> {
-        Self::trigger_alert(pool, project, issue, AlertType::NewIssue, dashboard_url).await
+        Self::trigger_alert(
+            pool,
+            project,
+            issue,
+            AlertType::NewIssue,
+            dashboard_url,
+            None,
+        )
+        .await
     }
 
     /// Triggers an alert for a regression
@@ -444,7 +456,35 @@ impl AlertService {
         issue: &Issue,
         dashboard_url: &str,
     ) -> AppResult<()> {
-        Self::trigger_alert(pool, project, issue, AlertType::Regression, dashboard_url).await
+        Self::trigger_alert(
+            pool,
+            project,
+            issue,
+            AlertType::Regression,
+            dashboard_url,
+            None,
+        )
+        .await
+    }
+
+    /// Enqueues the alert for one durable event with a retry-stable identity.
+    pub async fn trigger_event_alert(
+        pool: &DbPool,
+        project: &Project,
+        issue: &Issue,
+        alert_type: AlertType,
+        event_id: Uuid,
+        dashboard_url: &str,
+    ) -> AppResult<()> {
+        Self::trigger_alert(
+            pool,
+            project,
+            issue,
+            alert_type,
+            dashboard_url,
+            Some(event_alert_id(event_id, &alert_type)),
+        )
+        .await
     }
 
     /// Triggers an alert for an unmute
@@ -455,7 +495,7 @@ impl AlertService {
         issue: &Issue,
         dashboard_url: &str,
     ) -> AppResult<()> {
-        Self::trigger_alert(pool, project, issue, AlertType::Unmute, dashboard_url).await
+        Self::trigger_alert(pool, project, issue, AlertType::Unmute, dashboard_url, None).await
     }
 
     /// Builds the dashboard URL for viewing an issue.
@@ -477,6 +517,7 @@ impl AlertService {
         issue: &Issue,
         alert_type: AlertType,
         dashboard_url: &str,
+        stable_alert_id: Option<String>,
     ) -> AppResult<()> {
         // 1. Find enabled rule for this project and alert type
         let rule: Option<AlertRule> = sqlx::query_as(
@@ -504,43 +545,7 @@ impl AlertService {
             }
         };
 
-        // 2. Atomically check cooldown and update last_triggered_at
-        let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
-
-        #[cfg(feature = "postgres")]
-        let updated = sqlx::query(
-            r#"
-            UPDATE alert_rules
-            SET last_triggered_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-              AND (last_triggered_at IS NULL OR last_triggered_at < $2)
-            "#,
-        )
-        .bind(rule.id)
-        .bind(cooldown_threshold)
-        .execute(pool)
-        .await?;
-
-        #[cfg(feature = "sqlite")]
-        let updated = sqlx::query(
-            r#"
-            UPDATE alert_rules
-            SET last_triggered_at = datetime('now')
-            WHERE id = $1
-              AND (last_triggered_at IS NULL OR datetime(last_triggered_at) < datetime($2))
-            "#,
-        )
-        .bind(rule.id)
-        .bind(cooldown_threshold.naive_utc())
-        .execute(pool)
-        .await?;
-
-        if updated.rows_affected() == 0 {
-            log::debug!("Alert rule {} not found or in cooldown period", rule.id);
-            return Ok(());
-        }
-
-        // 3. Get associated rule channels (only enabled integrations — SCL-1)
+        // 2. Get associated rule channels (only enabled integrations — SCL-1)
         let rule_channels: Vec<AlertRuleChannel> = sqlx::query_as(
             r#"
             SELECT arc.alert_rule_id, arc.integration_id, arc.routing_override
@@ -558,14 +563,22 @@ impl AlertService {
             return Ok(());
         }
 
-        // 4. Build payload
+        let mut channels = Vec::with_capacity(rule_channels.len());
+        for rule_channel in rule_channels {
+            let integration = Self::get_channel(pool, rule_channel.integration_id).await?;
+            channels.push((rule_channel, integration));
+        }
+
+        // 3. Build payload
         let payload = AlertPayload {
-            alert_id: format!(
-                "{}-{}-{}",
-                project.id,
-                issue.id,
-                Utc::now().timestamp_millis()
-            ),
+            alert_id: stable_alert_id.unwrap_or_else(|| {
+                format!(
+                    "{}-{}-{}",
+                    project.id,
+                    issue.id,
+                    Utc::now().timestamp_millis()
+                )
+            }),
             alert_type: alert_type.to_string(),
             triggered_at: Utc::now(),
             project: ProjectInfo {
@@ -593,162 +606,180 @@ impl AlertService {
             project.name
         );
 
-        // 5. Dispatch to all rule channels (spawn tasks for parallel execution)
-        for rule_channel in rule_channels {
-            let pool = pool.clone();
-            let payload = payload.clone();
-            let rule_id = rule.id;
+        // 4. Reserve the cooldown and enqueue every delivery atomically. A
+        // failed enqueue must leave the rule eligible for durable event retry.
+        let cooldown_threshold = Utc::now() - Duration::minutes(rule.cooldown_minutes as i64);
+        let mut tx = pool.begin().await?;
 
-            tokio::spawn(async move {
-                if let Err(e) =
-                    Self::dispatch_to_channel(&pool, &rule_channel, &payload, rule_id).await
-                {
-                    log::error!(
-                        "Failed to dispatch alert to integration {} (rule {}): {}",
-                        rule_channel.integration_id,
-                        rule_id,
-                        e
-                    );
-                }
-            });
+        #[cfg(feature = "postgres")]
+        let updated = sqlx::query(
+            r#"
+            UPDATE alert_rules
+            SET last_triggered_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND (last_triggered_at IS NULL OR last_triggered_at < $2)
+            "#,
+        )
+        .bind(rule.id)
+        .bind(cooldown_threshold)
+        .execute(&mut *tx)
+        .await?;
+
+        #[cfg(feature = "sqlite")]
+        let updated = sqlx::query(
+            r#"
+            UPDATE alert_rules
+            SET last_triggered_at = datetime('now')
+            WHERE id = $1
+              AND (last_triggered_at IS NULL OR datetime(last_triggered_at) < datetime($2))
+            "#,
+        )
+        .bind(rule.id)
+        .bind(cooldown_threshold.naive_utc())
+        .execute(&mut *tx)
+        .await?;
+
+        if updated.rows_affected() == 0 {
+            log::debug!("Alert rule {} not found or in cooldown period", rule.id);
+            return Ok(());
+        }
+
+        let mut history_ids = Vec::with_capacity(channels.len());
+        for (rule_channel, integration) in &channels {
+            let idempotency_key = format!("{}-{}", payload.alert_id, integration.id);
+            let issue_uuid = Uuid::parse_str(&payload.issue.id).ok();
+            let history_id: Option<(i64,)> = sqlx::query_as(
+                r#"
+                INSERT INTO alert_history (
+                    alert_rule_id, integration_id, issue_id, project_id,
+                    alert_type, channel_type, channel_name, payload,
+                    status, idempotency_key
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9)
+                ON CONFLICT (idempotency_key) DO NOTHING
+                RETURNING id
+                "#,
+            )
+            .bind(rule.id)
+            .bind(rule_channel.integration_id)
+            .bind(issue_uuid)
+            .bind(payload.project.id)
+            .bind(&payload.alert_type)
+            .bind(integration.provider_type.to_string())
+            .bind(&integration.name)
+            .bind(serde_json::to_value(&payload).map_err(|e| AppError::Internal(e.to_string()))?)
+            .bind(&idempotency_key)
+            .fetch_optional(&mut *tx)
+            .await?;
+
+            if let Some(history_id) = history_id {
+                history_ids.push((history_id.0, rule_channel.clone()));
+            }
+        }
+        tx.commit().await?;
+
+        // 5. Attempt each durable delivery before the event worker deletes its
+        // source record; committed pending rows cover a crash during dispatch.
+        for (history_id, rule_channel) in history_ids {
+            Self::dispatch_history(pool, history_id, 0, &payload, &rule_channel, 5).await?;
         }
 
         Ok(())
     }
 
-    /// Dispatches an alert to a single rule channel (integration + routing)
-    async fn dispatch_to_channel(
-        pool: &DbPool,
-        rule_channel: &AlertRuleChannel,
-        payload: &AlertPayload,
-        rule_id: i32,
-    ) -> AppResult<()> {
-        let integration_id = rule_channel.integration_id;
-        let idempotency_key = format!("{}-{}", payload.alert_id, integration_id);
-
-        // Fetch integration record
-        let integration = Self::get_channel(pool, integration_id).await?;
-
-        // Parse issue_id as UUID
-        let issue_uuid = Uuid::parse_str(&payload.issue.id).ok();
-
-        // Create history record with idempotent insert
-        let history_id: Option<(i64,)> = sqlx::query_as(
-            r#"
-            INSERT INTO alert_history (
-                alert_rule_id, integration_id, issue_id, project_id,
-                alert_type, channel_type, channel_name,
-                status, idempotency_key
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8)
-            ON CONFLICT (idempotency_key) DO NOTHING
-            RETURNING id
-            "#,
+    /// Returns whether durable history already exists for an event alert.
+    pub async fn event_alert_exists(pool: &DbPool, event_id: Uuid) -> AppResult<bool> {
+        let prefix = format!("event-{}-%", event_id);
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM alert_history WHERE idempotency_key LIKE $1)",
         )
-        .bind(rule_id)
-        .bind(integration_id)
-        .bind(issue_uuid)
-        .bind(payload.project.id)
-        .bind(&payload.alert_type)
-        .bind(integration.provider_type.to_string())
-        .bind(&integration.name)
-        .bind(&idempotency_key)
-        .fetch_optional(pool)
+        .bind(prefix)
+        .fetch_one(pool)
         .await?;
+        Ok(exists)
+    }
 
-        let history_id = match history_id {
-            Some(id) => id,
-            None => {
-                log::debug!("Alert {} already processed, skipping", idempotency_key);
-                return Ok(());
-            }
-        };
+    async fn dispatch_existing_history(
+        pool: &DbPool,
+        history: &AlertHistory,
+        rule_channel: &AlertRuleChannel,
+        max_retries: i32,
+    ) -> AppResult<()> {
+        let payload: AlertPayload = serde_json::from_value(history.payload.clone())
+            .map_err(|e| AppError::Internal(format!("invalid alert payload: {}", e)))?;
+        Self::dispatch_history(
+            pool,
+            history.id,
+            history.attempt_count,
+            &payload,
+            rule_channel,
+            max_retries,
+        )
+        .await
+    }
 
-        // Dispatch using appropriate notifier with routing_override
-        let dispatcher = create_dispatcher(integration.provider_type);
-        let result = dispatcher
-            .send(&integration, &rule_channel.routing_override, payload)
+    async fn dispatch_history(
+        pool: &DbPool,
+        history_id: i64,
+        previous_attempt_count: i32,
+        payload: &AlertPayload,
+        rule_channel: &AlertRuleChannel,
+        max_retries: i32,
+    ) -> AppResult<()> {
+        let integration = Self::get_channel(pool, rule_channel.integration_id).await?;
+        let result = create_dispatcher(integration.provider_type)
+            .send(&integration, &rule_channel.routing_override, &payload)
             .await;
+        let attempt_count = previous_attempt_count + 1;
 
-        // Update history and integration stats based on result
         if result.success {
             sqlx::query(
-                r#"
-                UPDATE alert_history
-                SET status = 'sent', sent_at = CURRENT_TIMESTAMP, http_status_code = $2
-                WHERE id = $1
-                "#,
+                "UPDATE alert_history SET status = 'sent', sent_at = CURRENT_TIMESTAMP, http_status_code = $2 WHERE id = $1",
             )
-            .bind(history_id.0)
+            .bind(history_id)
             .bind(result.http_status.map(|s| s as i32))
             .execute(pool)
             .await?;
-
             sqlx::query(
-                r#"
-                UPDATE alert_integrations
-                SET last_success_at = CURRENT_TIMESTAMP, failure_count = 0
-                WHERE id = $1
-                "#,
+                "UPDATE alert_integrations SET last_success_at = CURRENT_TIMESTAMP, failure_count = 0 WHERE id = $1",
             )
-            .bind(integration_id)
+            .bind(integration.id)
             .execute(pool)
             .await?;
-
-            log::info!(
-                "Alert sent successfully to integration {} ({})",
-                integration_id,
-                integration.name
-            );
-        } else {
-            // Calculate next retry with exponential backoff + jitter
-            let attempt_count = 1;
-            let base_delay = 60i64;
-            let max_delay = 3600i64;
-            let delay_secs = std::cmp::min(
-                base_delay * (2_i64.pow(attempt_count as u32 - 1)),
-                max_delay,
-            );
-            let jitter = (delay_secs as f64 * 0.1 * rand::random::<f64>()) as i64;
-            let next_retry = Utc::now() + Duration::seconds(delay_secs + jitter);
-
+        } else if attempt_count >= max_retries {
             sqlx::query(
-                r#"
-                UPDATE alert_history
-                SET status = 'pending', attempt_count = $2,
-                    error_message = $3, http_status_code = $4,
-                    next_retry_at = $5
-                WHERE id = $1
-                "#,
+                "UPDATE alert_history SET status = 'failed', attempt_count = $2, error_message = $3, http_status_code = $4 WHERE id = $1",
             )
-            .bind(history_id.0)
+            .bind(history_id)
+            .bind(attempt_count)
+            .bind(&result.error_message)
+            .bind(result.http_status.map(|s| s as i32))
+            .execute(pool)
+            .await?;
+        } else {
+            let delay_secs =
+                std::cmp::min(60 * 2_i64.pow(attempt_count.saturating_sub(1) as u32), 3600);
+            let next_retry = Utc::now() + Duration::seconds(delay_secs);
+            sqlx::query(
+                "UPDATE alert_history SET status = 'pending', attempt_count = $2, error_message = $3, http_status_code = $4, next_retry_at = $5 WHERE id = $1",
+            )
+            .bind(history_id)
             .bind(attempt_count)
             .bind(&result.error_message)
             .bind(result.http_status.map(|s| s as i32))
             .bind(next_retry)
             .execute(pool)
             .await?;
+        }
 
+        if !result.success {
             sqlx::query(
-                r#"
-                UPDATE alert_integrations
-                SET last_failure_at = CURRENT_TIMESTAMP,
-                    last_failure_message = $2,
-                    failure_count = failure_count + 1
-                WHERE id = $1
-                "#,
+                "UPDATE alert_integrations SET last_failure_at = CURRENT_TIMESTAMP, last_failure_message = $2, failure_count = failure_count + 1 WHERE id = $1",
             )
-            .bind(integration_id)
+            .bind(integration.id)
             .bind(&result.error_message)
             .execute(pool)
             .await?;
-
-            log::warn!(
-                "Alert to integration {} ({}) failed: {:?}",
-                integration_id,
-                integration.name,
-                result.error_message
-            );
         }
 
         Ok(())
@@ -767,7 +798,7 @@ impl AlertService {
         let history = sqlx::query_as::<_, AlertHistory>(
             r#"
             SELECT id, alert_rule_id, integration_id, issue_id, project_id,
-                   alert_type, channel_type, channel_name, status,
+                   alert_type, channel_type, channel_name, payload, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
@@ -791,7 +822,7 @@ impl AlertService {
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
             SELECT id, alert_rule_id, integration_id, issue_id, project_id,
-                   alert_type, channel_type, channel_name, status,
+                   alert_type, channel_type, channel_name, payload, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
@@ -808,7 +839,7 @@ impl AlertService {
         let pending: Vec<AlertHistory> = sqlx::query_as(
             r#"
             SELECT id, alert_rule_id, integration_id, issue_id, project_id,
-                   alert_type, channel_type, channel_name, status,
+                   alert_type, channel_type, channel_name, payload, status,
                    attempt_count, next_retry_at, error_message,
                    http_status_code, idempotency_key, created_at, sent_at
             FROM alert_history
@@ -838,13 +869,42 @@ impl AlertService {
                 continue;
             }
 
-            // For now, just mark as failed — full retry would require storing payload
-            sqlx::query(
-                "UPDATE alert_history SET status = 'failed', error_message = 'Retry not implemented' WHERE id = $1",
+            let (Some(rule_id), Some(integration_id)) =
+                (history.alert_rule_id, history.integration_id)
+            else {
+                sqlx::query(
+                    "UPDATE alert_history SET status = 'failed', error_message = 'Alert rule deleted' WHERE id = $1",
+                )
+                .bind(history.id)
+                .execute(pool)
+                .await?;
+                processed += 1;
+                continue;
+            };
+
+            let channel: Option<AlertRuleChannel> = sqlx::query_as(
+                "SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels WHERE alert_rule_id = $1 AND integration_id = $2",
             )
-            .bind(history.id)
-            .execute(pool)
+            .bind(rule_id)
+            .bind(integration_id)
+            .fetch_optional(pool)
             .await?;
+            let Some(channel) = channel else {
+                sqlx::query(
+                    "UPDATE alert_history SET status = 'failed', error_message = 'Alert channel deleted' WHERE id = $1",
+                )
+                .bind(history.id)
+                .execute(pool)
+                .await?;
+                processed += 1;
+                continue;
+            };
+
+            if let Err(e) =
+                Self::dispatch_existing_history(pool, &history, &channel, max_retries).await
+            {
+                log::error!("Failed to retry alert history {}: {}", history.id, e);
+            }
 
             processed += 1;
         }
@@ -856,6 +916,7 @@ impl AlertService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_issue_url_uses_numeric_project_id_not_slug() {
@@ -865,5 +926,33 @@ mod tests {
             "URL must use numeric project id, got: {}",
             url
         );
+    }
+
+    #[test]
+    fn event_alert_id_is_stable_across_retries() {
+        let event_id = Uuid::nil();
+        assert_eq!(
+            event_alert_id(event_id, &AlertType::NewIssue),
+            event_alert_id(event_id, &AlertType::NewIssue)
+        );
+        assert_ne!(
+            event_alert_id(event_id, &AlertType::NewIssue),
+            event_alert_id(event_id, &AlertType::Regression)
+        );
+    }
+
+    #[test]
+    fn alert_payload_round_trips_for_retry_storage() {
+        let stored = json!({
+            "alert_id": "alert-1", "alert_type": "new_issue",
+            "triggered_at": "2026-08-21T10:00:00Z",
+            "project": {"id": 1, "name": "Project", "slug": "project"},
+            "issue": {"id": Uuid::new_v4().to_string(), "short_id": "PROJECT-1",
+                "title": "Issue", "level": "error", "first_seen": "2026-08-21T10:00:00Z",
+                "last_seen": "2026-08-21T10:00:00Z", "event_count": 1},
+            "issue_url": "http://localhost/issues/1", "actor": "Rustrak"
+        });
+        let payload: AlertPayload = serde_json::from_value(stored.clone()).unwrap();
+        assert_eq!(serde_json::to_value(payload).unwrap(), stored);
     }
 }

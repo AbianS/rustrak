@@ -380,6 +380,7 @@ pub struct AlertHistory {
     pub alert_type: String,
     pub channel_type: String,
     pub channel_name: String,
+    pub payload: serde_json::Value,
     pub status: AlertStatus,
     pub attempt_count: i32,
     pub next_retry_at: Option<DateTime<Utc>>,
@@ -395,7 +396,7 @@ pub struct AlertHistory {
 // =============================================================================
 
 /// Payload sent to notification integrations
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertPayload {
     /// Unique alert ID for idempotency
     pub alert_id: String,
@@ -414,7 +415,7 @@ pub struct AlertPayload {
 }
 
 /// Project information for alert payload
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectInfo {
     pub id: i32,
     pub name: String,
@@ -422,7 +423,7 @@ pub struct ProjectInfo {
 }
 
 /// Issue information for alert payload
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueInfo {
     pub id: String,
     pub short_id: String,

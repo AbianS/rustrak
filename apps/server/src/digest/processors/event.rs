@@ -4,11 +4,11 @@ use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::ingest::storage::{delete_event_at, read_event_with_location};
 use crate::ingest::EventMetadata;
-use crate::models::{Grouping, Issue};
+use crate::models::{AlertType, Grouping, Issue};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
-    DenormalizedFields, EventService, ProjectService, RateLimitService,
+    DenormalizedFields, EventService, IssueService, ProjectService, RateLimitService,
 };
 use chrono::Utc;
 use std::path::PathBuf;
@@ -105,6 +105,28 @@ impl ErrorProcessor {
         // 4. Check for duplicates
         if EventService::exists(pool, metadata.project_id, event_id).await? {
             log::warn!("Duplicate event_id: {}", metadata.event_id);
+            if !AlertService::event_alert_exists(pool, event_id).await? {
+                if let Some(issue_id) =
+                    EventService::issue_id_for_event(pool, metadata.project_id, event_id).await?
+                {
+                    let issue = IssueService::get_by_id(pool, issue_id).await?;
+                    let alert_type = if issue.substatus.as_deref() == Some("regressed") {
+                        AlertType::Regression
+                    } else {
+                        AlertType::NewIssue
+                    };
+                    AlertService::trigger_event_alert(
+                        pool,
+                        &project,
+                        &issue,
+                        alert_type,
+                        event_id,
+                        &std::env::var("DASHBOARD_URL")
+                            .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+                    )
+                    .await?;
+                }
+            }
             delete_event_at(
                 &self.ingest_dir,
                 metadata.project_id,
@@ -179,7 +201,26 @@ impl ErrorProcessor {
             );
         }
 
-        // 10. Delete the durable event file
+        // 10. Persist alert history before deleting the only durable source.
+        if issue_created || regressed {
+            let alert_type = if issue_created {
+                AlertType::NewIssue
+            } else {
+                AlertType::Regression
+            };
+            AlertService::trigger_event_alert(
+                pool,
+                &project,
+                &issue,
+                alert_type,
+                event_id,
+                &std::env::var("DASHBOARD_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            )
+            .await?;
+        }
+
+        // 11. Delete the durable event file only after the alert is enqueued.
         delete_event_at(
             &self.ingest_dir,
             metadata.project_id,
@@ -194,28 +235,6 @@ impl ErrorProcessor {
             issue.id,
             if issue_created { "new" } else { "existing" }
         );
-
-        // 11. Trigger alerts for new issues and regressions
-        if issue_created || regressed {
-            let pool = pool.clone();
-            let project = project.clone();
-            let issue = issue.clone();
-            let dashboard_url = std::env::var("DASHBOARD_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string());
-
-            tokio::spawn(async move {
-                let result = if issue_created {
-                    AlertService::trigger_new_issue_alert(&pool, &project, &issue, &dashboard_url)
-                        .await
-                } else {
-                    AlertService::trigger_regression_alert(&pool, &project, &issue, &dashboard_url)
-                        .await
-                };
-                if let Err(e) = result {
-                    log::error!("Failed to trigger issue alert: {}", e);
-                }
-            });
-        }
 
         Ok(())
     }

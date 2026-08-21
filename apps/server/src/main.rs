@@ -158,6 +158,18 @@ async fn main() -> std::io::Result<()> {
         rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
     ));
 
+    let alert_pool = db_pool.clone();
+    tokio::spawn(async move {
+        loop {
+            if let Err(e) =
+                rustrak::services::AlertService::process_retry_queue(&alert_pool, 5).await
+            {
+                log::error!("Alert retry worker error: {:?}", e);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        }
+    });
+
     let server = HttpServer::new(move || {
         // CORS configuration - permissive for event ingestion
         // Sentry SDKs can send from any origin. CORS protects the user from
@@ -289,7 +301,12 @@ async fn main() -> std::io::Result<()> {
         log::info!("Shutdown signal received, stopping server...");
         // Stop accepting new requests first, then flush remaining buckets
         server_handle.stop(true).await;
-        agg_for_shutdown.flush().await;
+        if let Err(e) = agg_for_shutdown.flush().await {
+            log::error!(
+                "Failed to flush session aggregator during shutdown: {:?}",
+                e
+            );
+        }
     });
 
     server.await

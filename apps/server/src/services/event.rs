@@ -252,4 +252,18 @@ impl EventService {
 
         Ok(count > 0)
     }
+
+    /// Finds the issue for an already-digested event during durable retry.
+    pub async fn issue_id_for_event(
+        pool: &DbPool,
+        project_id: i32,
+        event_id: Uuid,
+    ) -> AppResult<Option<Uuid>> {
+        sqlx::query_scalar("SELECT issue_id FROM events WHERE project_id = $1 AND event_id = $2")
+            .bind(project_id)
+            .bind(event_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(AppError::Database)
+    }
 }
