@@ -182,6 +182,8 @@ impl AssemblyWorker {
     }
 
     async fn mark_failure(&self, job_id: i64, detail: &str) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
         #[cfg(feature = "postgres")]
         sqlx::query(
             r#"
@@ -196,7 +198,7 @@ impl AssemblyWorker {
         )
         .bind(job_id)
         .bind(detail)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
         #[cfg(not(feature = "postgres"))]
@@ -213,9 +215,21 @@ impl AssemblyWorker {
         )
         .bind(job_id)
         .bind(detail)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(())
+        let (retry_count, max_retries): (i32, i32) =
+            sqlx::query_as("SELECT retry_count, max_retries FROM assembly_jobs WHERE id = $1")
+                .bind(job_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if retry_count >= max_retries {
+            sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
+                .bind(job_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await
     }
 }
