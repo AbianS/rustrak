@@ -8,7 +8,7 @@ use crate::models::{AlertType, Grouping, Issue};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
-    DenormalizedFields, EventService, IssueService, ProjectService, RateLimitService,
+    DenormalizedFields, EventService, ProjectService, RateLimitService,
 };
 use chrono::Utc;
 use std::path::PathBuf;
@@ -105,28 +105,8 @@ impl ErrorProcessor {
         // 4. Check for duplicates
         if EventService::exists(pool, metadata.project_id, event_id).await? {
             log::warn!("Duplicate event_id: {}", metadata.event_id);
-            if !AlertService::event_alert_exists(pool, event_id).await? {
-                if let Some(issue_id) =
-                    EventService::issue_id_for_event(pool, metadata.project_id, event_id).await?
-                {
-                    let issue = IssueService::get_by_id(pool, issue_id).await?;
-                    let alert_type = if issue.substatus.as_deref() == Some("regressed") {
-                        AlertType::Regression
-                    } else {
-                        AlertType::NewIssue
-                    };
-                    AlertService::trigger_event_alert(
-                        pool,
-                        &project,
-                        &issue,
-                        alert_type,
-                        event_id,
-                        &std::env::var("DASHBOARD_URL")
-                            .unwrap_or_else(|_| "http://localhost:3000".to_string()),
-                    )
-                    .await?;
-                }
-            }
+            // A duplicate event does not tell us whether its original digest
+            // created or regressed the issue; replay must not invent an alert.
             delete_after_success(
                 pool,
                 &self.ingest_dir,
