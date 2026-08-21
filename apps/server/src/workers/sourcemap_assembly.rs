@@ -224,6 +224,14 @@ impl AssemblyWorker {
                 .fetch_one(&mut *tx)
                 .await?;
         if retry_count >= max_retries {
+            // Delete only chunks that this terminal job owns exclusively;
+            // shared chunks remain available to the other assembly.
+            sqlx::query(
+                "DELETE FROM chunk WHERE EXISTS (SELECT 1 FROM assembly_job_chunks owned WHERE owned.job_id = $1 AND owned.checksum = chunk.checksum) AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks retained WHERE retained.checksum = chunk.checksum AND retained.job_id <> $1)",
+            )
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
             sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
                 .bind(job_id)
                 .execute(&mut *tx)
