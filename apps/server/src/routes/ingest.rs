@@ -1,6 +1,7 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use chrono::Utc;
+use sha2::{Digest as _, Sha256};
 
 use crate::auth::SentryAuth;
 use crate::config::Config;
@@ -76,12 +77,7 @@ pub async fn ingest_envelope(
     let mut span_items: Vec<Vec<u8>> = Vec::new();
     let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
     let mut requires_event_id = false;
-    let delivery_id = envelope
-        .headers
-        .event_id
-        .as_deref()
-        .and_then(|id| uuid::Uuid::parse_str(id).ok())
-        .unwrap_or_else(uuid::Uuid::new_v4);
+    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), &decompressed);
     for item_kind in envelope.items {
         if item_kind.requires_event() {
             requires_event_id = true;
@@ -370,6 +366,17 @@ fn direct_store_ctx(
     }
 }
 
+fn stable_delivery_id(event_id: Option<&str>, envelope: &[u8]) -> uuid::Uuid {
+    event_id
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .unwrap_or_else(|| {
+            let digest = Sha256::digest(envelope);
+            let mut bytes = [0; 16];
+            bytes.copy_from_slice(&digest[..16]);
+            uuid::Uuid::from_bytes(bytes)
+        })
+}
+
 /// POST /api/{project_id}/store/
 /// Legacy endpoint (deprecated)
 pub async fn ingest_store(
@@ -409,7 +416,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
-    use super::next_recovery_delay;
+    use super::{next_recovery_delay, stable_delivery_id};
     use std::time::Duration;
 
     #[test]
@@ -430,6 +437,22 @@ mod tests {
         assert_eq!(
             next_recovery_delay(Some(Duration::from_secs(16)), false),
             Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn headerless_delivery_id_is_stable_for_retries() {
+        let first = stable_delivery_id(None, b"same envelope");
+        assert_eq!(first, stable_delivery_id(None, b"same envelope"));
+        assert_ne!(first, stable_delivery_id(None, b"different envelope"));
+    }
+
+    #[test]
+    fn valid_event_id_remains_the_delivery_id() {
+        let event_id = uuid::Uuid::new_v4();
+        assert_eq!(
+            stable_delivery_id(Some(&event_id.to_string()), b"ignored"),
+            event_id
         );
     }
 }
