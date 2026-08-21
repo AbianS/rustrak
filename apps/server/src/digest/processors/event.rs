@@ -536,7 +536,7 @@ async fn write_digest_rows(
     .await?;
 
     let (installation_count, project_count) =
-        RateLimitService::increment_quota_counters(&mut **tx, write.project_id).await?;
+        RateLimitService::increment_quota_counters(tx, write.project_id).await?;
 
     Ok((issue, created, regressed, installation_count, project_count))
 }

@@ -728,7 +728,7 @@ impl AlertService {
     ) -> AppResult<()> {
         let integration = Self::get_channel(pool, rule_channel.integration_id).await?;
         let result = create_dispatcher(integration.provider_type)
-            .send(&integration, &rule_channel.routing_override, &payload)
+            .send(&integration, &rule_channel.routing_override, payload)
             .await;
         let attempt_count = previous_attempt_count + 1;
 

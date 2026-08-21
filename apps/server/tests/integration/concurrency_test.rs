@@ -7,7 +7,9 @@ use crate::common::process_error_event;
 use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
-use rustrak::ingest::{get_event_path, store_event, EventMetadata};
+#[cfg(feature = "sqlite")]
+use rustrak::ingest::get_event_path;
+use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
 use rustrak::pagination::{IssueSort, SortOrder};
 use rustrak::services::{IssueService, ProjectService};
