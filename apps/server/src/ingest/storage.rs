@@ -99,6 +99,7 @@ async fn write_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))?;
     let temporary_path = path.with_file_name(format!(".{file_name}.tmp-{}", Uuid::new_v4()));
+    let expected_record = serde_json::from_slice::<PendingEventRecord>(bytes).ok();
 
     let mut temporary_file = match fs::File::create(&temporary_path).await {
         Ok(file) => file,
@@ -130,10 +131,57 @@ async fn write_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
             let _ = fs::remove_file(&temporary_path).await;
         }
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            // A duplicate event ID is idempotent: keep the first complete
-            // record instead of allowing a later payload to win a race.
+            let existing = match fs::read(path).await {
+                Ok(existing) => existing,
+                Err(read_error) => {
+                    let _ = fs::remove_file(&temporary_path).await;
+                    return Err(AppError::Internal(format!(
+                        "Failed to inspect existing ingest file: {}",
+                        read_error
+                    )));
+                }
+            };
+            let is_complete = match (
+                serde_json::from_slice::<PendingEventRecord>(&existing),
+                expected_record.as_ref(),
+            ) {
+                (Ok(existing), Some(expected)) => validate_pending_record(
+                    existing,
+                    &expected.metadata.event_id,
+                    Some(expected.metadata.project_id),
+                )
+                .is_ok(),
+                _ => false,
+            };
+            if is_complete {
+                // A duplicate event ID is idempotent: keep the first complete
+                // record instead of allowing a later payload to win a race.
+                let _ = fs::remove_file(&temporary_path).await;
+                return Ok(());
+            }
+
+            let quarantine =
+                path.with_file_name(format!(".{file_name}.corrupt-{}", Uuid::new_v4()));
+            log::warn!(
+                "Quarantining malformed pending ingest file {:?} as {:?}",
+                path,
+                quarantine
+            );
+            if let Err(rename_error) = fs::rename(path, &quarantine).await {
+                let _ = fs::remove_file(&temporary_path).await;
+                return Err(AppError::Internal(format!(
+                    "Failed to quarantine ingest file: {}",
+                    rename_error
+                )));
+            }
+            if let Err(link_error) = fs::hard_link(&temporary_path, path).await {
+                let _ = fs::remove_file(&temporary_path).await;
+                return Err(AppError::Internal(format!(
+                    "Failed to publish replacement ingest file: {}",
+                    link_error
+                )));
+            }
             let _ = fs::remove_file(&temporary_path).await;
-            return Ok(());
         }
         Err(e) => {
             let _ = fs::remove_file(&temporary_path).await;
@@ -629,7 +677,14 @@ mod tests {
             .await
             .unwrap();
         let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
-        fs::write(&pending_path, b"{").await.unwrap();
+        let malformed = PendingEventRecord {
+            version: PENDING_EVENT_VERSION,
+            metadata: metadata(event_id, 7),
+            event_data: "not-base64".to_string(),
+        };
+        fs::write(&pending_path, serde_json::to_vec(&malformed).unwrap())
+            .await
+            .unwrap();
 
         assert!(read_event_for_project(dir.path(), 7, event_id)
             .await
@@ -640,6 +695,39 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn malformed_duplicate_record_is_quarantined_before_replacement() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, b"{").await.unwrap();
+
+        store_event_with_metadata(
+            dir.path(),
+            event_id,
+            br#"{"recovered":true}"#,
+            &metadata(event_id, 7),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            read_event_for_project(dir.path(), 7, event_id)
+                .await
+                .unwrap(),
+            br#"{"recovered":true}"#
+        );
+        let mut entries = fs::read_dir(dir.path()).await.unwrap();
+        let mut quarantined = false;
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            if entry.file_name().to_string_lossy().contains(".corrupt-") {
+                quarantined = true;
+            }
+        }
+        assert!(quarantined);
     }
 
     #[tokio::test]
