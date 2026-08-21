@@ -15,6 +15,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const INVALID_EVENT_JSON_PREFIX: &str = "Invalid event JSON";
+
 /// Processes error/exception events: source-map rewrite → grouping → issue → store.
 ///
 /// Owns the deps the error pipeline needs (`ingest_dir`, `rate_limit_config`,
@@ -72,7 +74,7 @@ impl ErrorProcessor {
 
         // 2. Parse event from filesystem
         let mut event_data: serde_json::Value = serde_json::from_slice(&event_bytes)
-            .map_err(|e| AppError::Internal(format!("Invalid event JSON: {}", e)))?;
+            .map_err(|e| AppError::Internal(format!("{INVALID_EVENT_JSON_PREFIX}: {e}")))?;
 
         // 2b. Rewrite stack frames using source maps (non-fatal)
         if let Err(e) = crate::services::sourcemap::rewrite_frames(
@@ -285,10 +287,9 @@ impl Processor for ErrorProcessor {
 fn should_retain_event(err: &AppError) -> bool {
     match err.kind() {
         AppError::Database(_) => true,
-        AppError::Internal(message) => {
-            message.starts_with("Failed to read event file")
-                || message.starts_with("Invalid pending event")
-        }
+        // Unknown internal failures are safer to replay than to discard: a new
+        // transient failure must not silently become data loss.
+        AppError::Internal(message) => !message.starts_with(INVALID_EVENT_JSON_PREFIX),
         _ => false,
     }
 }
@@ -730,6 +731,12 @@ mod tests {
         )));
         assert!(should_retain_event(&AppError::Internal(
             "Invalid pending event record: truncated".to_string(),
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "temporary database connection failure".to_string(),
+        )));
+        assert!(!should_retain_event(&AppError::Internal(
+            "Invalid event JSON: trailing data".to_string(),
         )));
         assert!(!should_retain_event(&AppError::Validation(
             "Invalid event JSON".to_string(),
