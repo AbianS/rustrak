@@ -10,11 +10,22 @@ use crate::config::DatabaseConfig;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
 #[cfg(feature = "sqlite")]
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::{
+    SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions, SqliteSynchronous,
+};
 #[cfg(feature = "sqlite")]
 use std::str::FromStr;
 #[cfg(feature = "sqlite")]
 use std::time::Duration;
+
+#[cfg(feature = "sqlite")]
+/// How long a SQLite connection waits on the write lock before failing with
+/// `SQLITE_BUSY`. This is the *whole* tolerance of every writer that is not
+/// the digest (sourcemap assembly, the storage purge, bulk issue updates,
+/// alert rules, the transaction/span/log processors): they get one shot at
+/// the lock and no retry, so shortening it turns a slow holder into a 500.
+/// 5s is the value SQLite's own guidance pairs with WAL.
+const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The active SQLx database backend (selected by feature flag).
 #[cfg(feature = "postgres")]
@@ -58,8 +69,15 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
         let opts = SqliteConnectOptions::from_str(&config.url)
             .map_err(|e| sqlx::Error::Configuration(e.into()))?
             .create_if_missing(true)
+            // WAL + NORMAL is SQLite's own recommended pairing: the per-commit
+            // WAL fsync is dropped, so write-lock holds get shorter. Commits
+            // stay atomic and survive an application crash; only an OS crash
+            // or power loss can roll back the newest ones, which is the right
+            // trade for a stream of error events. Documented for operators in
+            // apps/docs/content/configuration/database.mdx.
             .journal_mode(SqliteJournalMode::Wal)
-            .busy_timeout(Duration::from_secs(5));
+            .synchronous(SqliteSynchronous::Normal)
+            .busy_timeout(SQLITE_BUSY_TIMEOUT);
         let max_connections = if is_in_memory {
             1
         } else {
@@ -92,16 +110,19 @@ pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error>
 /// Begins a transaction intended for writes.
 ///
 /// On SQLite this issues `BEGIN IMMEDIATE` so the write lock is acquired up
-/// front. The default `BEGIN` is *deferred*: a transaction that reads before it
-/// writes (as the digest does — `SELECT MAX(digest_order)` then `INSERT`) only
-/// takes a read lock first, then tries to upgrade to a write lock. Under
-/// concurrency that upgrade fails immediately with `SQLITE_BUSY_SNAPSHOT`
-/// ("database is locked") and `busy_timeout` does *not* retry it. Taking the
-/// write lock at `BEGIN` makes `busy_timeout` effective and serializes writers,
-/// which also prevents duplicate `digest_order` values.
+/// front. A read-then-write transaction (the digest's
+/// `SELECT MAX(digest_order)` → `INSERT`) must take the write lock at
+/// `BEGIN`: a deferred `BEGIN` fails the read→write upgrade with
+/// `SQLITE_BUSY_SNAPSHOT`, which `busy_timeout` does not retry. Taking
+/// the lock up front also prevents duplicate `digest_order` values.
 ///
 /// On PostgreSQL the default `BEGIN` is used (MVCC + advisory locks handle
 /// concurrency; `IMMEDIATE` is not valid Postgres syntax).
+///
+/// Use ONLY for read-then-write transactions (a SELECT before the first
+/// write). Write-first txs must keep a plain `pool.begin()`: IMMEDIATE
+/// would hold the write lock across disk I/O and long loops for no benefit
+/// — those sites carry a comment saying so.
 pub async fn begin_write(pool: &DbPool) -> Result<sqlx::Transaction<'_, Db>, sqlx::Error> {
     #[cfg(feature = "sqlite")]
     {

@@ -87,6 +87,20 @@ docker run --rm \
 > Use `sqlite3 .backup` rather than `cp`. A plain file copy while the server is
 > running may capture an inconsistent state if a write is in progress.
 
+### Durability
+
+Rustrak opens SQLite in WAL mode with `synchronous=NORMAL`, the pairing SQLite
+recommends for this journal mode. Commits are atomic and survive a crash of the
+Rustrak process itself. What they do not survive is an operating-system crash or
+a power loss: the last few seconds of committed events can be rolled back,
+because the write-ahead log is not flushed to disk on every commit.
+
+That trade is deliberate. It removes one disk flush per commit from the digest
+path, and for a stream of error events losing the newest few is a far smaller
+cost than making every write wait on the disk.
+
+If your deployment cannot accept it, use PostgreSQL.
+
 ### Limitations
 
 - Single writer: not suitable for multi-instance deployments

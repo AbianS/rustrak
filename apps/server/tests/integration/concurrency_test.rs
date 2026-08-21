@@ -439,15 +439,11 @@ async fn test_high_concurrency_stress_test() {
 // Regression: SQLite file-mode under concurrent digest writes (#131)
 // =============================================================================
 
-/// Reproduces #131: with SQLite in **file mode** and `max_connections > 1`
-/// (the self-hosted production config), concurrent digest tasks must not fail
-/// with "database is locked" nor drop events. The in-memory test pool
-/// (`max_connections = 1`) hides this because it serializes all writes.
-///
-/// This drives the REAL production pool (`db::create_pool`, which already
-/// enables WAL + busy_timeout) so the test proves whether those alone are
-/// enough — they are not: the read-then-write digest transaction needs
-/// `BEGIN IMMEDIATE` to take the write lock upfront.
+/// Reproduces #131: with SQLite in file mode and `max_connections > 1`
+/// (the self-hosted production config), concurrent digests must not fail
+/// with "database is locked" nor drop events. Drives the real production
+/// pool — WAL + busy_timeout alone are not enough: the read-then-write
+/// digest needs `BEGIN IMMEDIATE`.
 #[cfg(feature = "sqlite")]
 #[actix_web::test]
 async fn test_concurrent_digests_sqlite_file_mode_no_lock_errors_or_loss() {
@@ -658,4 +654,681 @@ async fn test_concurrent_mixed_create_and_update() {
         "digest_order should be 1-5, got {:?}",
         digest_orders
     );
+}
+
+// =============================================================================
+// Regression: writer holding the lock past busy_timeout
+// =============================================================================
+
+/// A lock holder that outlasts `busy_timeout` starves every writer. The
+/// digest must retry the whole transaction instead of dropping the event;
+/// the timings force the first two attempts to fail so the post-release
+/// attempt can succeed.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
+    use std::str::FromStr;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let db_path = temp_dir.path().join("rustrak_lock_holder.db");
+
+    // 6 connections: 1 for the lock-holder task, 5 for the concurrent digests,
+    // so no digest waits at the pool level and every one of them hits the busy
+    // lock (the failure mode under test).
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))
+        .expect("valid sqlite url")
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_millis(200));
+    let pool = SqlitePoolOptions::new()
+        .max_connections(6)
+        .min_connections(1)
+        .connect_with(opts)
+        .await
+        .expect("Failed to create file-mode SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let project = create_test_project(&pool, "Lock Holder").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+    let rate_limit_config = Arc::new(create_rate_limit_config());
+    let pool = Arc::new(pool);
+
+    // A task that takes the write lock and holds it well past busy_timeout.
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = pool.clone();
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        // 450ms: past the second attempt's budget but well before the third
+        // attempt's, leaving a wide success window on loaded CI (700ms left
+        // only ~50ms and flaked).
+        tokio::time::sleep(Duration::from_millis(450)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+
+    // Wait for the holder to own the write lock before launching digests.
+    lock_held_rx.await.expect("holder must signal");
+
+    // 5 concurrent digests; all must survive via retry.
+    let num_events = 5;
+    let mut handles = Vec::new();
+    for i in 0..num_events {
+        let pool_clone = Arc::clone(&pool);
+        let ingest_dir_clone = ingest_dir.clone();
+        let rate_limit_config_clone = Arc::clone(&rate_limit_config);
+        let project_id = project.id;
+
+        let handle = tokio::spawn(async move {
+            let (event_id, event_json) =
+                create_unique_event_json(&format!("HoldError{}", i), &format!("Msg {}", i));
+            let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+            store_event(&ingest_dir_clone, &event_id, &event_bytes)
+                .await
+                .expect("Failed to store event");
+
+            let metadata = EventMetadata {
+                event_id,
+                project_id,
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+
+            process_error_event(
+                &pool_clone,
+                &metadata,
+                &ingest_dir_clone,
+                &rate_limit_config_clone,
+                crate::common::null_sourcemap_provider(),
+            )
+            .await
+        });
+        handles.push(handle);
+    }
+
+    let mut failures = Vec::new();
+    for handle in handles {
+        if let Err(e) = handle.await.expect("Task panicked") {
+            failures.push(format!("{:?}", e));
+        }
+    }
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        failures.is_empty(),
+        "Digests must retry past the busy timeout, not drop events. {} failed: {:#?}",
+        failures.len(),
+        failures
+    );
+
+    // All 5 events digested into 5 issues with sequential digest_order.
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(issues.len(), num_events, "no event may be dropped");
+    let digest_orders: HashSet<i32> = issues.iter().map(|i| i.digest_order).collect();
+    let expected: HashSet<i32> = (1..=num_events as i32).collect();
+    assert_eq!(
+        digest_orders, expected,
+        "digest_order must be 1-{num_events} with no gaps/duplicates"
+    );
+}
+
+/// Recovery after the holder releases: the digest must not give up while
+/// the lock is merely contended, and must commit exactly once.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
+    use std::str::FromStr;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let db_path = temp_dir.path().join("rustrak_lock_holder_mid.db");
+
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))
+        .expect("valid sqlite url")
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_millis(200));
+    let pool = SqlitePoolOptions::new()
+        .max_connections(2)
+        .min_connections(1)
+        .connect_with(opts)
+        .await
+        .expect("Failed to create file-mode SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let project = create_test_project(&pool, "Lock Holder Mid").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+    let rate_limit_config = Arc::new(create_rate_limit_config());
+    let pool = Arc::new(pool);
+
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = pool.clone();
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(Duration::from_millis(350)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+
+    lock_held_rx.await.expect("holder must signal");
+
+    let (event_id, event_json) = create_unique_event_json("HoldMidError", "Msg");
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(&ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+    process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("the digest must recover on its second attempt");
+
+    holder.await.expect("holder task panicked");
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), 1, "the event must be digested exactly once");
+    assert_eq!(issues[0].digest_order, 1);
+}
+
+/// The retry bound: a holder that outlasts every attempt's budget must
+/// fail the digest with the busy error (not loop forever) and leave no
+/// partial issue behind.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
+    use std::str::FromStr;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let db_path = temp_dir.path().join("rustrak_lock_holder_fail.db");
+
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))
+        .expect("valid sqlite url")
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_millis(200));
+    let pool = SqlitePoolOptions::new()
+        .max_connections(2)
+        .min_connections(1)
+        .connect_with(opts)
+        .await
+        .expect("Failed to create file-mode SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let project = create_test_project(&pool, "Lock Holder Fail").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+    let rate_limit_config = Arc::new(create_rate_limit_config());
+    let pool = Arc::new(pool);
+
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = pool.clone();
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+
+    lock_held_rx.await.expect("holder must signal");
+
+    // One digest whose three attempts (~750ms total) all land inside the
+    // 2000ms lock-hold: it must error out, not hang or loop forever.
+    let (event_id, event_json) = create_unique_event_json("HoldFailError", "Msg");
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(&ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+    let result = process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &rate_limit_config,
+        crate::common::null_sourcemap_provider(),
+    )
+    .await;
+
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        result.is_err(),
+        "exhausted retries must fail, not drop the event silently"
+    );
+
+    // The rolled-back transaction left no partial issue/grouping behind.
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert!(
+        issues.is_empty(),
+        "a failed digest must not leave partial rows"
+    );
+}
+
+/// The production shape: one shared `ErrorProcessor` driving many concurrent
+/// events — guards against deadlock/livelock; every digest must still land
+/// its issue exactly once.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_shared_processor_digests_concurrent_events() {
+    use rustrak::digest::processors::Processor;
+    use sqlx::sqlite::{
+        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+    };
+    use std::str::FromStr;
+    use std::time::Duration;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let db_path = temp_dir.path().join("rustrak_shared_processor.db");
+
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite://{}?mode=rwc", db_path.display()))
+        .expect("valid sqlite url")
+        .create_if_missing(true)
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(Duration::from_millis(200));
+    let pool = Arc::new(
+        SqlitePoolOptions::new()
+            .max_connections(10)
+            .min_connections(1)
+            .connect_with(opts)
+            .await
+            .expect("Failed to create file-mode SQLite pool"),
+    );
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    let project = create_test_project(&pool, "Shared Processor").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+    let rate_limit_config = Arc::new(create_rate_limit_config());
+
+    // One processor shared by every event — the production shape.
+    let processor = Arc::new(rustrak::digest::processors::ErrorProcessor::new(
+        ingest_dir.clone(),
+        (*rate_limit_config).clone(),
+        crate::common::null_sourcemap_provider(),
+    ));
+
+    let num_events = 10;
+    let mut handles = Vec::new();
+    for i in 0..num_events {
+        let pool = pool.clone();
+        let ingest_dir = ingest_dir.clone();
+        let processor = processor.clone();
+        let project_id = project.id;
+
+        let handle = tokio::spawn(async move {
+            let (event_id, event_json) =
+                create_unique_event_json(&format!("Shared{}", i), &format!("Msg {}", i));
+            let event_bytes = serde_json::to_vec(&event_json).unwrap();
+            store_event(&ingest_dir, &event_id, &event_bytes)
+                .await
+                .expect("Failed to store event");
+            let metadata = EventMetadata {
+                event_id,
+                project_id,
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+            let ctx = rustrak::digest::processors::ProcessorCtx {
+                pool: (*pool).clone(),
+                project_id,
+                event_id: Uuid::parse_str(&metadata.event_id).unwrap_or_else(|_| Uuid::nil()),
+                ingested_at: metadata.ingested_at,
+                remote_addr: metadata.remote_addr.clone(),
+            };
+            processor.process(metadata, &ctx).await
+        });
+        handles.push(handle);
+    }
+
+    let mut failures = Vec::new();
+    for handle in handles {
+        if let Err(e) = handle.await.expect("Task panicked") {
+            failures.push(format!("{:?}", e));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "a shared processor must digest all events without deadlock: {failures:#?}"
+    );
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), num_events, "no event may be dropped");
+    let digest_orders: HashSet<i32> = issues.iter().map(|i| i.digest_order).collect();
+    let expected: HashSet<i32> = (1..=num_events as i32).collect();
+    assert_eq!(
+        digest_orders, expected,
+        "digest_order must be 1-{num_events} with no gaps/duplicates"
+    );
+}
+
+// =============================================================================
+// Regression: the shipped SQLite pool settings
+// =============================================================================
+
+/// Builds a pool through the production path (`db::create_pool`), so the test
+/// pins the settings the server actually ships rather than its own overrides.
+#[cfg(feature = "sqlite")]
+async fn production_pool(db_path: &std::path::Path, max_connections: u32) -> rustrak::db::DbPool {
+    let config = rustrak::config::DatabaseConfig {
+        url: format!("sqlite://{}?mode=rwc", db_path.display()),
+        max_connections,
+        min_connections: 1,
+        acquire_timeout: std::time::Duration::from_secs(5),
+        idle_timeout: std::time::Duration::from_secs(600),
+        max_lifetime: std::time::Duration::from_secs(1800),
+    };
+    let pool = rustrak::db::create_pool(&config)
+        .await
+        .expect("Failed to create production SQLite pool");
+    rustrak::db::run_migrations(&pool)
+        .await
+        .expect("Failed to run migrations");
+    pool
+}
+
+/// The digest retry loop covers the digest only. Every other writer —
+/// sourcemap assembly, the storage purge, bulk issue updates, alert rules,
+/// the transaction/span/log processors — has a single shot at the write
+/// lock, so the shipped `busy_timeout` is their entire tolerance. A holder
+/// that outlasts it turns an ordinary write into a 500, and there is no
+/// retry to heal it.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_non_digest_write_survives_a_lock_holder_the_digest_survives() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_plain_write.db"), 5).await);
+    let project = create_test_project(&pool, "Plain Write").await;
+
+    // 3s sits between the two values this test has to tell apart: far above
+    // any sub-second busy_timeout (500ms already failed this write), and far
+    // below the 5s the server ships, leaving ~2s of slack against a measured
+    // jitter of tens of milliseconds. Shortening it would let a regression
+    // that halves the timeout slip through.
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = Arc::clone(&pool);
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+    lock_held_rx.await.expect("holder must signal");
+
+    let result = sqlx::query(
+        "UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1",
+    )
+    .bind(project.id)
+    .execute(pool.as_ref())
+    .await;
+
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        result.is_ok(),
+        "an ordinary write must wait out a lock holder, not fail with \
+         \"database is locked\": {:?}",
+        result.err()
+    );
+}
+
+/// One slow write must not take the queued digests down with it. Serializing
+/// digests behind an app-level slot with its own deadline turns a single slow
+/// holder into a mass drop: every digest that cannot reach the front of the
+/// queue before its own budget expires is discarded, even though the database
+/// was available the whole time. The digest's tolerance for a holder must come
+/// from the write lock it is actually waiting on.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_a_slow_write_does_not_drop_queued_digests() {
+    use rustrak::digest::processors::{ErrorProcessor, Processor, ProcessorCtx};
+
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_queued.db"), 8).await);
+    let project = create_test_project(&pool, "Queued Digests").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    // One processor shared by every event: the production shape.
+    let processor = Arc::new(ErrorProcessor::new(
+        ingest_dir.clone(),
+        create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    ));
+
+    // 4s: longer than any app-level queueing deadline would tolerate, but well
+    // inside the write lock's own wait. Every digest must still land.
+    let (lock_held_tx, lock_held_rx) = tokio::sync::oneshot::channel();
+    let holder_pool = Arc::clone(&pool);
+    let holder = tokio::spawn(async move {
+        let tx = rustrak::db::begin_write(&holder_pool)
+            .await
+            .expect("holder must take the write lock");
+        let _ = lock_held_tx.send(());
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        tx.commit().await.expect("holder commit must succeed");
+    });
+    lock_held_rx.await.expect("holder must signal");
+
+    let num_events = 5;
+    let mut handles = Vec::new();
+    for i in 0..num_events {
+        let pool = Arc::clone(&pool);
+        let ingest_dir = ingest_dir.clone();
+        let processor = Arc::clone(&processor);
+        let project_id = project.id;
+
+        handles.push(tokio::spawn(async move {
+            let (event_id, event_json) =
+                create_unique_event_json(&format!("Queued{}", i), &format!("Msg {}", i));
+            let event_bytes = serde_json::to_vec(&event_json).unwrap();
+            store_event(&ingest_dir, &event_id, &event_bytes)
+                .await
+                .expect("Failed to store event");
+            let metadata = EventMetadata {
+                event_id,
+                project_id,
+                ingested_at: Utc::now(),
+                remote_addr: None,
+            };
+            let ctx = ProcessorCtx {
+                pool: (*pool).clone(),
+                project_id,
+                event_id: Uuid::parse_str(&metadata.event_id).unwrap_or_else(|_| Uuid::nil()),
+                ingested_at: metadata.ingested_at,
+                remote_addr: metadata.remote_addr.clone(),
+            };
+            processor.process(metadata, &ctx).await
+        }));
+    }
+
+    let mut failures = Vec::new();
+    for handle in handles {
+        if let Err(e) = handle.await.expect("Task panicked") {
+            failures.push(format!("{:?}", e));
+        }
+    }
+    holder.await.expect("holder task panicked");
+
+    assert!(
+        failures.is_empty(),
+        "queueing behind one slow write must not drop digests. {} of {} failed: {:#?}",
+        failures.len(),
+        num_events,
+        failures
+    );
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), num_events, "no event may be dropped");
+}
+
+/// A digest is one write or none. The issue row, its counters and the event
+/// row have to land together: if the event cannot be written, an issue whose
+/// `stored_event_count` already claims it must not survive. Otherwise the
+/// counters describe an event nobody can open, and nothing ever repairs them
+/// because `process()` deletes the temp file on failure.
+///
+/// The failure is injected with a trigger rather than timed, so the test
+/// pins the invariant instead of a race window.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_a_digest_that_cannot_store_its_event_leaves_no_issue_behind() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_atomic.db"), 5).await);
+    let project = create_test_project(&pool, "Atomic Digest").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    sqlx::query(
+        "CREATE TRIGGER reject_event_insert BEFORE INSERT ON events \
+         BEGIN SELECT RAISE(ABORT, 'injected: event store unavailable'); END",
+    )
+    .execute(pool.as_ref())
+    .await
+    .expect("Failed to install the fault-injection trigger");
+
+    let (event_id, event_json) = create_unique_event_json("AtomicError", "Msg");
+    let event_bytes = serde_json::to_vec(&event_json).unwrap();
+    store_event(&ingest_dir, &event_id, &event_bytes)
+        .await
+        .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    let result = process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await;
+
+    assert!(
+        result.is_err(),
+        "a digest that cannot store its event must fail"
+    );
+
+    let (issues, _) = IssueService::list_paginated(
+        &pool,
+        project.id,
+        IssueSort::DigestOrder,
+        SortOrder::Asc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert!(
+        issues.is_empty(),
+        "the issue must roll back with the event, not survive counting an \
+         event that was never stored: {:?}",
+        issues
+            .iter()
+            .map(|i| (i.digest_order, i.stored_event_count))
+            .collect::<Vec<_>>()
+    );
+
+    let groupings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM groupings WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(pool.as_ref())
+        .await
+        .expect("Failed to count groupings");
+    assert_eq!(groupings, 0, "the grouping must roll back with the issue");
 }

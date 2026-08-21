@@ -1331,7 +1331,9 @@ impl IssueService {
 
         #[cfg(feature = "sqlite")]
         {
-            let mut tx = pool.begin().await?;
+            // BEGIN IMMEDIATE: this tx reads counters before it writes, so a
+            // deferred BEGIN could hit SQLITE_BUSY_SNAPSHOT on the upgrade.
+            let mut tx = crate::db::begin_write(pool).await?;
 
             let row = sqlx::query_as::<_, (i32, i32, i32)>(
                 "SELECT project_id, stored_event_count, digested_event_count FROM issues WHERE id = $1",
