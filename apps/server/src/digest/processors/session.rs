@@ -38,6 +38,7 @@ impl Processor for SessionProcessor {
                     agg.ingest_aggregates(ctx.project_id, &aggregates).await;
                 }
             }
+            agg.flush().await?;
         }
         Ok(())
     }

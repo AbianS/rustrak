@@ -6,6 +6,7 @@ use chrono::{DateTime, NaiveDate, Timelike, Utc};
 use tokio::sync::Mutex;
 
 use crate::db::DbPool;
+use crate::error::AppResult;
 use crate::models::session::{
     classify, parse_ts, SessionAggregateItem, SessionAggregates, SessionOutcome, SessionStatus,
     SessionUpdate,
@@ -63,8 +64,8 @@ impl SessionAggregatorHandle {
     }
 
     /// Flush all in-memory state to DB.  Called on shutdown.
-    pub async fn flush(&self) {
-        self.0.flush().await;
+    pub async fn flush(&self) -> AppResult<()> {
+        self.0.flush().await
     }
 }
 
@@ -205,7 +206,7 @@ impl SessionAggregator {
     }
 
     /// Flush all in-memory counters to the DB via batched UPSERT.
-    pub async fn flush(&self) {
+    pub async fn flush(&self) -> AppResult<()> {
         let (counts, users) = {
             let mut state = self.state.lock().await;
             let counts = std::mem::take(&mut state.counts);
@@ -214,22 +215,39 @@ impl SessionAggregator {
         };
 
         if counts.is_empty() && users.is_empty() {
-            return;
+            return Ok(());
         }
 
-        for (key, c) in &counts {
-            if let Err(e) = self.upsert_count(key, c).await {
-                log::error!("session_aggregator: flush_counts error: {:?}", e);
+        let result = async {
+            let mut tx = self.pool.begin().await?;
+            for (key, c) in &counts {
+                self.upsert_count(key, c, &mut *tx).await?;
             }
-        }
-        for (key, &crashed) in &users {
-            if let Err(e) = self.upsert_user(key, crashed).await {
-                log::error!("session_aggregator: flush_users error: {:?}", e);
+            for (key, &crashed) in &users {
+                self.upsert_user(key, crashed, &mut *tx).await?;
             }
+            tx.commit().await
         }
+        .await;
+
+        if let Err(error) = result {
+            let mut state = self.state.lock().await;
+            merge_state(&mut state, counts, users);
+            return Err(error.into());
+        }
+
+        Ok(())
     }
 
-    async fn upsert_count(&self, key: &BucketKey, c: &Counters) -> Result<(), sqlx::Error> {
+    async fn upsert_count<'e, E>(
+        &self,
+        key: &BucketKey,
+        c: &Counters,
+        executor: E,
+    ) -> Result<(), sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = crate::db::Db>,
+    {
         #[cfg(feature = "postgres")]
         sqlx::query(
             r#"
@@ -251,7 +269,7 @@ impl SessionAggregator {
         .bind(c.errored)
         .bind(c.crashed)
         .bind(c.abnormal)
-        .execute(&self.pool)
+        .execute(executor)
         .await?;
 
         #[cfg(not(feature = "postgres"))]
@@ -275,13 +293,21 @@ impl SessionAggregator {
         .bind(c.errored)
         .bind(c.crashed)
         .bind(c.abnormal)
-        .execute(&self.pool)
+        .execute(executor)
         .await?;
 
         Ok(())
     }
 
-    async fn upsert_user(&self, key: &UserKey, crashed: bool) -> Result<(), sqlx::Error> {
+    async fn upsert_user<'e, E>(
+        &self,
+        key: &UserKey,
+        crashed: bool,
+        executor: E,
+    ) -> Result<(), sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = crate::db::Db>,
+    {
         #[cfg(feature = "postgres")]
         sqlx::query(
             r#"
@@ -297,7 +323,7 @@ impl SessionAggregator {
         .bind(key.day)
         .bind(&key.did)
         .bind(crashed)
-        .execute(&self.pool)
+        .execute(executor)
         .await?;
 
         #[cfg(not(feature = "postgres"))]
@@ -315,7 +341,7 @@ impl SessionAggregator {
         .bind(key.day.to_string())
         .bind(&key.did)
         .bind(if crashed { 1i64 } else { 0i64 })
-        .execute(&self.pool)
+        .execute(executor)
         .await?;
 
         Ok(())
@@ -329,8 +355,31 @@ impl SessionAggregator {
         interval.tick().await; // consume the immediate first tick
         loop {
             interval.tick().await;
-            handle.0.flush().await;
+            if let Err(e) = handle.0.flush().await {
+                log::error!("session_aggregator: flush error: {:?}", e);
+            }
         }
+    }
+}
+
+fn merge_state(
+    state: &mut AggregatorState,
+    counts: HashMap<BucketKey, Counters>,
+    users: HashMap<UserKey, bool>,
+) {
+    for (key, counters) in counts {
+        let current = state.counts.entry(key).or_default();
+        current.total += counters.total;
+        current.errored += counters.errored;
+        current.crashed += counters.crashed;
+        current.abnormal += counters.abnormal;
+    }
+    for (key, crashed) in users {
+        state
+            .users
+            .entry(key)
+            .and_modify(|current| *current |= crashed)
+            .or_insert(crashed);
     }
 }
 
@@ -603,5 +652,45 @@ mod tests {
         state.counts.insert(key, Counters::default());
         let result = apply_cardinality_cap(&state, 1, "v1.0.0".to_string(), 1);
         assert_eq!(result, "v1.0.0");
+    }
+
+    #[test]
+    fn failed_flush_merges_counts_and_crash_flags_back_into_state() {
+        let key = BucketKey {
+            project_id: 1,
+            release: "v1".to_string(),
+            environment: "prod".to_string(),
+            bucket: Utc::now(),
+        };
+        let user = UserKey {
+            project_id: 1,
+            release: "v1".to_string(),
+            environment: "prod".to_string(),
+            day: key.bucket.date_naive(),
+            did: "did".to_string(),
+        };
+        let mut state = AggregatorState {
+            counts: HashMap::from([(
+                key.clone(),
+                Counters {
+                    total: 1,
+                    ..Default::default()
+                },
+            )]),
+            users: HashMap::from([(user.clone(), false)]),
+        };
+        merge_state(
+            &mut state,
+            HashMap::from([(
+                key.clone(),
+                Counters {
+                    total: 2,
+                    ..Default::default()
+                },
+            )]),
+            HashMap::from([(user.clone(), true)]),
+        );
+        assert_eq!(state.counts[&key].total, 3);
+        assert!(state.users[&user]);
     }
 }

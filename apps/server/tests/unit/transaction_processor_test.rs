@@ -673,7 +673,7 @@ mod level2 {
             .process(SessionItem::Update(update), &ctx)
             .await
             .unwrap();
-        handle.flush().await;
+        handle.flush().await.unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT COUNT(*) FROM session_counts WHERE project_id = $1";
