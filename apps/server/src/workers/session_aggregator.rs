@@ -218,6 +218,7 @@ impl SessionAggregator {
             return Ok(());
         }
 
+        let mut commit_started = false;
         let result = async {
             let mut tx = self.pool.begin().await?;
             for (key, c) in &counts {
@@ -226,13 +227,20 @@ impl SessionAggregator {
             for (key, &crashed) in &users {
                 self.upsert_user(key, crashed, &mut *tx).await?;
             }
+            commit_started = true;
             tx.commit().await
         }
         .await;
 
         if let Err(error) = result {
-            let mut state = self.state.lock().await;
-            merge_state(&mut state, counts, users);
+            if !commit_started {
+                let mut state = self.state.lock().await;
+                merge_state(&mut state, counts, users);
+            } else {
+                log::error!(
+                    "session_aggregator: commit outcome unknown; counters will not be replayed"
+                );
+            }
             return Err(error.into());
         }
 
