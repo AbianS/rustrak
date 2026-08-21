@@ -149,7 +149,7 @@ pub async fn ingest_envelope(
         }
     }
 
-    // 5. Resolve event_id — only required when there is an event item.
+    // 5. Resolve event_id — only required for event-bearing item types.
     //    If the SDK omitted it, derive it from the durable delivery identity.
     //    For session-only envelopes, pass through whatever the SDK provided (may be None).
     let event_id = resolve_event_id(envelope.headers.event_id, delivery_id, requires_event_id);
