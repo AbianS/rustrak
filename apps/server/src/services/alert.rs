@@ -923,7 +923,7 @@ impl AlertService {
 }
 
 fn retry_delay(attempt_count: i32, history_id: i64) -> i64 {
-    let exponent = attempt_count.saturating_sub(1).min(6) as u32;
+    let exponent = attempt_count.saturating_sub(1).clamp(0, 6) as u32;
     let base = 60 * 2_i64.pow(exponent);
     let jitter = history_id.rem_euclid(30);
     std::cmp::min(base + jitter, 3600)
@@ -976,6 +976,7 @@ mod tests {
     fn retry_delay_is_bounded_for_large_attempt_counts() {
         assert_eq!(retry_delay(1, 0), 60);
         assert_eq!(retry_delay(1, 29), 89);
+        assert_eq!(retry_delay(-1, 0), 60);
         assert_eq!(retry_delay(i32::MAX, i64::MAX), 3600);
     }
 }
