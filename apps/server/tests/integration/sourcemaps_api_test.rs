@@ -876,6 +876,94 @@ async fn test_assemble_wait_poll_returns_ok_after_chunks_uploaded() {
     );
 }
 
+/// After a successful assembly the worker deletes the chunk rows. A later
+/// assemble poll (sentry-cli `--wait`) must still return the job's state —
+/// reporting the consumed chunks as missing sends the client into an
+/// infinite poll loop.
+#[actix_web::test]
+async fn test_assemble_poll_returns_ok_after_worker_deleted_chunks() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+
+    let project = ProjectService::create(
+        &db.pool,
+        CreateProject {
+            name: "assemble-poll-chunks-gone".to_string(),
+            slug: Some("assemble-poll-chunks-gone".to_string()),
+            platform: None,
+        },
+    )
+    .await
+    .expect("project creation must succeed");
+
+    let config = create_test_config();
+    let (provider, config_data) = sourcemap_app_data(&db.pool, &config);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(config_data)
+            .app_data(web::Data::new(Arc::clone(&provider)))
+            .configure(routes::sourcemaps::configure),
+    )
+    .await;
+
+    let bundle = build_test_artifact_bundle();
+    let chunk_sha1 = sha1_hex(&bundle);
+    let bundle_checksum = sha1_hex(&bundle);
+    let auth = format!("Bearer {}", token);
+
+    rustrak::services::sourcemap::store_chunks(
+        &db.pool,
+        vec![(chunk_sha1.clone(), bundle.clone())],
+        config.max_chunk_size_bytes,
+    )
+    .await
+    .expect("store_chunks must succeed");
+
+    let assemble_body = serde_json::json!({
+        "checksum": bundle_checksum,
+        "chunks": [chunk_sha1],
+        "projects": [project.slug]
+    });
+
+    let created_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", auth.clone()))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(&assemble_body)
+        .to_request();
+    let created_resp = test::call_service(&app, created_req).await;
+    assert_eq!(created_resp.status(), 200);
+    let created_body: Value = test::read_body_json(created_resp).await;
+    assert_eq!(created_body["state"], "created");
+
+    // Simulate the assembly worker completing: job goes ok AND the consumed
+    // chunk rows are deleted (assemble_bundle step 8).
+    set_assembly_job_state(&db.pool, &bundle_checksum, project.id, "ok").await;
+    sqlx::query("DELETE FROM chunk WHERE checksum = $1")
+        .bind(&chunk_sha1)
+        .execute(&db.pool)
+        .await
+        .expect("chunk delete must succeed");
+
+    let poll_req = test::TestRequest::post()
+        .uri("/api/0/organizations/my-org/artifactbundle/assemble/")
+        .insert_header(("Authorization", auth))
+        .insert_header(("Content-Type", "application/json"))
+        .set_json(&assemble_body)
+        .to_request();
+    let poll_resp = test::call_service(&app, poll_req).await;
+    assert_eq!(poll_resp.status(), 200);
+    let poll_body: Value = test::read_body_json(poll_resp).await;
+    assert_eq!(
+        poll_body["state"], "ok",
+        "poll after worker completion must return the job state, not re-request \
+         the deleted chunks; got: {}",
+        poll_body
+    );
+}
+
 #[actix_web::test]
 async fn test_assemble_idempotent_same_bundle_twice() {
     let db = TestDb::new().await;
