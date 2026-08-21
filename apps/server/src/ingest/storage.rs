@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ use crate::ingest::EventMetadata;
 /// Default base directory for pending events
 const DEFAULT_INGEST_DIR: &str = "/tmp/rustrak/ingest";
 const PENDING_EVENT_VERSION: u8 = 1;
+const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventStorageLocation {
@@ -346,6 +348,13 @@ fn is_orphaned_temporary_file(file_name: &str) -> bool {
 }
 
 async fn cleanup_orphaned_temporary_files(base_dir: &Path) -> AppResult<()> {
+    cleanup_orphaned_temporary_files_with_grace(base_dir, ORPHANED_TEMPORARY_FILE_GRACE).await
+}
+
+async fn cleanup_orphaned_temporary_files_with_grace(
+    base_dir: &Path,
+    grace: Duration,
+) -> AppResult<()> {
     let mut entries = match fs::read_dir(base_dir).await {
         Ok(entries) => entries,
         Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -366,6 +375,12 @@ async fn cleanup_orphaned_temporary_files(base_dir: &Path) -> AppResult<()> {
             .file_name()
             .and_then(|name| name.to_str())
             .is_some_and(is_orphaned_temporary_file)
+            && fs::metadata(&path)
+                .await
+                .ok()
+                .and_then(|metadata| metadata.modified().ok())
+                .and_then(|modified| modified.elapsed().ok())
+                .is_some_and(|age| age >= grace)
         {
             match fs::remove_file(&path).await {
                 Ok(()) => log::debug!("Removed orphaned ingest temp file {:?}", path),
@@ -633,11 +648,21 @@ mod tests {
         let orphan = dir.path().join(".project-7-event.pending.json.tmp-crash");
         fs::write(&orphan, b"partial").await.unwrap();
 
-        assert!(list_pending_event_metadata(dir.path())
+        cleanup_orphaned_temporary_files_with_grace(dir.path(), Duration::ZERO)
             .await
-            .unwrap()
-            .is_empty());
+            .unwrap();
         assert!(!fs::try_exists(orphan).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn active_atomic_write_temp_files_are_retained() {
+        let dir = tempfile::tempdir().unwrap();
+        let active = dir.path().join(".project-7-event.pending.json.tmp-active");
+        fs::write(&active, b"partial").await.unwrap();
+
+        list_pending_event_metadata(dir.path()).await.unwrap();
+
+        assert!(fs::try_exists(active).await.unwrap());
     }
 
     #[tokio::test]
