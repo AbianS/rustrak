@@ -176,7 +176,9 @@ impl SpanProcessor {
                 $26, $27, $28, $29, $30
             )
             ON CONFLICT (project_id, trace_id, span_id)
-                WHERE transaction_id IS NULL DO NOTHING
+                WHERE transaction_id IS NULL
+                  AND trace_id IS NOT NULL
+                  AND span_id IS NOT NULL DO NOTHING
             "#,
             )
             .bind(Uuid::new_v4())
