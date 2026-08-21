@@ -409,10 +409,7 @@ async fn assemble_bundle_inner(
     let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
         .map_err(|e| AppError::Validation(format!("invalid manifest.json: {}", e)))?;
 
-    let files = match manifest.get("files").and_then(|f| f.as_object()) {
-        Some(f) => f.clone(),
-        None => return Ok(()), // no files to process
-    };
+    let files = manifest_files(&manifest);
 
     // --- Steps 7+8: process each file entry, then delete chunks ---
     // We run in a transaction for the DB writes; store writes are outside (idempotent CAS).
@@ -635,6 +632,14 @@ async fn assemble_bundle_inner(
     tx.commit().await?;
 
     Ok(())
+}
+
+fn manifest_files(manifest: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    manifest
+        .get("files")
+        .and_then(|files| files.as_object())
+        .cloned()
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,5 +1031,11 @@ mod tests {
             matches!(decoded, sourcemap::DecodedMap::Hermes(_)),
             "DecodedMap must detect Hermes from x_facebook_sources"
         );
+    }
+
+    #[test]
+    fn invalid_manifest_files_are_treated_as_empty() {
+        assert!(manifest_files(&serde_json::json!({})).is_empty());
+        assert!(manifest_files(&serde_json::json!({"files": []})).is_empty());
     }
 }
