@@ -13,7 +13,7 @@ impl Processor for TransactionProcessor {
     /// Does NOT create an issue, grouping, or source-map rewrite.
     async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
         // Reject malformed payloads instead of persisting a null-data row.
-        // The caller (ingest spawn) logs the error and discards — envelope still 200.
+        // The ingest route propagates this error so the SDK can retry the envelope.
         let data: serde_json::Value = serde_json::from_slice(&work)
             .map_err(|e| AppError::Validation(format!("Invalid transaction JSON: {}", e)))?;
 

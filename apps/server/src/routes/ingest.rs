@@ -93,32 +93,23 @@ pub async fn ingest_envelope(
             }
             EnvelopeItemKind::Session(s) => {
                 let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors
+                processors
                     .sessions
                     .process(SessionItem::Update(s), &ctx)
-                    .await
-                {
-                    log::warn!("session item processing failed: {:?}", e);
-                }
+                    .await?;
             }
             EnvelopeItemKind::Sessions(s) => {
                 let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors
+                processors
                     .sessions
                     .process(SessionItem::Aggregates(s), &ctx)
-                    .await
-                {
-                    log::warn!("sessions item processing failed: {:?}", e);
-                }
+                    .await?;
             }
             EnvelopeItemKind::Log(payload) => {
                 // Logs are processed inline (parse container + store): the work is
-                // bounded and storing before responding keeps the batch durable —
-                // a spawned task could lose logs on shutdown. Mirrors sessions.
+                // bounded and storing before responding keeps the batch durable.
                 let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors.logs.process(payload, &ctx).await {
-                    log::warn!("log item processing failed: {:?}", e);
-                }
+                processors.logs.process(payload, &ctx).await?;
             }
             EnvelopeItemKind::Span(payload) => {
                 // Unlike Event/Transaction, an envelope may carry many standalone
@@ -153,85 +144,53 @@ pub async fn ingest_envelope(
         envelope.headers.event_id.clone()
     };
 
-    // 6. Spawn transaction processing (direct, bypasses filesystem and digest worker).
-    //    Must happen BEFORE the early-return so transaction-only envelopes are stored.
+    // Persist direct items before the early return; otherwise 200 could suppress
+    // an SDK retry for data that was never stored.
     if let Some(txn_payload) = transaction_item {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
         let event_id_txn = event_id
             .clone()
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let parsed_id =
-                uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: parsed_id,
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            if let Err(e) = processors.transactions.process(txn_payload, &ctx).await {
-                log::error!("Failed to store transaction {}: {:?}", event_id_txn, e);
-            }
-        });
+        let parsed_id =
+            uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: parsed_id,
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        processors.transactions.process(txn_payload, &ctx).await?;
     }
 
-    // 6b. Spawn standalone span processing (direct, bypasses filesystem and
-    //     digest worker) — same rationale as transactions: no grouping/issue
-    //     concept, so no need for the durable temp-file path. Must happen
-    //     BEFORE the early-return so span-only envelopes are stored.
+    // Persist standalone spans inline; they have no grouping or issue path.
     if !span_items.is_empty() {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: uuid::Uuid::nil(),
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            for span_payload in span_items {
-                if let Err(e) = processors.spans.process(span_payload, &ctx).await {
-                    log::warn!("Failed to store standalone span: {:?}", e);
-                }
-            }
-        });
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: uuid::Uuid::nil(),
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        for span_payload in span_items {
+            processors.spans.process(span_payload, &ctx).await?;
+        }
     }
 
-    // 6c. Spawn Spans Protocol v2 batch processing — same rationale as 6b,
-    //     just a different (batched, typed-attribute) wire format. Must
-    //     happen BEFORE the early-return so v2-span-only envelopes are stored.
+    // Persist v2 span batches inline for the same reason.
     if !span_v2_items.is_empty() {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: uuid::Uuid::nil(),
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            for batch_payload in span_v2_items {
-                if let Err(e) = processors.spans_v2.process(batch_payload, &ctx).await {
-                    log::warn!("Failed to store span v2 batch: {:?}", e);
-                }
-            }
-        });
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: uuid::Uuid::nil(),
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        for batch_payload in span_v2_items {
+            processors.spans_v2.process(batch_payload, &ctx).await?;
+        }
     }
 
-    // 7. Early return for session-only (and other non-event) envelopes.
+    // Return for session-only and other non-event envelopes.
     let event_item = match event_item {
         Some(item) => item,
         None => {
@@ -240,15 +199,12 @@ pub async fn ingest_envelope(
         }
     };
 
-    // event_id is guaranteed Some from this point: event_item.is_some() was true above.
     let event_id = event_id.expect("event_id is Some when event_item is Some");
 
-    // 6. Validate that payload is valid JSON
     let _: serde_json::Value = serde_json::from_slice(&event_item)
         .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
 
-    // 7. Create metadata and store it beside the raw event so a failed digest
-    // can be recovered after the process restarts.
+    // Store metadata beside the raw event so a failed digest can be recovered.
     let metadata = EventMetadata {
         event_id: event_id.clone(),
         project_id: auth.project.id,
@@ -257,8 +213,7 @@ pub async fn ingest_envelope(
     };
     store_event_with_metadata(&ingest_dir, &event_id, &event_item, &metadata).await?;
 
-    // 8. Spawn digest task — the ErrorProcessor reads the temp file and runs
-    //    grouping/issue creation. It owns ingest_dir/rate_limit/sourcemap deps.
+    // The digest worker owns grouping, issue creation, and its durable retry path.
     let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
     tokio::spawn(async move {
@@ -296,7 +251,6 @@ pub async fn ingest_envelope(
         }
     });
 
-    // 9. Return immediately (CORS handled by middleware)
     Ok(HttpResponse::Ok().json(IngestResponse { id: Some(event_id) }))
 }
 
@@ -314,8 +268,7 @@ pub async fn recover_pending_events(
     }
 }
 
-/// Performs one bounded recovery scan; kept separate so startup workers and
-/// tests can exercise exactly one replay pass.
+/// Performs one bounded recovery scan.
 pub async fn recover_pending_events_once(
     pool: DbPool,
     processors: web::Data<Processors>,

@@ -40,7 +40,7 @@ impl ErrorProcessor {
         }
     }
 
-    /// The digest pipeline body. Retryable contention leaves the durable event queued.
+    /// Runs the digest pipeline; retryable contention leaves the durable event queued.
     async fn process_impl(&self, metadata: &EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
         let pool = &ctx.pool;
         let _digested_at = Utc::now();
