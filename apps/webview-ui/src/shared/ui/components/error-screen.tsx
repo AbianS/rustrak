@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
-import { APP_VERSION } from '@/shared/config/constants';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 
 /**
@@ -43,7 +42,7 @@ export function ErrorScreen({
   brandDescription?: string;
   /** What the reader can do, when there is anything useful to say. */
   guidance?: string | null;
-  /** Monospace footnote: an error id, a version, anything diagnostic. */
+  /** Monospace footnote: an error id, anything diagnostic. */
   detail?: ReactNode;
   /** Buttons. */
   actions?: ReactNode;
@@ -76,8 +75,11 @@ export function ErrorScreen({
           </p>
         </div>
 
-        <div className="relative z-20 flex justify-between items-end text-xs text-muted-foreground font-mono">
-          <p>v{APP_VERSION}</p>
+        {/* No version here either, and for a sharper reason than on the
+            login: a 404 is the one page an unauthenticated stranger can reach
+            on any path they like, so a number printed here is a number handed
+            to anyone who types a wrong URL. */}
+        <div className="relative z-20 flex items-end text-xs text-muted-foreground font-mono">
           <p>&copy; {new Date().getFullYear()} Rustrak</p>
         </div>
       </div>

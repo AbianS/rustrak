@@ -5,6 +5,7 @@
 use crate::common::TestDb;
 use actix_web::{test, web, App};
 use rustrak::routes;
+use rustrak::services::AuthTokenService;
 use serde_json::Value;
 
 // =============================================================================
@@ -212,4 +213,66 @@ async fn test_readiness_post_returns_error() {
     let resp = test::call_service(&app, req).await;
     // Actix-web returns 404 when no route matches the method
     assert!(resp.status().is_client_error());
+}
+
+// =============================================================================
+// Version Endpoint Tests
+// =============================================================================
+
+#[actix_web::test]
+async fn test_version_requires_authentication() {
+    let db = TestDb::new().await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .service(
+                web::scope("/health").route("/version", web::get().to(routes::health::version)),
+            ),
+    )
+    .await;
+
+    // No session cookie and no Bearer token: an anonymous caller.
+    let req = test::TestRequest::get().uri("/health/version").to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(
+        resp.status(),
+        401,
+        "the running version must not be readable by an anonymous caller"
+    );
+}
+
+#[actix_web::test]
+async fn test_version_returns_version_to_an_authenticated_caller() {
+    let db = TestDb::new().await;
+    let token = AuthTokenService::create(
+        &db.pool,
+        rustrak::models::CreateAuthToken {
+            description: Some("Version test token".to_string()),
+        },
+    )
+    .await
+    .expect("Failed to create test token")
+    .token;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .service(
+                web::scope("/health").route("/version", web::get().to(routes::health::version)),
+            ),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri("/health/version")
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
 }
