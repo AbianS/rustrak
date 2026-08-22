@@ -1,6 +1,9 @@
 import { projectFiles } from 'archunit';
 import { describe, expect, it } from 'vitest';
 import en from '../../shared/i18n/messages/en.json';
+import es from '../../shared/i18n/messages/es.json';
+import fr from '../../shared/i18n/messages/fr.json';
+import ro from '../../shared/i18n/messages/ro.json';
 import zh from '../../shared/i18n/messages/zh.json';
 import { isTestFile, withoutComments } from './predicates';
 
@@ -101,16 +104,30 @@ const callsOf = (binding: string) =>
 const DICTIONARY_ENTRY =
   /'[a-z][a-zA-Z]*(?:\.[a-zA-Z]+)+'\s*:\s*\n?\s*'[^']*(?:\s[^']+|[.!?])'/;
 
-describe('message dictionaries stay resolvable', () => {
-  it('en and zh expose exactly the same keys', () => {
-    const enKeys = leafKeys(en as Messages);
-    const zhKeys = leafKeys(zh as Messages);
-    const missingInZh = enKeys.filter((key) => !zhKeys.includes(key));
-    const extraInZh = zhKeys.filter((key) => !enKeys.includes(key));
+/**
+ * Every locale held to the same rule as `en`. Adding a locale means adding it
+ * here; a dictionary that drifts from `en` fails the build, so a missing key
+ * can never reach next-intl and render as its own key name.
+ */
+const OTHER_LOCALES: readonly (readonly [string, Messages])[] = [
+  ['zh', zh],
+  ['fr', fr],
+  ['es', es],
+  ['ro', ro],
+];
 
-    expect(missingInZh).toEqual([]);
-    expect(extraInZh).toEqual([]);
-    // A floor, not just an empty comparison: 1000+ keys across two locales
+describe('message dictionaries stay resolvable', () => {
+  it('every locale exposes exactly the same keys as en', () => {
+    const enKeys = leafKeys(en as Messages);
+    for (const [locale, dictionary] of OTHER_LOCALES) {
+      const keys = leafKeys(dictionary);
+      const missing = enKeys.filter((key) => !keys.includes(key));
+      const extra = keys.filter((key) => !enKeys.includes(key));
+
+      expect(missing, `${locale} is missing keys`).toEqual([]);
+      expect(extra, `${locale} has extra keys`).toEqual([]);
+    }
+    // A floor, not just an empty comparison: 1000+ keys across five locales
     // after the i18n phase, so a glob that stopped matching would fail here
     // rather than pass silently.
     expect(enKeys.length).toBeGreaterThanOrEqual(1000);
