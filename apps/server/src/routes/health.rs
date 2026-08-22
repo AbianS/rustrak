@@ -1,6 +1,7 @@
 use actix_web::{http::StatusCode, web, HttpResponse};
 use serde::Serialize;
 
+use crate::auth::ApiAuth;
 use crate::db::{self, DbPool};
 
 #[cfg(feature = "openapi")]
@@ -51,10 +52,21 @@ pub async fn liveness() -> HttpResponse {
     tag = "Health",
     responses(
         (status = 200, description = "Server version info", body = VersionResponse),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
     ),
+    security(("bearer_auth" = []), ("session_cookie" = [])),
 ))]
 /// Version check - returns the server version compiled from Cargo.toml.
-pub async fn version() -> HttpResponse {
+///
+/// Requires a session cookie or a Bearer token, unlike its neighbours in this
+/// scope. `/health` and `/health/ready` answer "is this process up", which a
+/// probe has to be able to ask without credentials; this one answers "which
+/// build is this", which is the first thing worth knowing about a host you
+/// intend to attack.
+// The gate is the extractor and not the middleware because the whole `/health`
+// prefix is exempt from `RequireAuth` -- see `middleware::auth` -- and the two
+// liveness routes need that exemption to stay.
+pub async fn version(_auth: ApiAuth) -> HttpResponse {
     HttpResponse::Ok().json(VersionResponse {
         version: env!("CARGO_PKG_VERSION"),
     })

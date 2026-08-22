@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import { APP_VERSION } from '@/shared/config/constants';
 import { RustrakWordmark } from '@/shared/ui/components/rustrak-wordmark';
 import { LoginForm } from './_components/login-form';
 
@@ -62,14 +61,13 @@ export default async function LoginPage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="relative z-20 flex justify-between items-end text-xs text-muted-foreground font-mono">
-          <div>
-            <p className="mt-1">v{APP_VERSION}</p>
-          </div>
-          <div className="flex gap-6">
-            <p>&copy; {new Date().getFullYear()} Rustrak</p>
-          </div>
+        {/* Footer. No version: the instance version is told to signed-in
+            people only, and this page is the one surface every stranger
+            reaches. The server withholds it from anonymous callers for the same
+            reason, so printing it here would give away what the API will not.
+            It lives on `settings/about` instead. */}
+        <div className="relative z-20 flex items-end text-xs text-muted-foreground font-mono">
+          <p>&copy; {new Date().getFullYear()} Rustrak</p>
         </div>
       </div>
 
