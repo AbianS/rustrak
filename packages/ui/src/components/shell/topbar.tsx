@@ -20,7 +20,8 @@ import {
   SearchIcon,
 } from '../icon/icon-catalog';
 import { Kbd } from '../kbd/kbd';
-import { Menu, type MenuAction, MenuActions } from '../menu/menu';
+import { Menu, MenuActions } from '../menu/menu';
+import type { MenuAction } from '../menu/menu-parts';
 import { Separator } from '../separator/separator';
 import { Text } from '../text/text';
 import { useSidebar } from './sidebar-context';

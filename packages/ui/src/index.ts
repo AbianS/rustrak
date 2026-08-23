@@ -101,14 +101,15 @@ export type {
   Crumb,
 } from './components/breadcrumbs/breadcrumbs';
 export { Breadcrumbs } from './components/breadcrumbs/breadcrumbs';
-export type { MenuAction, MenuProps } from './components/menu/menu';
+export type { MenuProps } from './components/menu/menu';
 export {
-  explainAction,
   Menu,
   MenuActions,
   MenuGroup,
   MenuGroupLabel,
 } from './components/menu/menu';
+export type { MenuAction } from './components/menu/menu-parts';
+export { explainAction } from './components/menu/menu-parts';
 export type {
   SegmentedControlProps,
   SegmentedItemProps,

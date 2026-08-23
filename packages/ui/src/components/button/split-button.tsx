@@ -5,12 +5,12 @@ import { chevronFlip, interactiveTransition } from '../../lib/motion';
 import { tv, type VariantProps } from '../../lib/tv';
 import type { IconComponent } from '../icon/icon';
 import { ChevronDownIcon } from '../icon/icon-catalog';
+import { MenuActions } from '../menu/menu';
 import {
   type MenuAction,
-  MenuActions,
   menuPopupClass,
   menuPositionerClass,
-} from '../menu/menu';
+} from '../menu/menu-parts';
 
 /**
  * One action plus its variations: Resolve, and behind the chevron "Resolve in

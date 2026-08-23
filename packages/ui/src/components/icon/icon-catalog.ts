@@ -1,3 +1,4 @@
+import { fromLucide } from './adapters/lucide';
 import {
   ArrowDownRight,
   ArrowLeftRight,
@@ -25,7 +26,6 @@ import {
   EllipsisVertical,
   ExternalLink,
   Eye,
-  fromLucide,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
@@ -57,7 +57,7 @@ import {
   Wrench,
   X,
   Zap,
-} from './adapters/lucide';
+} from './adapters/lucide-symbols';
 import type { IconComponent } from './icon';
 
 /**

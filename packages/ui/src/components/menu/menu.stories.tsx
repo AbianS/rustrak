@@ -11,7 +11,8 @@ import {
   ResolveIcon,
   SaveViewIcon,
 } from '../icon/icon-catalog';
-import { Menu, type MenuAction } from './menu';
+import { Menu } from './menu';
+import type { MenuAction } from './menu-parts';
 
 const meta = {
   title: 'Components/Menu',
