@@ -10,7 +10,7 @@
       "name": "GPL-3.0-only",
       "identifier": "GPL-3.0-only"
     },
-    "version": "0.14.6"
+    "version": "0.14.7"
   },
   "paths": {
     "/api/0/organizations/{org_slug}/": {
