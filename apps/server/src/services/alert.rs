@@ -25,6 +25,12 @@ pub struct AlertService;
 
 pub const MAX_ALERT_RETRIES: i32 = 5;
 
+/// How long a claimed pending row stays invisible to other claimers. Must
+/// exceed the longest single dispatch (30s webhook timeout plus DB writes) so
+/// an in-flight delivery is never re-claimed and double-sent; a crashed
+/// claimer's rows become eligible again once the lease expires.
+const RETRY_CLAIM_LEASE_SECS: i64 = 120;
+
 impl AlertService {
     // =========================================================================
     // Alert Integration CRUD (replaces Notification Channel CRUD)
@@ -650,6 +656,13 @@ impl AlertService {
             "pending"
         };
 
+        // Pending rows are born leased to the dispatch task spawned below:
+        // the retry worker only claims rows whose next_retry_at has passed, so
+        // it cannot double-send a delivery that is still in flight. Skipped
+        // (cooldown) rows never dispatch and carry no lease.
+        let dispatch_lease =
+            (!cooldown_suppressed).then(|| Utc::now() + Duration::seconds(RETRY_CLAIM_LEASE_SECS));
+
         let mut history_ids = Vec::with_capacity(channels.len());
         for (rule_channel, integration) in &channels {
             let idempotency_key = format!("{}-{}", payload.alert_id, integration.id);
@@ -659,9 +672,9 @@ impl AlertService {
                 INSERT INTO alert_history (
                     alert_rule_id, integration_id, issue_id, project_id,
                     alert_type, channel_type, channel_name, payload,
-                    status, idempotency_key
+                    status, idempotency_key, next_retry_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 ON CONFLICT (idempotency_key) DO NOTHING
                 RETURNING id
                 "#,
@@ -676,6 +689,7 @@ impl AlertService {
             .bind(serde_json::to_value(&payload).map_err(|e| AppError::Internal(e.to_string()))?)
             .bind(history_status)
             .bind(&idempotency_key)
+            .bind(dispatch_lease)
             .fetch_optional(&mut *tx)
             .await?;
 
@@ -691,19 +705,30 @@ impl AlertService {
             return Ok(());
         }
 
-        // 5. Attempt each durable delivery before the event worker deletes its
-        // source record; committed pending rows cover a crash during dispatch.
-        for (history_id, rule_channel) in history_ids {
-            Self::dispatch_history(
-                pool,
-                history_id,
-                0,
-                &payload,
-                &rule_channel,
-                MAX_ALERT_RETRIES,
-            )
-            .await?;
-        }
+        // 5. Deliver off the caller's path. The committed pending rows are the
+        // durability guarantee (they survive a crash and the retry worker picks
+        // them up once the lease expires); the caller — the digest pipeline —
+        // must not stall on notification I/O, matching Relay, which never
+        // couples ingestion to delivery.
+        let dispatch_pool = pool.clone();
+        tokio::spawn(async move {
+            for (history_id, rule_channel) in history_ids {
+                if let Err(error) = Self::dispatch_history(
+                    &dispatch_pool,
+                    history_id,
+                    0,
+                    &payload,
+                    &rule_channel,
+                    MAX_ALERT_RETRIES,
+                )
+                .await
+                {
+                    log::error!(
+                        "Alert dispatch for history {history_id} failed; the retry worker owns it after the lease expires: {error}"
+                    );
+                }
+            }
+        });
 
         Ok(())
     }
@@ -855,46 +880,77 @@ impl AlertService {
         Ok(history)
     }
 
-    /// Processes pending retries (for background worker)
-    #[allow(dead_code)]
-    pub async fn process_retry_queue(pool: &DbPool, max_retries: i32) -> AppResult<u32> {
+    /// Atomically leases due pending history rows for dispatch.
+    ///
+    /// Each returned row had its `next_retry_at` pushed into the future in the
+    /// same statement that selected it, so a concurrent claimer (another worker
+    /// tick, or another server process sharing the database) cannot pick up the
+    /// same row and double-deliver the alert.
+    pub async fn claim_due_retries(
+        pool: &DbPool,
+        max_retries: i32,
+        limit: i64,
+    ) -> AppResult<Vec<AlertHistory>> {
         #[cfg(feature = "postgres")]
-        let pending: Vec<AlertHistory> = sqlx::query_as(
+        let claimed: Vec<AlertHistory> = sqlx::query_as(
             r#"
-            SELECT id, alert_rule_id, integration_id, issue_id, project_id,
-                   alert_type, channel_type, channel_name, payload, status,
-                   attempt_count, next_retry_at, error_message,
-                   http_status_code, idempotency_key, created_at, sent_at
-            FROM alert_history
-            WHERE status = 'pending'
+            UPDATE alert_history
+            SET next_retry_at = CURRENT_TIMESTAMP + ($3 * INTERVAL '1 second')
+            WHERE id IN (
+                SELECT id FROM alert_history
+                WHERE status = 'pending'
+                  AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
+                  AND attempt_count < $1
+                ORDER BY next_retry_at
+                LIMIT $2
+                FOR UPDATE SKIP LOCKED
+            )
+              AND status = 'pending'
               AND (next_retry_at IS NULL OR next_retry_at <= CURRENT_TIMESTAMP)
-              AND attempt_count < $1
-            ORDER BY next_retry_at
-            LIMIT 100
+            RETURNING id, alert_rule_id, integration_id, issue_id, project_id,
+                      alert_type, channel_type, channel_name, payload, status,
+                      attempt_count, next_retry_at, error_message,
+                      http_status_code, idempotency_key, created_at, sent_at
             "#,
         )
         .bind(max_retries)
+        .bind(limit)
+        .bind(RETRY_CLAIM_LEASE_SECS)
         .fetch_all(pool)
         .await?;
 
         #[cfg(feature = "sqlite")]
-        let pending: Vec<AlertHistory> = sqlx::query_as(
+        let claimed: Vec<AlertHistory> = sqlx::query_as(
             r#"
-            SELECT id, alert_rule_id, integration_id, issue_id, project_id,
-                   alert_type, channel_type, channel_name, payload, status,
-                   attempt_count, next_retry_at, error_message,
-                   http_status_code, idempotency_key, created_at, sent_at
-            FROM alert_history
-            WHERE status = 'pending'
-              AND (next_retry_at IS NULL OR datetime(next_retry_at) <= datetime('now'))
-              AND attempt_count < $1
-            ORDER BY next_retry_at
-            LIMIT 100
+            UPDATE alert_history
+            SET next_retry_at = datetime('now', '+' || $3 || ' seconds')
+            WHERE id IN (
+                SELECT id FROM alert_history
+                WHERE status = 'pending'
+                  AND (next_retry_at IS NULL OR datetime(next_retry_at) <= datetime('now'))
+                  AND attempt_count < $1
+                ORDER BY next_retry_at
+                LIMIT $2
+            )
+            RETURNING id, alert_rule_id, integration_id, issue_id, project_id,
+                      alert_type, channel_type, channel_name, payload, status,
+                      attempt_count, next_retry_at, error_message,
+                      http_status_code, idempotency_key, created_at, sent_at
             "#,
         )
         .bind(max_retries)
+        .bind(limit)
+        .bind(RETRY_CLAIM_LEASE_SECS)
         .fetch_all(pool)
         .await?;
+
+        Ok(claimed)
+    }
+
+    /// Processes pending retries (for background worker)
+    #[allow(dead_code)]
+    pub async fn process_retry_queue(pool: &DbPool, max_retries: i32) -> AppResult<u32> {
+        let pending = Self::claim_due_retries(pool, max_retries, 100).await?;
 
         let mut processed = 0u32;
 

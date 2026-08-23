@@ -828,3 +828,137 @@ async fn test_create_rule_success() {
 async fn test_test_channel_endpoint() {
     // This test requires proper session cookie handling
 }
+
+#[tokio::test]
+async fn test_claim_due_retries_leases_rows_exclusively() {
+    // A pending history row must be dispatchable by exactly one worker:
+    // claiming it takes a lease, so a concurrent (or immediately following)
+    // claim cannot pick up the same row and double-deliver the alert.
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'unconfigured', 'pending', $2)",
+    )
+    .bind(project_id)
+    .bind(format!("claim-lease-{project_id}"))
+    .execute(&db.pool)
+    .await
+    .expect("pending alert history insert must succeed");
+
+    let first = AlertService::claim_due_retries(&db.pool, 5, 100)
+        .await
+        .expect("first claim must succeed");
+    assert_eq!(first.len(), 1, "first claim must lease the pending row");
+
+    let second = AlertService::claim_due_retries(&db.pool, 5, 100)
+        .await
+        .expect("second claim must succeed");
+    assert!(
+        second.is_empty(),
+        "a leased row must not be claimable again while its lease holds"
+    );
+}
+
+#[tokio::test]
+async fn test_trigger_alert_does_not_block_on_slow_webhook_delivery() {
+    // Relay never couples ingestion latency to notification I/O. Rustrak's
+    // digest awaits trigger_*_alert for durability, so the durable part
+    // (history rows) must commit synchronously while the network dispatch
+    // happens off the digest path: a hung webhook endpoint must not stall
+    // the caller for the 30s HTTP timeout.
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+
+    // A webhook endpoint that accepts connections and never responds.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind hanging webhook listener");
+    let addr = listener.local_addr().expect("listener addr");
+    tokio::spawn(async move {
+        loop {
+            let Ok((socket, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let _socket = socket;
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            });
+        }
+    });
+
+    let channel = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Hanging Webhook".to_string(),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": format!("http://{addr}/hook") }),
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("channel creation must succeed");
+    AlertService::create_rule(
+        &db.pool,
+        project_id,
+        CreateAlertRule {
+            name: "Slow Webhook Rule".to_string(),
+            alert_type: AlertType::NewIssue,
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel.id,
+                routing_override: json!({}),
+            }],
+            conditions: json!({}),
+            cooldown_minutes: 0,
+        },
+    )
+    .await
+    .expect("rule creation must succeed");
+
+    let issue = IssueService::create(
+        &db.pool,
+        project_id,
+        Utc::now(),
+        &DenormalizedFields {
+            calculated_type: "Error".to_string(),
+            calculated_value: "slow webhook".to_string(),
+            transaction: "/test".to_string(),
+            last_frame_filename: "test.rs".to_string(),
+            last_frame_module: "test".to_string(),
+            last_frame_function: "test".to_string(),
+            culprit: "test".to_string(),
+            logger: String::new(),
+            release: String::new(),
+        },
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .expect("issue creation must succeed");
+
+    let trigger =
+        AlertService::trigger_new_issue_alert(&db.pool, &project, &issue, "http://localhost:3000");
+    tokio::time::timeout(Duration::from_secs(2), trigger)
+        .await
+        .expect("trigger must return without waiting for webhook I/O")
+        .expect("trigger must succeed");
+
+    // The durable delivery record is committed before the caller returns,
+    // leased to the in-flight dispatcher so the retry worker cannot
+    // double-send it while the dispatch is still running.
+    let (status, leased): (String, bool) = sqlx::query_as(
+        "SELECT status, next_retry_at IS NOT NULL AND datetime(next_retry_at) > datetime('now') FROM alert_history WHERE project_id = $1",
+    )
+    .bind(project_id)
+    .fetch_one(&db.pool)
+    .await
+    .expect("history row must exist before trigger returns");
+    assert_eq!(status, "pending");
+    assert!(
+        leased,
+        "in-flight delivery must hold a future next_retry_at lease"
+    );
+}
