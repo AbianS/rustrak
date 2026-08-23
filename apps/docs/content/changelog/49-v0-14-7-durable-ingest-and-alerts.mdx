@@ -1,0 +1,107 @@
+---
+version: v0.14.7
+title: Durable Ingest and Alert Delivery
+description: Nothing acknowledged is lost, alerts send exactly once and off the digest path, and the instance version moves behind auth
+date: 2026-08-23
+tags: [server, ingest, alerts, security]
+---
+
+## Nothing acknowledged is lost
+
+A 200 from the ingest endpoint is a promise that the data survived. Several
+paths returned it before the write landed, or treated a retry as a new delivery
+([@reneleonhardt](https://github.com/reneleonhardt)).
+
+- Direct transaction, span, log and session items commit before the request is
+  acknowledged
+- Replays are deduplicated by protocol identity: standalone spans by trace and
+  span id, logs by a byte-stable container key, transactions before their child
+  spans are extracted. An envelope with no event header derives its identity
+  from the delivery UUID, so a headerless retry keeps the same durable key
+- SQLite keeps event files queued until the digest, the alert writes and a full
+  WAL checkpoint all succeed. PostgreSQL and legacy storage are unchanged
+- Recovery no longer sweeps a temporary file that an atomic writer is still
+  publishing, and a duplicate counts as idempotent only when both the stored
+  record and the payload are valid
+- Session aggregate flush restores its in-memory state when the write fails,
+  instead of dropping the window
+
+## Alerts send once, and off the digest path
+
+- Due retries are leased with `UPDATE ... RETURNING`, plus
+  `FOR UPDATE SKIP LOCKED` on PostgreSQL, for 120s. A second worker tick or
+  another process on shared PostgreSQL can no longer pick up a row mid-dispatch
+- `trigger_alert` stopped awaiting every dispatch inline, which stalled the
+  digest up to 30s per channel on an unreachable webhook. History still commits
+  synchronously and is born leased, so the retry worker takes over only once the
+  lease expires and nothing is sent twice
+- Idempotency keys carry project identity, so the same event UUID in two
+  projects no longer collapses into one alert
+- Retry backoff is bounded on every side: shared attempt limit, clamped
+  exponent, clamped negative counts from corrupt state, jitter, and a cap of one
+  hour. Retry payloads stay out of the public history response
+
+## A broken item no longer sinks the envelope
+
+Relay discards an invalid item with an outcome and lets its siblings through.
+Returning 4xx here made the SDK drop that data permanently, so an envelope
+carrying an event plus one broken log container lost the event too.
+
+- Validation errors from direct-item processors drop the item and return 200.
+  Database and storage failures still propagate as retryable 5xx
+- A failed quota refresh, typically SQLite busy under write load, degrades to
+  the stale quota state with a warning instead of 500ing the envelope
+
+## The instance version is behind auth
+
+`GET /health/version` sat inside the `/health` exemption and answered anyone,
+and the dashboard printed the same number on the login and error screens. A
+version turns "is this instance vulnerable to X" from a probe into a lookup.
+
+- The endpoint now takes `ApiAuth`, a session cookie or a Bearer token.
+  `/health` and `/health/ready` stay open, since a probe has to work without
+  credentials
+- The number lives on Settings, About. An architecture rule,
+  `version-behind-auth`, keeps `APP_VERSION` out of everything above the gate
+
+**Breaking:** monitoring that polls `/health/version` anonymously now gets a
+401. Point it at `/health` or `/health/ready`, or give it a token.
+
+## Romanian, French and Spanish
+
+Three more dashboard languages ([@edideaur](https://github.com/edideaur),
+[#276](https://github.com/rustrak/rustrak/pull/276)), with `fr`, `es` and `ro`
+registered in the next-intl plugin, which still named only `en` and `zh` and so
+disagreed with `routing.ts`. The review pass fixed Romanian plural forms for
+fatal and configured counts, "téléversement" for a French upload since "dépôt"
+already names a repository here, and "journal" and "registro" for logs in prose,
+so the two empty states on the logs page agree.
+
+## Improvements
+
+- SQLite coalesces durability checkpoints across concurrent digests.
+  `PRAGMA wal_checkpoint(FULL)` ran once per digested event and blocks readers,
+  making it the dominant per-event cost under load. A digest whose commit
+  predates a completed checkpoint is already durable and skips its own, so N
+  concurrent digests cost at most two checkpoints
+- CI runs the PostgreSQL e2e suite. The default build is SQLite, which hid a
+  column added as `TEXT` where `AlertType` decodes as `varchar`: every
+  events-row decode failed at runtime and killed all digests, with green checks.
+  The column is `varchar` now, and the suite that catches this runs on every
+  change
+- The standalone span identity index builds `CONCURRENTLY`, outside the
+  transactional migration, and the migration is re-runnable. An interrupted
+  build leaves an `INVALID` index owning the name, so a
+  `DROP INDEX CONCURRENTLY IF EXISTS` and a re-dedup run ahead of it, each as
+  its own single-statement migration
+- Source map assembly tracks chunk ownership. A finished or exhausted job
+  releases its rows and then deletes only the chunks no other job still owns, so
+  a shared chunk survives and a terminal failure stops leaking storage. Empty
+  manifest jobs finish instead of hanging
+- Pending-event recovery scans back off from 1 second up to 30 while there is
+  work, and reset to 30 when idle. It was a fixed 30-second poll
+- HTTP/2 is disabled in actix-web until it moves to h2 0.4. That was the last
+  path to the vulnerable h2 0.3, so `cargo audit` and `cargo deny` now run with
+  no ignore list, across all features
+- The SQLite alert payload rollback rebuilds the table, since SQLite cannot drop
+  a column in place, and v1 span items are written in 64-item transactions
