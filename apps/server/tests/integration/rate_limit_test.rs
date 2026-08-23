@@ -572,3 +572,47 @@ async fn test_rate_limit_affects_only_specific_project() {
     let resp_b = test::call_service(&app, req_b).await;
     assert!(resp_b.status().is_success());
 }
+
+#[tokio::test]
+async fn test_check_quota_degrades_to_stale_state_when_refresh_fails() {
+    // Quota refresh is derived bookkeeping. When it cannot run (e.g. SQLite
+    // busy under write load), ingestion must proceed on the stale quota state
+    // instead of failing the request: the digest side already treats the same
+    // refresh as best-effort, and a 5xx here would reject an event that
+    // nothing else objects to.
+    let db = TestDb::new().await;
+    let (project_id, _key) = create_test_project(&db.pool, "Stale Quota Project").await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+    let config = RateLimitConfig {
+        max_events_per_minute: 1000,
+        max_events_per_hour: 10000,
+        max_events_per_project_per_minute: 500,
+        max_events_per_project_per_hour: 5000,
+    };
+
+    // Make the derived state stale so check_quota attempts a refresh...
+    sqlx::query(
+        "UPDATE installation SET next_quota_check = 1, digested_event_count = 5 WHERE id = 1",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("staleness setup must succeed");
+    // ...and make that refresh fail deterministically.
+    sqlx::query(
+        "CREATE TRIGGER fail_quota_refresh BEFORE UPDATE OF next_quota_check ON installation \
+         BEGIN SELECT RAISE(ABORT, 'injected: quota refresh unavailable'); END",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("trigger creation must succeed");
+
+    let verdict = RateLimitService::check_quota(&db.pool, &project, &config)
+        .await
+        .expect("a failed quota refresh must not fail the ingest request");
+    assert!(
+        verdict.is_none(),
+        "stale non-exceeded quota state must admit the event"
+    );
+}

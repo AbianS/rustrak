@@ -88,7 +88,7 @@ impl RateLimitService {
         );
         if installation_is_stale || project_is_stale {
             let mut attempt = 0;
-            loop {
+            let refresh = loop {
                 match Self::update_quota_state(
                     pool,
                     project.id,
@@ -105,17 +105,26 @@ impl RateLimitService {
                         tokio::time::sleep(std::time::Duration::from_millis(50 << attempt)).await;
                         attempt += 1;
                     }
-                    result => {
-                        result?;
-                        break;
-                    }
+                    result => break result,
+                }
+            };
+            match refresh {
+                Ok(()) => {
+                    installation = Self::get_installation(pool).await?;
+                    current_project = sqlx::query_as("SELECT * FROM projects WHERE id = $1")
+                        .bind(project.id)
+                        .fetch_one(pool)
+                        .await?;
+                }
+                // The refresh is derived bookkeeping; the digest path already
+                // treats it as best-effort. Admit or reject on the stale state
+                // rather than failing an ingest request nothing else objects to.
+                Err(e) => {
+                    log::warn!(
+                        "quota refresh failed; using stale quota state for this request: {e}"
+                    );
                 }
             }
-            installation = Self::get_installation(pool).await?;
-            current_project = sqlx::query_as("SELECT * FROM projects WHERE id = $1")
-                .bind(project.id)
-                .fetch_one(pool)
-                .await?;
         }
         if let Some(until) = installation.quota_exceeded_until {
             if now < until {
