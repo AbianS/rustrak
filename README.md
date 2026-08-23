@@ -6,6 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/rustrak/rustrak)](https://github.com/rustrak/rustrak/releases)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Docker pulls](https://img.shields.io/docker/pulls/rustrak/rustrak-server)](https://hub.docker.com/r/rustrak/rustrak-server)
+[![Sponsors](https://img.shields.io/github/sponsors/AbianS?label=sponsors&color=db61a2)](https://github.com/sponsors/AbianS)
 
 **[Documentation](https://rustrak.github.io/rustrak/)** ·
 [Quickstart](#quickstart) ·
@@ -263,10 +264,47 @@ An OpenAPI spec is served at `/docs` and mirrored in the documentation site.
 | [API reference](https://rustrak.github.io/rustrak/reference/api) | Endpoints and schemas |
 | [Architecture](https://rustrak.github.io/rustrak/reference/architecture) | Two-phase ingestion, grouping, storage |
 
-## Contributing
+## Contributors
 
-Contributions are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the local
-setup, the test suite and the quality gate.
+People who have contributed code, translations or documentation to Rustrak.
+
+<div align="center">
+
+<a href="https://github.com/rustrak/rustrak/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=rustrak/rustrak" alt="Rustrak contributors" />
+</a>
+
+</div>
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the local setup, the test suite and
+the quality gate. Issues tagged
+[good first issue](https://github.com/rustrak/rustrak/labels/good%20first%20issue)
+are a reasonable place to start.
+
+## Sponsors
+
+Rustrak has no paid tier and no hosted plan. Development is funded through
+GitHub Sponsors.
+
+<table align="center">
+<tr>
+<td align="center" width="180">
+  <a href="https://github.com/scorewarrior">
+    <img src="https://avatars.githubusercontent.com/u/135209230?s=180&v=4" width="90" height="90" alt="Scorewarrior" />
+    <br />
+    <sub><b>Scorewarrior</b></sub>
+  </a>
+</td>
+</tr>
+</table>
+
+<div align="center">
+
+<a href="https://github.com/sponsors/AbianS">
+  <img src="https://img.shields.io/badge/Sponsor%20Rustrak-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="Sponsor Rustrak on GitHub" />
+</a>
+
+</div>
 
 ## License
 
