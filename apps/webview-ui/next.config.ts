@@ -10,7 +10,7 @@ const withNextIntl = createNextIntlPlugin({
       // The plugin can infer the locale list from the filenames in `path`, but
       // `routing.ts` is where this app decides which locales exist. Naming them
       // here keeps a stray `messages/de.json` from quietly becoming a locale.
-      locales: ['en', 'zh'],
+      locales: ['en', 'zh', 'fr', 'es', 'ro'],
       sourceLocale: 'en',
       // Compiles the ICU strings at build time, through a Turbopack loader, into
       // the compact form next-intl formats from directly. Two effects that both

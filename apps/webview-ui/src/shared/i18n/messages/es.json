@@ -1,0 +1,1564 @@
+{
+  "locale": {
+    "en": "English",
+    "zh": "简体中文",
+    "fr": "Français",
+    "es": "Español",
+    "ro": "Română",
+    "label": "Idioma",
+    "storedOnAccount": "Guardado en tu cuenta.",
+    "saveFailed": "No se pudo guardar tu idioma."
+  },
+  "app": {
+    "title": "Rustrak - Sistema de seguimiento de errores",
+    "description": "Seguimiento de errores ligero y autoalojado, compatible con los SDK de Sentry"
+  },
+  "common": {
+    "reload": "Recargar",
+    "copyAs": "Copiar como",
+    "clipboardUnavailable": "Portapapeles no disponible",
+    "clipboardUnavailableHint": "Selecciona el contenido y cópialo manualmente, o accede a Rustrak por HTTPS.",
+    "openSidebar": "Abrir barra lateral",
+    "showSidebar": "Mostrar barra lateral",
+    "closeSidebar": "Cerrar barra lateral",
+    "hideSidebar": "Ocultar barra lateral",
+    "close": "Cerrar",
+    "sidebar": "Barra lateral",
+    "sidebarMobileDescription": "Muestra la barra lateral móvil.",
+    "toggleSidebar": "Alternar barra lateral"
+  },
+  "theme": {
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema"
+  },
+  "update": {
+    "srAvailable": "Rustrak {version} está disponible.",
+    "shapeTitle": "Forma del aviso de actualización",
+    "available": "disponible",
+    "dismiss": "Descartar el aviso de actualización de la versión {version}",
+    "viewChangelog": "Ver registro de cambios"
+  },
+  "platforms": {
+    "searchPlaceholder": "Buscar en todas las plataformas",
+    "searchAria": "Buscar plataformas",
+    "categoriesAria": "Categorías de plataformas",
+    "noSdkFor": "Aún no hay SDK para «{query}»",
+    "tryGeneric": "Prueba un SDK más genérico como JavaScript, Python o Node, o crea un proyecto genérico con <other>Otro</other>.",
+    "otherPlatform": "Otra plataforma",
+    "otherPlatformDescription": "Tu plataforma no está en la lista, o prefieres elegirla más adelante. Funciona con cualquier SDK de Sentry.",
+    "matchingCount": "{count, plural, =1 {# plataforma coincidente} other {# plataformas coincidentes}}",
+    "footerCount": "{count} plataformas · busca para explorar todas las categorías",
+    "pickerPlaceholder": "Buscar plataformas...",
+    "pickerAria": "Plataforma",
+    "noResults": "No se encontraron plataformas."
+  },
+  "statTile": {
+    "noPriorPeriod": "Sin período anterior",
+    "noPriorActivity": "Sin actividad previa",
+    "vsPrev": "vs ant."
+  },
+  "table": {
+    "showingRange": "Mostrando {start}-{end} de {total}",
+    "noResults": "Sin resultados",
+    "previousPage": "Página anterior",
+    "nextPage": "Página siguiente",
+    "pageOf": "Página {current} de {total}",
+    "ofTotal": "de {total}",
+    "firstPage": "Primera página",
+    "lastPage": "Última página",
+    "selectAllPageRows": "Seleccionar todas las filas de esta página",
+    "selectRow": "Seleccionar fila",
+    "expand": "Expandir"
+  },
+  "commands": {
+    "overview": "Resumen",
+    "overviewDescription": "Salud, volumen y últimos problemas de un vistazo.",
+    "issues": "Problemas",
+    "issuesDescription": "Errores y excepciones, agrupados por fingerprint.",
+    "releases": "Versiones",
+    "releasesDescription": "Despliegues y salud de cada versión.",
+    "performance": "Rendimiento",
+    "performanceDescription": "Duraciones de transacciones y cascadas de spans.",
+    "agents": "Agentes",
+    "agentsDescription": "Trazas de agentes de IA y los spans que contienen.",
+    "logs": "Logs",
+    "logsDescription": "El flujo de registros tal como llega.",
+    "general": "General",
+    "generalDescription": "Nombre, slug, plataforma y zona de peligro.",
+    "alerts": "Alertas",
+    "alertsDescription": "Reglas que se activan cuando algo falla.",
+    "members": "Miembros",
+    "membersDescription": "Quién tiene acceso a este proyecto, y con qué rol.",
+    "clientKeys": "Claves de cliente",
+    "clientKeysDescription": "El DSN y el fragmento de configuración del SDK.",
+    "allProjects": "Todos los proyectos",
+    "allProjectsDescription": "Cada proyecto de esta instancia que puedes ver.",
+    "newProject": "Nuevo proyecto",
+    "newProjectDescription": "Elige una plataforma y crea uno.",
+    "apiTokens": "Tokens de API",
+    "apiTokensDescription": "Tokens bearer para la API y para la ingesta de los SDK.",
+    "integrations": "Integraciones",
+    "integrationsDescription": "A dónde se entregan las alertas.",
+    "team": "Equipo",
+    "teamDescription": "Miembros de esta instancia e invitaciones pendientes.",
+    "storage": "Almacenamiento",
+    "storageDescription": "Ventanas de retención y limpieza de source maps.",
+    "account": "Cuenta",
+    "accountDescription": "Tu perfil y tu contraseña.",
+    "appearance": "Apariencia",
+    "appearanceDescription": "Claro, oscuro o lo que indique el sistema.",
+    "about": "Acerca de",
+    "aboutDescription": "Qué versión de Rustrak es esta.",
+    "noResultsFor": "Sin resultados para «{query}»",
+    "resultsHeading": "Resultados",
+    "projectsHeading": "Proyectos",
+    "settingsHeading": "Configuración",
+    "generalBadge": "General",
+    "settingsBadge": "Configuración",
+    "noPlatform": "Sin plataforma",
+    "noPlatformSet": "Sin plataforma definida",
+    "pages": "páginas",
+    "dialogTitle": "Barra de comandos",
+    "dialogDescription": "Busca proyectos, páginas y configuración, y pulsa Intro para abrir uno.",
+    "searchPlaceholder": "Buscar proyectos, páginas y configuración...",
+    "triggerSearch": "Buscar",
+    "navigate": "navegar",
+    "open": "abrir",
+    "close": "cerrar",
+    "hidePages": "ocultar páginas"
+  },
+  "charts": {
+    "errors": "Errores",
+    "warnings": "Advertencias",
+    "info": "Info",
+    "total": "Total",
+    "ofWhichFatal": "de ellos fatales",
+    "noEvents": "Sin eventos en este período",
+    "dashedLine": "Línea discontinua: media de {count} por intervalo",
+    "eventCount": "{count, plural, =1 {# evento} other {# eventos}}",
+    "bucketDays": "{count, plural, =1 {intervalo de #d} other {intervalo de #d}}",
+    "bucketHours": "{count, plural, =1 {intervalo de #h} other {intervalo de #h}}",
+    "bucketMinutes": "{count, plural, =1 {intervalo de #m} other {intervalo de #m}}"
+  },
+  "errorScreen": {
+    "brandStatement": "Tus datos están a salvo",
+    "brandDescription": "No se ha perdido nada y tu sesión está intacta. Esta pantalla trata de cómo llegar a Rustrak, no de lo que hay almacenado en él."
+  },
+  "formErrors": {
+    "required": "Falta {subject}.",
+    "invalid": "El formato de {subject} no es válido.",
+    "alreadyExists": "Ya existe {subject}.",
+    "tooShort": "La longitud de {subject} es insuficiente.",
+    "tooLong": "La longitud de {subject} supera el máximo.",
+    "rejected": "Este valor fue rechazado.",
+    "defaultSubject": "este valor"
+  },
+  "error": {
+    "describe": {
+      "networkTimeout": "La API de Rustrak tardó demasiado en responder.",
+      "networkUnreachable": "No se pudo alcanzar la API de Rustrak.",
+      "serverError": "La API de Rustrak falló al responder. Inténtalo de nuevo en un momento.",
+      "forbidden": "Tu cuenta no tiene permiso para hacer esto.",
+      "rateLimited": "Demasiadas solicitudes. Inténtalo de nuevo {window}.",
+      "invalidResponse": "La API de Rustrak respondió con datos que este panel no pudo leer."
+    },
+    "guidance": {
+      "network": "Sigues con la sesión iniciada. Recarga la página cuando la API vuelva a funcionar.",
+      "rateLimited": "Este límite suele venir de un proxy situado delante de Rustrak, no del propio Rustrak.",
+      "forbidden": "Pide acceso a un administrador si crees que deberías tenerlo.",
+      "invalidResponse": "Probablemente el panel y la API ejecutan versiones distintas. Recargar no servirá de nada.",
+      "notFound": "El servidor respondió con normalidad; simplemente no había nada en esa dirección."
+    },
+    "headline": {
+      "network": "Rustrak no responde",
+      "forbidden": "No tienes acceso",
+      "rateLimited": "Demasiadas solicitudes",
+      "invalidResponse": "Este panel no pudo leer la API",
+      "notFound": "Nada por aquí",
+      "other": "Eso no funcionó"
+    },
+    "retry": {
+      "moments": "en un momento",
+      "seconds": "en {count} segundos",
+      "minutes": "en unos {count} minutos",
+      "hours": "en unas {count} horas"
+    }
+  },
+  "logs": {
+    "columns": {
+      "level": "Nivel",
+      "message": "Mensaje",
+      "trace": "Traza",
+      "time": "Hora"
+    },
+    "emptyValue": "(vacío)",
+    "attributes": "Atributos",
+    "allLevels": "Todos",
+    "empty": {
+      "title": "Ningún registro coincide con este filtro",
+      "hint": "Prueba con otro nivel o borra el filtro."
+    }
+  },
+  "issues": {
+    "columns": {
+      "issue": "Problema",
+      "trend": "Tendencia",
+      "age": "Antigüedad",
+      "events": "Eventos",
+      "users": "Usuarios",
+      "lastSeen": "Visto por última vez"
+    },
+    "actionsTitle": "Acciones",
+    "actionsFor": "Acciones para {title}",
+    "actions": {
+      "resolve": "Resolver",
+      "unresolve": "Reabrir",
+      "mute": "Silenciar",
+      "unmute": "Reactivar",
+      "delete": "Eliminar",
+      "archive": "Archivar",
+      "unarchive": "Desarchivar",
+      "resolveInNextRelease": "Resolver en la próxima versión",
+      "bookmark": "Añadir a marcadores",
+      "removeBookmark": "Quitar de marcadores",
+      "subscribe": "Suscribirse",
+      "unsubscribe": "Cancelar suscripción",
+      "deleteIssue": "Eliminar problema"
+    },
+    "toasts": {
+      "updateFailed": "No se pudieron actualizar los problemas",
+      "deleteOneFailed": "No se pudo eliminar el problema",
+      "deleteManyFailed": "No se pudieron eliminar los problemas",
+      "bookmarkFailed": "No se pudo actualizar el marcador",
+      "subscriptionFailed": "No se pudo actualizar la suscripción",
+      "priorityFailed": "No se pudo actualizar la prioridad"
+    },
+    "selectedCount": "{count, plural, =1 {# seleccionado} other {# seleccionados}}",
+    "clearSelection": "Borrar selección",
+    "empty": {
+      "title": "No se encontraron problemas",
+      "allResolved": "Todos los problemas están resueltos o silenciados",
+      "noFiltered": "Sin problemas ({filter})"
+    },
+    "filters": {
+      "open": "Abiertos",
+      "resolved": "Resueltos",
+      "muted": "Silenciados",
+      "all": "Todos"
+    },
+    "deleteDialog": {
+      "cancel": "Cancelar",
+      "deleting": "Eliminando...",
+      "confirm": "Eliminar",
+      "title": "{count, plural, =1 {¿Eliminar este problema?} other {¿Eliminar # problemas?}}",
+      "description": "{count, plural, =1 {Esto eliminará definitivamente este problema y todos sus eventos asociados. La acción no se puede deshacer.} other {Esto eliminará definitivamente # problemas y todos sus eventos asociados. La acción no se puede deshacer.}}"
+    },
+    "statusTitle": "Estado: {label}",
+    "priorityTitle": "Prioridad: {label}",
+    "levelTitle": "Nivel: {level}",
+    "priority": "Prioridad",
+    "set": "Definir",
+    "moreResolveOptions": "Más opciones de resolución",
+    "issueActionsLabel": "Acciones del problema",
+    "activity": {
+      "title": "Actividad",
+      "placeholder": "Deja un comentario...",
+      "comment": "Comentar",
+      "empty": "Aún no hay actividad.",
+      "commentFailed": "No se pudo añadir el comentario",
+      "statusResolved": "marcó este problema como resuelto",
+      "statusReopened": "reabrió este problema",
+      "statusMuted": "silenció este problema",
+      "statusChanged": "cambió el estado a {status}",
+      "priorityChanged": "estableció la prioridad en {priority}",
+      "regression": "detectó una regresión",
+      "firstSeen": "vio este problema por primera vez"
+    },
+    "issueStatus": {
+      "new": "Nuevo",
+      "ongoing": "En curso",
+      "escalating": "Escalando",
+      "regressed": "En regresión",
+      "archived": "Archivado",
+      "resolved": "Resuelto",
+      "ignored": "Ignorado",
+      "unresolved": "Sin resolver",
+      "high": "Alta",
+      "medium": "Media",
+      "low": "Baja"
+    },
+    "card": {
+      "usersAffected": "{count, plural, =1 {# usuario afectado} other {# usuarios afectados}}",
+      "eventCount": "{count, plural, =1 {# evento} other {# eventos}}"
+    }
+  },
+  "roles": {
+    "viewer": "Observador",
+    "editor": "Editor",
+    "admin": "Admin",
+    "member": "Miembro"
+  },
+  "user": {
+    "header": {
+      "openMenu": "Abrir menú de usuario",
+      "userMenuFor": "Menú de usuario de {email}",
+      "settings": "Configuración",
+      "signingOut": "Cerrando sesión...",
+      "signOut": "Cerrar sesión"
+    },
+    "invite": {
+      "title": "Invitar a un miembro",
+      "description": "El enlace de invitación se copia en tu portapapeles al crearlo. No se envía ningún correo — comparte tú mismo el enlace con el nuevo miembro.",
+      "emailLabel": "Correo electrónico",
+      "roleLabel": "Rol",
+      "roleAria": "Rol de la invitación",
+      "fieldEmail": "esa dirección de correo",
+      "inviting": "Invitando...",
+      "submit": "Invitar"
+    },
+    "toast": {
+      "createFailed": "No se pudo crear la invitación",
+      "created": "Invitación creada",
+      "createdHint": "Enlace de invitación copiado al portapapeles — compártelo con el nuevo miembro.",
+      "copyInviteLink": "Copiar el enlace de invitación: {link}",
+      "updated": "Miembro actualizado",
+      "updateFailed": "No se pudo actualizar el miembro",
+      "removed": "Miembro eliminado",
+      "removeFailed": "No se pudo eliminar al miembro",
+      "added": "Miembro añadido",
+      "addFailed": "No se pudo añadir al miembro",
+      "linkCopied": "Enlace de invitación copiado al portapapeles",
+      "copyLink": "Copiar el enlace de invitación",
+      "revoked": "Invitación revocada",
+      "revokeFailed": "No se pudo revocar la invitación",
+      "roleUpdated": "Rol actualizado",
+      "roleUpdateFailed": "No se pudo actualizar el rol"
+    },
+    "member": {
+      "updatedDescription": "{email} ahora es {role}."
+    },
+    "members": {
+      "title": "Miembros del proyecto",
+      "manageDescription": "Gestiona quién puede acceder a este proyecto y con qué rol.",
+      "readOnlyDescription": "Las personas con acceso a este proyecto.",
+      "addMember": "Añadir miembro",
+      "empty": "Aún no hay miembros"
+    },
+    "remove": {
+      "title": "Eliminar miembro",
+      "description": "¿Eliminar a {email} de este proyecto? Perderá el acceso hasta que se le vuelva a añadir.",
+      "removing": "Eliminando...",
+      "confirm": "Eliminar"
+    },
+    "cancel": "Cancelar",
+    "addMember": {
+      "title": "Añadir miembro",
+      "description": "Da acceso a este proyecto a un compañero.",
+      "userLabel": "Usuario",
+      "userAria": "Selecciona un usuario para añadir",
+      "roleLabel": "Rol",
+      "teamFailed": "No se pudo cargar la lista del equipo",
+      "noUsers": "No hay usuarios disponibles",
+      "selectUser": "Selecciona un usuario",
+      "roleAria": "Rol del nuevo miembro",
+      "submit": "Añadir"
+    },
+    "pending": {
+      "title": "Invitaciones pendientes",
+      "description": "Invitaciones que aún no se han aceptado",
+      "empty": "No hay invitaciones pendientes",
+      "expires": "Expira el {date}",
+      "copyAria": "Copiar el enlace de invitación de {email}",
+      "revokeAria": "Revocar la invitación de {email}"
+    },
+    "table": {
+      "email": "Correo electrónico",
+      "you": "(tú)",
+      "role": "Rol",
+      "changeRoleAria": "Cambiar el rol de {email}",
+      "actionsAria": "Acciones",
+      "removeAria": "Eliminar a {email}",
+      "status": "Estado",
+      "active": "Activo",
+      "inactive": "Inactivo",
+      "lastLoginAt": "Último inicio de sesión {date}",
+      "neverLoggedIn": "Nunca ha iniciado sesión",
+      "lastLogin": "Último inicio de sesión",
+      "never": "Nunca",
+      "changeRole": "Cambiar rol"
+    },
+    "membersList": {
+      "empty": "Aún no hay miembros en el equipo",
+      "title": "Miembros",
+      "description": "Personas con acceso a esta instancia de Rustrak"
+    },
+    "removeMember": {
+      "title": "¿Eliminar a «{email}»?",
+      "description": "Esto elimina definitivamente al usuario y su acceso a todos los proyectos. La acción no se puede deshacer."
+    },
+    "roles": {
+      "viewer": "Observador",
+      "editor": "Editor",
+      "admin": "Admin",
+      "member": "Miembro"
+    }
+  },
+  "projects": {
+    "platformRequired": "Elige una plataforma para continuar",
+    "fields": {
+      "platform": "Plataforma",
+      "name": "Nombre del proyecto",
+      "slug": "Slug",
+      "nameTooShort": "El nombre debe tener al menos {min} caracteres",
+      "nameTooLong": "El nombre debe tener como máximo {max} caracteres",
+      "slugEmpty": "El slug no puede estar vacío",
+      "slugChars": "Usa letras minúsculas, dígitos y guiones"
+    },
+    "create": "Crear proyecto",
+    "creating": "Creando...",
+    "noPlatformSelected": "Sin plataforma seleccionada",
+    "pickPlatform": "Elige una plataforma",
+    "dsnNext": "A continuación obtendrás tu DSN y el fragmento de configuración.",
+    "slug": {
+      "edit": "Editar slug",
+      "reset": "Restablecer el slug para que siga al nombre",
+      "hintAuto": "Se genera a partir del nombre. Edítalo para elegir uno propio.",
+      "hintManual": "A tu elección. Se rechaza un slug que ya esté en uso."
+    },
+    "save": "Guardar",
+    "toasts": {
+      "createFailed": "No se pudo crear el proyecto",
+      "updateNameFailed": "No se pudo actualizar el proyecto",
+      "updateSlugFailed": "No se pudo actualizar el slug",
+      "updatePlatformFailed": "No se pudo actualizar la plataforma",
+      "deleteProjectFailed": "No se pudo eliminar el proyecto",
+      "deleteFailed": "No se pudo eliminar",
+      "nameUpdated": "Proyecto actualizado",
+      "slugUpdated": "Slug actualizado",
+      "platformUpdated": "Plataforma actualizada",
+      "deleted": "{count, plural, =1 {Proyecto eliminado} other {# proyectos eliminados}}"
+    },
+    "projectDetails": "Detalles del proyecto",
+    "nameTitle": "Nombre",
+    "nameDescription": "Cómo aparece este proyecto en todo el panel.",
+    "namePlaceholder": "Nombre del proyecto",
+    "slugDescription": "Identificador corto de este proyecto. Tu DSN y los enlaces del panel usan el ID numérico del proyecto, así que renombrarlo no romperá nada que ya envíe eventos.",
+    "platformDescription": "Se detecta a partir del primer evento recibido. Cámbiala si el valor detectado es incorrecto o demasiado amplio.",
+    "dangerZone": {
+      "title": "Zona de peligro",
+      "remove": "Eliminar proyecto",
+      "removeDescription": "Elimina definitivamente este proyecto y todos sus problemas y eventos. Esto no se puede deshacer.",
+      "deleteTitle": "¿Eliminar «{name}»?",
+      "deleteDescription": "Esto eliminará definitivamente este proyecto y todos los problemas y eventos asociados. La acción no se puede deshacer.",
+      "cancel": "Cancelar",
+      "deleting": "Eliminando...",
+      "confirm": "Eliminar"
+    },
+    "deleteDialog": {
+      "titleNamed": "¿Eliminar «{name}»?",
+      "titleCount": "{count, plural, =1 {¿Eliminar # proyecto?} other {¿Eliminar # proyectos?}}",
+      "description": "Esto eliminará definitivamente {subject} y todos los problemas y eventos asociados. La acción no se puede deshacer.",
+      "cancel": "Cancelar",
+      "deleting": "Eliminando...",
+      "confirm": "Eliminar",
+      "subject": "{count, plural, =1 {este proyecto} other {# proyectos}}"
+    },
+    "selectedCount": "{count, plural, =1 {# seleccionado} other {# seleccionados}}",
+    "empty": {
+      "title": "Aún no hay proyectos",
+      "hint": "Crea tu primer proyecto para empezar a seguir errores"
+    },
+    "newProject": "Nuevo proyecto",
+    "delete": "Eliminar",
+    "actions": {
+      "delete": "Eliminar"
+    },
+    "columns": {
+      "project": "Proyecto",
+      "issues": "Problemas",
+      "events24h": "Eventos 24 h",
+      "total": "Total",
+      "issueActivity": "Actividad de problemas",
+      "created": "Creación"
+    },
+    "events": "Eventos",
+    "fatalCount": "{count} fatal",
+    "trendLabel": "{label}, últimas 24 horas",
+    "health": {
+      "critical": "Problemas activos, con errores fatales abiertos",
+      "rising": "Problemas activos, más problemas nuevos que en el período anterior",
+      "quiet": "Problemas activos, sin cambios"
+    },
+    "navigation": "Navegación",
+    "nav": {
+      "overview": "Resumen",
+      "issues": "Problemas",
+      "releases": "Versiones",
+      "performance": "Rendimiento",
+      "agents": "Agentes",
+      "logs": "Logs",
+      "settings": "Configuración"
+    },
+    "collapse": {
+      "expand": "Expandir",
+      "collapse": "Contraer"
+    },
+    "switcher": {
+      "projects": "Proyectos",
+      "fallback": "Proyecto"
+    },
+    "copyUnavailable": "Portapapeles no disponible",
+    "copyUnavailableHint": "Selecciona el contenido ({label}) y cópialo manualmente, o accede a Rustrak por HTTPS.",
+    "clientKeys": {
+      "dsn": "DSN",
+      "dsnDescription": "Apunta cualquier SDK de Sentry a esta cadena para enviar eventos a este proyecto.",
+      "copyDsn": "Copiar DSN",
+      "install": "Instalación",
+      "installDescription": "Añade el SDK a tu proyecto.",
+      "copyInstallCommand": "Copiar comando de instalación",
+      "setup": "Configuración",
+      "exampleJs": "Ejemplo (JavaScript)",
+      "examplePlatform": "Ejemplo ({platform})",
+      "dsnFilled": "Tu DSN ya está rellenado abajo.",
+      "pointSdk": "Apunta el SDK de esta plataforma al DSN de arriba.",
+      "copied": "Copiado",
+      "copy": "Copiar",
+      "compatLead": "Este servidor es compatible con todos los SDK oficiales de Sentry. Consulta la",
+      "docsPlatform": "documentación de {platform}",
+      "docsSentry": "documentación de Sentry",
+      "compatFull": "para ver la configuración completa, incluidas las opciones que este ejemplo omite.",
+      "compatSteps": "para ver los pasos de configuración de esta plataforma.",
+      "commandLabel": "comando",
+      "exampleLabel": "ejemplo"
+    }
+  },
+  "alerts": {
+    "common": {
+      "name": "Nombre",
+      "fieldName": "ese nombre",
+      "cancel": "Cancelar",
+      "delete": "Eliminar",
+      "deleting": "Eliminando...",
+      "saveChanges": "Guardar cambios",
+      "test": "Probar"
+    },
+    "validation": {
+      "nameRequired": "El nombre es obligatorio",
+      "validHttpUrl": "Debe ser una URL http/https válida",
+      "webhookUrlRequired": "La URL del webhook es obligatoria",
+      "slackWebhookUrl": "Debe ser una URL de webhook de Slack válida (https://hooks.slack.com/...)",
+      "validUrl": "Introduce una URL válida",
+      "botTokenRequired": "El token de bot es obligatorio",
+      "botTokenPrefix": "El token de bot debe empezar por xoxb-",
+      "smtpHostRequired": "El host SMTP es obligatorio",
+      "validEmail": "Introduce un correo electrónico válido"
+    },
+    "routing": {
+      "slackChannelRequired": "Se requiere un canal de Slack para «{name}»",
+      "recipientsRequired": "Se requieren destinatarios para «{name}»",
+      "invalidRecipients": "Hay una dirección de correo no válida entre los destinatarios de «{name}»",
+      "webhookUrlRequired": "Se requiere una URL de webhook para «{name}» (definida en las credenciales o como URL de anulación)",
+      "invalidOverrideUrl": "La URL de anulación de «{name}» debe ser http/https",
+      "channelLabel": "Canal",
+      "channelHint": "Nombre del canal (p. ej. <code>#alerts</code>) o ID del canal (p. ej. <code>C1234567890</code>)",
+      "channelPlaceholder": "#alerts o C1234567890",
+      "recipientsLabel": "Destinatarios",
+      "recipientsHint": "Direcciones de correo separadas por comas",
+      "recipientsPlaceholder": "alerts@example.com, team@example.com",
+      "overrideUrlLabel": "URL de anulación",
+      "overrideUrlHint": "Anula la URL configurada en las credenciales",
+      "overrideUrlPlaceholder": "https://svc.io/hook",
+      "optional": "(opcional)"
+    },
+    "channelCard": {
+      "botToken": "token de bot"
+    },
+    "ruleDialog": {
+      "titleNew": "Nueva regla de alerta",
+      "titleEdit": "Editar regla de alerta",
+      "descNew": "Define cuándo disparar una alerta y dónde enviarla.",
+      "descEdit": "Actualiza cuándo y dónde envía notificaciones esta regla.",
+      "name": "Nombre de la regla",
+      "namePlaceholder": "p. ej., Avisar al equipo de nuevos problemas",
+      "trigger": "Disparador",
+      "sendTo": "Enviar a",
+      "create": "Crear regla",
+      "saveChanges": "Guardar cambios",
+      "selectAtLeastOne": "Selecciona al menos una integración",
+      "enable": "Activar regla",
+      "enableDescription": "Empezar a enviar alertas justo después de guardar",
+      "cooldown": "Tiempo mínimo entre alertas",
+      "decreaseCooldown": "Reducir el tiempo mínimo en {count} minutos",
+      "increaseCooldown": "Aumentar el tiempo mínimo en {count} minutos",
+      "minutesUnit": "min",
+      "noCooldownLimit": "Sin límite — la alerta se dispara cada vez",
+      "cooldownLimit": "{count, plural, =1 {Como máximo una alerta por minuto y por problema} other {Como máximo una alerta cada # minutos por problema}}",
+      "fieldAlertType": "ese tipo de alerta",
+      "saveFailed": "No se pudo guardar la regla",
+      "updated": "Regla de alerta actualizada",
+      "created": "Regla de alerta creada"
+    },
+    "integrationDialog": {
+      "name": "Nombre",
+      "enabled": "Activada",
+      "enabledDescription": "Recibir alertas en esta integración"
+    },
+    "webhook": {
+      "titleNew": "Configurar webhook",
+      "titleEdit": "Editar webhook",
+      "description": "Envía cargas JSON a endpoints de API externos. Especifica la URL de destino aquí (valor global por defecto) o por regla de alerta como anulación.",
+      "namePlaceholder": "p. ej., Alertas de producción",
+      "urlLabel": "URL por defecto (opcional)",
+      "urlPlaceholder": "https://example.com/webhook",
+      "urlDescription": "Déjalo en blanco para exigir una URL de anulación por regla de alerta.",
+      "secretLabel": "Secreto (opcional)",
+      "secretPlaceholder": "Secreto de firma HMAC",
+      "secretDescription": "Se usa para firmar las cargas con HMAC-SHA256",
+      "create": "Crear webhook",
+      "fieldUrl": "esa URL",
+      "fieldSecret": "ese secreto",
+      "saveFailed": "No se pudo guardar el webhook",
+      "updated": "Webhook actualizado",
+      "created": "Webhook creado"
+    },
+    "slack": {
+      "titleNew": "Añadir integración de Slack",
+      "titleEdit": "Editar integración de Slack",
+      "description": "Guarda aquí tus credenciales de Slack. Elige el canal de destino al crear una regla de alerta.",
+      "namePlaceholder": "p. ej., Alertas del equipo",
+      "methodLabel": "Método de conexión",
+      "incomingWebhook": "Webhook entrante",
+      "botTokenTab": "Token de bot",
+      "webhookUrlLabel": "URL del webhook",
+      "webhookUrlPlaceholder": "https://hooks.slack.com/services/...",
+      "webhookUrlDescription": "Crea un webhook entrante en la configuración de tu aplicación de Slack.",
+      "tokenLabelSuffix": "(déjalo en blanco para conservar el actual)",
+      "tokenPlaceholder": "xoxb-...",
+      "tokenDescription": "Token de bot OAuth que empieza por xoxb-, de tu aplicación de Slack.",
+      "sendTestTitle": "Enviar una prueba",
+      "testChannelPlaceholder": "#alerts",
+      "testChannelHint": "Introduce el canal de Slack donde se enviará el mensaje de prueba.",
+      "testWebhookHint": "Envía un mensaje de prueba al webhook configurado.",
+      "addIntegration": "Añadir integración",
+      "fieldWebhookUrl": "esa URL de webhook",
+      "fieldToken": "ese token de bot",
+      "saveFailed": "No se pudo guardar la integración de Slack",
+      "updated": "Integración de Slack actualizada",
+      "created": "Integración de Slack creada"
+    },
+    "email": {
+      "titleNew": "Configurar correo electrónico (SMTP)",
+      "titleEdit": "Editar integración de correo",
+      "description": "Guarda aquí tus credenciales SMTP. Especifica los destinatarios al crear una regla de alerta.",
+      "namePlaceholder": "p. ej., Alertas por correo",
+      "hostLabel": "Host SMTP",
+      "hostPlaceholder": "smtp.example.com",
+      "portLabel": "Puerto",
+      "portPlaceholder": "587",
+      "usernameLabel": "Usuario (opcional)",
+      "usernamePlaceholder": "usuario",
+      "passwordLabel": "Contraseña (opcional)",
+      "passwordPlaceholder": "••••••••",
+      "fromLabel": "Dirección de origen",
+      "fromPlaceholder": "alerts@rustrak.local",
+      "sendTestTitle": "Enviar una prueba",
+      "testRecipientsAria": "Destinatarios de prueba",
+      "testRecipientsPlaceholder": "test@example.com",
+      "testHintExisting": "Separa varias direcciones con comas. La prueba usa la configuración SMTP guardada por última vez, no los cambios sin guardar de arriba.",
+      "testHintNew": "Guarda primero esta integración para enviar un correo de prueba.",
+      "create": "Crear integración de correo",
+      "fieldHost": "ese host SMTP",
+      "fieldPort": "ese puerto SMTP",
+      "fieldUsername": "ese usuario de SMTP",
+      "fieldPassword": "esa contraseña de SMTP",
+      "fieldFrom": "esa dirección de origen",
+      "saveFailed": "No se pudo guardar la integración de correo",
+      "updated": "Integración de correo actualizada",
+      "created": "Integración de correo creada"
+    },
+    "integrations": {
+      "title": "Notificaciones de alerta",
+      "description": "Envía alertas a servicios externos cuando se detectan problemas nuevos.",
+      "configuredCount": "{count} configurada(s)",
+      "notConfigured": "Sin configurar",
+      "connected": "Conectada",
+      "disabled": "Desactivada",
+      "configure": "Configurar",
+      "manage": "Gestionar",
+      "configureAria": "Configurar {name}",
+      "testFailed": "No se pudo enviar la prueba",
+      "testSent": "Notificación de prueba enviada",
+      "testFailedResult": "La prueba falló",
+      "deleteFailed": "No se pudo eliminar la integración",
+      "deleted": "Integración eliminada",
+      "deleteTitle": "Eliminar integración",
+      "deleteDescription": "¿Seguro que quieres eliminar «{name}»? Esta acción no se puede deshacer y detendrá todas las alertas que usen esta integración."
+    },
+    "manage": {
+      "configuredCount": "{count, plural, =1 {# integración configurada} other {# integraciones configuradas}}",
+      "edit": "Editar",
+      "deleteAria": "Eliminar {name}",
+      "close": "Cerrar",
+      "addProvider": "Añadir {name}"
+    },
+    "table": {
+      "rule": "Regla",
+      "trigger": "Disparador",
+      "channels": "Canales",
+      "enabled": "Activada",
+      "actionsAria": "Acciones",
+      "enableAria": "Activar {name}",
+      "editAria": "Editar {name}",
+      "deleteAria": "Eliminar {name}"
+    },
+    "settings": {
+      "title": "Configuración de alertas",
+      "description": "Configura cuándo enviar notificaciones para este proyecto.",
+      "addRule": "Añadir regla de alerta",
+      "noIntegrationsTitle": "No hay integraciones configuradas",
+      "noIntegrationsHint": "Ve a <link>Configuración → Integraciones</link> para añadir primero integraciones.",
+      "noRulesTitle": "Aún no hay reglas de alerta",
+      "noRulesHint": "Crea una para empezar a recibir notificaciones.",
+      "updateFailed": "No se pudo actualizar la regla",
+      "deleteFailed": "No se pudo eliminar la regla",
+      "deleted": "Regla de alerta eliminada",
+      "deleteRuleTitle": "Eliminar regla de alerta",
+      "deleteRuleDescription": "¿Seguro que quieres eliminar «{name}»? Esta acción no se puede deshacer."
+    },
+    "providers": {
+      "slack": {
+        "description": "Envía alertas a canales de Slack mediante webhook o token de bot."
+      },
+      "email": {
+        "description": "Envía alertas por correo SMTP a cualquier destinatario."
+      },
+      "webhook": {
+        "description": "Envía cargas JSON a cualquier endpoint HTTP."
+      }
+    },
+    "newIssue": {
+      "name": "Problema nuevo",
+      "description": "Se detecta un problema por primera vez"
+    },
+    "regression": {
+      "name": "Regresión",
+      "description": "Reaparece un problema resuelto"
+    },
+    "unmute": {
+      "name": "Reactivación",
+      "description": "Se reactiva un problema silenciado"
+    }
+  },
+  "events": {
+    "breadcrumbs": {
+      "defaultCategory": "predeterminada",
+      "empty": "No hay breadcrumbs disponibles",
+      "viewMore": "Ver {count} más"
+    },
+    "clipboardValueHint": "Selecciona el valor y cópialo manualmente, o accede a Rustrak por HTTPS.",
+    "clipboardJsonHint": "Selecciona el JSON y cópialo manualmente, o accede a Rustrak por HTTPS.",
+    "context": {
+      "empty": "No hay datos de contexto disponibles",
+      "user": "Usuario",
+      "id": "ID",
+      "email": "Correo electrónico",
+      "ipAddress": "Dirección IP",
+      "packages": "Paquetes"
+    },
+    "details": {
+      "yes": "Sí",
+      "no": "No",
+      "keyInformation": "Información clave",
+      "eventId": "ID del evento",
+      "issueId": "ID del problema",
+      "transaction": "Transacción",
+      "timestamp": "Marca de tiempo",
+      "ingestedAt": "Ingestión",
+      "level": "Nivel",
+      "handled": "Gestionado",
+      "mechanism": "Mecanismo",
+      "logEntry": "Entrada de registro",
+      "message": "Mensaje",
+      "formatted": "Formateado",
+      "params": "Parámetros",
+      "deployment": "Despliegue",
+      "platform": "Plataforma",
+      "environment": "Entorno",
+      "release": "Versión",
+      "serverName": "Nombre del servidor",
+      "sdk": "SDK",
+      "name": "Nombre",
+      "version": "Versión",
+      "request": "Petición",
+      "method": "Método",
+      "url": "URL",
+      "queryString": "Cadena de consulta",
+      "headers": "Cabeceras",
+      "modules": "Módulos",
+      "extraData": "Datos adicionales"
+    },
+    "highlights": {
+      "handled": "gestionado",
+      "level": "nivel",
+      "transaction": "transacción",
+      "url": "url",
+      "environment": "entorno",
+      "release": "versión",
+      "runtime": "runtime",
+      "traceId": "id de traza"
+    },
+    "navigation": {
+      "previousEvent": "Evento anterior",
+      "nextEvent": "Evento siguiente",
+      "position": "{current} de {total}",
+      "first": "Primero",
+      "latest": "Último"
+    },
+    "tags": {
+      "emptyTitle": "No hay tags para este evento",
+      "emptyHint": "Los tags son metadatos adjuntos a los eventos por los SDK de Sentry",
+      "deployment": "Despliegue",
+      "runtime": "Runtime",
+      "device": "Dispositivo / Navegador",
+      "user": "Usuario",
+      "other": "Otros tags",
+      "attachedCount": "{count, plural, =1 {# tag adjunto a este evento} other {# tags adjuntos a este evento}}"
+    },
+    "rawJson": {
+      "copied": "Copiado",
+      "copyJson": "Copiar JSON"
+    },
+    "stackTrace": {
+      "empty": "No hay seguimiento de pila disponible",
+      "emptyForThread": "No hay seguimiento de pila disponible para este hilo",
+      "variables": "Variables"
+    },
+    "copy": {
+      "plainText": "Texto sin formato",
+      "json": "JSON"
+    },
+    "threads": {
+      "threadLabel": "Hilo #{id}",
+      "crashedSuffix": " (con fallo)",
+      "thread": "Hilo",
+      "crashed": "Falló",
+      "current": "Actual",
+      "main": "Principal"
+    }
+  },
+  "releases": {
+    "all": "Todas",
+    "empty": {
+      "title": "No hay versiones en esta ventana",
+      "hint": "Prueba con un período más largo o borra el filtro."
+    },
+    "columns": {
+      "release": "Versión"
+    },
+    "sessions": "Sesiones",
+    "crashFree": "Sin fallos",
+    "crashFreeSessions": "Sesiones sin fallos",
+    "crashFreeUsers": "Usuarios sin fallos",
+    "crashed": "Fallos",
+    "users": "Usuarios",
+    "healthy": "Saludable",
+    "noSessionData": "Sin datos de sesión",
+    "enableReleaseHealth": "Activa la salud de versiones en tu SDK para seguir las tasas sin fallos",
+    "noTrendHistory": "No hay historial suficiente para trazar una tendencia",
+    "noSessionDataForPeriod": "Sin datos de sesión para este período"
+  },
+  "transactions": {
+    "columns": {
+      "transaction": "Transacción",
+      "duration": "Duración",
+      "lastSeen": "Vista por última vez",
+      "count": "Recuento",
+      "failures": "Fallos"
+    },
+    "unnamed": "(sin nombre)",
+    "empty": {
+      "title": "Aún no hay transacciones",
+      "sdkHint": "Configura tu SDK con <code>tracesSampleRate</code> para empezar a capturar datos de rendimiento."
+    },
+    "measurements": {
+      "lcp": "LCP",
+      "fcp": "FCP",
+      "fid": "FID",
+      "inp": "INP",
+      "ttfb": "TTFB",
+      "cls": "CLS"
+    },
+    "waterfall": {
+      "rootFallback": "transacción",
+      "spanFallback": "span",
+      "expand": "Expandir",
+      "collapse": "Contraer",
+      "detail": {
+        "op": "op",
+        "description": "descripción",
+        "status": "estado",
+        "duration": "duración",
+        "selfTime": "tiempo propio",
+        "spanId": "span_id",
+        "parentSpanId": "parent_span_id"
+      }
+    },
+    "p95": {
+      "barTitle": "{name} — {count, plural, =1 {# evento} other {# eventos}}",
+      "empty": "Aún no hay datos de transacciones",
+      "failing": "{rate} con fallos"
+    }
+  },
+  "agents": {
+    "columns": {
+      "agents": "Agentes",
+      "duration": "Duración",
+      "tokens": "Tokens",
+      "tools": "Herramientas",
+      "started": "Iniciado",
+      "llmCalls": "LLM",
+      "errors": "Errores"
+    },
+    "unnamedAgent": "(agente sin nombre)",
+    "charts": {
+      "noData": "Aún no hay datos",
+      "durationTooltip": "media {avg} · p95 {p95}"
+    },
+    "waterfall": {
+      "expand": "Expandir",
+      "collapse": "Contraer",
+      "spanFallback": "span"
+    },
+    "empty": {
+      "noSpans": "Esta traza no tiene spans."
+    },
+    "detail": {
+      "op": "op",
+      "description": "descripción",
+      "status": "estado",
+      "duration": "duración",
+      "selfTime": "tiempo propio",
+      "spanId": "span_id",
+      "parentSpanId": "parent_span_id",
+      "operationType": "tipo de operación",
+      "agentName": "nombre del agente",
+      "toolName": "nombre de la herramienta",
+      "requestModel": "modelo de la petición",
+      "responseModel": "modelo de la respuesta",
+      "conversationId": "id de conversación",
+      "inputTokens": "tokens de entrada",
+      "outputTokens": "tokens de salida",
+      "totalTokens": "tokens totales",
+      "genAiSection": "gen_ai"
+    },
+    "spanDetail": {
+      "agentName": "Agente",
+      "model": "Modelo",
+      "toolName": "Herramienta",
+      "reasoningEffort": "Esfuerzo de razonamiento",
+      "conversationId": "Conversación",
+      "tokens": "Tokens",
+      "inputTokens": "Entrada",
+      "cachedTokens": "Entrada en caché",
+      "outputTokens": "Salida",
+      "totalTokens": "Total",
+      "availableTools": "Herramientas disponibles",
+      "input": "Entrada",
+      "systemInstructions": "Instrucciones del sistema",
+      "output": "Salida",
+      "responseObject": "Objeto de respuesta",
+      "requestedToolCalls": "Llamadas a herramientas solicitadas",
+      "allAttributes": "Todos los atributos",
+      "tokenMismatch": "Estos recuentos no suman el total indicado — puede que el SDK los esté comunicando de forma incoherente."
+    },
+    "summary": {
+      "agentRuns": "Ejecuciones de agente",
+      "llmCalls": "Llamadas LLM",
+      "toolCalls": "Llamadas a herramientas",
+      "totalTokens": "Tokens",
+      "avgDuration": "Duración media",
+      "p95Duration": "Duración p95",
+      "errors": "Errores"
+    },
+    "filters": {
+      "allTime": "Todo el histórico",
+      "allEnvironments": "Todos los entornos"
+    },
+    "modelsTable": {
+      "empty": "No hay llamadas a modelos en esta ventana.",
+      "model": "Modelo",
+      "requests": "Peticiones",
+      "errors": "Errores",
+      "avg": "Media",
+      "p95": "P95",
+      "input": "Entrada",
+      "cached": "Caché",
+      "output": "Salida",
+      "reasoning": "Razonamiento"
+    },
+    "toolsTable": {
+      "empty": "No hay llamadas a herramientas en esta ventana.",
+      "tool": "Herramienta",
+      "calls": "Llamadas",
+      "errors": "Errores",
+      "avg": "Media",
+      "p95": "P95"
+    }
+  },
+  "tokens": {
+    "create": {
+      "trigger": "Nuevo token",
+      "createdTitle": "Token creado",
+      "createdDescription": "Copia tu token ahora. También podrás recuperarlo más tarde desde la lista.",
+      "copyTokenLabel": "Copiar el nuevo token",
+      "copyAgainHint": "Puedes volver a copiar este token cuando quieras desde la lista de tokens.",
+      "done": "Hecho",
+      "title": "Crear token de API",
+      "description": "Crea un nuevo token para acceso programático a la API.",
+      "descriptionLabel": "Descripción (opcional)",
+      "descriptionPlaceholder": "p. ej., Pipeline de CI/CD",
+      "charCount": "{count}/{max} {count, plural, =1 {carácter} other {caracteres}}",
+      "descriptionTooLong": "La descripción debe tener como máximo {max} caracteres",
+      "cancel": "Cancelar",
+      "creating": "Creando...",
+      "submit": "Crear token"
+    },
+    "copyTokenLabel": "Copiar el token {label}",
+    "deleteTokenLabel": "Eliminar el token {label}",
+    "never": "Nunca",
+    "neverUsed": "Nunca usado",
+    "createdOn": "Creado el {date}",
+    "usedOn": "Usado el {time}",
+    "columns": {
+      "token": "Token",
+      "description": "Descripción",
+      "created": "Creación",
+      "lastUsed": "Último uso"
+    },
+    "actionsLabel": "Acciones",
+    "toasts": {
+      "createFailed": "No se pudo crear el token",
+      "created": "Token creado",
+      "createdHint": "Asegúrate de copiar tu token ahora.",
+      "deleted": "Token eliminado",
+      "deleteFailed": "No se pudo eliminar el token",
+      "getFailed": "No se pudo obtener el token",
+      "copied": "Token copiado al portapapeles",
+      "copyTitle": "Copiar el token"
+    },
+    "empty": {
+      "title": "Aún no hay tokens de API",
+      "createFirst": "Crea tu primer token"
+    },
+    "list": {
+      "title": "Tus tokens",
+      "description": "Los tokens se usan para autenticar las peticiones a la API"
+    },
+    "deleteDialog": {
+      "title": "¿Eliminar el token?",
+      "description": "Esto eliminará definitivamente este token. Los servicios que lo usen perderán el acceso inmediatamente. La acción no se puede deshacer.",
+      "cancel": "Cancelar",
+      "deleting": "Eliminando...",
+      "confirm": "Eliminar"
+    }
+  },
+  "storage": {
+    "period": "Más de {count, plural, =1 {# día} other {# días}}",
+    "type": {
+      "events": "Errores",
+      "transactions": "Transacciones",
+      "logs": "Logs"
+    },
+    "line": {
+      "emptyIssues": "Problemas vacíos",
+      "spans": "Spans"
+    },
+    "allProjects": "Todos los proyectos",
+    "retentionPeriodLabel": "Período de retención",
+    "projectScopeLabel": "Ámbito del proyecto",
+    "dataLabel": "Datos",
+    "cleanup": {
+      "title": "Limpiar datos antiguos",
+      "description": "Elimina definitivamente los datos seleccionados más antiguos que el período elegido. Previsualiza primero — esto no se puede deshacer."
+    },
+    "working": "Trabajando…",
+    "preview": "Previsualizar",
+    "nothingMatches": "Nada coincide con esta selección ({period}) para {scope} — no hay nada que eliminar.",
+    "wouldRemove": "Esta limpieza eliminaría",
+    "deleteTrigger": "Eliminar definitivamente",
+    "deleteRowsTitle": "¿Eliminar {count, plural, =1 {# fila} other {# filas}}?",
+    "deleteRowsDescription": "Esto elimina definitivamente los datos seleccionados ({period}) para {scope}. La acción no se puede deshacer.",
+    "cancel": "Cancelar",
+    "deleting": "Eliminando…",
+    "deleteAction": "Eliminar definitivamente",
+    "toasts": {
+      "previewFailed": "No se pudo previsualizar la limpieza",
+      "cleanupFailed": "La limpieza falló",
+      "removed": "Eliminado: {parts}",
+      "nothingRemoved": "Nada coincidió — no se eliminaron datos",
+      "sourceMapPreviewFailed": "No se pudo previsualizar la limpieza de source maps",
+      "gcFailed": "Falló la limpieza de source maps",
+      "sourceMapsRemoved": "{count, plural, =1 {Se eliminó # source map huérfana ({freed} liberados)} other {Se eliminaron # source maps huérfanas ({freed} liberados)}}"
+    },
+    "unit": {
+      "errors": "{count, plural, =1 {# error} other {# errores}}",
+      "transactions": "{count, plural, =1 {# transacción} other {# transacciones}}",
+      "spans": "{count, plural, =1 {# span} other {# spans}}",
+      "logs": "{count, plural, =1 {# registro} other {# registros}}",
+      "emptyIssues": "{count, plural, =1 {# problema vacío} other {# problemas vacíos}}"
+    },
+    "sourceMaps": {
+      "title": "Source maps huérfanas",
+      "description": "Elimina archivos de source map a los que ya no haga referencia ninguna carga — por ejemplo, archivos que quedaron tras eliminar un proyecto. Previsualiza primero; los archivos referenciados nunca se tocan.",
+      "nothingToClean": "No hay source maps huérfanas — nada que limpiar.",
+      "wouldRemove": "Esta limpieza eliminaría:",
+      "fileCount": "{count, plural, =1 {# source map huérfana} other {# source maps huérfanas}}",
+      "freed": "{bytes} liberados",
+      "removeAction": "Eliminar source maps huérfanas",
+      "removeTitle": "¿Eliminar {count, plural, =1 {# source map huérfana} other {# source maps huérfanas}}?",
+      "removeDescription": "Esto elimina definitivamente de la base de datos y del disco {count, plural, =1 {# archivo de source map} other {# archivos de source map}} ({bytes}) a los que no hace referencia ninguna carga. Los archivos referenciados no se ven afectados."
+    },
+    "removing": "Eliminando…",
+    "remove": "Eliminar"
+  },
+  "errors": {
+    "notFound": {
+      "meta": {
+        "title": "No encontrada | Rustrak"
+      },
+      "brandStatement": "Nada por aquí",
+      "brandDescription": "No falló nada de camino a esta página. El servidor respondió con normalidad y simplemente no tenía nada en esta dirección.",
+      "headline": "Página no encontrada",
+      "description": "Esta dirección no coincide con ninguna página de esta instancia de Rustrak.",
+      "guidance": "Si seguiste un enlace desde dentro de Rustrak, el proyecto, el problema o el evento al que apuntaba puede haberse eliminado desde entonces."
+    },
+    "goToProjects": "Ir a Proyectos",
+    "errorId": "ID del error: {id}",
+    "tryAgain": "Inténtalo de nuevo",
+    "global": {
+      "headline": "Algo salió mal",
+      "description": "No se pudo renderizar esta página. El fallo ocurrió en el panel, no en tus datos, que están intactos.",
+      "guidance": "Si vuelve a ocurrir tras recargar, el ID de error de abajo es lo que identifica este fallo concreto en los registros."
+    },
+    "main": {
+      "headline": "No se pudo cargar esta página",
+      "description": "El fallo ocurrió durante el renderizado, no en tus datos. Todo lo demás del panel sigue accesible desde la cabecera de arriba."
+    }
+  },
+  "auth": {
+    "meta": {
+      "title": "Iniciar sesión | Rustrak",
+      "description": "Inicia sesión en tu cuenta de Rustrak"
+    },
+    "heroTitle": "Te damos la bienvenida de nuevo a Rustrak",
+    "heroDescription": "Seguimiento de errores ligero y autoalojado. Accede a tu panel para supervisar la salud del sistema y resolver incidentes críticos.",
+    "statMemoryFootprint": "Huella de memoria",
+    "statIngestionLatency": "Latencia de ingesta",
+    "statEventsPerSecond": "Eventos/segundo",
+    "form": {
+      "title": "Iniciar sesión",
+      "subtitle": "Introduce tus credenciales para acceder a la plataforma.",
+      "emailLabel": "Correo electrónico",
+      "emailPlaceholder": "nombre@empresa.com",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Introduce tu contraseña",
+      "hidePassword": "Ocultar contraseña",
+      "showPassword": "Mostrar contraseña",
+      "signingIn": "Iniciando sesión...",
+      "login": "Iniciar sesión",
+      "invalidCredentials": "Correo electrónico o contraseña no válidos",
+      "failureNetwork": "No se pudo contactar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+      "failureRateLimited": "Demasiados intentos de inicio de sesión. Espera aproximadamente {duration} antes de intentarlo de nuevo.",
+      "failureRateLimitedGeneric": "Demasiados intentos de inicio de sesión. Espera unos minutos antes de intentarlo de nuevo.",
+      "failureUnexpected": "Ocurrió un error inesperado. Inténtalo de nuevo.",
+      "emailInvalid": "Introduce una dirección de correo válida",
+      "passwordRequired": "La contraseña es obligatoria",
+      "waitSeconds": "{count, plural, =1 {# segundo} other {# segundos}}",
+      "waitMinutes": "{count, plural, =1 {# minuto} other {# minutos}}",
+      "waitHours": "{count, plural, =1 {# hora} other {# horas}}"
+    }
+  },
+  "invite": {
+    "meta": {
+      "title": "Aceptar invitación | Rustrak",
+      "description": "Acepta tu invitación para unirte a Rustrak"
+    },
+    "form": {
+      "title": "Aceptar invitación",
+      "subtitle": "Define una contraseña para terminar de crear tu cuenta.",
+      "emailLabel": "Correo electrónico",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Elige una contraseña",
+      "confirmLabel": "Confirmar contraseña",
+      "confirmPlaceholder": "Vuelve a escribir tu contraseña",
+      "creating": "Creando cuenta...",
+      "accept": "Aceptar y continuar",
+      "passwordRequired": "La contraseña es obligatoria",
+      "confirmRequired": "Confirma tu contraseña",
+      "passwordsMismatch": "Las contraseñas no coinciden"
+    },
+    "unavailable": {
+      "brandStatement": "Los enlaces caducan",
+      "brandDescription": "Las invitaciones son de un solo uso y tienen tiempo límite, así que un enlace deja de funcionar una vez aceptado o cuando expira. No falló nada de camino hasta aquí.",
+      "headline": "Invitación no disponible",
+      "description": "Este enlace de invitación no es válido, ha caducado o ya se ha usado.",
+      "guidance": "Pide a un administrador que te envíe uno nuevo. Si ya lo aceptaste, inicia sesión en su lugar.",
+      "goToLogin": "Ir al inicio de sesión"
+    }
+  },
+  "projectPages": {
+    "projectNotFound": "Proyecto no encontrado | Rustrak",
+    "projectTitle": "{project} | Rustrak",
+    "loadProjectFailed": "No se pudo cargar el proyecto",
+    "loadIssueFailed": "No se pudo cargar el problema",
+    "spanCount": "{count, plural, =1 {# span} other {# spans}}",
+    "projectsList": {
+      "meta": {
+        "title": "Proyectos | Rustrak",
+        "description": "Gestiona tus proyectos de Rustrak"
+      },
+      "title": "Proyectos",
+      "subtitle": "Gestiona tus proyectos de seguimiento de errores",
+      "newProject": "Nuevo proyecto",
+      "loadFailed": "No se pudieron cargar los proyectos"
+    },
+    "newProject": {
+      "meta": {
+        "title": "Nuevo proyecto | Rustrak",
+        "description": "Crea un nuevo proyecto de Rustrak"
+      },
+      "backToProjects": "Volver a proyectos",
+      "title": "Crear un nuevo proyecto",
+      "subtitle": "Elige la plataforma que quieres supervisar. Justo después obtendrás el DSN y un fragmento de configuración."
+    },
+    "overview": {
+      "meta": {
+        "description": "Resumen de {project}"
+      },
+      "periodAll": "Todo",
+      "errorVolume": "Volumen de errores por gravedad",
+      "events": "Eventos",
+      "newIssues": "Problemas nuevos",
+      "openIssues": "{count} abiertos",
+      "crashFreeSessions": "Sesiones sin fallos",
+      "sessionHealth": "Salud de sesiones",
+      "sessionHealthSubtitle": "Sesiones saludables y fallidas a lo largo del tiempo",
+      "latency": "Latencia",
+      "latencySubtitle": "Transacciones más lentas por p95, todo el historial",
+      "topIssues": "Principales problemas",
+      "topIssuesSubtitle": "Problemas abiertos por eventos totales, todo el historial",
+      "noIssuesYet": "Aún no hay problemas"
+    },
+    "issues": {
+      "meta": {
+        "description": "Problemas de {project}"
+      },
+      "title": "Problemas",
+      "subtitle": "Problemas abiertos de {project}",
+      "loadFailed": "No se pudieron cargar los problemas",
+      "loadLatestEventFailed": "No se pudo cargar el último evento"
+    },
+    "logs": {
+      "meta": {
+        "title": "Logs | {project} | Rustrak",
+        "description": "Registros estructurados de {project}"
+      },
+      "title": "Logs",
+      "subtitle": "Registros estructurados de {project}, del más reciente al más antiguo",
+      "loadFailed": "No se pudieron cargar los registros",
+      "emptyTitle": "Aún no hay registros",
+      "emptyDescription": "Envía registros estructurados desde tu SDK (p. ej. <code>Sentry.logger.info(...)</code>) para empezar a recopilarlos aquí."
+    },
+    "performance": {
+      "meta": {
+        "title": "Rendimiento | {project} | Rustrak",
+        "description": "Rendimiento de transacciones de {project}"
+      },
+      "title": "Rendimiento",
+      "subtitle": "Transacciones de {project}, agrupadas por nombre y operación",
+      "loadFailed": "No se pudieron cargar las transacciones",
+      "emptyTitle": "Aún no hay transacciones",
+      "emptyDescription": "Configura tu SDK con <code>tracesSampleRate</code> para empezar a capturar datos de rendimiento.",
+      "backLink": "Rendimiento"
+    },
+    "transaction": {
+      "meta": {
+        "title": "{name} | Rendimiento | Rustrak",
+        "fallbackTitle": "Transacción | Rustrak"
+      },
+      "loadFailed": "No se pudo cargar la transacción",
+      "unnamed": "(transacción sin nombre)",
+      "spans": "Spans",
+      "noSpans": "Esta transacción no tiene spans.",
+      "tags": "Tags",
+      "request": "Petición",
+      "user": "Usuario"
+    },
+    "summary": {
+      "meta": {
+        "title": "{name} | Rendimiento | Rustrak",
+        "fallbackName": "Transacción"
+      },
+      "metricCount": "Recuento",
+      "metricP50": "p50",
+      "metricP95": "p95",
+      "metricP99": "p99",
+      "metricFailureRate": "Tasa de fallo",
+      "samples": "Muestras"
+    },
+    "releases": {
+      "meta": {
+        "title": "Versiones | {project} | Rustrak",
+        "description": "Salud de versiones de {project}"
+      },
+      "title": "Versiones",
+      "subtitle": "Salud de sesiones por versión para {project}",
+      "loadFailed": "No se pudo cargar la salud de versiones",
+      "emptyTitle": "Aún no hay versiones",
+      "emptyDescription": "Envía un atributo <code>release</code> con tus eventos o sesiones para empezar a seguir la salud de versiones."
+    },
+    "releaseDetail": {
+      "meta": {
+        "title": "{release} | {project} | Rustrak",
+        "description": "Salud de versiones de {release}"
+      },
+      "loadFailed": "No se pudo cargar esta versión",
+      "subtitle": "Salud de versiones de {project}",
+      "newIssues": "Problemas nuevos",
+      "newIssuesEmpty": "Ningún problema nuevo introducido en esta versión",
+      "loadNewIssuesFailed": "No se pudieron cargar los problemas nuevos"
+    },
+    "agents": {
+      "meta": {
+        "title": "Agentes | {project} | Rustrak",
+        "description": "Supervisión de agentes de IA para {project}"
+      },
+      "title": "Agentes",
+      "subtitle": "Ejecuciones de agentes, tokens y uso de herramientas para {project}",
+      "loadFailed": "No se pudo cargar la actividad de agentes",
+      "emptyTitle": "Aún no hay actividad de agentes",
+      "emptyDescription": "Instrumenta tu agente de IA con un SDK de Sentry usando las convenciones semánticas OpenTelemetry GenAI para empezar a capturar ejecuciones de agentes.",
+      "cardRuns": "Ejecuciones de agente",
+      "cardRunsDescription": "Ejecuciones iniciadas por intervalo",
+      "cardDuration": "Duración",
+      "cardDurationDescription": "Tiempo medio y p95 de las ejecuciones de agente",
+      "cardModelsByCalls": "Llamadas LLM por modelo",
+      "cardModelsByCallsDescription": "Modelos principales por número de llamadas",
+      "cardModelsByTokens": "Tokens usados por modelo",
+      "cardModelsByTokensDescription": "Modelos principales por volumen de tokens",
+      "cardTools": "Llamadas a herramientas por herramienta",
+      "cardToolsDescription": "Herramientas principales por número de llamadas",
+      "cardTraces": "Trazas",
+      "cardTracesDescription": "Una fila por traza, agregando cada span de IA que contiene",
+      "cardModelsTable": "Modelos",
+      "cardModelsTableDescription": "Volumen, fallos, latencia y reparto de tokens por modelo.",
+      "cardToolsTable": "Herramientas",
+      "cardToolsTableDescription": "Volumen de llamadas y tasa de fallo por herramienta."
+    },
+    "trace": {
+      "meta": {
+        "title": "{traceId} | Agentes | Rustrak"
+      },
+      "loadFailed": "No se pudo cargar la traza",
+      "backLink": "Agentes",
+      "unnamed": "(agente sin nombre)",
+      "tokens": "{count} tokens",
+      "toolCalls": "{count, plural, =1 {# llamada a herramienta} other {# llamadas a herramientas}}",
+      "spans": "Spans",
+      "llmCalls": "{count} llamadas LLM",
+      "errors": "{count} errores",
+      "spanDetail": "Detalle del span",
+      "selectSpan": "Selecciona un span para ver su prompt, su respuesta y sus atributos.",
+      "spanUnavailable": "Ese span ya no está disponible."
+    },
+    "event": {
+      "meta": {
+        "eventNotFound": "Evento no encontrado | Rustrak",
+        "description": "Detalles del evento",
+        "issueNotFound": "Problema no encontrado | Rustrak",
+        "noEvents": "Sin eventos | {issue} | Rustrak"
+      },
+      "loadFailed": "No se pudo cargar el evento",
+      "loadNavigationFailed": "No se pudieron cargar los eventos de este problema",
+      "lastSeen": "Visto por última vez",
+      "firstSeen": "Visto por primera vez",
+      "inRelease": "en la versión <rel>{release}</rel>",
+      "events": "Eventos",
+      "users": "Usuarios",
+      "eventsTotal": "Eventos (total)",
+      "noEventData": "Sin datos del evento",
+      "tags": "Tags",
+      "noTags": "Sin tags",
+      "inThisIssue": "en este problema",
+      "idLabel": "ID:",
+      "jumpTo": "Saltar a:",
+      "details": "Detalles",
+      "sectionHighlights": "Aspectos destacados",
+      "sectionStackTrace": "Seguimiento de pila",
+      "sectionBreadcrumbs": "Breadcrumbs",
+      "sectionContext": "Contexto",
+      "sectionDetails": "Detalles del evento",
+      "sectionRawJson": "JSON sin procesar",
+      "sectionTags": "Tags",
+      "formatPlainText": "Texto sin formato",
+      "formatJson": "JSON",
+      "noEventsYet": "Aún no hay eventos",
+      "noEventsDescription": "Este problema se creó pero aún no se ha registrado ningún evento. Los eventos aparecerán aquí en cuanto tu aplicación los envíe."
+    }
+  },
+  "settings": {
+    "meta": {
+      "description": "Gestiona tu configuración de Rustrak"
+    },
+    "nav": {
+      "groupProject": "Proyecto",
+      "groupSdkSetup": "Configuración del SDK",
+      "general": "General",
+      "alerts": "Alertas",
+      "members": "Miembros",
+      "clientKeys": "Claves de cliente",
+      "apiTokens": "Tokens de API",
+      "integrations": "Integraciones",
+      "team": "Equipo",
+      "storage": "Almacenamiento",
+      "account": "Cuenta",
+      "appearance": "Apariencia",
+      "about": "Acerca de",
+      "openProjectSettingsMenu": "Abrir menú de configuración del proyecto",
+      "projectSettingsTitle": "Configuración del proyecto",
+      "openSettingsMenu": "Abrir menú de configuración",
+      "settingsTitle": "Configuración"
+    },
+    "loadProjectFailed": "No se pudo cargar el proyecto",
+    "loadProjectsFailed": "No se pudieron cargar los proyectos",
+    "notAuthorized": "Sin autorización",
+    "general": {
+      "meta": {
+        "title": "Configuración general | Rustrak"
+      },
+      "title": "Configuración general",
+      "subtitle": "Configura tu proyecto y consulta los detalles de integración."
+    },
+    "clientKeys": {
+      "meta": {
+        "title": "Claves de cliente | Rustrak"
+      },
+      "title": "Claves de cliente (DSN)",
+      "subtitle": "Conecta una aplicación a este proyecto."
+    },
+    "alerts": {
+      "meta": {
+        "title": "Configuración de alertas | Rustrak"
+      },
+      "loadFailed": "No se pudo cargar la configuración de alertas"
+    },
+    "members": {
+      "meta": {
+        "title": "Miembros del proyecto | Rustrak"
+      },
+      "loadFailed": "No se pudieron cargar los miembros del proyecto"
+    },
+    "tokens": {
+      "meta": {
+        "title": "Tokens de API | Rustrak",
+        "description": "Gestiona tus tokens de API"
+      },
+      "title": "Tokens de API",
+      "subtitle": "Gestiona tus tokens de API para acceso programático",
+      "loadFailed": "No se pudieron cargar los tokens de API",
+      "apiReference": "Referencia de la API",
+      "apiReferenceDescription": "Documentación completa de todos los endpoints, la autenticación y ejemplos de peticiones"
+    },
+    "team": {
+      "meta": {
+        "title": "Equipo | Rustrak",
+        "description": "Gestiona a los miembros de tu equipo y las invitaciones"
+      },
+      "title": "Equipo",
+      "subtitle": "Gestiona a los miembros de tu equipo y las invitaciones",
+      "notAuthorizedDescription": "Solo los administradores de la instancia pueden gestionar el equipo. Contacta con un admin si necesitas acceso.",
+      "loadFailed": "No se pudo cargar el equipo"
+    },
+    "integrations": {
+      "meta": {
+        "title": "Integraciones | Rustrak",
+        "description": "Conecta Rustrak con tus herramientas y servicios"
+      },
+      "title": "Integraciones",
+      "subtitle": "Conecta Rustrak con tus herramientas y servicios para automatizar flujos de trabajo y estar al tanto de los errores.",
+      "loadFailed": "No se pudieron cargar las integraciones"
+    },
+    "storage": {
+      "meta": {
+        "title": "Almacenamiento | Rustrak",
+        "description": "Uso de almacenamiento y retención de datos"
+      },
+      "title": "Almacenamiento",
+      "subtitle": "Consulta qué guarda Rustrak y recupera espacio limpiando datos antiguos",
+      "notAuthorizedDescription": "Solo los administradores de la instancia pueden ver el uso de almacenamiento y ejecutar limpiezas. Contacta con un admin si necesitas acceso.",
+      "loadSummaryFailed": "No se pudo leer el uso de almacenamiento",
+      "dbSize": "Tamaño de la base de datos",
+      "eventsCount": "{count} eventos",
+      "transactions": "Transacciones",
+      "spansCount": "{count} spans",
+      "spans": "Spans",
+      "spansSub": "indexados a partir de transacciones",
+      "logs": "Logs",
+      "logsSub": "registros estructurados",
+      "sourceMaps": "Source maps",
+      "sourceMapsFiles": "{count} archivos",
+      "loadBreakdownFailed": "No se pudo leer el desglose por proyecto",
+      "byProject": "Por proyecto",
+      "byProjectDescription": "Recuentos y peso estimado de los datos que guarda cada proyecto",
+      "noProjects": "Aún no hay proyectos.",
+      "project": "Proyecto",
+      "events": "Eventos",
+      "estSize": "Tamaño estimado"
+    },
+    "account": {
+      "meta": {
+        "title": "Cuenta | Rustrak",
+        "description": "Gestiona la configuración de tu cuenta"
+      },
+      "title": "Cuenta",
+      "subtitle": "Gestiona la información de tu cuenta",
+      "profile": "Perfil",
+      "profileDescription": "La información de tu cuenta",
+      "email": "Correo electrónico",
+      "role": "Rol",
+      "administrator": "Administrador",
+      "regional": "Idioma y región",
+      "regionalDescription": "Cómo se lee Rustrak para ti, guardado en tu cuenta"
+    },
+    "appearance": {
+      "meta": {
+        "title": "Apariencia | Rustrak",
+        "description": "Personaliza la apariencia de Rustrak"
+      },
+      "title": "Apariencia",
+      "subtitle": "Personaliza cómo se ve Rustrak en tu dispositivo",
+      "theme": "Tema",
+      "themeDescription": "Elige tu esquema de colores preferido"
+    },
+    "about": {
+      "meta": {
+        "title": "Acerca de | Rustrak",
+        "description": "Acerca del sistema de seguimiento de errores Rustrak"
+      },
+      "title": "Acerca de",
+      "subtitle": "Información sobre tu instalación de Rustrak",
+      "cardDescription": "Sistema de seguimiento de errores ligero",
+      "webviewVersion": "Versión de WebView",
+      "serverVersion": "Versión del servidor",
+      "notReported": "No informada",
+      "couldNotRead": "No se pudo leer",
+      "environment": "Entorno",
+      "serverVersionUnknown": "La versión del servidor se desconoce hasta que responde; no se muestra nada en su lugar.",
+      "links": "Enlaces",
+      "githubRepository": "Repositorio de GitHub",
+      "reportAnIssue": "Informar de un problema",
+      "sentryDocs": "Documentación de los SDK de Sentry"
+    }
+  }
+}

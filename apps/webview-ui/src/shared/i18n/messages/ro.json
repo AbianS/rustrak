@@ -1,0 +1,1564 @@
+{
+  "locale": {
+    "en": "English",
+    "zh": "简体中文",
+    "fr": "Français",
+    "es": "Español",
+    "ro": "Română",
+    "label": "Limbă",
+    "storedOnAccount": "Salvat în contul tău.",
+    "saveFailed": "Nu s-a putut salva limba."
+  },
+  "app": {
+    "title": "Rustrak - Sistem de urmărire a erorilor",
+    "description": "Urmărire de erori ușoară, auto-găzduită, compatibilă cu SDK-urile Sentry"
+  },
+  "common": {
+    "reload": "Reîncarcă",
+    "copyAs": "Copiază ca",
+    "clipboardUnavailable": "Clipboard indisponibil",
+    "clipboardUnavailableHint": "Selectează conținutul și copiază-l manual sau accesează Rustrak prin HTTPS.",
+    "openSidebar": "Deschide bara laterală",
+    "showSidebar": "Afișează bara laterală",
+    "closeSidebar": "Închide bara laterală",
+    "hideSidebar": "Ascunde bara laterală",
+    "close": "Închide",
+    "sidebar": "Bară laterală",
+    "sidebarMobileDescription": "Afișează bara laterală pentru mobil.",
+    "toggleSidebar": "Comută bara laterală"
+  },
+  "theme": {
+    "light": "Luminos",
+    "dark": "Întunecat",
+    "system": "Sistem"
+  },
+  "update": {
+    "srAvailable": "Rustrak {version} este disponibil.",
+    "shapeTitle": "Forma notificării de actualizare",
+    "available": "disponibil",
+    "dismiss": "Ascunde notificarea de actualizare pentru versiunea {version}",
+    "viewChangelog": "Vezi jurnalul de modificări"
+  },
+  "platforms": {
+    "searchPlaceholder": "Caută în toate platformele",
+    "searchAria": "Caută platforme",
+    "categoriesAria": "Categorii de platforme",
+    "noSdkFor": "Încă nu există SDK pentru „{query}”",
+    "tryGeneric": "Încearcă un SDK mai generic precum JavaScript, Python sau Node ori creează un proiect generic cu <other>Altul</other>.",
+    "otherPlatform": "Altă platformă",
+    "otherPlatformDescription": "Platforma ta nu figurează în listă sau preferi să alegi mai târziu. Funcționează cu orice SDK Sentry.",
+    "matchingCount": "{count, plural, one {# platformă potrivită} few {# platforme potrivite} other {# de platforme potrivite}}",
+    "footerCount": "{count} platforme · caută pentru a răsfoi toate categoriile",
+    "pickerPlaceholder": "Caută platforme...",
+    "pickerAria": "Platformă",
+    "noResults": "Nu s-a găsit nicio platformă."
+  },
+  "statTile": {
+    "noPriorPeriod": "Fără perioadă anterioară",
+    "noPriorActivity": "Fără activitate anterioară",
+    "vsPrev": "vs. precedentă"
+  },
+  "table": {
+    "showingRange": "Se afișează {start}-{end} din {total}",
+    "noResults": "Niciun rezultat",
+    "previousPage": "Pagina anterioară",
+    "nextPage": "Pagina următoare",
+    "pageOf": "Pagina {current} din {total}",
+    "ofTotal": "din {total}",
+    "firstPage": "Prima pagină",
+    "lastPage": "Ultima pagină",
+    "selectAllPageRows": "Selectează toate rândurile din această pagină",
+    "selectRow": "Selectează rândul",
+    "expand": "Extinde"
+  },
+  "commands": {
+    "overview": "Prezentare generală",
+    "overviewDescription": "Starea de sănătate, volumul și cele mai recente probleme dintr-o privire.",
+    "issues": "Probleme",
+    "issuesDescription": "Erori și excepții, grupate după fingerprint.",
+    "releases": "Lansări",
+    "releasesDescription": "Implementările și starea fiecărei versiuni.",
+    "performance": "Performanță",
+    "performanceDescription": "Duratele tranzacțiilor și cascadele de span-uri.",
+    "agents": "Agenți",
+    "agentsDescription": "Trace-urile agenților AI și span-urile din interiorul lor.",
+    "logs": "Jurnale",
+    "logsDescription": "Fluxul brut de jurnale, exact cum sosesc.",
+    "general": "General",
+    "generalDescription": "Numele, slug-ul, platforma și zona de risc.",
+    "alerts": "Alerte",
+    "alertsDescription": "Reguli care se declanșează când ceva se strică.",
+    "members": "Membri",
+    "membersDescription": "Cine are acces la acest proiect și cu ce rol.",
+    "clientKeys": "Chei client",
+    "clientKeysDescription": "DSN-ul și fragmentul de configurare SDK.",
+    "allProjects": "Toate proiectele",
+    "allProjectsDescription": "Toate proiectele vizibile pe această instanță.",
+    "newProject": "Proiect nou",
+    "newProjectDescription": "Alege o platformă și creează unul.",
+    "apiTokens": "Token-uri API",
+    "apiTokensDescription": "Token-uri Bearer pentru API și pentru ingestia SDK.",
+    "integrations": "Integrări",
+    "integrationsDescription": "Unde sunt livrate alertele.",
+    "team": "Echipă",
+    "teamDescription": "Membrii acestei instanțe și invitațiile în așteptare.",
+    "storage": "Stocare",
+    "storageDescription": "Intervalele de retenție și curățarea fișierelor source map.",
+    "account": "Cont",
+    "accountDescription": "Profilul și parola ta.",
+    "appearance": "Aspect",
+    "appearanceDescription": "Luminos, întunecat sau ce spune sistemul.",
+    "about": "Despre",
+    "aboutDescription": "Ce versiune de Rustrak este aceasta.",
+    "noResultsFor": "Niciun rezultat pentru „{query}”",
+    "resultsHeading": "Rezultate",
+    "projectsHeading": "Proiecte",
+    "settingsHeading": "Setări",
+    "generalBadge": "General",
+    "settingsBadge": "Setări",
+    "noPlatform": "Fără platformă",
+    "noPlatformSet": "Nicio platformă setată",
+    "pages": "pagini",
+    "dialogTitle": "Bară de comenzi",
+    "dialogDescription": "Caută proiecte, pagini și setări, apoi apasă enter pentru a deschide una.",
+    "searchPlaceholder": "Caută proiecte, pagini și setări...",
+    "triggerSearch": "Caută",
+    "navigate": "navighează",
+    "open": "deschide",
+    "close": "închide",
+    "hidePages": "ascunde paginile"
+  },
+  "charts": {
+    "errors": "Erori",
+    "warnings": "Avertismente",
+    "info": "Info",
+    "total": "Total",
+    "ofWhichFatal": "din care fatale",
+    "noEvents": "Niciun eveniment în această perioadă",
+    "dashedLine": "Linie punctată: în medie {count} per interval",
+    "eventCount": "{count, plural, one {# eveniment} few {# evenimente} other {# de evenimente}}",
+    "bucketDays": "{count, plural, =1 {interval de #z} other {interval de #z}}",
+    "bucketHours": "{count, plural, =1 {interval de #h} other {interval de #h}}",
+    "bucketMinutes": "{count, plural, =1 {interval de #m} other {interval de #m}}"
+  },
+  "errorScreen": {
+    "brandStatement": "Datele tale sunt în siguranță",
+    "brandDescription": "Nu s-a pierdut nimic și sesiunea ta este intactă. Acest ecran ține de accesarea Rustrak, nu de ceea ce este stocat în el."
+  },
+  "formErrors": {
+    "required": "{subject} este un câmp obligatoriu.",
+    "invalid": "{subject} nu are un format valid.",
+    "alreadyExists": "{subject} există deja.",
+    "tooShort": "{subject} are prea puține caractere.",
+    "tooLong": "{subject} are prea multe caractere.",
+    "rejected": "Această valoare a fost respinsă.",
+    "defaultSubject": "Acest câmp"
+  },
+  "error": {
+    "describe": {
+      "networkTimeout": "API-ului Rustrak i-a luat prea mult timp să răspundă.",
+      "networkUnreachable": "API-ul Rustrak nu a putut fi contactat.",
+      "serverError": "API-ul Rustrak a eșuat în timp ce răspundea. Încearcă din nou într-un moment.",
+      "forbidden": "Contul tău nu are permisiunea de a face acest lucru.",
+      "rateLimited": "Prea multe cereri. Încearcă din nou {window}.",
+      "invalidResponse": "API-ul Rustrak a răspuns cu date pe care acest panou nu le-a putut citi."
+    },
+    "guidance": {
+      "network": "Ești încă autentificat. Reîncarcă pagina odată ce API-ul revine.",
+      "rateLimited": "Această limită vine de obicei de la un proxy din fața Rustrak, nu de la Rustrak însuși.",
+      "forbidden": "Întreabă un administrator dacă crezi că ar trebui să ai acces.",
+      "invalidResponse": "Probabil panoul și API-ul rulează versiuni diferite. Reîncărcarea nu va ajuta.",
+      "notFound": "Serverul a răspuns normal; pur și simplu nu avea nimic la acea adresă."
+    },
+    "headline": {
+      "network": "Rustrak nu răspunde",
+      "forbidden": "Nu ai acces",
+      "rateLimited": "Prea multe cereri",
+      "invalidResponse": "Acest panou nu a putut citi API-ul",
+      "notFound": "Nimic aici",
+      "other": "Ceva nu a funcționat"
+    },
+    "retry": {
+      "moments": "peste un moment",
+      "seconds": "în {count} secunde",
+      "minutes": "în aproximativ {count} minute",
+      "hours": "în aproximativ {count} ore"
+    }
+  },
+  "logs": {
+    "columns": {
+      "level": "Nivel",
+      "message": "Mesaj",
+      "trace": "Trace",
+      "time": "Ora"
+    },
+    "emptyValue": "(gol)",
+    "attributes": "Atribute",
+    "allLevels": "Toate",
+    "empty": {
+      "title": "Niciun jurnal nu corespunde acestui filtru",
+      "hint": "Încearcă un alt nivel sau șterge filtrul."
+    }
+  },
+  "issues": {
+    "columns": {
+      "issue": "Problemă",
+      "trend": "Tendință",
+      "age": "Vechime",
+      "events": "Evenimente",
+      "users": "Utilizatori",
+      "lastSeen": "Ultima apariție"
+    },
+    "actionsTitle": "Acțiuni",
+    "actionsFor": "Acțiuni pentru {title}",
+    "actions": {
+      "resolve": "Rezolvă",
+      "unresolve": "Anulează rezolvarea",
+      "mute": "Amută",
+      "unmute": "Reactivează",
+      "delete": "Șterge",
+      "archive": "Arhivează",
+      "unarchive": "Dezarhivează",
+      "resolveInNextRelease": "Rezolvă în lansarea următoare",
+      "bookmark": "Adaugă la favorite",
+      "removeBookmark": "Elimină din favorite",
+      "subscribe": "Abonează-te",
+      "unsubscribe": "Dezabonează-te",
+      "deleteIssue": "Șterge problema"
+    },
+    "toasts": {
+      "updateFailed": "Actualizarea problemelor a eșuat",
+      "deleteOneFailed": "Ștergerea problemei a eșuat",
+      "deleteManyFailed": "Ștergerea problemelor a eșuat",
+      "bookmarkFailed": "Actualizarea favoritelor a eșuat",
+      "subscriptionFailed": "Actualizarea abonării a eșuat",
+      "priorityFailed": "Actualizarea priorității a eșuat"
+    },
+    "selectedCount": "{count, plural, one {# selectată} few {# selectate} other {# de selectate}}",
+    "clearSelection": "Golește selecția",
+    "empty": {
+      "title": "Nu s-au găsit probleme",
+      "allResolved": "Toate problemele sunt rezolvate sau amuțite",
+      "noFiltered": "Nicio problemă ({filter})"
+    },
+    "filters": {
+      "open": "Deschise",
+      "resolved": "Rezolvate",
+      "muted": "Amuțite",
+      "all": "Toate"
+    },
+    "deleteDialog": {
+      "cancel": "Anulează",
+      "deleting": "Se șterge...",
+      "confirm": "Șterge",
+      "title": "{count, plural, one {Ștergi această problemă?} few {Ștergi # probleme?} other {Ștergi # de probleme?}}",
+      "description": "{count, plural, one {Aceasta va șterge definitiv această problemă și toate evenimentele asociate. Acțiunea nu poate fi anulată.} few {Aceasta va șterge definitiv # probleme și toate evenimentele asociate. Acțiunea nu poate fi anulată.} other {Aceasta va șterge definitiv # de probleme și toate evenimentele asociate. Acțiunea nu poate fi anulată.}}"
+    },
+    "statusTitle": "Stare: {label}",
+    "priorityTitle": "Prioritate: {label}",
+    "levelTitle": "Nivel: {level}",
+    "priority": "Prioritate",
+    "set": "Setează",
+    "moreResolveOptions": "Mai multe opțiuni de rezolvare",
+    "issueActionsLabel": "Acțiuni pentru problemă",
+    "activity": {
+      "title": "Activitate",
+      "placeholder": "Lasă un comentariu...",
+      "comment": "Comentează",
+      "empty": "Încă nu există activitate.",
+      "commentFailed": "Adăugarea comentariului a eșuat",
+      "statusResolved": "a marcat această problemă ca fiind rezolvată",
+      "statusReopened": "a redeschis această problemă",
+      "statusMuted": "a amuțit această problemă",
+      "statusChanged": "a schimbat starea în {status}",
+      "priorityChanged": "a setat prioritatea la {priority}",
+      "regression": "a detectat o regresie",
+      "firstSeen": "a văzut prima dată această problemă"
+    },
+    "issueStatus": {
+      "new": "Nouă",
+      "ongoing": "În curs",
+      "escalating": "În escaladare",
+      "regressed": "În regresie",
+      "archived": "Arhivată",
+      "resolved": "Rezolvată",
+      "ignored": "Ignorată",
+      "unresolved": "Nerezolvată",
+      "high": "Ridicată",
+      "medium": "Medie",
+      "low": "Scăzută"
+    },
+    "card": {
+      "usersAffected": "{count, plural, one {# utilizator afectat} few {# utilizatori afectați} other {# de utilizatori afectați}}",
+      "eventCount": "{count, plural, one {# eveniment} few {# evenimente} other {# de evenimente}}"
+    }
+  },
+  "roles": {
+    "viewer": "Vizualizator",
+    "editor": "Editor",
+    "admin": "Admin",
+    "member": "Membru"
+  },
+  "user": {
+    "header": {
+      "openMenu": "Deschide meniul utilizatorului",
+      "userMenuFor": "Meniu utilizator pentru {email}",
+      "settings": "Setări",
+      "signingOut": "Se deconectează...",
+      "signOut": "Deconectare"
+    },
+    "invite": {
+      "title": "Invită un membru",
+      "description": "Linkul de invitație este copiat în clipboard la creare. Nu se trimite niciun e-mail — distribuie tu linkul noului membru.",
+      "emailLabel": "E-mail",
+      "roleLabel": "Rol",
+      "roleAria": "Rol pentru invitație",
+      "fieldEmail": "Această adresă de e-mail",
+      "inviting": "Se invită...",
+      "submit": "Invită"
+    },
+    "toast": {
+      "createFailed": "Crearea invitației a eșuat",
+      "created": "Invitație creată",
+      "createdHint": "Linkul de invitație a fost copiat în clipboard — distribuie-l noului membru.",
+      "copyInviteLink": "Copiază linkul de invitație: {link}",
+      "updated": "Membru actualizat",
+      "updateFailed": "Actualizarea membrului a eșuat",
+      "removed": "Membru eliminat",
+      "removeFailed": "Eliminarea membrului a eșuat",
+      "added": "Membru adăugat",
+      "addFailed": "Adăugarea membrului a eșuat",
+      "linkCopied": "Linkul de invitație a fost copiat în clipboard",
+      "copyLink": "Copiază linkul de invitație",
+      "revoked": "Invitație retrasă",
+      "revokeFailed": "Retragerea invitației a eșuat",
+      "roleUpdated": "Rol actualizat",
+      "roleUpdateFailed": "Actualizarea rolului a eșuat"
+    },
+    "member": {
+      "updatedDescription": "{email} are acum rolul {role}."
+    },
+    "members": {
+      "title": "Membrii proiectului",
+      "manageDescription": "Administrează cine poate accesa acest proiect și cu ce roluri.",
+      "readOnlyDescription": "Persoanele cu acces la acest proiect.",
+      "addMember": "Adaugă membru",
+      "empty": "Încă nu există membri"
+    },
+    "remove": {
+      "title": "Elimină membru",
+      "description": "Elimini {email} din acest proiect? Va pierde accesul până când este adăugat din nou.",
+      "removing": "Se elimină...",
+      "confirm": "Elimină"
+    },
+    "cancel": "Anulează",
+    "addMember": {
+      "title": "Adaugă membru",
+      "description": "Oferă acces unui coleg la acest proiect.",
+      "userLabel": "Utilizator",
+      "userAria": "Selectează un utilizator de adăugat",
+      "roleLabel": "Rol",
+      "teamFailed": "Lista echipei nu a putut fi încărcată",
+      "noUsers": "Niciun utilizator disponibil",
+      "selectUser": "Selectează un utilizator",
+      "roleAria": "Rolul noului membru",
+      "submit": "Adaugă"
+    },
+    "pending": {
+      "title": "Invitații în așteptare",
+      "description": "Invitații care nu au fost acceptate încă",
+      "empty": "Nicio invitație în așteptare",
+      "expires": "Expiră la {date}",
+      "copyAria": "Copiază linkul de invitație pentru {email}",
+      "revokeAria": "Retrage invitația pentru {email}"
+    },
+    "table": {
+      "email": "E-mail",
+      "you": "(tu)",
+      "role": "Rol",
+      "changeRoleAria": "Schimbă rolul pentru {email}",
+      "actionsAria": "Acțiuni",
+      "removeAria": "Elimină pe {email}",
+      "status": "Stare",
+      "active": "Activ",
+      "inactive": "Inactiv",
+      "lastLoginAt": "Ultima autentificare {date}",
+      "neverLoggedIn": "Nu s-a autentificat niciodată",
+      "lastLogin": "Ultima autentificare",
+      "never": "Niciodată",
+      "changeRole": "Schimbă rolul"
+    },
+    "membersList": {
+      "empty": "Încă nu există membri în echipă",
+      "title": "Membri",
+      "description": "Persoanele cu acces la această instanță Rustrak"
+    },
+    "removeMember": {
+      "title": "Elimini utilizatorul „{email}”?",
+      "description": "Aceasta elimină definitiv utilizatorul și accesul său la toate proiectele. Acțiunea nu poate fi anulată."
+    },
+    "roles": {
+      "viewer": "Vizualizator",
+      "editor": "Editor",
+      "admin": "Admin",
+      "member": "Membru"
+    }
+  },
+  "projects": {
+    "platformRequired": "Alege o platformă pentru a continua",
+    "fields": {
+      "platform": "Platformă",
+      "name": "Nume proiect",
+      "slug": "Slug",
+      "nameTooShort": "Numele trebuie să aibă cel puțin {min} caractere",
+      "nameTooLong": "Numele trebuie să aibă cel mult {max} caractere",
+      "slugEmpty": "Slug-ul nu poate fi gol",
+      "slugChars": "Folosește litere mici, cifre și liniuțe"
+    },
+    "create": "Creează proiect",
+    "creating": "Se creează...",
+    "noPlatformSelected": "Nicio platformă selectată",
+    "pickPlatform": "Alege o platformă",
+    "dsnNext": "În continuare vei primi DSN-ul și fragmentul de configurare.",
+    "slug": {
+      "edit": "Editează slug-ul",
+      "reset": "Resetează slug-ul pentru a urma numele",
+      "hintAuto": "Generat din nume. Editează-l dacă vrei altul al tău.",
+      "hintManual": "La latitudinea ta. Un slug deja folosit este respins."
+    },
+    "save": "Salvează",
+    "toasts": {
+      "createFailed": "Crearea proiectului a eșuat",
+      "updateNameFailed": "Actualizarea proiectului a eșuat",
+      "updateSlugFailed": "Actualizarea slug-ului a eșuat",
+      "updatePlatformFailed": "Actualizarea platformei a eșuat",
+      "deleteProjectFailed": "Ștergerea proiectului a eșuat",
+      "deleteFailed": "Ștergerea a eșuat",
+      "nameUpdated": "Proiect actualizat",
+      "slugUpdated": "Slug actualizat",
+      "platformUpdated": "Platformă actualizată",
+      "deleted": "{count, plural, one {Proiect șters} few {# proiecte șterse} other {# de proiecte șterse}}"
+    },
+    "projectDetails": "Detalii proiect",
+    "nameTitle": "Nume",
+    "nameDescription": "Cum apare acest proiect în tot panoul.",
+    "namePlaceholder": "Nume proiect",
+    "slugDescription": "Identificator scurt pentru acest proiect. DSN-ul și linkurile panoului folosesc ID-ul numeric al proiectului, deci redenumirea acestuia nu va strica nimic dintre cele care trimit deja evenimente.",
+    "platformDescription": "Detectată din primul eveniment primit. Schimb-o dacă valoarea detectată este greșită sau prea largă.",
+    "dangerZone": {
+      "title": "Zonă de risc",
+      "remove": "Elimină proiectul",
+      "removeDescription": "Șterge definitiv acest proiect și toate problemele și evenimentele sale. Aceasta nu poate fi anulată.",
+      "deleteTitle": "Ștergi „{name}”?",
+      "deleteDescription": "Aceasta va șterge definitiv acest proiect și toate problemele și evenimentele asociate. Acțiunea nu poate fi anulată.",
+      "cancel": "Anulează",
+      "deleting": "Se șterge...",
+      "confirm": "Șterge"
+    },
+    "deleteDialog": {
+      "titleNamed": "Ștergi „{name}”?",
+      "titleCount": "{count, plural, =1 {Ștergi # proiect?} few {Ștergi # proiecte?} other {Ștergi # de proiecte?}}",
+      "description": "Aceasta va șterge definitiv {subject} și toate problemele și evenimentele asociate. Acțiunea nu poate fi anulată.",
+      "cancel": "Anulează",
+      "deleting": "Se șterge...",
+      "confirm": "Șterge",
+      "subject": "{count, plural, =1 {acest proiect} few {# proiecte} other {# de proiecte}}"
+    },
+    "selectedCount": "{count, plural, =1 {# selectat} few {# selectate} other {# de selectate}}",
+    "empty": {
+      "title": "Încă nu există proiecte",
+      "hint": "Creează primul proiect pentru a începe urmărirea erorilor"
+    },
+    "newProject": "Proiect nou",
+    "delete": "Șterge",
+    "actions": {
+      "delete": "Șterge"
+    },
+    "columns": {
+      "project": "Proiect",
+      "issues": "Probleme",
+      "events24h": "Evenimente 24h",
+      "total": "Total",
+      "issueActivity": "Activitate probleme",
+      "created": "Creat"
+    },
+    "events": "Evenimente",
+    "fatalCount": "{count, plural, one {# fatală} few {# fatale} other {# de fatale}}",
+    "trendLabel": "{label}, ultimele 24 de ore",
+    "health": {
+      "critical": "Probleme active, erori fatale deschise",
+      "rising": "Probleme active, mai multe probleme noi decât în perioada anterioară",
+      "quiet": "Probleme active, constante"
+    },
+    "navigation": "Navigare",
+    "nav": {
+      "overview": "Prezentare generală",
+      "issues": "Probleme",
+      "releases": "Lansări",
+      "performance": "Performanță",
+      "agents": "Agenți",
+      "logs": "Jurnale",
+      "settings": "Setări"
+    },
+    "collapse": {
+      "expand": "Extinde",
+      "collapse": "Restrânge"
+    },
+    "switcher": {
+      "projects": "Proiecte",
+      "fallback": "Proiect"
+    },
+    "copyUnavailable": "Clipboard indisponibil",
+    "copyUnavailableHint": "Selectează {label} și copiază-l manual sau accesează Rustrak prin HTTPS.",
+    "clientKeys": {
+      "dsn": "DSN",
+      "dsnDescription": "Indică orice SDK Sentry către acest șir pentru a trimite evenimente în acest proiect.",
+      "copyDsn": "Copiază DSN-ul",
+      "install": "Instalare",
+      "installDescription": "Adaugă SDK-ul în proiectul tău.",
+      "copyInstallCommand": "Copiază comanda de instalare",
+      "setup": "Configurare",
+      "exampleJs": "Exemplu (JavaScript)",
+      "examplePlatform": "Exemplu ({platform})",
+      "dsnFilled": "DSN-ul tău este deja completat mai jos.",
+      "pointSdk": "Indică SDK-ul acestei platforme către DSN-ul de mai sus.",
+      "copied": "Copiat",
+      "copy": "Copiază",
+      "compatLead": "Acest server este compatibil cu toate SDK-urile Sentry oficiale. Consultă",
+      "docsPlatform": "documentația {platform}",
+      "docsSentry": "documentația Sentry",
+      "compatFull": "pentru configurarea completă, inclusiv opțiunile pe care acest exemplu le omite.",
+      "compatSteps": "pentru pașii de configurare ai acestei platforme.",
+      "commandLabel": "comandă",
+      "exampleLabel": "exemplu"
+    }
+  },
+  "alerts": {
+    "common": {
+      "name": "Nume",
+      "fieldName": "Acest nume",
+      "cancel": "Anulează",
+      "delete": "Șterge",
+      "deleting": "Se șterge...",
+      "saveChanges": "Salvează modificările",
+      "test": "Testează"
+    },
+    "validation": {
+      "nameRequired": "Numele este obligatoriu",
+      "validHttpUrl": "Trebuie să fie un URL http/https valid",
+      "webhookUrlRequired": "URL-ul webhook este obligatoriu",
+      "slackWebhookUrl": "Trebuie să fie un URL webhook Slack valid (https://hooks.slack.com/...)",
+      "validUrl": "Introdu un URL valid",
+      "botTokenRequired": "Token-ul de bot este obligatoriu",
+      "botTokenPrefix": "Token-ul de bot trebuie să înceapă cu xoxb-",
+      "smtpHostRequired": "Gazda SMTP este obligatorie",
+      "validEmail": "Introdu un e-mail valid"
+    },
+    "routing": {
+      "slackChannelRequired": "Canalul Slack este obligatoriu pentru „{name}”",
+      "recipientsRequired": "Destinatarii sunt obligatorii pentru „{name}”",
+      "invalidRecipients": "Adresă de e-mail invalidă printre destinatarii pentru „{name}”",
+      "webhookUrlRequired": "Un URL webhook este obligatoriu pentru „{name}” (setat în credențiale sau ca URL de suprascriere)",
+      "invalidOverrideUrl": "URL-ul de suprascriere pentru „{name}” trebuie să fie http/https",
+      "channelLabel": "Canal",
+      "channelHint": "Nume canal (de ex. <code>#alerts</code>) sau ID canal (de ex. <code>C1234567890</code>)",
+      "channelPlaceholder": "#alerts sau C1234567890",
+      "recipientsLabel": "Destinatari",
+      "recipientsHint": "Adrese de e-mail separate prin virgulă",
+      "recipientsPlaceholder": "alerts@example.com, team@example.com",
+      "overrideUrlLabel": "URL de suprascriere",
+      "overrideUrlHint": "Suprascrie URL-ul configurat în credențiale",
+      "overrideUrlPlaceholder": "https://svc.io/hook",
+      "optional": "(opțional)"
+    },
+    "channelCard": {
+      "botToken": "token de bot"
+    },
+    "ruleDialog": {
+      "titleNew": "Regulă de alertă nouă",
+      "titleEdit": "Editează regula de alertă",
+      "descNew": "Definește când se declanșează o alertă și unde se trimite.",
+      "descEdit": "Actualizează când și unde trimite notificări această regulă.",
+      "name": "Numele regulii",
+      "namePlaceholder": "de ex., Notifică echipa la probleme noi",
+      "trigger": "Declanșator",
+      "sendTo": "Trimite către",
+      "create": "Creează regula",
+      "saveChanges": "Salvează modificările",
+      "selectAtLeastOne": "Selectează cel puțin o integrare",
+      "enable": "Activează regula",
+      "enableDescription": "Începe să trimită alerte imediat după salvare",
+      "cooldown": "Perioadă de așteptare",
+      "decreaseCooldown": "Scade perioada de așteptare cu {count} minute",
+      "increaseCooldown": "Crește perioada de așteptare cu {count} minute",
+      "minutesUnit": "min",
+      "noCooldownLimit": "Fără limită — alerta se declanșează de fiecare dată",
+      "cooldownLimit": "{count, plural, =1 {Cel mult o alertă pe minut per problemă} other {Cel mult o alertă la fiecare # minute per problemă}}",
+      "fieldAlertType": "Acest tip de alertă",
+      "saveFailed": "Salvarea regulii a eșuat",
+      "updated": "Regulă de alertă actualizată",
+      "created": "Regulă de alertă creată"
+    },
+    "integrationDialog": {
+      "name": "Nume",
+      "enabled": "Activat",
+      "enabledDescription": "Primește alerte prin această integrare"
+    },
+    "webhook": {
+      "titleNew": "Configurează webhook",
+      "titleEdit": "Editează webhook-ul",
+      "description": "Trimite payload-uri JSON către endpoint-uri API externe. Specifică URL-ul țintă aici (implicit global) sau per regulă de alertă, ca suprascriere.",
+      "namePlaceholder": "de ex., Alerte producție",
+      "urlLabel": "URL implicit (opțional)",
+      "urlPlaceholder": "https://example.com/webhook",
+      "urlDescription": "Lasă gol pentru a cere o suprascriere a URL-ului per regulă de alertă.",
+      "secretLabel": "Secret (opțional)",
+      "secretPlaceholder": "Secret de semnare HMAC",
+      "secretDescription": "Folosit pentru semnarea payload-urilor cu HMAC-SHA256",
+      "create": "Creează webhook",
+      "fieldUrl": "Acest URL",
+      "fieldSecret": "Acest secret",
+      "saveFailed": "Salvarea webhook-ului a eșuat",
+      "updated": "Webhook actualizat",
+      "created": "Webhook creat"
+    },
+    "slack": {
+      "titleNew": "Adaugă integrare Slack",
+      "titleEdit": "Editează integrarea Slack",
+      "description": "Păstrează aici credențialele Slack. Alegi canalul țintă atunci când creezi o regulă de alertă.",
+      "namePlaceholder": "de ex., Alerte echipă",
+      "methodLabel": "Metodă de conexiune",
+      "incomingWebhook": "Incoming Webhook",
+      "botTokenTab": "Token de bot",
+      "webhookUrlLabel": "URL webhook",
+      "webhookUrlPlaceholder": "https://hooks.slack.com/services/...",
+      "webhookUrlDescription": "Creează un incoming webhook în setările aplicației tale Slack.",
+      "tokenLabelSuffix": "(lasă gol pentru a păstra cel existent)",
+      "tokenPlaceholder": "xoxb-...",
+      "tokenDescription": "Token OAuth de bot care începe cu xoxb-, din aplicația ta Slack.",
+      "sendTestTitle": "Trimite un test",
+      "testChannelPlaceholder": "#alerts",
+      "testChannelHint": "Introdu canalul Slack în care va fi trimis mesajul de test.",
+      "testWebhookHint": "Trimite un mesaj de test către webhook-ul configurat.",
+      "addIntegration": "Adaugă integrare",
+      "fieldWebhookUrl": "Acest URL webhook",
+      "fieldToken": "Acest token de bot",
+      "saveFailed": "Salvarea integrării Slack a eșuat",
+      "updated": "Integrare Slack actualizată",
+      "created": "Integrare Slack creată"
+    },
+    "email": {
+      "titleNew": "Configurează e-mail (SMTP)",
+      "titleEdit": "Editează integrarea de e-mail",
+      "description": "Păstrează aici credențialele SMTP. Specifică destinatarii atunci când creezi o regulă de alertă.",
+      "namePlaceholder": "de ex., Alerte pe e-mail",
+      "hostLabel": "Gazdă SMTP",
+      "hostPlaceholder": "smtp.example.com",
+      "portLabel": "Port",
+      "portPlaceholder": "587",
+      "usernameLabel": "Nume utilizator (opțional)",
+      "usernamePlaceholder": "utilizator",
+      "passwordLabel": "Parolă (opțional)",
+      "passwordPlaceholder": "••••••••",
+      "fromLabel": "Adresă expeditor",
+      "fromPlaceholder": "alerts@rustrak.local",
+      "sendTestTitle": "Trimite un test",
+      "testRecipientsAria": "Destinatarii testului",
+      "testRecipientsPlaceholder": "test@example.com",
+      "testHintExisting": "Separă prin virgulă adresele multiple. Testul folosește setările SMTP salvate ultima dată, nu modificările nesalvate de mai sus.",
+      "testHintNew": "Salvează întâi această integrare pentru a trimite un e-mail de test.",
+      "create": "Creează integrare de e-mail",
+      "fieldHost": "Această gazdă SMTP",
+      "fieldPort": "Acest port SMTP",
+      "fieldUsername": "Acest nume de utilizator SMTP",
+      "fieldPassword": "Această parolă SMTP",
+      "fieldFrom": "Această adresă de expeditor",
+      "saveFailed": "Salvarea integrării de e-mail a eșuat",
+      "updated": "Integrare de e-mail actualizată",
+      "created": "Integrare de e-mail creată"
+    },
+    "integrations": {
+      "title": "Notificări de alertă",
+      "description": "Trimite alerte către servicii externe atunci când sunt detectate probleme noi.",
+      "configuredCount": "{count, plural, one {# configurată} few {# configurate} other {# de configurate}}",
+      "notConfigured": "Neconfigurat",
+      "connected": "Conectat",
+      "disabled": "Dezactivat",
+      "configure": "Configurează",
+      "manage": "Administrează",
+      "configureAria": "Configurează {name}",
+      "testFailed": "Trimiterea testului a eșuat",
+      "testSent": "Notificarea de test a fost trimisă",
+      "testFailedResult": "Testul a eșuat",
+      "deleteFailed": "Ștergerea integrării a eșuat",
+      "deleted": "Integrare ștearsă",
+      "deleteTitle": "Șterge integrarea",
+      "deleteDescription": "Sigur ștergi „{name}”? Acțiunea nu poate fi anulată și va opri toate alertele care folosesc această integrare."
+    },
+    "manage": {
+      "configuredCount": "{count, plural, one {# integrare configurată} few {# integrări configurate} other {# de integrări configurate}}",
+      "edit": "Editează",
+      "deleteAria": "Șterge {name}",
+      "close": "Închide",
+      "addProvider": "Adaugă {name}"
+    },
+    "table": {
+      "rule": "Regulă",
+      "trigger": "Declanșator",
+      "channels": "Canale",
+      "enabled": "Activat",
+      "actionsAria": "Acțiuni",
+      "enableAria": "Activează {name}",
+      "editAria": "Editează {name}",
+      "deleteAria": "Șterge {name}"
+    },
+    "settings": {
+      "title": "Setări alerte",
+      "description": "Configurează când se trimit notificări pentru acest proiect.",
+      "addRule": "Adaugă regulă de alertă",
+      "noIntegrationsTitle": "Nicio integrare configurată",
+      "noIntegrationsHint": "Mergi la <link>Setări → Integrări</link> pentru a adăuga întâi integrări.",
+      "noRulesTitle": "Încă nu există reguli de alertă",
+      "noRulesHint": "Creează una pentru a începe să primești notificări.",
+      "updateFailed": "Actualizarea regulii a eșuat",
+      "deleteFailed": "Ștergerea regulii a eșuat",
+      "deleted": "Regulă de alertă ștearsă",
+      "deleteRuleTitle": "Șterge regula de alertă",
+      "deleteRuleDescription": "Sigur ștergi „{name}”? Acțiunea nu poate fi anulată."
+    },
+    "providers": {
+      "slack": {
+        "description": "Trimite alerte către canale Slack prin webhook sau token de bot."
+      },
+      "email": {
+        "description": "Trimite alerte prin e-mail SMTP către orice destinatar."
+      },
+      "webhook": {
+        "description": "Trimite payload-uri JSON către orice endpoint HTTP."
+      }
+    },
+    "newIssue": {
+      "name": "Problemă nouă",
+      "description": "O problemă nouă este detectată prima dată"
+    },
+    "regression": {
+      "name": "Regresie",
+      "description": "O problemă rezolvată reapare"
+    },
+    "unmute": {
+      "name": "Reactivează",
+      "description": "O problemă amuțită este reactivată"
+    }
+  },
+  "events": {
+    "breadcrumbs": {
+      "defaultCategory": "implicit",
+      "empty": "Nu sunt disponibile breadcrumb-uri",
+      "viewMore": "Vezi încă {count}"
+    },
+    "clipboardValueHint": "Selectează valoarea și copiaz-o manual sau accesează Rustrak prin HTTPS.",
+    "clipboardJsonHint": "Selectează JSON-ul și copiază-l manual sau accesează Rustrak prin HTTPS.",
+    "context": {
+      "empty": "Nu sunt disponibile date de context",
+      "user": "Utilizator",
+      "id": "ID",
+      "email": "E-mail",
+      "ipAddress": "Adresă IP",
+      "packages": "Pachete"
+    },
+    "details": {
+      "yes": "Da",
+      "no": "Nu",
+      "keyInformation": "Informații cheie",
+      "eventId": "ID eveniment",
+      "issueId": "ID problemă",
+      "transaction": "Tranzacție",
+      "timestamp": "Data și ora",
+      "ingestedAt": "Ingestionat la",
+      "level": "Nivel",
+      "handled": "Gestionat",
+      "mechanism": "Mecanism",
+      "logEntry": "Înregistrare de jurnal",
+      "message": "Mesaj",
+      "formatted": "Formatat",
+      "params": "Parametri",
+      "deployment": "Implementare",
+      "platform": "Platformă",
+      "environment": "Mediu",
+      "release": "Lansare",
+      "serverName": "Nume server",
+      "sdk": "SDK",
+      "name": "Nume",
+      "version": "Versiune",
+      "request": "Cerere",
+      "method": "Metodă",
+      "url": "URL",
+      "queryString": "Șir de interogare",
+      "headers": "Antete",
+      "modules": "Module",
+      "extraData": "Date suplimentare"
+    },
+    "highlights": {
+      "handled": "gestionat",
+      "level": "nivel",
+      "transaction": "tranzacție",
+      "url": "url",
+      "environment": "mediu",
+      "release": "lansare",
+      "runtime": "runtime",
+      "traceId": "id trace"
+    },
+    "navigation": {
+      "previousEvent": "Evenimentul anterior",
+      "nextEvent": "Evenimentul următor",
+      "position": "{current} din {total}",
+      "first": "Primul",
+      "latest": "Cel mai recent"
+    },
+    "tags": {
+      "emptyTitle": "Niciun tag pentru acest eveniment",
+      "emptyHint": "Tag-urile sunt metadate atașate evenimentelor de SDK-urile Sentry",
+      "deployment": "Implementare",
+      "runtime": "Runtime",
+      "device": "Dispozitiv / Browser",
+      "user": "Utilizator",
+      "other": "Alte tag-uri",
+      "attachedCount": "{count, plural, one {# tag atașat acestui eveniment} few {# tag-uri atașate acestui eveniment} other {# de tag-uri atașate acestui eveniment}}"
+    },
+    "rawJson": {
+      "copied": "Copiat",
+      "copyJson": "Copiază JSON-ul"
+    },
+    "stackTrace": {
+      "empty": "Nu este disponibil niciun stack trace",
+      "emptyForThread": "Nu este disponibil niciun stack trace pentru acest thread",
+      "variables": "Variabile"
+    },
+    "copy": {
+      "plainText": "Text simplu",
+      "json": "JSON"
+    },
+    "threads": {
+      "threadLabel": "Thread #{id}",
+      "crashedSuffix": " (prăbușit)",
+      "thread": "Thread",
+      "crashed": "Prăbușit",
+      "current": "Curent",
+      "main": "Principal"
+    }
+  },
+  "releases": {
+    "all": "Toate",
+    "empty": {
+      "title": "Nicio lansare în această fereastră",
+      "hint": "Încearcă o perioadă mai lungă sau șterge filtrul."
+    },
+    "columns": {
+      "release": "Lansare"
+    },
+    "sessions": "Sesiuni",
+    "crashFree": "Fără crash-uri",
+    "crashFreeSessions": "Sesiuni fără crash-uri",
+    "crashFreeUsers": "Utilizatori fără crash-uri",
+    "crashed": "Cu crash-uri",
+    "users": "Utilizatori",
+    "healthy": "Sănătos",
+    "noSessionData": "Fără date de sesiune",
+    "enableReleaseHealth": "Activează starea lansărilor în SDK-ul tău pentru a urmări ratele fără crash-uri",
+    "noTrendHistory": "Istoric insuficient pentru a desena o tendință",
+    "noSessionDataForPeriod": "Fără date de sesiune pentru această perioadă"
+  },
+  "transactions": {
+    "columns": {
+      "transaction": "Tranzacție",
+      "duration": "Durată",
+      "lastSeen": "Ultima apariție",
+      "count": "Număr",
+      "failures": "Eșecuri"
+    },
+    "unnamed": "(fără nume)",
+    "empty": {
+      "title": "Încă nu există tranzacții",
+      "sdkHint": "Configurează SDK-ul cu <code>tracesSampleRate</code> pentru a începe capturarea datelor de performanță."
+    },
+    "measurements": {
+      "lcp": "LCP",
+      "fcp": "FCP",
+      "fid": "FID",
+      "inp": "INP",
+      "ttfb": "TTFB",
+      "cls": "CLS"
+    },
+    "waterfall": {
+      "rootFallback": "tranzacție",
+      "spanFallback": "span",
+      "expand": "Extinde",
+      "collapse": "Restrânge",
+      "detail": {
+        "op": "op",
+        "description": "descriere",
+        "status": "stare",
+        "duration": "durată",
+        "selfTime": "timp propriu",
+        "spanId": "span_id",
+        "parentSpanId": "parent_span_id"
+      }
+    },
+    "p95": {
+      "barTitle": "{name} — {count, plural, one {# eveniment} few {# evenimente} other {# de evenimente}}",
+      "empty": "Încă nu există date de tranzacție",
+      "failing": "{rate} cu eșecuri"
+    }
+  },
+  "agents": {
+    "columns": {
+      "agents": "Agenți",
+      "duration": "Durată",
+      "tokens": "Token-uri",
+      "tools": "Instrumente",
+      "started": "Pornit",
+      "llmCalls": "LLM",
+      "errors": "Erori"
+    },
+    "unnamedAgent": "(agent fără nume)",
+    "charts": {
+      "noData": "Încă nu există date",
+      "durationTooltip": "medie {avg} · p95 {p95}"
+    },
+    "waterfall": {
+      "expand": "Extinde",
+      "collapse": "Restrânge",
+      "spanFallback": "span"
+    },
+    "empty": {
+      "noSpans": "Acest trace nu are span-uri."
+    },
+    "detail": {
+      "op": "op",
+      "description": "descriere",
+      "status": "stare",
+      "duration": "durată",
+      "selfTime": "timp propriu",
+      "spanId": "span_id",
+      "parentSpanId": "parent_span_id",
+      "operationType": "tip operațiune",
+      "agentName": "nume agent",
+      "toolName": "nume instrument",
+      "requestModel": "model cerere",
+      "responseModel": "model răspuns",
+      "conversationId": "id conversație",
+      "inputTokens": "token-uri de intrare",
+      "outputTokens": "token-uri de ieșire",
+      "totalTokens": "token-uri totale",
+      "genAiSection": "gen_ai"
+    },
+    "spanDetail": {
+      "agentName": "Agent",
+      "model": "Model",
+      "toolName": "Instrument",
+      "reasoningEffort": "Efort de raționament",
+      "conversationId": "Conversație",
+      "tokens": "Token-uri",
+      "inputTokens": "Intrare",
+      "cachedTokens": "Intrare din cache",
+      "outputTokens": "Ieșire",
+      "totalTokens": "Total",
+      "availableTools": "Instrumente disponibile",
+      "input": "Intrare",
+      "systemInstructions": "Instrucțiuni de sistem",
+      "output": "Ieșire",
+      "responseObject": "Obiect de răspuns",
+      "requestedToolCalls": "Apeluri de instrument solicitate",
+      "allAttributes": "Toate atributele",
+      "tokenMismatch": "Aceste numărători nu însumează totalul raportat — este posibil ca SDK-ul să le raporteze inconsistent."
+    },
+    "summary": {
+      "agentRuns": "Rulări agent",
+      "llmCalls": "Apeluri LLM",
+      "toolCalls": "Apeluri de instrument",
+      "totalTokens": "Token-uri",
+      "avgDuration": "Durată medie",
+      "p95Duration": "Durată p95",
+      "errors": "Erori"
+    },
+    "filters": {
+      "allTime": "Tot intervalul",
+      "allEnvironments": "Toate mediile"
+    },
+    "modelsTable": {
+      "empty": "Niciun apel de model în această fereastră.",
+      "model": "Model",
+      "requests": "Cereri",
+      "errors": "Erori",
+      "avg": "Medie",
+      "p95": "P95",
+      "input": "Intrare",
+      "cached": "Din cache",
+      "output": "Ieșire",
+      "reasoning": "Raționament"
+    },
+    "toolsTable": {
+      "empty": "Niciun apel de instrument în această fereastră.",
+      "tool": "Instrument",
+      "calls": "Apeluri",
+      "errors": "Erori",
+      "avg": "Medie",
+      "p95": "P95"
+    }
+  },
+  "tokens": {
+    "create": {
+      "trigger": "Token nou",
+      "createdTitle": "Token creat",
+      "createdDescription": "Copiază token-ul acum. Îl poți recupera ulterior și din listă.",
+      "copyTokenLabel": "Copiază token-ul nou",
+      "copyAgainHint": "Poți copia acest token oricând din lista de token-uri.",
+      "done": "Gata",
+      "title": "Creează token API",
+      "description": "Creează un token nou pentru acces programatic la API.",
+      "descriptionLabel": "Descriere (opțional)",
+      "descriptionPlaceholder": "de ex., Pipeline CI/CD",
+      "charCount": "{count}/{max} {count, plural, =1 {caracter} other {caractere}}",
+      "descriptionTooLong": "Descrierea trebuie să aibă cel mult {max} caractere",
+      "cancel": "Anulează",
+      "creating": "Se creează...",
+      "submit": "Creează token-ul"
+    },
+    "copyTokenLabel": "Copiază token-ul {label}",
+    "deleteTokenLabel": "Șterge token-ul {label}",
+    "never": "Niciodată",
+    "neverUsed": "Niciodată folosit",
+    "createdOn": "Creat la {date}",
+    "usedOn": "Folosit la {time}",
+    "columns": {
+      "token": "Token",
+      "description": "Descriere",
+      "created": "Creat",
+      "lastUsed": "Ultima utilizare"
+    },
+    "actionsLabel": "Acțiuni",
+    "toasts": {
+      "createFailed": "Crearea token-ului a eșuat",
+      "created": "Token creat",
+      "createdHint": "Asigură-te că îl copiezi acum.",
+      "deleted": "Token șters",
+      "deleteFailed": "Ștergerea token-ului a eșuat",
+      "getFailed": "Obținerea token-ului a eșuat",
+      "copied": "Token copiat în clipboard",
+      "copyTitle": "Copiază token-ul"
+    },
+    "empty": {
+      "title": "Încă nu există token-uri API",
+      "createFirst": "Creează primul token"
+    },
+    "list": {
+      "title": "Token-urile tale",
+      "description": "Token-urile sunt folosite pentru autentificarea cererilor API"
+    },
+    "deleteDialog": {
+      "title": "Ștergi token-ul?",
+      "description": "Aceasta va șterge definitiv acest token. Orice serviciu care îl folosește va pierde accesul imediat. Acțiunea nu poate fi anulată.",
+      "cancel": "Anulează",
+      "deleting": "Se șterge...",
+      "confirm": "Șterge"
+    }
+  },
+  "storage": {
+    "period": "Mai vechi de {count, plural, =1 {o zi} few {# zile} other {# de zile}}",
+    "type": {
+      "events": "Erori",
+      "transactions": "Tranzacții",
+      "logs": "Jurnale"
+    },
+    "line": {
+      "emptyIssues": "Probleme goale",
+      "spans": "Span-uri"
+    },
+    "allProjects": "Toate proiectele",
+    "retentionPeriodLabel": "Perioadă de retenție",
+    "projectScopeLabel": "Domeniu de aplicare",
+    "dataLabel": "Date",
+    "cleanup": {
+      "title": "Curăță datele vechi",
+      "description": "Șterge definitiv datele selectate mai vechi de perioada aleasă. Previzualizează întâi — ștergerea nu poate fi anulată."
+    },
+    "working": "Se lucrează…",
+    "preview": "Previzualizare",
+    "nothingMatches": "Nimic nu corespunde acestei selecții {period} pentru {scope} — nu există nimic de șters.",
+    "wouldRemove": "Această curățare ar elimina",
+    "deleteTrigger": "Șterge definitiv",
+    "deleteRowsTitle": "Ștergi {count, plural, =1 {# rând} few {# rânduri} other {# de rânduri}}?",
+    "deleteRowsDescription": "Aceasta șterge definitiv datele selectate {period} pentru {scope}. Acțiunea nu poate fi anulată.",
+    "cancel": "Anulează",
+    "deleting": "Se șterge…",
+    "deleteAction": "Șterge definitiv",
+    "toasts": {
+      "previewFailed": "Previzualizarea curățării nu a putut fi realizată",
+      "cleanupFailed": "Curățarea a eșuat",
+      "removed": "S-au eliminat {parts}",
+      "nothingRemoved": "Nimic nu corespundea — nu s-a eliminat nicio dată",
+      "sourceMapPreviewFailed": "Previzualizarea curățării source map nu a putut fi realizată",
+      "gcFailed": "Curățarea source map a eșuat",
+      "sourceMapsRemoved": "{count, plural, =1 {S-a eliminat # source map orfan ({freed} eliberați)} few {S-au eliminat # source map-uri orfane ({freed} eliberați)} other {S-au eliminat # de source map-uri orfane ({freed} eliberați)}}"
+    },
+    "unit": {
+      "errors": "{count, plural, =1 {# eroare} few {# erori} other {# de erori}}",
+      "transactions": "{count, plural, =1 {# tranzacție} few {# tranzacții} other {# de tranzacții}}",
+      "spans": "{count, plural, =1 {# span} few {# span-uri} other {# de span-uri}}",
+      "logs": "{count, plural, =1 {# jurnal} few {# jurnale} other {# de jurnale}}",
+      "emptyIssues": "{count, plural, =1 {# problemă goală} few {# probleme goale} other {# de probleme goale}}"
+    },
+    "sourceMaps": {
+      "title": "Source map-uri orfane",
+      "description": "Elimină fișierele source map la care nu se mai referă nicio încărcare — de exemplu, fișiere rămase în urmă după ștergerea unui proiect. Previzualizează întâi; fișierele referențiate nu sunt niciodată atinse.",
+      "nothingToClean": "Niciun source map orfan — nimic de curățat.",
+      "wouldRemove": "Această curățare ar elimina:",
+      "fileCount": "{count, plural, =1 {# source map orfan} few {# source map-uri orfane} other {# de source map-uri orfane}}",
+      "freed": "{bytes} eliberați",
+      "removeAction": "Elimină source map-urile orfane",
+      "removeTitle": "Elimini {count, plural, =1 {# source map orfan} few {# source map-uri orfane} other {# de source map-uri orfane}}?",
+      "removeDescription": "Aceasta șterge definitiv {count, plural, =1 {# fișier source map} few {# fișiere source map} other {# de fișiere source map}} ({bytes}) la care nu se referă nicio încărcare, din baza de date și de pe disc. Fișierele referențiate nu sunt afectate."
+    },
+    "removing": "Se elimină…",
+    "remove": "Elimină"
+  },
+  "errors": {
+    "notFound": {
+      "meta": {
+        "title": "Negăsit | Rustrak"
+      },
+      "brandStatement": "Nimic aici",
+      "brandDescription": "Nimic nu a eșuat în drumul spre această pagină. Serverul a răspuns normal și pur și simplu nu avea nimic la această adresă.",
+      "headline": "Pagina nu a fost găsită",
+      "description": "Această adresă nu corespunde vreunei pagini din această instanță Rustrak.",
+      "guidance": "Dacă ai urmat un link din interiorul Rustrak, este posibil ca proiectul, problema sau evenimentul indicat să fi fost șterse între timp."
+    },
+    "goToProjects": "Mergi la Proiecte",
+    "errorId": "ID eroare: {id}",
+    "tryAgain": "Încearcă din nou",
+    "global": {
+      "headline": "Ceva nu a funcționat",
+      "description": "Această pagină nu a putut fi randată. Defectul s-a produs în panou, nu în datele tale, care sunt neatinse.",
+      "guidance": "Dacă se repetă după o reîncărcare, ID-ul de eroare de mai jos identifică acest defect concret în jurnale."
+    },
+    "main": {
+      "headline": "Această pagină nu a putut fi încărcată",
+      "description": "Defectul s-a produs în timpul randării, nu în datele tale. Tot restul panoului rămâne accesibil din antetul de mai sus."
+    }
+  },
+  "auth": {
+    "meta": {
+      "title": "Autentificare | Rustrak",
+      "description": "Autentifică-te în contul tău Rustrak"
+    },
+    "heroTitle": "Bine ai revenit în Rustrak",
+    "heroDescription": "Urmărire de erori ușoară și auto-găzduită. Accesează panoul tău pentru a monitoriza starea sistemului și a rezolva incidentele critice.",
+    "statMemoryFootprint": "Amprentă de memorie",
+    "statIngestionLatency": "Latență de ingestie",
+    "statEventsPerSecond": "Evenimente/secundă",
+    "form": {
+      "title": "Autentificare",
+      "subtitle": "Introdu credențialele pentru a accesa platforma.",
+      "emailLabel": "Adresă de e-mail",
+      "emailPlaceholder": "nume@companie.ro",
+      "passwordLabel": "Parolă",
+      "passwordPlaceholder": "Introdu parola",
+      "hidePassword": "Ascunde parola",
+      "showPassword": "Arată parola",
+      "signingIn": "Se autentifică...",
+      "login": "Autentificare",
+      "invalidCredentials": "E-mail sau parolă invalidă",
+      "failureNetwork": "Serverul nu a putut fi contactat. Verifică conexiunea și încearcă din nou.",
+      "failureRateLimited": "Prea multe încercări de autentificare. Așteaptă aproximativ {duration} înainte de a reîncerca.",
+      "failureRateLimitedGeneric": "Prea multe încercări de autentificare. Așteaptă câteva minute înainte de a reîncerca.",
+      "failureUnexpected": "S-a produs o eroare neașteptată. Te rugăm să încerci din nou.",
+      "emailInvalid": "Te rugăm să introduci o adresă de e-mail validă",
+      "passwordRequired": "Parola este obligatorie",
+      "waitSeconds": "{count, plural, =1 {# secundă} few {# secunde} other {# de secunde}}",
+      "waitMinutes": "{count, plural, =1 {# minut} few {# minute} other {# de minute}}",
+      "waitHours": "{count, plural, =1 {# oră} few {# ore} other {# de ore}}"
+    }
+  },
+  "invite": {
+    "meta": {
+      "title": "Acceptă invitația | Rustrak",
+      "description": "Acceptă invitația ta de a te alătura Rustrak"
+    },
+    "form": {
+      "title": "Acceptă invitația",
+      "subtitle": "Setează o parolă pentru a termina crearea contului.",
+      "emailLabel": "E-mail",
+      "passwordLabel": "Parolă",
+      "passwordPlaceholder": "Alege o parolă",
+      "confirmLabel": "Confirmă parola",
+      "confirmPlaceholder": "Reintrodu parola",
+      "creating": "Se creează contul...",
+      "accept": "Acceptă și continuă",
+      "passwordRequired": "Parola este obligatorie",
+      "confirmRequired": "Te rugăm să confirmi parola",
+      "passwordsMismatch": "Parolele nu coincid"
+    },
+    "unavailable": {
+      "brandStatement": "Linkurile expiră",
+      "brandDescription": "Invitațiile sunt cu o singură utilizare și limitate în timp, astfel încât un link nu mai funcționează după acceptare sau după expirare. Nimic nu a eșuat în drumul până aici.",
+      "headline": "Invitație indisponibilă",
+      "description": "Acest link de invitație este invalid, a expirat sau a fost deja folosit.",
+      "guidance": "Cere unui administrator să îți trimită unul nou. Dacă l-ai acceptat deja, autentifică-te în schimb.",
+      "goToLogin": "Mergi la autentificare"
+    }
+  },
+  "projectPages": {
+    "projectNotFound": "Proiect negăsit | Rustrak",
+    "projectTitle": "{project} | Rustrak",
+    "loadProjectFailed": "Proiectul nu a putut fi încărcat",
+    "loadIssueFailed": "Problema nu a putut fi încărcată",
+    "spanCount": "{count, plural, one {# span} few {# span-uri} other {# de span-uri}}",
+    "projectsList": {
+      "meta": {
+        "title": "Proiecte | Rustrak",
+        "description": "Administrează proiectele tale Rustrak"
+      },
+      "title": "Proiecte",
+      "subtitle": "Administrează proiectele tale de urmărire a erorilor",
+      "newProject": "Proiect nou",
+      "loadFailed": "Proiectele nu au putut fi încărcate"
+    },
+    "newProject": {
+      "meta": {
+        "title": "Proiect nou | Rustrak",
+        "description": "Creează un proiect Rustrak nou"
+      },
+      "backToProjects": "Înapoi la proiecte",
+      "title": "Creează un proiect nou",
+      "subtitle": "Alege platforma pe care vrei să o monitorizezi. Primești DSN-ul și un fragment de configurare imediat după."
+    },
+    "overview": {
+      "meta": {
+        "description": "Prezentare generală pentru {project}"
+      },
+      "periodAll": "Toate",
+      "errorVolume": "Volumul erorilor după severitate",
+      "events": "Evenimente",
+      "newIssues": "Probleme noi",
+      "openIssues": "{count} deschise",
+      "crashFreeSessions": "Sesiuni fără crash-uri",
+      "sessionHealth": "Starea sesiunilor",
+      "sessionHealthSubtitle": "Sesiuni sănătoase și cu crash-uri în timp",
+      "latency": "Latență",
+      "latencySubtitle": "Cele mai lente tranzacții după p95, tot intervalul",
+      "topIssues": "Top probleme",
+      "topIssuesSubtitle": "Problemele deschise după totalul de evenimente, tot intervalul",
+      "noIssuesYet": "Încă nu există probleme"
+    },
+    "issues": {
+      "meta": {
+        "description": "Probleme pentru {project}"
+      },
+      "title": "Probleme",
+      "subtitle": "Problemele deschise pentru {project}",
+      "loadFailed": "Problemele nu au putut fi încărcate",
+      "loadLatestEventFailed": "Ultimul eveniment nu a putut fi încărcat"
+    },
+    "logs": {
+      "meta": {
+        "title": "Jurnale | {project} | Rustrak",
+        "description": "Jurnale structurate pentru {project}"
+      },
+      "title": "Jurnale",
+      "subtitle": "Jurnale structurate pentru {project}, cele mai noi întâi",
+      "loadFailed": "Jurnalele nu au putut fi încărcate",
+      "emptyTitle": "Încă nu există jurnale",
+      "emptyDescription": "Trimite jurnale structurate din SDK-ul tău (de ex. <code>Sentry.logger.info(...)</code>) pentru a începe colectarea lor aici."
+    },
+    "performance": {
+      "meta": {
+        "title": "Performanță | {project} | Rustrak",
+        "description": "Performanța tranzacțiilor pentru {project}"
+      },
+      "title": "Performanță",
+      "subtitle": "Tranzacțiile pentru {project}, grupate după nume și operațiune",
+      "loadFailed": "Tranzacțiile nu au putut fi încărcate",
+      "emptyTitle": "Încă nu există tranzacții",
+      "emptyDescription": "Configurează SDK-ul cu <code>tracesSampleRate</code> pentru a începe capturarea datelor de performanță.",
+      "backLink": "Performanță"
+    },
+    "transaction": {
+      "meta": {
+        "title": "{name} | Performanță | Rustrak",
+        "fallbackTitle": "Tranzacție | Rustrak"
+      },
+      "loadFailed": "Tranzacția nu a putut fi încărcată",
+      "unnamed": "(tranzacție fără nume)",
+      "spans": "Span-uri",
+      "noSpans": "Această tranzacție nu are span-uri.",
+      "tags": "Tag-uri",
+      "request": "Cerere",
+      "user": "Utilizator"
+    },
+    "summary": {
+      "meta": {
+        "title": "{name} | Performanță | Rustrak",
+        "fallbackName": "Tranzacție"
+      },
+      "metricCount": "Număr",
+      "metricP50": "p50",
+      "metricP95": "p95",
+      "metricP99": "p99",
+      "metricFailureRate": "Rata de eșec",
+      "samples": "Eșantioane"
+    },
+    "releases": {
+      "meta": {
+        "title": "Lansări | {project} | Rustrak",
+        "description": "Starea lansărilor pentru {project}"
+      },
+      "title": "Lansări",
+      "subtitle": "Starea sesiunilor per lansare pentru {project}",
+      "loadFailed": "Starea lansărilor nu a putut fi încărcată",
+      "emptyTitle": "Încă nu există lansări",
+      "emptyDescription": "Trimite un atribut <code>release</code> odată cu evenimentele sau sesiunile tale pentru a începe urmărirea stării lansărilor."
+    },
+    "releaseDetail": {
+      "meta": {
+        "title": "{release} | {project} | Rustrak",
+        "description": "Starea lansării pentru {release}"
+      },
+      "loadFailed": "Această lansare nu a putut fi încărcată",
+      "subtitle": "Starea lansărilor pentru {project}",
+      "newIssues": "Probleme noi",
+      "newIssuesEmpty": "Nicio problemă nouă introdusă în această lansare",
+      "loadNewIssuesFailed": "Problemele noi nu au putut fi încărcate"
+    },
+    "agents": {
+      "meta": {
+        "title": "Agenți | {project} | Rustrak",
+        "description": "Monitorizare agenți AI pentru {project}"
+      },
+      "title": "Agenți",
+      "subtitle": "Rulările agenților AI, token-urile și folosirea instrumentelor pentru {project}",
+      "loadFailed": "Activitatea agenților nu a putut fi încărcată",
+      "emptyTitle": "Încă nu există activitate a agenților",
+      "emptyDescription": "Instrumentează agentul tău AI cu un SDK Sentry care folosește convențiile semantice OpenTelemetry GenAI pentru a începe capturarea rulărilor de agenți.",
+      "cardRuns": "Rulări agent",
+      "cardRunsDescription": "Rulări pornite per interval",
+      "cardDuration": "Durată",
+      "cardDurationDescription": "Durata medie și p95 a rulărilor de agent",
+      "cardModelsByCalls": "Apeluri LLM per model",
+      "cardModelsByCallsDescription": "Top modele după numărul de apeluri",
+      "cardModelsByTokens": "Token-uri folosite per model",
+      "cardModelsByTokensDescription": "Top modele după volumul de token-uri",
+      "cardTools": "Apeluri de instrument per instrument",
+      "cardToolsDescription": "Top instrumente după numărul de apeluri",
+      "cardTraces": "Trace-uri",
+      "cardTracesDescription": "Un rând per trace, agregând fiecare span AI pe care îl conține",
+      "cardModelsTable": "Modele",
+      "cardModelsTableDescription": "Volum, eșecuri, latență și împărțirea token-urilor per model.",
+      "cardToolsTable": "Instrumente",
+      "cardToolsTableDescription": "Volumul de apeluri și rata de eșec per instrument."
+    },
+    "trace": {
+      "meta": {
+        "title": "{traceId} | Agenți | Rustrak"
+      },
+      "loadFailed": "Trace-ul nu a putut fi încărcat",
+      "backLink": "Agenți",
+      "unnamed": "(agent fără nume)",
+      "tokens": "{count} token-uri",
+      "toolCalls": "{count, plural, one {# apel de instrument} few {# apeluri de instrument} other {# de apeluri de instrument}}",
+      "spans": "Span-uri",
+      "llmCalls": "{count} apeluri LLM",
+      "errors": "{count} erori",
+      "spanDetail": "Detalii span",
+      "selectSpan": "Selectează un span pentru a-i vedea promptul, răspunsul și atributele.",
+      "spanUnavailable": "Acest span nu mai este disponibil."
+    },
+    "event": {
+      "meta": {
+        "eventNotFound": "Eveniment negăsit | Rustrak",
+        "description": "Detalii eveniment",
+        "issueNotFound": "Problemă negăsită | Rustrak",
+        "noEvents": "Niciun eveniment | {issue} | Rustrak"
+      },
+      "loadFailed": "Evenimentul nu a putut fi încărcat",
+      "loadNavigationFailed": "Evenimentele din această problemă nu au putut fi încărcate",
+      "lastSeen": "Ultima apariție",
+      "firstSeen": "Prima apariție",
+      "inRelease": "în lansarea <rel>{release}</rel>",
+      "events": "Evenimente",
+      "users": "Utilizatori",
+      "eventsTotal": "Evenimente (total)",
+      "noEventData": "Fără date de eveniment",
+      "tags": "Tag-uri",
+      "noTags": "Fără tag-uri",
+      "inThisIssue": "în această problemă",
+      "idLabel": "ID:",
+      "jumpTo": "Sari la:",
+      "details": "Detalii",
+      "sectionHighlights": "Elemente cheie",
+      "sectionStackTrace": "Stack trace",
+      "sectionBreadcrumbs": "Breadcrumb-uri",
+      "sectionContext": "Context",
+      "sectionDetails": "Detalii eveniment",
+      "sectionRawJson": "JSON brut",
+      "sectionTags": "Tag-uri",
+      "formatPlainText": "Text simplu",
+      "formatJson": "JSON",
+      "noEventsYet": "Niciun eveniment încă",
+      "noEventsDescription": "Această problemă a fost creată, dar încă nu s-a înregistrat niciun eveniment. Evenimentele vor apărea aici imediat ce aplicația ta le trimite."
+    }
+  },
+  "settings": {
+    "meta": {
+      "description": "Administrează setările tale Rustrak"
+    },
+    "nav": {
+      "groupProject": "Proiect",
+      "groupSdkSetup": "Configurare SDK",
+      "general": "General",
+      "alerts": "Alerte",
+      "members": "Membri",
+      "clientKeys": "Chei client",
+      "apiTokens": "Token-uri API",
+      "integrations": "Integrări",
+      "team": "Echipă",
+      "storage": "Stocare",
+      "account": "Cont",
+      "appearance": "Aspect",
+      "about": "Despre",
+      "openProjectSettingsMenu": "Deschide meniul setărilor proiectului",
+      "projectSettingsTitle": "Setări proiect",
+      "openSettingsMenu": "Deschide meniul setărilor",
+      "settingsTitle": "Setări"
+    },
+    "loadProjectFailed": "Proiectul nu a putut fi încărcat",
+    "loadProjectsFailed": "Proiectele nu au putut fi încărcate",
+    "notAuthorized": "Neautorizat",
+    "general": {
+      "meta": {
+        "title": "Setări generale | Rustrak"
+      },
+      "title": "Setări generale",
+      "subtitle": "Configurează proiectul și vezi detaliile integrărilor."
+    },
+    "clientKeys": {
+      "meta": {
+        "title": "Chei client | Rustrak"
+      },
+      "title": "Chei client (DSN)",
+      "subtitle": "Conectează o aplicație la acest proiect."
+    },
+    "alerts": {
+      "meta": {
+        "title": "Setări alerte | Rustrak"
+      },
+      "loadFailed": "Setările alertelor nu au putut fi încărcate"
+    },
+    "members": {
+      "meta": {
+        "title": "Membrii proiectului | Rustrak"
+      },
+      "loadFailed": "Membrii proiectului nu au putut fi încărcați"
+    },
+    "tokens": {
+      "meta": {
+        "title": "Token-uri API | Rustrak",
+        "description": "Administrează token-urile tale API"
+      },
+      "title": "Token-uri API",
+      "subtitle": "Administrează token-urile tale API pentru acces programatic",
+      "loadFailed": "Token-urile API nu au putut fi încărcate",
+      "apiReference": "Referință API",
+      "apiReferenceDescription": "Documentația completă pentru toate endpoint-urile, autentificare și exemple de cereri"
+    },
+    "team": {
+      "meta": {
+        "title": "Echipă | Rustrak",
+        "description": "Administrează membrii echipei și invitațiile"
+      },
+      "title": "Echipă",
+      "subtitle": "Administrează membrii echipei și invitațiile",
+      "notAuthorizedDescription": "Doar administratorii instanței pot administra echipa. Contactează un admin dacă ai nevoie de acces.",
+      "loadFailed": "Echipa nu a putut fi încărcată"
+    },
+    "integrations": {
+      "meta": {
+        "title": "Integrări | Rustrak",
+        "description": "Conectează Rustrak cu uneltele și serviciile tale"
+      },
+      "title": "Integrări",
+      "subtitle": "Conectează Rustrak cu uneltele și serviciile tale pentru a automatiza fluxurile de lucru și a fi la curent cu erorile.",
+      "loadFailed": "Integrările nu au putut fi încărcate"
+    },
+    "storage": {
+      "meta": {
+        "title": "Stocare | Rustrak",
+        "description": "Utilizarea stocării și retenția datelor"
+      },
+      "title": "Stocare",
+      "subtitle": "Vezi ce reține Rustrak și recuperează spațiu curățând datele vechi",
+      "notAuthorizedDescription": "Doar administratorii instanței pot vedea utilizarea stocării și pot rula curățări. Contactează un admin dacă ai nevoie de acces.",
+      "loadSummaryFailed": "Utilizarea stocării nu a putut fi citită",
+      "dbSize": "Dimensiunea bazei de date",
+      "eventsCount": "{count} evenimente",
+      "transactions": "Tranzacții",
+      "spansCount": "{count} span-uri",
+      "spans": "Span-uri",
+      "spansSub": "indexate din tranzacții",
+      "logs": "Jurnale",
+      "logsSub": "înregistrări de jurnal structurate",
+      "sourceMaps": "Source map-uri",
+      "sourceMapsFiles": "{count} fișiere",
+      "loadBreakdownFailed": "Defalcarea per proiect nu a putut fi citită",
+      "byProject": "Pe proiect",
+      "byProjectDescription": "Numărători și ponderea estimată a datelor deținute de fiecare proiect",
+      "noProjects": "Încă nu există proiecte.",
+      "project": "Proiect",
+      "events": "Evenimente",
+      "estSize": "Dimens. estimată"
+    },
+    "account": {
+      "meta": {
+        "title": "Cont | Rustrak",
+        "description": "Administrează setările contului tău"
+      },
+      "title": "Cont",
+      "subtitle": "Administrează informațiile contului tău",
+      "profile": "Profil",
+      "profileDescription": "Informațiile contului tău",
+      "email": "E-mail",
+      "role": "Rol",
+      "administrator": "Administrator",
+      "regional": "Limbă și regiune",
+      "regionalDescription": "Cum citește Rustrak pentru tine, salvat în contul tău"
+    },
+    "appearance": {
+      "meta": {
+        "title": "Aspect | Rustrak",
+        "description": "Personalizează aspectul Rustrak"
+      },
+      "title": "Aspect",
+      "subtitle": "Personalizează cum arată Rustrak pe dispozitivul tău",
+      "theme": "Temă",
+      "themeDescription": "Alege schema de culori preferată"
+    },
+    "about": {
+      "meta": {
+        "title": "Despre | Rustrak",
+        "description": "Despre sistemul de urmărire a erorilor Rustrak"
+      },
+      "title": "Despre",
+      "subtitle": "Informații despre instalarea ta Rustrak",
+      "cardDescription": "Sistem de urmărire a erorilor cu amprentă redusă",
+      "webviewVersion": "Versiune WebView",
+      "serverVersion": "Versiune server",
+      "notReported": "Neraportat",
+      "couldNotRead": "Nu a putut fi citit",
+      "environment": "Mediu",
+      "serverVersionUnknown": "Versiunea serverului este necunoscută până când acesta răspunde; nimic nu este afișat în locul ei.",
+      "links": "Linkuri",
+      "githubRepository": "Depozit GitHub",
+      "reportAnIssue": "Raportează o problemă",
+      "sentryDocs": "Documentație SDK Sentry"
+    }
+  }
+}

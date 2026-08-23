@@ -2,6 +2,9 @@
   "locale": {
     "en": "English",
     "zh": "简体中文",
+    "fr": "Français",
+    "es": "Español",
+    "ro": "Română",
     "label": "Language",
     "storedOnAccount": "Saved to your account.",
     "saveFailed": "Could not save your language."

@@ -17,7 +17,7 @@
  * from, which a cookie cannot do. See `request.ts`.
  */
 
-export const LOCALES = ['en', 'zh'] as const;
+export const LOCALES = ['en', 'zh', 'fr', 'es', 'ro'] as const;
 
 export type Locale = (typeof LOCALES)[number];
 
