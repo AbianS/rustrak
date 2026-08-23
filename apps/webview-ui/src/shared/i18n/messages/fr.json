@@ -753,7 +753,7 @@
   "events": {
     "breadcrumbs": {
       "defaultCategory": "défaut",
-      "empty": "Aucun fil d’Ariane disponible",
+      "empty": "Aucun breadcrumb disponible",
       "viewMore": "Afficher {count} de plus"
     },
     "clipboardValueHint": "Sélectionnez la valeur et copiez-la manuellement, ou accédez à Rustrak en HTTPS.",
@@ -1105,19 +1105,19 @@
       "errors": "{count, plural, =1 {# erreur} other {# erreurs}}",
       "transactions": "{count, plural, =1 {# transaction} other {# transactions}}",
       "spans": "{count, plural, =1 {# span} other {# spans}}",
-      "logs": "{count, plural, =1 {# log} other {# logs}}",
+      "logs": "{count, plural, =1 {# journal} other {# journaux}}",
       "emptyIssues": "{count, plural, =1 {# problème vide} other {# problèmes vides}}"
     },
     "sourceMaps": {
       "title": "Source maps orphelines",
-      "description": "Supprime les fichiers de source map qu’aucun dépôt ne référence plus — par exemple, des fichiers restés en place après la suppression d’un projet. Prévisualisez d’abord ; les fichiers référencés ne sont jamais touchés.",
+      "description": "Supprime les fichiers de source map qu’aucun téléversement ne référence plus — par exemple, des fichiers restés en place après la suppression d’un projet. Prévisualisez d’abord ; les fichiers référencés ne sont jamais touchés.",
       "nothingToClean": "Aucune source map orpheline — rien à nettoyer.",
       "wouldRemove": "Ce nettoyage supprimerait :",
       "fileCount": "{count, plural, =1 {# source map orpheline} other {# source maps orphelines}}",
       "freed": "{bytes} libérés",
       "removeAction": "Supprimer les source maps orphelines",
       "removeTitle": "Supprimer {count, plural, =1 {# source map orpheline} other {# source maps orphelines}} ?",
-      "removeDescription": "Cette action supprime définitivement de la base de données et du disque {count, plural, =1 {# fichier de source map} other {# fichiers de source map}} ({bytes}) qu’aucun dépôt ne référence. Les fichiers référencés ne sont pas affectés."
+      "removeDescription": "Cette action supprime définitivement de la base de données et du disque {count, plural, =1 {# fichier de source map} other {# fichiers de source map}} ({bytes}) qu’aucun téléversement ne référence. Les fichiers référencés ne sont pas affectés."
     },
     "removing": "Suppression…",
     "remove": "Supprimer"
@@ -1267,7 +1267,7 @@
       "title": "Logs",
       "subtitle": "Journaux structurés de {project}, du plus récent au plus ancien",
       "loadFailed": "Impossible de charger les journaux",
-      "emptyTitle": "Aucun log pour le moment",
+      "emptyTitle": "Aucun journal pour le moment",
       "emptyDescription": "Envoyez des journaux structurés depuis votre SDK (ex. <code>Sentry.logger.info(...)</code>) pour commencer à les collecter ici."
     },
     "performance": {
@@ -1396,7 +1396,7 @@
       "details": "Détails",
       "sectionHighlights": "Points saillants",
       "sectionStackTrace": "Pile d’appels",
-      "sectionBreadcrumbs": "Fil d’Ariane",
+      "sectionBreadcrumbs": "Breadcrumbs",
       "sectionContext": "Contexte",
       "sectionDetails": "Détails de l’événement",
       "sectionRawJson": "JSON brut",

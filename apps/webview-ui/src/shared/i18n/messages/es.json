@@ -1105,7 +1105,7 @@
       "errors": "{count, plural, =1 {# error} other {# errores}}",
       "transactions": "{count, plural, =1 {# transacción} other {# transacciones}}",
       "spans": "{count, plural, =1 {# span} other {# spans}}",
-      "logs": "{count, plural, =1 {# log} other {# logs}}",
+      "logs": "{count, plural, =1 {# registro} other {# registros}}",
       "emptyIssues": "{count, plural, =1 {# problema vacío} other {# problemas vacíos}}"
     },
     "sourceMaps": {
@@ -1267,7 +1267,7 @@
       "title": "Logs",
       "subtitle": "Registros estructurados de {project}, del más reciente al más antiguo",
       "loadFailed": "No se pudieron cargar los registros",
-      "emptyTitle": "Aún no hay logs",
+      "emptyTitle": "Aún no hay registros",
       "emptyDescription": "Envía registros estructurados desde tu SDK (p. ej. <code>Sentry.logger.info(...)</code>) para empezar a recopilarlos aquí."
     },
     "performance": {

@@ -11,7 +11,7 @@
   },
   "app": {
     "title": "Rustrak - Sistem de urmărire a erorilor",
-    "description": "Urmărire de erori ușoară, auto-găzduit, compatibilă cu SDK-urile Sentry"
+    "description": "Urmărire de erori ușoară, auto-găzduită, compatibilă cu SDK-urile Sentry"
   },
   "common": {
     "reload": "Reîncarcă",
@@ -81,7 +81,7 @@
     "performance": "Performanță",
     "performanceDescription": "Duratele tranzacțiilor și cascadele de span-uri.",
     "agents": "Agenți",
-    "agentsDescription": "Traseele agenților AI și span-urile din interiorul lor.",
+    "agentsDescription": "Trace-urile agenților AI și span-urile din interiorul lor.",
     "logs": "Jurnale",
     "logsDescription": "Fluxul brut de jurnale, exact cum sosesc.",
     "general": "General",
@@ -279,7 +279,7 @@
       "new": "Nouă",
       "ongoing": "În curs",
       "escalating": "În escaladare",
-      "regressed": "Regresie",
+      "regressed": "În regresie",
       "archived": "Arhivată",
       "resolved": "Rezolvată",
       "ignored": "Ignorată",
@@ -483,7 +483,7 @@
       "created": "Creat"
     },
     "events": "Evenimente",
-    "fatalCount": "{count} fatale",
+    "fatalCount": "{count, plural, one {# fatală} few {# fatale} other {# de fatale}}",
     "trendLabel": "{label}, ultimele 24 de ore",
     "health": {
       "critical": "Probleme active, erori fatale deschise",
@@ -680,7 +680,7 @@
     "integrations": {
       "title": "Notificări de alertă",
       "description": "Trimite alerte către servicii externe atunci când sunt detectate probleme noi.",
-      "configuredCount": "{count} configurate",
+      "configuredCount": "{count, plural, one {# configurată} few {# configurate} other {# de configurate}}",
       "notConfigured": "Neconfigurat",
       "connected": "Conectat",
       "disabled": "Dezactivat",
@@ -1152,7 +1152,7 @@
       "description": "Autentifică-te în contul tău Rustrak"
     },
     "heroTitle": "Bine ai revenit în Rustrak",
-    "heroDescription": "Urmărire de erori ușoară și self-hosted. Accesează panoul tău pentru a monitoriza starea sistemului și a rezolva incidentele critice.",
+    "heroDescription": "Urmărire de erori ușoară și auto-găzduită. Accesează panoul tău pentru a monitoriza starea sistemului și a rezolva incidentele critice.",
     "statMemoryFootprint": "Amprentă de memorie",
     "statIngestionLatency": "Latență de ingestie",
     "statEventsPerSecond": "Evenimente/secundă",
@@ -1349,7 +1349,7 @@
       "cardModelsByTokensDescription": "Top modele după volumul de token-uri",
       "cardTools": "Apeluri de instrument per instrument",
       "cardToolsDescription": "Top instrumente după numărul de apeluri",
-      "cardTraces": "Trasee",
+      "cardTraces": "Trace-uri",
       "cardTracesDescription": "Un rând per trace, agregând fiecare span AI pe care îl conține",
       "cardModelsTable": "Modele",
       "cardModelsTableDescription": "Volum, eșecuri, latență și împărțirea token-urilor per model.",
