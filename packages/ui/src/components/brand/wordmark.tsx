@@ -1,3 +1,5 @@
+import { pressNudge, wipeReveal } from '../../lib/motion';
+
 /**
  * The Rustrak wordmark: the word `rustrak` set in Outfit 700 and converted to
  * outlines. There is no symbol, no monogram and no icon -- this single drawing
@@ -86,35 +88,6 @@ const LETTERS = [
   'M3214.00 0.00 3044.00 -252.00 3213.00 -486.00H3384.00L3180.00 -222.50L3185.00 -286.00L3394.00 0.00ZM2903.00 0.00V-726.00H3056.00V0.00Z',
 ];
 
-/**
- * The lime layer: clipped away to the left at rest, wiped fully open on hover.
- *
- * No `duration-*` and no `ease-*` on purpose. `Button` writes a bare
- * `transition-all`, which takes Tailwind's defaults of 150ms and
- * `cubic-bezier(.4,0,.2,1)`, so writing nothing here is what puts the mark on
- * the platform's clock instead of on its own.
- *
- * Written out as one literal string, also on purpose. Tailwind extracts class
- * names statically, so a name assembled from template literals --
- * `[clip-path:${X}]` -- is a name it never sees, and the rule is silently never
- * generated. The markup then ships classes that do not exist and the build stays
- * green, which is exactly how an earlier version of this went out broken.
- */
-const FILL =
-  '[clip-path:inset(0_100%_0_0)] transition-[clip-path] group-hover:[clip-path:inset(0_0_0_0)] motion-reduce:transition-none';
-
-/**
- * The press, lifted verbatim from `Button`: one pixel **down** on `:active`,
- * same direction, same distance, same timing. It goes on the svg rather than an
- * inner `<g>` because inside the viewBox a unit of 1 is 1/738th of the artwork.
- *
- * There is deliberately nothing on hover here. Buttons do not move under the
- * pointer -- they only change colour -- and the mark now does the same: colour
- * on hover, displacement on press.
- */
-const PRESS =
-  'transition-[translate] active:translate-y-px motion-reduce:transition-none';
-
 export function Wordmark({
   className,
   still,
@@ -128,7 +101,7 @@ export function Wordmark({
 }) {
   return (
     <svg
-      className={still ? className : `group ${PRESS} ${className ?? ''}`}
+      className={still ? className : `group ${pressNudge} ${className ?? ''}`}
       width="3340"
       height="738.5"
       viewBox="54 -726 3340 738.5"
@@ -140,7 +113,7 @@ export function Wordmark({
         <path key={d} d={d} className="fill-current" />
       ))}
       {!still && (
-        <g className={`fill-fg-brand ${FILL}`}>
+        <g className={`fill-fg-brand ${wipeReveal}`}>
           {LETTERS.map((d) => (
             <path key={d} d={d} />
           ))}

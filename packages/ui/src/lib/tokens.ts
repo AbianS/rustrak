@@ -107,6 +107,7 @@ export const spacingTokens = [
   'control-lg',
   'chip',
   'topbar',
+  'wordmark',
   'subheader',
   'tab',
   'sidebar',

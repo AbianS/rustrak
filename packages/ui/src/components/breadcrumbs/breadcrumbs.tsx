@@ -28,6 +28,10 @@ const crumbs = tv({
       interactiveTransition,
       focusRing,
     ],
+    /* An intermediate crumb with nowhere to go: the trail names the level but
+       the level has no page of its own. Same colour as a link, minus every
+       affordance that would promise one. */
+    label: 'min-w-0 shrink truncate text-fg-subtle',
     current: 'min-w-0 truncate font-mono text-mono text-fg',
     separator: 'shrink-0 text-fg-placeholder',
   },
@@ -37,7 +41,11 @@ const styles = crumbs();
 
 export interface Crumb {
   label: string;
-  /** The element that navigates: `<Link to="/issues" />`. Omit for a label. */
+  /**
+   * The element that navigates: `<Link to="/issues" />`. Omit it and the crumb
+   * is drawn as plain text -- an `<a>` with no `href` is not a link, is not
+   * reachable by tab, and announces as nothing.
+   */
   render?: useRender.ComponentProps<'a'>['render'];
 }
 
@@ -82,6 +90,8 @@ export function Breadcrumbs({
               <span aria-current="page" className={styles.current()}>
                 {item.label}
               </span>
+            ) : item.render == null ? (
+              <span className={styles.label()}>{item.label}</span>
             ) : (
               <CrumbLink {...item} />
             )}

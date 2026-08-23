@@ -94,6 +94,19 @@ export function SegmentedControl({
   'aria-label': ariaLabel,
 }: SegmentedControlProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  /*
+   * The chosen option, mirrored out of Base UI.
+   *
+   * Uncontrolled, the click never reaches this component: Base UI flips
+   * `data-checked` inside itself, nothing here re-renders, and the measuring
+   * effect does not run. The chip still moved, but only because the newly
+   * checked item gained `data-checked:font-semibold` and both items therefore
+   * resized, which woke the `ResizeObserver`. Drop the weight, or give the
+   * items a fixed width, and the chip quietly stops following the selection
+   * while every test that measures widths keeps passing.
+   */
+  const [uncontrolled, setUncontrolled] = useState(defaultValue);
+  const selected = value ?? uncontrolled;
   const [chip, setChip] = useState<{ left: number; width: number } | null>(
     null,
   );
@@ -134,14 +147,17 @@ export function SegmentedControl({
     }
 
     return () => observer.disconnect();
-  }, [value, children]);
+  }, [selected, children]);
 
   return (
     <RadioGroup
       ref={rootRef}
       value={value}
       defaultValue={defaultValue}
-      onValueChange={(next) => onValueChange?.(String(next))}
+      onValueChange={(next) => {
+        setUncontrolled(String(next));
+        onValueChange?.(String(next));
+      }}
       disabled={disabled}
       aria-label={ariaLabel}
       className={styles.root({ className })}

@@ -34,6 +34,20 @@ interface SidebarContextValue {
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
+/** Whether the key went to something that is typed into. */
+function isEditable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.isContentEditable ||
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  );
+}
+
 export function useSidebar(): SidebarContextValue {
   const context = useContext(SidebarContext);
 
@@ -83,8 +97,14 @@ export function SidebarProvider({
    * at all, so the collapse preference is ignored while it is being looked at
    * from a phone: otherwise the drawer would open showing seven unlabelled
    * icons inside its 216 px.
+   *
+   * The preference is kept apart from the value it produces because the mask
+   * is not the state. Toggling from `collapsed` on a narrow viewport would
+   * read `false` every time and so write `true` every time, and the rail would
+   * come back on its own the moment the window widened.
    */
-  const collapsed = (collapsedProp ?? uncontrolled) && !mobile;
+  const preference = collapsedProp ?? uncontrolled;
+  const collapsed = preference && !mobile;
 
   const setCollapsed = useCallback(
     (next: boolean) => {
@@ -97,8 +117,8 @@ export function SidebarProvider({
   );
 
   const toggle = useCallback(
-    () => setCollapsed(!collapsed),
-    [collapsed, setCollapsed],
+    () => setCollapsed(!preference),
+    [preference, setCollapsed],
   );
 
   const toggleDrawer = useCallback(() => setDrawerOpen((open) => !open), []);
@@ -118,12 +138,22 @@ export function SidebarProvider({
 
     function onKeyDown(event: KeyboardEvent) {
       if (
-        event.key.toLowerCase() === shortcutKey &&
-        (event.metaKey || event.ctrlKey)
+        event.key.toLowerCase() !== shortcutKey ||
+        !(event.metaKey || event.ctrlKey)
       ) {
-        event.preventDefault();
-        toggle();
+        return;
       }
+
+      /* The listener is on the document, so it also sees the shortcut typed
+         into a field. Inside a text control ⌘B belongs to the text -- it is
+         bold in a rich editor -- and stealing it there would both move the
+         sidebar and swallow the edit. */
+      if (isEditable(event.target)) {
+        return;
+      }
+
+      event.preventDefault();
+      toggle();
     }
 
     document.addEventListener('keydown', onKeyDown);

@@ -1,6 +1,6 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import type { ReactNode } from 'react';
-import { focusRing } from '../../lib/focus';
+import { focusRingInset } from '../../lib/focus';
 import { chevronFlip, interactiveTransition } from '../../lib/motion';
 import { tv, type VariantProps } from '../../lib/tv';
 import type { IconComponent } from '../icon/icon';
@@ -38,6 +38,10 @@ import {
  * does set `data-pressed`, and it holds it for as long as the menu is open, so
  * the control stays sunk the whole time it is holding something open -- and the
  * chevron turns over to say the same thing twice.
+ *
+ * The halves take `focusRingInset` and not the usual ring, for the same reason
+ * the root clips: an outward `box-shadow` on a child that reaches the pill's
+ * edge is cut off by that clip, so the ring would show on two sides only.
  */
 const split = tv({
   slots: {
@@ -54,7 +58,7 @@ const split = tv({
       'flex items-center gap-1.75 px-3 text-control whitespace-nowrap',
       'select-none disabled:pointer-events-none',
       interactiveTransition,
-      focusRing,
+      focusRingInset,
     ],
     trigger: [
       // `group` so the chevron can read `data-popup-open`.
@@ -62,7 +66,7 @@ const split = tv({
       'border-s border-current/20',
       'select-none disabled:pointer-events-none',
       interactiveTransition,
-      focusRing,
+      focusRingInset,
     ],
     chevron: ['shrink-0', chevronFlip],
   },

@@ -44,7 +44,7 @@
 :root {
   /* --- Brand · lime ------------------------------------------------------
      The only saturated colour the product spends on something that is not an
-     alarm. `500` is the dark-theme lime; `700` is the darker step the light
+     alarm. `500` is the dark-theme lime; `800` is the darker step the light
      theme needs to carry white text. */
   --rk-lime-400: #d7fb4e;
   --rk-lime-500: #c5f11e;
@@ -303,7 +303,7 @@
   --border-strong: var(--rk-day-400);
   --border-control: var(--rk-day-400);
   --border-tooltip: var(--rk-day-900);
-  --border-brand: var(--rk-lime-700);
+  --border-brand: var(--rk-lime-800);
 
   --fg: var(--rk-day-900);
   --fg-secondary: var(--rk-day-800);
@@ -666,6 +666,7 @@
   --spacing-control-lg: 36px; /* the filter bar, a search field         */
   --spacing-chip: 23px; /* a token inside a filter field          */
   --spacing-topbar: 48px;
+  --spacing-wordmark: 15px; /* the mark in the topbar, cap height    */
   --spacing-subheader: 42px; /* breadcrumb strip under the topbar      */
   --spacing-tab: 36px;
   --spacing-sidebar: 216px;

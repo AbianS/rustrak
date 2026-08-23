@@ -32,7 +32,13 @@ import type { WithClassName } from '../../lib/types';
  */
 const tabs = tv({
   slots: {
-    list: 'relative flex items-center gap-5 border-b border-border-subtle',
+    /* The rule under the whole strip, and the row that `meta` is pushed to the
+       end of. It is not the `tablist`: `role="tablist"` owns tabs and nothing
+       else, so a filter summary sitting inside it is content a screen reader
+       has no reason to reach. */
+    strip: 'flex items-center border-b border-border-subtle',
+    list: 'relative flex items-center gap-5',
+    meta: 'ms-auto ps-5 pb-0.5',
     tab: [
       'relative flex h-tab shrink-0 items-center gap-1.75',
       'whitespace-nowrap text-fg-muted',
@@ -85,16 +91,18 @@ export function TabList({ className, children, meta, ...props }: TabListProps) {
   const styles = tabs();
 
   return (
-    <BaseTabs.List className={styles.list({ className })} {...props}>
-      {children}
-      {/* `renderBeforeHydration` paints the position into the server HTML, so
-          the rule does not snap into place when React takes over. */}
-      <BaseTabs.Indicator
-        renderBeforeHydration
-        className={styles.indicator()}
-      />
-      {meta ? <span className="ms-auto pb-0.5">{meta}</span> : null}
-    </BaseTabs.List>
+    <div className={styles.strip({ className })}>
+      <BaseTabs.List className={styles.list()} {...props}>
+        {children}
+        {/* `renderBeforeHydration` paints the position into the server HTML, so
+            the rule does not snap into place when React takes over. */}
+        <BaseTabs.Indicator
+          renderBeforeHydration
+          className={styles.indicator()}
+        />
+      </BaseTabs.List>
+      {meta ? <span className={styles.meta()}>{meta}</span> : null}
+    </div>
   );
 }
 

@@ -8,7 +8,7 @@ Nothing imports it yet. It is developed and reviewed in Storybook.
 
 ```bash
 pnpm storybook   -w @rustrak/ui   # http://localhost:6008
-pnpm test        -w @rustrak/ui   # 75 tests: unit + component, in real Chromium
+pnpm test        -w @rustrak/ui   # unit + component, in real Chromium
 pnpm check-types -w @rustrak/ui
 pnpm build       -w @rustrak/ui   # dist/ with ESM and types
 ```

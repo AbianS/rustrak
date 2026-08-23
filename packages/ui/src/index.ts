@@ -9,16 +9,22 @@
 /* --- Foundations --------------------------------------------------------- */
 
 export { cn } from './lib/cn';
-export { focusRing, focusRingWithin } from './lib/focus';
+export {
+  focusRing,
+  focusRingInset,
+  focusRingWithin,
+} from './lib/focus';
 export {
   chevronFlip,
   interactiveTransition,
   popTransition,
+  pressNudge,
   pressScale,
   pressScaleSmall,
   pressScaleTrigger,
   slideTransition,
   swapAnimation,
+  wipeReveal,
 } from './lib/motion';
 export type {
   ColorToken,

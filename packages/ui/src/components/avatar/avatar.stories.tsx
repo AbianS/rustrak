@@ -35,6 +35,35 @@ export const ShapeIsTheTaxonomy: Story = {
   ),
 };
 
+/**
+ * Every shape at every size, side by side. Round against square at `sm` and at
+ * `md` is the only comparison that catches the radius or the type size drifting
+ * between them.
+ */
+export const States: Story = {
+  parameters: { controls: { disable: true }, layout: 'padded' },
+  render: () => (
+    <div className="flex flex-col gap-4">
+      {(['circle', 'square'] as const).map((shape) => (
+        <div key={shape} className="flex items-center gap-4">
+          <span className="w-20 shrink-0 font-mono text-column text-fg-meta uppercase">
+            {shape}
+          </span>
+          {(['sm', 'md'] as const).map((size) => (
+            <Avatar
+              key={size}
+              shape={shape}
+              size={size}
+              name="María López"
+              initials={shape === 'square' ? 'JS' : undefined}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+};
+
 export const Platforms: Story = {
   parameters: { layout: 'padded' },
   render: () => (

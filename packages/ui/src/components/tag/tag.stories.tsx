@@ -19,6 +19,33 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const TONES = ['error', 'warning', 'info', 'brand', 'neutral'] as const;
+
+/**
+ * Both variants against every tone, in one frame. `text` and `soft` share a
+ * palette and differ only in whether it fills, so a tone that has drifted in
+ * one and not the other is invisible on separate pages.
+ */
+export const States: Story = {
+  parameters: { controls: { disable: true }, layout: 'padded' },
+  render: () => (
+    <div className="flex flex-col gap-4">
+      {(['text', 'soft'] as const).map((variant) => (
+        <div key={variant} className="flex items-center gap-3">
+          <span className="w-20 shrink-0 font-mono text-column text-fg-meta uppercase">
+            {variant}
+          </span>
+          {TONES.map((tone) => (
+            <Tag key={tone} variant={variant} tone={tone}>
+              {tone}
+            </Tag>
+          ))}
+        </div>
+      ))}
+    </div>
+  ),
+};
+
 export const Severity: Story = {
   parameters: { layout: 'padded' },
   render: () => (

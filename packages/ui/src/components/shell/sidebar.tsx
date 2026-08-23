@@ -146,7 +146,9 @@ const projectCard = tv({
   ],
   variants: {
     collapsed: {
-      true: 'size-[34px] justify-center p-0',
+      /* The same square as a rail row: collapsed, the project card is one
+         more item in that column and has to line up with the seven below it. */
+      true: 'size-rail-item justify-center p-0',
       false: 'h-project-card px-2.5',
     },
   },

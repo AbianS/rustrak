@@ -109,7 +109,7 @@ export function TopbarBrand({ className, render, ...props }: TopbarBrandProps) {
           focusRing,
           className,
         ),
-        children: <Wordmark className="h-[15px] w-auto" />,
+        children: <Wordmark className="h-wordmark w-auto" />,
       },
       props,
     ),

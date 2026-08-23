@@ -47,6 +47,21 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # `pnpm install` brings the `playwright` package but not the browser it
+      # drives: the binary lands in ~/.cache/ms-playwright and is downloaded
+      # separately. `@rustrak/ui` runs every story as a component test in a real
+      # Chromium, so without this the whole suite fails at `browserType.launch`.
+      # Cached on the lockfile, which is what pins the Playwright version.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: playwright-${{ runner.os }}-
+
+      # A no-op when the cache hit, and the download when it did not. `--with-deps`
+      # also installs the system libraries Chromium needs on the runner.
+      - run: pnpm --filter @rustrak/ui exec playwright install --with-deps chromium
+
       # Turbo runs test, build, lint, format:check in parallel
       - run: pnpm run ci
 

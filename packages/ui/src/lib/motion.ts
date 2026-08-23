@@ -165,6 +165,41 @@ export const slideTransition =
   'transition-[translate,width] duration-moderate ease-standard';
 
 /**
+ * A layer wiped open from the left on hover, with a hard leading edge.
+ *
+ * For the wordmark's lime fill: the mark reads as being *converted* rather than
+ * recoloured. It is a `clip-path` inset and not an SVG `<clipPath>`, which
+ * would need a unique id per instance and so a hook and a client boundary.
+ *
+ * No `duration-*` and no `ease-*` on purpose. It rides on Tailwind's defaults
+ * -- 150 ms and `cubic-bezier(.4,0,.2,1)` -- which is what puts the mark on the
+ * platform's clock rather than on one of its own. An earlier version ran a
+ * bespoke pair of asymmetric curves, which is textbook practice and was still
+ * wrong: a mark keeping private time next to controls that share one clock
+ * reads as a foreign element no matter how well tuned it is alone.
+ *
+ * The element that owns the hover has to carry `group`.
+ */
+export const wipeReveal = [
+  '[clip-path:inset(0_100%_0_0)]',
+  'transition-[clip-path]',
+  'group-hover:[clip-path:inset(0_0_0_0)]',
+  'motion-reduce:transition-none',
+].join(' ');
+
+/**
+ * One pixel down on press, and nothing on hover.
+ *
+ * The press `pressScale` gives a control, for something that cannot be scaled:
+ * artwork inside a `viewBox`, where a unit is a fraction of the drawing rather
+ * than a distance on screen. Same direction and same clock as the rest.
+ */
+export const pressNudge = [
+  'transition-[translate] active:translate-y-px',
+  'motion-reduce:transition-none',
+].join(' ');
+
+/**
  * A line of text that replaces itself: a live count, "3 min ago", a run that
  * just finished.
  *

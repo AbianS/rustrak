@@ -184,7 +184,11 @@ export function Button({
         type: 'button',
         disabled: disabled || loading,
         'aria-busy': loading || undefined,
-        'aria-pressed': selected || undefined,
+        // `selected || undefined` would drop the attribute for the off state,
+        // so a caller driving a filter with `selected={isOn}` would expose a
+        // toggle while on and a plain button while off. Absent only when the
+        // prop was never passed.
+        'aria-pressed': selected ?? undefined,
         className: button({
           variant,
           size,
