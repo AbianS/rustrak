@@ -3,9 +3,16 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::{AlertType, Event};
+use crate::models::{AlertType, Event, EventSummary};
 use crate::pagination::{EventCursor, SortOrder};
 use crate::services::grouping::DenormalizedFields;
+
+/// Columns the event list renders — deliberately not `SELECT *`: the full
+/// `data` JSON blob is parsed per row by the `Event` mapping and then
+/// discarded by the list response, the largest avoidable allocation in the
+/// read path. Detail views load the payload via `get_by_id` instead.
+const EVENT_LIST_COLUMNS: &str = "id, event_id, issue_id, timestamp, \
+     calculated_type, calculated_value, level, platform, release, environment, event_type";
 
 pub struct EventService;
 
@@ -27,21 +34,21 @@ impl EventService {
         order: SortOrder,
         cursor: Option<&EventCursor>,
         limit: i64,
-    ) -> AppResult<(Vec<Event>, bool)> {
+    ) -> AppResult<(Vec<EventSummary>, bool)> {
         // Fetch limit+1 to determine if there are more results
         let fetch_limit = limit + 1;
 
         let events = match (order, cursor) {
             // DESC (newest first) - no cursor
             (SortOrder::Desc, None) => {
-                sqlx::query_as::<_, Event>(
+                sqlx::query_as::<_, EventSummary>(sqlx::AssertSqlSafe(&*format!(
                     r#"
-                    SELECT * FROM events
+                    SELECT {EVENT_LIST_COLUMNS} FROM events
                     WHERE issue_id = $1
                     ORDER BY timestamp DESC, id DESC
                     LIMIT $2
-                    "#,
-                )
+                    "#
+                )))
                 .bind(issue_id)
                 .bind(fetch_limit)
                 .fetch_all(pool)
@@ -50,14 +57,14 @@ impl EventService {
 
             // DESC - with cursor
             (SortOrder::Desc, Some(c)) => {
-                sqlx::query_as::<_, Event>(
+                sqlx::query_as::<_, EventSummary>(sqlx::AssertSqlSafe(&*format!(
                     r#"
-                    SELECT * FROM events
+                    SELECT {EVENT_LIST_COLUMNS} FROM events
                     WHERE issue_id = $1 AND (timestamp, id) < ($3, $4)
                     ORDER BY timestamp DESC, id DESC
                     LIMIT $2
-                    "#,
-                )
+                    "#
+                )))
                 .bind(issue_id)
                 .bind(fetch_limit)
                 .bind(c.last_timestamp)
@@ -68,14 +75,14 @@ impl EventService {
 
             // ASC (oldest first) - no cursor
             (SortOrder::Asc, None) => {
-                sqlx::query_as::<_, Event>(
+                sqlx::query_as::<_, EventSummary>(sqlx::AssertSqlSafe(&*format!(
                     r#"
-                    SELECT * FROM events
+                    SELECT {EVENT_LIST_COLUMNS} FROM events
                     WHERE issue_id = $1
                     ORDER BY timestamp ASC, id ASC
                     LIMIT $2
-                    "#,
-                )
+                    "#
+                )))
                 .bind(issue_id)
                 .bind(fetch_limit)
                 .fetch_all(pool)
@@ -84,14 +91,14 @@ impl EventService {
 
             // ASC - with cursor
             (SortOrder::Asc, Some(c)) => {
-                sqlx::query_as::<_, Event>(
+                sqlx::query_as::<_, EventSummary>(sqlx::AssertSqlSafe(&*format!(
                     r#"
-                    SELECT * FROM events
+                    SELECT {EVENT_LIST_COLUMNS} FROM events
                     WHERE issue_id = $1 AND (timestamp, id) > ($3, $4)
                     ORDER BY timestamp ASC, id ASC
                     LIMIT $2
-                    "#,
-                )
+                    "#
+                )))
                 .bind(issue_id)
                 .bind(fetch_limit)
                 .bind(c.last_timestamp)
@@ -102,7 +109,7 @@ impl EventService {
         };
 
         let has_more = events.len() > limit as usize;
-        let events: Vec<Event> = events.into_iter().take(limit as usize).collect();
+        let events: Vec<EventSummary> = events.into_iter().take(limit as usize).collect();
 
         Ok((events, has_more))
     }

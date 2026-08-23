@@ -9,13 +9,13 @@ use rustrak::models::log::LogContainer;
 
 #[test]
 fn test_log_item_routes_to_log_processor() {
-    let kind = EnvelopeItemKind::Log(b"{}".to_vec());
+    let kind = EnvelopeItemKind::Log(bytes::Bytes::from(b"{}".to_vec()));
     assert_eq!(route(&kind), Route::Log);
 }
 
 #[test]
 fn test_log_does_not_require_event_id() {
-    let kind = EnvelopeItemKind::Log(b"{}".to_vec());
+    let kind = EnvelopeItemKind::Log(bytes::Bytes::from(b"{}".to_vec()));
     assert!(!kind.requires_event());
 }
 
@@ -84,6 +84,7 @@ mod level2 {
             remote_addr: None,
         };
 
+        let body = bytes::Bytes::from(body);
         LogsProcessor.process(body.clone(), &ctx).await.unwrap();
         LogsProcessor.process(body, &ctx).await.unwrap();
 
@@ -126,7 +127,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        LogsProcessor.process(body, &ctx).await.unwrap();
+        LogsProcessor
+            .process(bytes::Bytes::from(body), &ctx)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -157,7 +161,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        LogsProcessor.process(body, &ctx).await.unwrap();
+        LogsProcessor
+            .process(bytes::Bytes::from(body), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT attributes FROM logs WHERE project_id = $1";

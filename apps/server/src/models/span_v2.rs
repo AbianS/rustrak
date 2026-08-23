@@ -177,7 +177,7 @@ impl SpanV2Entry {
 /// the v2 wire format, not the inner field.
 #[derive(Debug, Deserialize)]
 struct SpanV2Container {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::deserialize_bounded_items")]
     items: Vec<SpanV2Entry>,
 }
 
@@ -193,4 +193,23 @@ impl SpanV2Container {
 /// Parses a Spans Protocol v2 container body into its entries.
 pub fn parse_span_v2_container(body: &[u8]) -> AppResult<Vec<SpanV2Entry>> {
     SpanV2Container::parse(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_span_v2_container;
+    use crate::models::MAX_CONTAINER_ITEMS;
+
+    #[test]
+    fn rejects_span_container_with_too_many_items() {
+        let item = r#"{"span_id":"s","trace_id":"t"}"#;
+        let body = format!(
+            r#"{{"items":[{}]}}"#,
+            std::iter::repeat_n(item, MAX_CONTAINER_ITEMS + 1)
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+
+        assert!(parse_span_v2_container(body.as_bytes()).is_err());
+    }
 }

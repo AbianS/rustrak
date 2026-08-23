@@ -25,6 +25,16 @@ pub struct IngestResponse {
     pub id: Option<String>,
 }
 
+/// Validates an event payload is well-formed JSON without building a
+/// [`serde_json::Value`] tree: [`IgnoredAny`](serde::de::IgnoredAny) walks and
+/// discards every value. The digest re-parses the stored file anyway, so the
+/// tree here would be pure waste and can multiply memory use for large events.
+fn validate_event_json(payload: &[u8]) -> AppResult<()> {
+    serde_json::from_slice::<serde::de::IgnoredAny>(payload)
+        .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
+    Ok(())
+}
+
 /// POST /api/{project_id}/envelope/
 /// Main ingestion endpoint compatible with Sentry SDK
 pub async fn ingest_envelope(
@@ -62,11 +72,11 @@ pub async fn ingest_envelope(
         .map(|s| s.to_string());
 
     // 2. Decompress if needed
-    let content_encoding = get_content_encoding(&req);
+    let content_encoding = get_content_encoding(&req)?;
     let decompressed = decompress_body(body, content_encoding.as_deref())?;
 
     // 3. Parse envelope
-    let mut parser = EnvelopeParser::new(&decompressed);
+    let mut parser = EnvelopeParser::new(decompressed);
     let envelope = parser.parse()?;
 
     // Relay parity for item payloads: a malformed item is dropped and its
@@ -91,12 +101,12 @@ pub async fn ingest_envelope(
     // 4. Typed dispatch — exhaustive, compiler-verified.
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
-    let mut event_item: Option<Vec<u8>> = None;
-    let mut transaction_item: Option<Vec<u8>> = None;
-    let mut span_items: Vec<Vec<u8>> = Vec::new();
-    let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
+    let mut event_item: Option<Bytes> = None;
+    let mut transaction_item: Option<Bytes> = None;
+    let mut span_items: Vec<Bytes> = Vec::new();
+    let mut span_v2_items: Vec<Bytes> = Vec::new();
     let mut requires_event_id = false;
-    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), &decompressed);
+    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), parser.data());
     for item_kind in envelope.items {
         if item_kind.requires_event() {
             requires_event_id = true;
@@ -188,6 +198,11 @@ pub async fn ingest_envelope(
     // Persist direct items before the early return; otherwise 200 could suppress
     // an SDK retry for data that was never stored.
     if let Some(txn_payload) = transaction_item {
+        let _permit = processors
+            .processing_slot
+            .acquire()
+            .await
+            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let event_id_txn = event_id
             .clone()
             .unwrap_or_else(|| delivery_id.simple().to_string());
@@ -208,6 +223,11 @@ pub async fn ingest_envelope(
 
     // Persist standalone spans inline; they have no grouping or issue path.
     if !span_items.is_empty() {
+        let _permit = processors
+            .processing_slot
+            .acquire()
+            .await
+            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let ctx = ProcessorCtx {
             pool: pool.get_ref().clone(),
             project_id: auth.project.id,
@@ -215,6 +235,8 @@ pub async fn ingest_envelope(
             ingested_at,
             remote_addr: remote_addr.clone(),
         };
+        // One transaction for the whole span batch: per-item autocommit
+        // INSERTs would each be their own SQLite transaction.
         drop_malformed_item(
             processors.spans.process_batch(span_items, &ctx).await,
             "span",
@@ -223,6 +245,11 @@ pub async fn ingest_envelope(
 
     // Persist v2 span batches inline for the same reason.
     if !span_v2_items.is_empty() {
+        let _permit = processors
+            .processing_slot
+            .acquire()
+            .await
+            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let ctx = ProcessorCtx {
             pool: pool.get_ref().clone(),
             project_id: auth.project.id,
@@ -249,8 +276,9 @@ pub async fn ingest_envelope(
 
     let event_id = event_id.expect("event_id is Some when event_item is Some");
 
-    let _: serde_json::Value = serde_json::from_slice(&event_item)
-        .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
+    // 6. Validate that the payload is valid JSON without building a Value tree;
+    //    the digest re-parses the stored file.
+    validate_event_json(&event_item)?;
 
     // Store metadata beside the raw event so a failed digest can be recovered.
     let metadata = EventMetadata {
@@ -265,6 +293,10 @@ pub async fn ingest_envelope(
     let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
     tokio::spawn(async move {
+        // The permit gates the whole digest: the file read, JSON parse and
+        // grouping working set stay bounded to the concurrent cap, not the
+        // burst size.
+        let _permit = processors.processing_slot.acquire().await;
         let event_id_log = metadata.event_id.clone();
         let ctx = ProcessorCtx {
             pool: pool_clone,
@@ -458,6 +490,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
+    use super::validate_event_json;
     use super::{next_recovery_delay, resolve_event_id, stable_delivery_id};
     use std::time::Duration;
 
@@ -499,6 +532,21 @@ mod tests {
     }
 
     #[test]
+    fn invalid_event_id_uses_the_same_fallback_as_a_missing_header() {
+        let fallback = stable_delivery_id(None, b"same envelope");
+        assert_eq!(
+            stable_delivery_id(Some("not-a-uuid"), b"same envelope"),
+            fallback
+        );
+
+        let event_id = uuid::Uuid::new_v4();
+        assert_eq!(
+            stable_delivery_id(Some(&event_id.to_string()), b"different envelope"),
+            event_id
+        );
+    }
+
+    #[test]
     fn headerless_required_event_uses_delivery_id() {
         let delivery_id = uuid::Uuid::nil();
         assert_eq!(
@@ -514,5 +562,20 @@ mod tests {
             resolve_event_id(Some("session-id".to_string()), uuid::Uuid::nil(), false),
             Some("session-id".to_string())
         );
+    }
+
+    #[test]
+    fn valid_event_json_passes() {
+        let payload = br#"{"event_id":"abc","exception":{"values":[{"type":"Error"}]}}"#;
+        assert!(validate_event_json(payload).is_ok());
+    }
+
+    #[test]
+    fn invalid_event_json_is_rejected() {
+        assert!(validate_event_json(b"{not json").is_err());
+        assert!(validate_event_json(b"").is_err());
+        // Trailing garbage after the value must be rejected too, matching
+        // the previous full-parse semantics.
+        assert!(validate_event_json(br#"{"a":1} garbage"#).is_err());
     }
 }

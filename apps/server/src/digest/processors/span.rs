@@ -1,6 +1,7 @@
 use super::{Processor, ProcessorCtx};
 use crate::error::{AppError, AppResult};
 use crate::services::gen_ai::{extract_gen_ai_columns, GenAiColumns};
+use bytes::Bytes;
 use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
@@ -219,8 +220,10 @@ impl SpanProcessor {
         Ok(())
     }
 
-    /// Writes items in bounded transactions and skips malformed items.
-    pub async fn process_batch(&self, items: Vec<Vec<u8>>, ctx: &ProcessorCtx) -> AppResult<()> {
+    /// Writes items in transactions of at most [`SPAN_BATCH_CHUNK`],
+    /// interleaving parse and write so only one chunk's trees are alive;
+    /// malformed items are skipped (the old per-item tolerance).
+    pub async fn process_batch(&self, items: Vec<Bytes>, ctx: &ProcessorCtx) -> AppResult<()> {
         let mut chunk: Vec<ParsedSpan> = Vec::with_capacity(SPAN_BATCH_CHUNK);
         for work in items {
             match Self::parse_item(&work) {
@@ -241,10 +244,13 @@ impl SpanProcessor {
 }
 
 impl Processor for SpanProcessor {
-    type Input = Vec<u8>;
+    type Input = Bytes;
 
-    /// Stores one standalone span through the batched write path.
-    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
+    /// Stores a standalone span payload into `spans` with
+    /// `transaction_id = NULL`. Mirrors `TransactionProcessor::insert_span`'s
+    /// column extraction so both producers write a consistent row shape.
+    /// Single items share the batched write path.
+    async fn process(&self, work: Bytes, ctx: &ProcessorCtx) -> AppResult<()> {
         let item = Self::parse_item(&work)?;
         self.insert_all(ctx, vec![item]).await
     }

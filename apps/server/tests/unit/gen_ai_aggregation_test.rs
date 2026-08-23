@@ -24,7 +24,7 @@ fn ctx(pool: &rustrak::db::DbPool, project_id: i32) -> ProcessorCtx {
 async fn store_span(pool: &rustrak::db::DbPool, project_id: i32, payload: serde_json::Value) {
     let bytes = serde_json::to_vec(&payload).unwrap();
     SpanProcessor
-        .process(bytes, &ctx(pool, project_id))
+        .process(bytes::Bytes::from(bytes), &ctx(pool, project_id))
         .await
         .unwrap();
 }

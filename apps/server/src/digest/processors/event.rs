@@ -102,6 +102,10 @@ impl ErrorProcessor {
         if event_bytes.len() > crate::ingest::parser::TARGET_EVENT_SIZE {
             crate::services::trim_oversized_event(&mut event_data);
         }
+        // The raw file contents are no longer needed once the tree is parsed
+        // and the size check ran; drop them so the digest's grouping phase and
+        // DB writes do not carry a second copy of the payload in memory.
+        drop(event_bytes);
 
         // 3. Parse event_id as UUID
         let event_id = Uuid::parse_str(&metadata.event_id)

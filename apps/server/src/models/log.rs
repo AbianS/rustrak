@@ -39,7 +39,7 @@ pub struct LogItem {
 /// Wire shape of a log item container: `{"items":[OurLog, ...]}`.
 #[derive(Debug, Deserialize)]
 pub struct LogContainer {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::deserialize_bounded_items")]
     items: Vec<LogItem>,
 }
 
@@ -49,6 +49,25 @@ impl LogContainer {
         let container: LogContainer = serde_json::from_slice(body)
             .map_err(|e| AppError::Validation(format!("Invalid log container JSON: {}", e)))?;
         Ok(container.items)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LogContainer;
+    use crate::models::MAX_CONTAINER_ITEMS;
+
+    #[test]
+    fn rejects_log_container_with_too_many_items() {
+        let item = r#"{"body":"x"}"#;
+        let body = format!(
+            r#"{{"items":[{}]}}"#,
+            std::iter::repeat_n(item, MAX_CONTAINER_ITEMS + 1)
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+
+        assert!(LogContainer::parse(body.as_bytes()).is_err());
     }
 }
 

@@ -70,7 +70,10 @@ async fn store_agent_run_with_llm_call(pool: &rustrak::db::DbPool, project_id: i
         "data": {"gen_ai.operation.type": "agent", "gen_ai.agent.name": "planner"}
     }))
     .unwrap();
-    SpanProcessor.process(agent, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(agent), &ctx)
+        .await
+        .unwrap();
 
     let llm = serde_json::to_vec(&json!({
         "span_id": "2222222222222222", "trace_id": "agent-trace",
@@ -84,7 +87,10 @@ async fn store_agent_run_with_llm_call(pool: &rustrak::db::DbPool, project_id: i
         }
     }))
     .unwrap();
-    SpanProcessor.process(llm, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(llm), &ctx)
+        .await
+        .unwrap();
 
     let tool = serde_json::to_vec(&json!({
         "span_id": "3333333333333333", "trace_id": "agent-trace",
@@ -93,7 +99,10 @@ async fn store_agent_run_with_llm_call(pool: &rustrak::db::DbPool, project_id: i
         "data": {"gen_ai.operation.type": "tool", "gen_ai.tool.name": "search"}
     }))
     .unwrap();
-    SpanProcessor.process(tool, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(tool), &ctx)
+        .await
+        .unwrap();
 }
 
 async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
@@ -340,7 +349,10 @@ async fn store_failing_staging_trace(pool: &rustrak::db::DbPool, project_id: i32
         "data": {"gen_ai.operation.type": "agent", "gen_ai.agent.name": "billing"}
     }))
     .unwrap();
-    SpanProcessor.process(agent, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(agent), &ctx)
+        .await
+        .unwrap();
 
     let llm = serde_json::to_vec(&json!({
         "span_id": "5555555555555555", "trace_id": "staging-trace",
@@ -356,7 +368,10 @@ async fn store_failing_staging_trace(pool: &rustrak::db::DbPool, project_id: i32
         }
     }))
     .unwrap();
-    SpanProcessor.process(llm, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(llm), &ctx)
+        .await
+        .unwrap();
 
     let tool = serde_json::to_vec(&json!({
         "span_id": "6666666666666666", "trace_id": "staging-trace",
@@ -366,7 +381,10 @@ async fn store_failing_staging_trace(pool: &rustrak::db::DbPool, project_id: i32
         "data": {"gen_ai.operation.type": "tool", "gen_ai.tool.name": "lookup_invoice"}
     }))
     .unwrap();
-    SpanProcessor.process(tool, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(tool), &ctx)
+        .await
+        .unwrap();
 }
 
 #[actix_web::test]

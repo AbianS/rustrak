@@ -1,17 +1,18 @@
 use super::{Processor, ProcessorCtx};
 use crate::error::{AppError, AppResult};
 use crate::services::gen_ai::{extract_gen_ai_columns, GenAiColumns};
+use bytes::Bytes;
 use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
 pub struct TransactionProcessor;
 
 impl Processor for TransactionProcessor {
-    type Input = Vec<u8>;
+    type Input = Bytes;
 
     /// Store a transaction payload into the dedicated `transactions` table.
     /// Does NOT create an issue, grouping, or source-map rewrite.
-    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
+    async fn process(&self, work: Bytes, ctx: &ProcessorCtx) -> AppResult<()> {
         // Reject malformed payloads instead of persisting a null-data row.
         // The ingest route propagates this error so the SDK can retry the envelope.
         let data: serde_json::Value = serde_json::from_slice(&work)

@@ -2,13 +2,14 @@ use super::{Processor, ProcessorCtx};
 use crate::error::AppResult;
 use crate::models::span_v2::{parse_span_v2_container, SpanV2Entry};
 use crate::services::gen_ai::extract_gen_ai_columns;
+use bytes::Bytes;
 use chrono::{DateTime, TimeZone, Utc};
 use uuid::Uuid;
 
 pub struct SpanV2Processor;
 
 impl Processor for SpanV2Processor {
-    type Input = Vec<u8>;
+    type Input = Bytes;
 
     /// Stores a Spans Protocol v2 batch (Sentry "span" item type,
     /// `application/vnd.sentry.items.span.v2+json`) into the shared `spans`
@@ -17,7 +18,7 @@ impl Processor for SpanV2Processor {
     /// just a different (batched, typed-attribute) wire format. Mirrors
     /// `LogsProcessor`'s container-expansion + single-transaction-batch
     /// pattern.
-    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
+    async fn process(&self, work: Bytes, ctx: &ProcessorCtx) -> AppResult<()> {
         let entries = parse_span_v2_container(&work)?;
 
         let mut tx = ctx.pool.begin().await?;

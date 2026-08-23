@@ -24,6 +24,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
+/// Cap on concurrently running spawned processing tasks (digests,
+/// transactions, spans). Each holds a full payload plus its parsed JSON
+/// working set, so an unbounded spawn turns a burst of events into an
+/// unbounded memory spike; queued tasks wait holding only their envelope
+/// slice (a reference-counted share of the request buffer).
+pub(crate) const MAX_CONCURRENT_PROCESSING: usize = 16;
+
 /// The processor registry: one instance per processor, built once at startup
 /// and shared as application state. Mirrors Relay's `inner.processing` struct
 /// (relay-server/src/services/processor.rs) — each processor owns the
@@ -39,6 +46,11 @@ pub struct Processors {
     pub logs: LogsProcessor,
     pub spans: SpanProcessor,
     pub spans_v2: SpanV2Processor,
+    /// One gate for all spawned processing tasks — bounds peak memory
+    /// under bursts (see [`MAX_CONCURRENT_PROCESSING`]). Lives here,
+    /// not in a static, so every app instance (each test server) gets
+    /// its own budget.
+    pub processing_slot: Arc<tokio::sync::Semaphore>,
 }
 
 impl Processors {
@@ -55,6 +67,7 @@ impl Processors {
             logs: LogsProcessor,
             spans: SpanProcessor,
             spans_v2: SpanV2Processor,
+            processing_slot: Arc::new(tokio::sync::Semaphore::const_new(MAX_CONCURRENT_PROCESSING)),
         }
     }
 }

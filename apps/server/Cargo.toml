@@ -68,9 +68,10 @@ rand = "0.10.2"
 # Hex encoding
 hex = "0.4.3"
 
-# Compression (for decompressing gzip/deflate/brotli payloads)
+# Compression (for decompressing gzip/deflate/brotli/zstd payloads)
 flate2 = "1.1.9"
 brotli = "8.0.4"
+zstd = "0.13.3"
 
 # Async utilities
 futures-util = "0.3.34"

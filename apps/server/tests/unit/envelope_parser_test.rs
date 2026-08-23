@@ -2,7 +2,7 @@
 //!
 //! Tests the parsing of Sentry SDK envelopes including headers, items, and edge cases.
 
-use rustrak::ingest::envelope::EnvelopeItemKind;
+use rustrak::ingest::envelope::{EnvelopeItemKind, ItemHeaders};
 use rustrak::ingest::parser::EnvelopeParser;
 
 // Helper: extract the item type string from any variant
@@ -55,7 +55,7 @@ fn test_parse_log_item_maps_to_log_variant() {
     let body = br#"{"items":[{"timestamp":1544719860.0,"trace_id":"5b8efff798038103d269b633813fc60c","level":"info","body":"hello"}]}"#;
     let data = envelope_with_item("log", "application/vnd.sentry.items.log+json", body);
 
-    let mut parser = EnvelopeParser::new(&data);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&data));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
@@ -78,7 +78,7 @@ fn test_parse_span_v2_item_maps_to_span_v2_batch_variant() {
     let body = br#"{"version":2,"items":[{"trace_id":"800087bbed8c481faaabed73e41e5d4b","span_id":"8a743a442038cceb","start_timestamp":1.0,"end_timestamp":2.0,"attributes":{}}]}"#;
     let data = envelope_with_item("span", "application/vnd.sentry.items.span.v2+json", body);
 
-    let mut parser = EnvelopeParser::new(&data);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&data));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
@@ -98,7 +98,7 @@ fn test_parse_span_item_without_v2_content_type_stays_legacy() {
     let body = br#"{"span_id":"9fd17741416e8e4e","trace_id":"d3d20f000885466b8c8f947c9b92b8d3","start_timestamp":1.0,"timestamp":2.0}"#;
     let data = envelope_with_item("span", "application/json", body);
 
-    let mut parser = EnvelopeParser::new(&data);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&data));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
@@ -116,7 +116,7 @@ fn test_parse_span_item_without_v2_content_type_stays_legacy() {
 #[test]
 fn test_parse_simple_envelope() {
     let envelope = b"{\"event_id\":\"abc123\"}\n{\"type\":\"event\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.headers.event_id, Some("abc123".to_string()));
@@ -128,7 +128,7 @@ fn test_parse_simple_envelope() {
 #[test]
 fn test_parse_envelope_without_length() {
     let envelope = b"{\"event_id\":\"abc123\"}\n{\"type\":\"event\"}\n{\"message\":\"hello\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
@@ -141,7 +141,7 @@ fn test_parse_envelope_without_length() {
 #[test]
 fn test_parse_empty_envelope() {
     let envelope = b"";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     assert!(result.is_err());
@@ -151,7 +151,7 @@ fn test_parse_empty_envelope() {
 fn test_parse_envelope_multiple_items() {
     let envelope =
         b"{\"event_id\":\"abc123\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 2);
@@ -166,7 +166,7 @@ fn test_parse_envelope_multiple_items() {
 #[test]
 fn test_parse_full_envelope_headers() {
     let envelope = b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"http://key@localhost/1\",\"sent_at\":\"2026-01-09T12:00:00.000Z\",\"sdk\":{\"name\":\"sentry.python\",\"version\":\"1.0.0\"}}\n{\"type\":\"event\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(
@@ -192,7 +192,7 @@ fn test_parse_full_envelope_headers() {
 fn test_parse_minimal_envelope_headers() {
     // Sentry accepts minimal headers
     let envelope = b"{}\n{\"type\":\"event\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert!(result.headers.event_id.is_none());
@@ -202,7 +202,7 @@ fn test_parse_minimal_envelope_headers() {
 #[test]
 fn test_parse_invalid_envelope_headers_json() {
     let envelope = b"not json\n{\"type\":\"event\"}\n{}";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     assert!(result.is_err());
@@ -219,7 +219,7 @@ fn test_parse_item_with_content_type() {
     // content_type is in ItemHeaders which is consumed — we only check that parsing succeeds
     let envelope =
         b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2,\"content_type\":\"application/json\"}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(item_type(&result.items[0]), "event");
@@ -228,7 +228,7 @@ fn test_parse_item_with_content_type() {
 #[test]
 fn test_parse_item_invalid_headers_json() {
     let envelope = b"{\"event_id\":\"abc\"}\nnot json\n{}";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     assert!(result.is_err());
@@ -239,7 +239,7 @@ fn test_parse_item_invalid_headers_json() {
 #[test]
 fn test_parse_item_missing_type() {
     let envelope = b"{\"event_id\":\"abc\"}\n{\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     // serde should fail because "type" is required
@@ -254,7 +254,7 @@ fn test_parse_item_missing_type() {
 fn test_parse_event_item() {
     let envelope =
         b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":17}\n{\"level\":\"error\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert!(matches!(result.items[0], EnvelopeItemKind::Event(_)));
@@ -269,7 +269,7 @@ fn test_parse_session_item() {
     // {"status":"ok"} is 15 bytes
     let envelope =
         b"{\"event_id\":\"abc\"}\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     // session with valid JSON parses into Session variant
@@ -280,7 +280,7 @@ fn test_parse_session_item() {
 fn test_parse_transaction_item() {
     // {"op":"http.get"} is 17 bytes
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"transaction\",\"length\":17}\n{\"op\":\"http.get\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert!(matches!(result.items[0], EnvelopeItemKind::Transaction(_)));
@@ -289,11 +289,50 @@ fn test_parse_transaction_item() {
 #[test]
 fn test_parse_attachment_item() {
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"attachment\",\"length\":4}\ndata\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert!(matches!(result.items[0], EnvelopeItemKind::Other(ref t, _) if t == "attachment"));
     assert_eq!(raw_payload(&result.items[0]).unwrap(), b"data");
+}
+
+#[test]
+fn test_malformed_session_items_remain_forward_compatible_other_items() {
+    for item_type in ["session", "sessions"] {
+        let data = envelope_with_item(item_type, "application/json", b"not json");
+        let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&data));
+        let result = parser.parse().unwrap();
+
+        assert!(matches!(
+            &result.items[0],
+            EnvelopeItemKind::Other(kind, payload)
+                if kind == item_type && payload.as_ref() == b"not json"
+        ));
+    }
+}
+
+#[test]
+fn test_valid_sessions_item_maps_to_sessions_variant() {
+    let data = envelope_with_item("sessions", "application/json", br#"{"aggregates":[]}"#);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&data));
+    let result = parser.parse().unwrap();
+
+    assert!(matches!(result.items[0], EnvelopeItemKind::Sessions(_)));
+}
+
+#[test]
+fn test_attachment_and_security_items_require_event_id() {
+    for item_type in ["attachment", "security"] {
+        let kind = EnvelopeItemKind::from((
+            ItemHeaders {
+                item_type: item_type.to_string(),
+                length: None,
+                content_type: None,
+            },
+            bytes::Bytes::from_static(b"payload"),
+        ));
+        assert!(kind.requires_event());
+    }
 }
 
 // =============================================================================
@@ -303,7 +342,7 @@ fn test_parse_attachment_item() {
 #[test]
 fn test_parse_explicit_length() {
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":10}\n0123456789\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap().len(), 10);
@@ -313,7 +352,7 @@ fn test_parse_explicit_length() {
 #[test]
 fn test_parse_length_zero() {
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":0}\n\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap().len(), 0);
@@ -325,7 +364,7 @@ fn test_parse_length_mismatch_more_data() {
     // Parser reads exactly 5 bytes, then remaining "56789\n" becomes the next item header
     // which fails to parse. This is expected behavior - the envelope is malformed.
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":5}\n0123456789\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     // This envelope is malformed - the remaining data is invalid JSON
@@ -336,7 +375,7 @@ fn test_parse_length_mismatch_more_data() {
 fn test_parse_length_mismatch_less_data() {
     // Length says 20 bytes but we only have 10 - should fail
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":20}\n0123456789";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     assert!(result.is_err());
@@ -349,7 +388,7 @@ fn test_parse_without_length_reads_until_newline() {
     // When no length is specified, parser reads until newline
     // The rest becomes the next item header, which if invalid JSON, fails parsing
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\"}\nfirst line only\nignored\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     // "ignored" is parsed as item headers and fails (not valid JSON)
@@ -360,7 +399,7 @@ fn test_parse_without_length_reads_until_newline() {
 fn test_parse_without_length_single_item() {
     // Single item without length - simpler case
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\"}\n{\"message\":\"hello\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 1);
@@ -386,7 +425,7 @@ fn test_parse_payload_with_newlines_using_length() {
     envelope.extend_from_slice(payload);
     envelope.push(b'\n');
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap(), payload);
@@ -404,7 +443,7 @@ fn test_parse_json_payload_with_escaped_newlines() {
     envelope.extend_from_slice(payload);
     envelope.push(b'\n');
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap(), payload);
@@ -417,7 +456,7 @@ fn test_parse_json_payload_with_escaped_newlines() {
 #[test]
 fn test_parse_three_items() {
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}\n{\"type\":\"transaction\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 3);
@@ -430,7 +469,7 @@ fn test_parse_three_items() {
 fn test_parse_mixed_length_items() {
     // Mix of items with and without explicit length
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n{\"type\":\"attachment\"}\n{\"s\":1}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.items.len(), 2);
@@ -446,7 +485,7 @@ fn test_parse_mixed_length_items() {
 fn test_parse_no_items() {
     // Just headers, no items
     let envelope = b"{\"event_id\":\"abc\"}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.headers.event_id, Some("abc".to_string()));
@@ -456,7 +495,7 @@ fn test_parse_no_items() {
 #[test]
 fn test_parse_headers_only_no_newline() {
     let envelope = b"{\"event_id\":\"abc\"}";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.headers.event_id, Some("abc".to_string()));
@@ -466,7 +505,7 @@ fn test_parse_headers_only_no_newline() {
 #[test]
 fn test_parse_whitespace_only_headers() {
     let envelope = b"   \n{\"type\":\"event\"}\n{}";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse();
 
     // "   " is not valid JSON
@@ -480,7 +519,7 @@ fn test_parse_empty_line_between_items() {
     // The empty line causes parse_item to return None and loop continues to next line
     // which then tries to parse "{\"type\":\"session\"}" as an item header
     let envelope = b"{\"event_id\":\"abc\"}\n{\"type\":\"event\",\"length\":2}\n{}\n\n{\"type\":\"session\",\"length\":15}\n{\"status\":\"ok\"}";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     // Empty line returns None, then we continue and parse the session item
@@ -502,7 +541,7 @@ fn test_parse_binary_payload() {
     envelope.extend_from_slice(&binary);
     envelope.push(b'\n');
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap(), binary);
@@ -524,7 +563,7 @@ fn test_parse_unicode_in_payload() {
     envelope.extend_from_slice(payload_bytes);
     envelope.push(b'\n');
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse().unwrap();
 
     assert_eq!(raw_payload(&result.items[0]).unwrap(), payload_bytes);
@@ -534,7 +573,7 @@ fn test_parse_unicode_in_payload() {
 fn test_parse_unicode_in_event_id() {
     // Event IDs should be ASCII, but parser should handle unicode gracefully
     let envelope = b"{\"event_id\":\"test-\xC3\xA9vent\"}\n{\"type\":\"event\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(envelope));
     let result = parser.parse().unwrap();
 
     // Should parse without error
@@ -557,7 +596,7 @@ fn test_payload_size_exactly_at_limit() {
     let mut envelope = header.into_bytes();
     envelope.extend_from_slice(&payload);
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse();
 
     // Should succeed at exactly the limit
@@ -578,7 +617,7 @@ fn test_payload_size_over_limit() {
     let mut envelope = header.into_bytes();
     envelope.extend(vec![b'x'; payload_size]);
 
-    let mut parser = EnvelopeParser::new(&envelope);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(&envelope));
     let result = parser.parse();
 
     assert!(result.is_err());
@@ -597,7 +636,7 @@ fn test_parse_sentry_python_style_envelope() {
 {"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","timestamp":1704801600.0,"level":"error"}
 "#;
 
-    let mut parser = EnvelopeParser::new(envelope.as_bytes());
+    let mut parser = EnvelopeParser::new(bytes::Bytes::from(envelope.as_bytes()));
     let result = parser.parse().unwrap();
 
     assert_eq!(
@@ -616,7 +655,7 @@ fn test_parse_sentry_javascript_style_envelope() {
 {"event_id":"abc123def456","exception":{"values":[{"type":"Error"}]}}
 "#;
 
-    let mut parser = EnvelopeParser::new(envelope.as_bytes());
+    let mut parser = EnvelopeParser::new(bytes::Bytes::from(envelope.as_bytes()));
     let result = parser.parse().unwrap();
 
     assert_eq!(result.headers.event_id, Some("abc123def456".to_string()));

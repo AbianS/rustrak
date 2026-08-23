@@ -90,7 +90,7 @@ async fn store_test_transaction(pool: &rustrak::db::DbPool, project_id: i32, nam
     }))
     .unwrap();
     TransactionProcessor
-        .process(payload, &ctx)
+        .process(bytes::Bytes::from(payload), &ctx)
         .await
         .expect("Failed to store transaction");
 }
@@ -123,7 +123,7 @@ async fn store_rich_transaction(pool: &rustrak::db::DbPool, project_id: i32, nam
     }))
     .unwrap();
     TransactionProcessor
-        .process(payload, &ctx)
+        .process(bytes::Bytes::from(payload), &ctx)
         .await
         .expect("Failed to store transaction");
 

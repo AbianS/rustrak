@@ -341,6 +341,71 @@ async fn test_ingest_basic_event() {
     .to_string();
 
     let envelope = create_envelope(&event_id, &event_json);
+    let compressed_envelope = zstd::stream::encode_all(envelope.as_slice(), 0).unwrap();
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .insert_header(("Content-Encoding", "zstd"))
+        .set_payload(compressed_envelope)
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], event_id);
+}
+
+#[actix_web::test]
+async fn test_ingest_event_is_digested_by_the_spawned_task() {
+    // The production digest path: the route spawns a detached task that
+    // takes the processing permit, reads the stored file and lands the
+    // event + issue. Other tests drive the same processor directly via
+    // process_error_event, so this one pins the spawn wiring itself.
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Spawned Digest").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data({
+                let store: Arc<dyn SourceMapStore> =
+                    Arc::new(LocalSourceMapStore::new("/tmp/test_sourcemaps"));
+                let provider: Arc<dyn SourceMapProvider> =
+                    Arc::new(DbSourceMapProvider::new(db.pool.clone(), store));
+                web::Data::new(provider)
+            })
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let event_json = json!({
+        "event_id": event_id,
+        "timestamp": 1704801600.0,
+        "level": "error",
+        "platform": "python",
+        "exception": {
+            "values": [{ "type": "ValueError", "value": "Invalid input" }]
+        }
+    })
+    .to_string();
+    let envelope = create_envelope(&event_id, &event_json);
 
     let req = test::TestRequest::post()
         .uri(&format!("/api/{}/envelope/", project_id))
@@ -351,12 +416,37 @@ async fn test_ingest_basic_event() {
         .insert_header(("Content-Type", "application/x-sentry-envelope"))
         .set_payload(envelope)
         .to_request();
-
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
 
-    let body: Value = test::read_body_json(resp).await;
-    assert_eq!(body["id"], event_id);
+    // The spawned task is detached, so poll for its outcome instead of
+    // joining: the event row appears only after permit → file read →
+    // parse → grouping → insert all ran.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let (issue_id, _): (Uuid, Uuid) = loop {
+        if let Some(row) = sqlx::query_as(
+            "SELECT issue_id, id FROM events WHERE project_id = $1 AND event_id = $2",
+        )
+        .bind(project_id)
+        .bind(Uuid::parse_str(&event_id).unwrap())
+        .fetch_optional(&db.pool)
+        .await
+        .unwrap()
+        {
+            break row;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the spawned digest task should store the event within 5s"
+        );
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    };
+    let issue_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM issues WHERE id = $1")
+        .bind(issue_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(issue_count, 1, "the digest must create the issue");
 }
 
 #[actix_web::test]

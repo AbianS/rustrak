@@ -2,9 +2,15 @@
 //!
 //! Provides helpers for setting up test databases.
 //! - Postgres: uses testcontainers to spin up a real PostgreSQL container
-//! - SQLite: uses an in-memory database (no container needed)
+//! - SQLite: uses an isolated file database cloned from a migrated template
 
 use rustrak::db::DbPool;
+
+#[cfg(feature = "sqlite")]
+use std::sync::Arc;
+
+#[cfg(feature = "sqlite")]
+use tempfile::TempDir;
 
 // ── Postgres ─────────────────────────────────────────────────────────────────
 
@@ -64,26 +70,61 @@ impl TestDb {
 #[cfg(feature = "sqlite")]
 pub struct TestDb {
     pub pool: DbPool,
+    _directory: TempDir,
 }
 
 #[cfg(feature = "sqlite")]
 impl TestDb {
     pub async fn new() -> Self {
+        // Migrate one template once, then copy it for an isolated database.
+        // This keeps parallel tests independent without paying migration setup
+        // cost for every TestDb::new().
+        static TEMPLATE: tokio::sync::OnceCell<Arc<TempDir>> = tokio::sync::OnceCell::const_new();
+        let template = TEMPLATE
+            .get_or_init(|| async {
+                let directory =
+                    tempfile::tempdir().expect("Failed to create SQLite template directory");
+                let database_path = directory.path().join("template.sqlite");
+                let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                    .max_connections(1)
+                    .connect_with(
+                        sqlx::sqlite::SqliteConnectOptions::new()
+                            .filename(&database_path)
+                            .create_if_missing(true),
+                    )
+                    .await
+                    .expect("Failed to create SQLite template database");
+                sqlx::migrate!("./migrations/sqlite")
+                    .run(&pool)
+                    .await
+                    .expect("Failed to run SQLite migrations");
+                pool.close().await;
+                Arc::new(directory)
+            })
+            .await
+            .clone();
+
+        let directory = tempfile::tempdir().expect("Failed to create SQLite test directory");
+        let database_path = directory.path().join("test.sqlite");
+        std::fs::copy(template.path().join("template.sqlite"), &database_path)
+            .expect("Failed to copy SQLite template database");
+
         // max_connections(1): SQLite only allows one writer at a time.
         // Using a single connection avoids SQLITE_LOCKED deadlocks when
         // multiple tokio tasks try to write concurrently in tests.
-        // Each TestDb::new() gets its own private in-memory database.
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
             .max_connections(1)
-            .connect("sqlite::memory:")
+            .connect_with(
+                sqlx::sqlite::SqliteConnectOptions::new()
+                    .filename(&database_path)
+                    .create_if_missing(false),
+            )
             .await
-            .expect("Failed to create in-memory SQLite database");
+            .expect("Failed to open copied SQLite database");
 
-        sqlx::migrate!("./migrations/sqlite")
-            .run(&pool)
-            .await
-            .expect("Failed to run SQLite migrations");
-
-        TestDb { pool }
+        TestDb {
+            pool,
+            _directory: directory,
+        }
     }
 }

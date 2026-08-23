@@ -8,6 +8,7 @@ use rustrak::bootstrap;
 use rustrak::config;
 use rustrak::db;
 use rustrak::middleware::auth::RequireAuth;
+use rustrak::middleware::compression::prefer_zstd;
 use rustrak::models;
 use rustrak::routes;
 use rustrak::services::sourcemap::{DbSourceMapProvider, SourceMapProvider};
@@ -216,6 +217,7 @@ async fn main() -> std::io::Result<()> {
                 rustrak::error::INCIDENT_ID_HEADER
             )))
             .wrap(middleware::Compress::default())
+            .wrap(middleware::from_fn(prefer_zstd))
             .wrap(cors) // CORS must be before SessionMiddleware
             .wrap(
                 SessionMiddleware::builder(CookieSessionStore::default(), key.clone())
