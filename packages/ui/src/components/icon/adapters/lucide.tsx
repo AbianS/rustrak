@@ -1,4 +1,20 @@
-import {
+import type { LucideIcon } from 'lucide-react';
+import { type IconComponent, type IconProps, iconVariants } from '../icon';
+
+/**
+ * The library's symbols, re-exported under the names it gave them.
+ *
+ * `icon-catalog.ts` decides what each one *means* in Rustrak; this file is
+ * the only thing in the package that knows what they are called upstream.
+ * Switching library means rewriting this file and `fromLucide` below, and not
+ * one component finds out.
+ *
+ * A re-export and not an object: the inferred type of an object literal of 57
+ * components names `ForwardRefExoticComponent` and `RefAttributes`, which this
+ * file never imports, and `tsdown` cannot write that into the declaration file
+ * (TS2883). A re-export forwards the declarations and has nothing to infer.
+ */
+export {
   ArrowDownRight,
   ArrowLeftRight,
   ArrowRight,
@@ -33,7 +49,6 @@ import {
   Link,
   ListFilter,
   LoaderCircle,
-  type LucideIcon,
   Menu,
   MessageSquare,
   Minus,
@@ -58,75 +73,6 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { type IconComponent, type IconProps, iconVariants } from '../icon';
-
-/**
- * The library's symbols, gathered here and nowhere else.
- *
- * `icon-catalog.ts` names what each one *means* in Rustrak; this object is the
- * only thing in the package that knows what they are called upstream. Switching
- * library means rewriting this file and `fromLucide` below, and not one
- * component finds out.
- */
-export const lucide = {
-  ArrowDownRight,
-  ArrowLeftRight,
-  ArrowRight,
-  ArrowUpRight,
-  Bell,
-  Bookmark,
-  Bot,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronsUpDown,
-  ChevronUp,
-  CircleAlert,
-  CircleCheck,
-  CircleX,
-  Clock,
-  Columns3,
-  Copy,
-  Download,
-  Ellipsis,
-  EllipsisVertical,
-  ExternalLink,
-  Eye,
-  GitBranch,
-  GitCommitHorizontal,
-  GitMerge,
-  Inbox,
-  LayoutDashboard,
-  Link,
-  ListFilter,
-  LoaderCircle,
-  Menu,
-  MessageSquare,
-  Minus,
-  PanelLeft,
-  PanelRight,
-  Plus,
-  RefreshCw,
-  Rocket,
-  ScrollText,
-  Search,
-  Server,
-  Settings,
-  SlidersHorizontal,
-  Sparkles,
-  Star,
-  Trash2,
-  TriangleAlert,
-  User,
-  Users,
-  VolumeX,
-  Wrench,
-  X,
-  Zap,
-} as const;
 
 /**
  * Adapter from lucide-react to the `IconComponent` contract.
