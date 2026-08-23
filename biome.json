@@ -75,7 +75,10 @@
           "level": "error",
           "options": {
             "strictCase": true,
-            "filenameCases": ["kebab-case", "export"],
+            "filenameCases": [
+              "kebab-case",
+              "export"
+            ],
             "requireAscii": true
           }
         },
@@ -124,11 +127,38 @@
   },
   "overrides": [
     {
-      "includes": ["**/src/shared/ui/components/shadcn/**"],
+      "includes": [
+        "**/src/shared/ui/components/shadcn/**"
+      ],
       "linter": {
         "rules": {
           "a11y": {
             "useSemanticElements": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/**"
+      ],
+      "linter": {
+        "rules": {
+          "a11y": {
+            "useAnchorContent": "off",
+            "useHeadingContent": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/ui/src/styles/base.css"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noImportantStyles": "off"
           }
         }
       }

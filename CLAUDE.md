@@ -21,6 +21,7 @@ The split is the point: deploy only the server and connect any Sentry SDK to it.
 | `apps/server` | Rust API server. The product. |
 | `apps/webview-ui` | Next.js dashboard |
 | `apps/docs` | Public documentation site (Nextra) |
+| `packages/ui` | `@rustrak/ui`, the design system. Storybook only for now |
 | `packages/client` | `@rustrak/client`, the TypeScript API client |
 | `packages/mcp` | `@rustrak/mcp`, MCP server over the client |
 | `packages/test-sentry` | CLI to send test events to a DSN |

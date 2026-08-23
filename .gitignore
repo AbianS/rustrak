@@ -53,3 +53,6 @@ apps/docs/public/versions.json
 
 # React Doctor JSON report (pnpm doctor:json)
 react-doctor-report.json
+
+# Storybook static builds
+storybook-static/
