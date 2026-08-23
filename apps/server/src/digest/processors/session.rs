@@ -29,6 +29,13 @@ impl Processor for SessionProcessor {
     type Input = SessionItem;
 
     async fn process(&self, work: SessionItem, ctx: &ProcessorCtx) -> AppResult<()> {
+        // No dedup identity, deliberately: session counts are additive counters
+        // upstream too. Relay never dedups retried session envelopes — its
+        // session pipeline has no idempotency anywhere and extracts plain
+        // Counter metrics (relay-server/src/processing/sessions/,
+        // metrics_extraction/sessions/types.rs BucketValue::Counter), so an SDK
+        // resend double-counts in real Sentry as well. Matching that is
+        // Sentry parity, not a gap.
         if let Some(agg) = &self.aggregator {
             match work {
                 SessionItem::Update(update) => {

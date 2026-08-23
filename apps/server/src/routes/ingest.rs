@@ -69,6 +69,25 @@ pub async fn ingest_envelope(
     let mut parser = EnvelopeParser::new(&decompressed);
     let envelope = parser.parse()?;
 
+    // Relay parity for item payloads: a malformed item is dropped and its
+    // siblings continue (relay-server/src/processing/relay.rs run_one — "This
+    // is not a fatal error case ... other items from the same original
+    // envelope must still be processed"). Only infrastructure failures
+    // (database, storage) may fail the envelope: they return 5xx so the SDK
+    // retries, preserving the commit-before-ack durability promise. A 4xx here
+    // would make the SDK drop the sibling data permanently.
+    fn drop_malformed_item(result: AppResult<()>, item_type: &str) -> AppResult<()> {
+        match result {
+            Err(AppError::Validation(message)) => {
+                log::warn!(
+                    "dropping malformed {item_type} item, keeping envelope siblings: {message}"
+                );
+                Ok(())
+            }
+            other => other,
+        }
+    }
+
     // 4. Typed dispatch — exhaustive, compiler-verified.
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
@@ -101,10 +120,13 @@ pub async fn ingest_envelope(
                     ingested_at,
                     &remote_addr,
                 );
-                processors
-                    .sessions
-                    .process(SessionItem::Update(s), &ctx)
-                    .await?;
+                drop_malformed_item(
+                    processors
+                        .sessions
+                        .process(SessionItem::Update(s), &ctx)
+                        .await,
+                    "session",
+                )?;
             }
             EnvelopeItemKind::Sessions(s) => {
                 let ctx = direct_store_ctx(
@@ -114,10 +136,13 @@ pub async fn ingest_envelope(
                     ingested_at,
                     &remote_addr,
                 );
-                processors
-                    .sessions
-                    .process(SessionItem::Aggregates(s), &ctx)
-                    .await?;
+                drop_malformed_item(
+                    processors
+                        .sessions
+                        .process(SessionItem::Aggregates(s), &ctx)
+                        .await,
+                    "sessions",
+                )?;
             }
             EnvelopeItemKind::Log(payload) => {
                 // Logs are processed inline (parse container + store): the work is
@@ -129,7 +154,7 @@ pub async fn ingest_envelope(
                     ingested_at,
                     &remote_addr,
                 );
-                processors.logs.process(payload, &ctx).await?;
+                drop_malformed_item(processors.logs.process(payload, &ctx).await, "log")?;
             }
             EnvelopeItemKind::Span(payload) => {
                 // Unlike Event/Transaction, an envelope may carry many standalone
@@ -175,7 +200,10 @@ pub async fn ingest_envelope(
             ingested_at,
             remote_addr: remote_addr.clone(),
         };
-        processors.transactions.process(txn_payload, &ctx).await?;
+        drop_malformed_item(
+            processors.transactions.process(txn_payload, &ctx).await,
+            "transaction",
+        )?;
     }
 
     // Persist standalone spans inline; they have no grouping or issue path.
@@ -187,7 +215,10 @@ pub async fn ingest_envelope(
             ingested_at,
             remote_addr: remote_addr.clone(),
         };
-        processors.spans.process_batch(span_items, &ctx).await?;
+        drop_malformed_item(
+            processors.spans.process_batch(span_items, &ctx).await,
+            "span",
+        )?;
     }
 
     // Persist v2 span batches inline for the same reason.
@@ -200,7 +231,10 @@ pub async fn ingest_envelope(
             remote_addr: remote_addr.clone(),
         };
         for batch_payload in span_v2_items {
-            processors.spans_v2.process(batch_payload, &ctx).await?;
+            drop_malformed_item(
+                processors.spans_v2.process(batch_payload, &ctx).await,
+                "span container",
+            )?;
         }
     }
 
