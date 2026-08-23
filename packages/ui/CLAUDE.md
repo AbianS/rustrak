@@ -100,8 +100,9 @@ right and the new number gets written down, or it is not.
 - import `lucide-react` anywhere except `components/icon/adapters/lucide.tsx`.
 - build classes with template literals. Tailwind extracts statically, so
   `bg-${name}` is a rule that is silently never generated.
-- reach for a table, a filter bar or a chart. Those are the next pass and they
-  need decisions this one has not made.
+- reach for a chart. That is a later pass and it needs decisions this one has
+  not made. The table and the filter bar exist now: `data-table/` and
+  `query-bar/` — extend those rather than starting parallel ones.
 - give the `backgrounds` addon a hex. It writes its value onto the preview body,
   so a literal pins the page to one theme while the components inside it follow
   the other. Hand it `var(--surface-canvas)`.

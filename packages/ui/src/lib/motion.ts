@@ -208,3 +208,15 @@ export const pressNudge = [
  * rendered string, so "2 min ago" becoming "3 min ago" does not re-animate.
  */
 export const swapAnimation = 'animate-swap-in motion-reduce:animate-none';
+
+/**
+ * `popTransition`, for a panel this package positions itself.
+ *
+ * The Base UI version rides on `data-starting-style`, which only Base UI
+ * sets. A hand-anchored popup -- the query bar's suggestions -- has no such
+ * attribute, so its entrance is the same movement written as an animation:
+ * the growth from the anchored edge, the 4 px slide out of the control, the
+ * entrance clock. Exit is unmount, deliberately: suggestions dismissed while
+ * typing must not linger over the next keystroke.
+ */
+export const dropIn = 'origin-top animate-drop-in motion-reduce:animate-none';

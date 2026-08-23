@@ -205,8 +205,15 @@ with an icon, a shortcut and a menu chevron) and `SplitButton`.
 global search, notifications, account) `Sidebar` (216 px / a 56 px rail, the
 project card, the seven routes, ⌘B).
 
-No tables, no filter bar, no charts. Those are a second pass and they need
-decisions this one does not.
+**Forms** · `Checkbox` `Popover`.
+
+**Data** · the table family — `useDataTable` (TanStack Table v9, fully manual)
+with `DataTable`, `DataTablePagination`, `DataTableColumnsButton`, the
+column-header sort/filter panels behind them — and `QueryBar`, the token
+search with two-phase autocomplete. `data-table/query.ts` holds the shared
+query model and the URL codecs.
+
+No charts. Those are a later pass and need decisions this one does not.
 
 ### Named decisions
 
@@ -233,6 +240,34 @@ decisions this one does not.
   Nothing was written to prevent the empty state; the right primitive does not
   have it. Its chip slides from the old option to the new one for the same
   reason the tab rule does: the travel is what says only the choice moved.
+- **The table is fully manual.** `useDataTable` registers no client row
+  models: the server filters, sorts and paginates, and the table renders what
+  it was handed. State goes out as pure updaters on a `DataTableQuery`, and
+  the package never touches a router — `parseTableQuery` and
+  `serializeTableQuery` are the codecs; the app owns the URL. Any change of
+  filters, search or sort rewinds `pageIndex` to 0 in the same update,
+  because manual pagination switches TanStack's own auto-reset off.
+- **A column header opens a panel; it does not sort on click.** The GitHub
+  pattern: sorting, the type-appropriate filter (options, text, range — from
+  `meta.filter`) and hiding share one panel, with the sort worded in the
+  column's own terms ("Most events first"). The resting header shows state
+  only: a lime arrow when sorted, a lime funnel when filtered.
+- **The query bar and the column panels edit the same `ColumnFiltersState`.**
+  A tick in the Level panel is a `level:` chip in the bar; deleting the chip
+  puts the funnel out. The bar's text form is exactly what
+  `parseFilterQuery` reads, so the URL's `q`, the bar's content and the
+  table's filters are one value in three places.
+- **Row actions rest in a fixed ⋯ column; bulk actions take over the
+  header.** Hover-revealed actions went: what only exists under the pointer
+  cannot be discovered by reading and does not exist on touch. Every row ends
+  in the same ⋯ menu (`rowMenu`, as `MenuAction[]`), and once rows are
+  selected the 38 px header strip swaps -- with `swapAnimation`, both
+  directions -- into count, `bulkActions` and Clear, so nothing pushes the
+  table down mid-gesture.
+- **Selection and column visibility never reach the URL.** A selection is a
+  gesture and visibility is a reading preference; restoring either from a
+  pasted link would fabricate a choice the reader never made. They live
+  inside `useDataTable`.
 
 ## Consuming it from an application
 
