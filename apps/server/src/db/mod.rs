@@ -161,3 +161,86 @@ pub async fn checkpoint_full(pool: &DbPool) -> Result<bool, sqlx::Error> {
         .await?;
     Ok(busy == 0)
 }
+
+/// Decides whether a caller still needs its own WAL checkpoint.
+///
+/// A commit is durably in the main database file once any `FULL` checkpoint
+/// that *started* after the commit completes. Tracking the start instant of
+/// the last completed checkpoint lets concurrent digests coalesce: whoever
+/// runs the checkpoint covers everyone whose commit (entry instant) preceded
+/// its start.
+#[derive(Default)]
+pub struct CheckpointGate {
+    last_completed_start: Option<std::time::Instant>,
+}
+
+impl CheckpointGate {
+    /// Whether a completed checkpoint already covers a caller that entered at
+    /// `entered` (i.e. whose commit predates that instant).
+    pub fn covers(&self, entered: std::time::Instant) -> bool {
+        self.last_completed_start
+            .is_some_and(|started| started >= entered)
+    }
+
+    /// Records a successfully completed checkpoint by its start instant.
+    pub fn record_completed(&mut self, started: std::time::Instant) {
+        self.last_completed_start = Some(started);
+    }
+}
+
+/// Runs a `FULL` checkpoint unless one already covers this caller's commit.
+///
+/// Callers that pile up behind an in-flight checkpoint coalesce: the first
+/// waiter's own checkpoint (started after every waiter entered) covers the
+/// rest, so N concurrent digests cost at most two checkpoints instead of N.
+#[cfg(feature = "sqlite")]
+pub async fn ensure_checkpointed(
+    pool: &DbPool,
+    gate: &tokio::sync::Mutex<CheckpointGate>,
+) -> Result<bool, sqlx::Error> {
+    let entered = std::time::Instant::now();
+    let mut gate = gate.lock().await;
+    if gate.covers(entered) {
+        return Ok(true);
+    }
+    let started = std::time::Instant::now();
+    let completed = checkpoint_full(pool).await?;
+    if completed {
+        gate.record_completed(started);
+    }
+    Ok(completed)
+}
+
+#[cfg(test)]
+mod checkpoint_gate_tests {
+    use super::CheckpointGate;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn skips_when_a_checkpoint_started_after_entry_has_completed() {
+        let mut gate = CheckpointGate::default();
+        let entered = Instant::now();
+        gate.record_completed(entered + Duration::from_millis(1));
+        assert!(
+            gate.covers(entered),
+            "a checkpoint that started after this caller entered covers its commit"
+        );
+    }
+
+    #[test]
+    fn does_not_skip_when_last_checkpoint_started_before_entry() {
+        let mut gate = CheckpointGate::default();
+        let started = Instant::now();
+        gate.record_completed(started);
+        assert!(
+            !gate.covers(started + Duration::from_millis(1)),
+            "a checkpoint that started before this caller entered may miss its frames"
+        );
+    }
+
+    #[test]
+    fn does_not_skip_when_no_checkpoint_has_completed() {
+        let gate = CheckpointGate::default();
+        assert!(!gate.covers(Instant::now()));
+    }
+}

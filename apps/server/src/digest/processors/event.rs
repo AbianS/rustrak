@@ -27,6 +27,8 @@ pub struct ErrorProcessor {
     ingest_dir: PathBuf,
     rate_limit_config: RateLimitConfig,
     sourcemap_provider: Arc<dyn SourceMapProvider>,
+    // Coalesces SQLite durability checkpoints across concurrent digests.
+    checkpoint_gate: tokio::sync::Mutex<crate::db::CheckpointGate>,
 }
 
 impl ErrorProcessor {
@@ -39,6 +41,7 @@ impl ErrorProcessor {
             ingest_dir,
             rate_limit_config,
             sourcemap_provider,
+            checkpoint_gate: tokio::sync::Mutex::new(crate::db::CheckpointGate::default()),
         }
     }
 
@@ -133,6 +136,7 @@ impl ErrorProcessor {
             }
             delete_after_success(
                 pool,
+                &self.checkpoint_gate,
                 &self.ingest_dir,
                 metadata.project_id,
                 &metadata.event_id,
@@ -245,6 +249,7 @@ impl ErrorProcessor {
         // requires a successful durability checkpoint.
         delete_after_success(
             pool,
+            &self.checkpoint_gate,
             &self.ingest_dir,
             metadata.project_id,
             &metadata.event_id,
@@ -319,6 +324,7 @@ fn should_retain_event(err: &AppError) -> bool {
 #[cfg(feature = "sqlite")]
 async fn delete_after_success(
     pool: &DbPool,
+    checkpoint_gate: &tokio::sync::Mutex<crate::db::CheckpointGate>,
     ingest_dir: &std::path::Path,
     project_id: i32,
     event_id: &str,
@@ -333,7 +339,7 @@ async fn delete_after_success(
     }
 
     for attempt in 0..3 {
-        if crate::db::checkpoint_full(pool).await? {
+        if crate::db::ensure_checkpointed(pool, checkpoint_gate).await? {
             delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
             return Ok(());
         }
@@ -352,6 +358,7 @@ async fn delete_after_success(
 #[cfg(feature = "postgres")]
 async fn delete_after_success(
     _pool: &DbPool,
+    _checkpoint_gate: &tokio::sync::Mutex<crate::db::CheckpointGate>,
     ingest_dir: &std::path::Path,
     project_id: i32,
     event_id: &str,
