@@ -52,6 +52,15 @@
         "rules": [
           "react-doctor/dangerous-html-sink"
         ]
+      },
+      {
+        "files": [
+          "**/*.stories.tsx"
+        ],
+        "rules": [
+          "react-doctor/no-children-prop",
+          "react-doctor/heading-has-content"
+        ]
       }
     ]
   }

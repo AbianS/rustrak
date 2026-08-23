@@ -1,0 +1,90 @@
+/*
+ * Base styles. Only what cannot live inside a component: the type family, the
+ * canvas colour, how figures align, and the cursor. Everything else is each
+ * component's own business.
+ */
+
+@layer base {
+  /* `:where` keeps specificity at zero, so an application can override any of
+     these without a fight. */
+  :where(html) {
+    background-color: var(--surface-canvas);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /*
+   * Figures line up in a column, always.
+   *
+   * Counts, durations, percentages and byte sizes are read down a list far
+   * more often than they are read one at a time: 12.431 over 3.902 over 986
+   * only tells you which is bigger if the digits sit above each other.
+   */
+  :where(
+    input[type="number"],
+    input[inputmode="decimal"],
+    time,
+    [data-numeric]
+  ) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /*
+   * Cursor.
+   *
+   * Tailwind 4 dropped `cursor: pointer` from buttons to match the browser. On
+   * a desktop that makes sense -- a native button already looks pressable
+   * because of its relief. In a flat, dense web application it does not: the
+   * hand is the signal that separates "this does something" from "this is a
+   * label", and removing it makes you click around to find out.
+   *
+   * It goes by role and not by tag, because Base UI draws the checkbox, the
+   * radio and the switch as a `<span>` carrying its role, not as an `<input>`.
+   */
+  :where(
+    button,
+    summary,
+    [role="button"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [role="option"],
+    [role="menuitem"],
+    [role="combobox"],
+    [role="link"]
+  ):not(:disabled, [disabled], [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+    /* On touch, kills the double-tap zoom and Safari's grey flash. */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Disabled is not "nothing happens": it is "not here, and for a reason". */
+  :where(
+    button,
+    [role="button"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="combobox"],
+    input,
+    textarea,
+    select
+  ):is(:disabled, [disabled], [aria-disabled="true"], [data-disabled]) {
+    cursor: not-allowed;
+  }
+
+  /* Whoever asked for less motion did not ask only about decoration: they
+     meant scrolling and transitions too. */
+  @media (prefers-reduced-motion: reduce) {
+    :where(*) {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

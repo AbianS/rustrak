@@ -1,0 +1,693 @@
+/*
+ * Rustrak UI · token system
+ * ---------------------------------------------------------------------------
+ * Three layers, in this order and with no exceptions:
+ *
+ *   1. PRIMITIVES  --rk-*      raw values. No component ever touches one; only
+ *                              the semantic layer references them.
+ *   2. SEMANTIC    --surface-* they say what the value is for, not what it
+ *                  --fg-*      looks like. They are the only layer the theme
+ *                  --border-*  rewrites.
+ *   3. COMPONENT   published to Tailwind in the @theme blocks below, so a
+ *                  component writes `bg-surface`, `h-control-md` or
+ *                  `text-control` and never a hex or a loose pixel.
+ *
+ * None of this can live inside an @layer: the theme overrides would stop
+ * winning against Tailwind's own utilities.
+ *
+ * The palette is not invented here. The greys and the lime are the product's
+ * own, and the severity and chart ramps are its `sev-*` and `chart-*` in oklch.
+ * Dark is the reference theme -- Rustrak is a dark product and every screen of
+ * it is dark. Light is derived so the switch keeps working, but it is not what
+ * the design was drawn against.
+ */
+
+/*
+ * The theme is explicit: the attribute decides, not the operating system,
+ * because the application remembers the choice.
+ *
+ * Dark is what you get by default, including with no attribute at all. Rustrak
+ * is a dark product and every one of its screens is dark; a consumer who
+ * forgets to stamp `data-theme` should land on the design, not on a half-lit
+ * page. Light is the opt-out, so the `dark:` variant is written as "anything
+ * that is not light".
+ */
+@custom-variant dark (
+  &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *)
+);
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/* ========================================================================== */
+/* 1 · PRIMITIVES                                                             */
+/* ========================================================================== */
+
+:root {
+  /* --- Brand · lime ------------------------------------------------------
+     The only saturated colour the product spends on something that is not an
+     alarm. `500` is the dark-theme lime; `800` is the darker step the light
+     theme needs to carry white text. */
+  --rk-lime-400: #d7fb4e;
+  --rk-lime-500: #c5f11e;
+  /*
+   * The light theme's lime, and it is not the one the dashboard shipped.
+   *
+   * `globals.css` paired `oklch(0.65 0.18 127)` with white text, which is
+   * 2.05:1 -- unreadable, and the sort of thing that survives for years
+   * because nobody ever looks at a button and thinks to measure it. Same hue,
+   * same family, stepped down until white clears AA at 5.74:1. It is fixed by
+   * `contrast.test.ts`, so it cannot quietly drift back.
+   */
+  --rk-lime-800: oklch(0.5 0.14 127);
+  --rk-lime-900: oklch(0.45 0.14 127);
+
+  /* --- Neutrals · dark · pure grey, no tint ------------------------------
+     Every step earns its place on a real screen. They are
+     numbered by lightness so inserting one later does not renumber the rest. */
+  --rk-ink-950: #0e0e0e; /* behind the canvas: the page around a shell    */
+  --rk-ink-900: #121212; /* canvas                                        */
+  --rk-ink-850: #161616; /* panel: sidebar, table body                    */
+  --rk-ink-800: #1a1a1a; /* surface: topbar, card, popup, quiet control   */
+  --rk-ink-780: #1d1d1d; /* raised on a panel: the project card           */
+  --rk-ink-760: #1e1e1e; /* the row that is being pointed at              */
+  --rk-ink-750: #202020; /* the thinnest divider there is                 */
+  --rk-ink-720: #232323; /* selected: the active nav row, the tooltip     */
+  --rk-ink-700: #242424; /* subtle border: what encloses a panel          */
+  --rk-ink-680: #262626; /* raised border, and the filter chip            */
+  --rk-ink-650: #2a2a2a; /* the border                                    */
+  --rk-ink-620: #2e2e2e; /* tooltip border                                */
+  --rk-ink-600: #333333; /* strong border                                 */
+  --rk-ink-550: #3a3a3a; /* an empty checkbox                             */
+  --rk-ink-500: #3e3e3e; /* a de-emphasised mark: the grey sparkline      */
+
+  /* --- Neutrals · dark · type ------------------------------------------- */
+  --rk-ash-50: #fafafa;
+  --rk-ash-200: #dddddd;
+  --rk-ash-300: #cccccc;
+  --rk-ash-350: #bbbbbb;
+  --rk-ash-400: #aaaaaa;
+  --rk-ash-500: #999999;
+  --rk-ash-600: #888888;
+  --rk-ash-700: #777777;
+  --rk-ash-800: #666666;
+  --rk-ash-900: #555555;
+
+  /* --- Neutrals · light -------------------------------------------------- */
+  --rk-day-0: #ffffff;
+  --rk-day-25: #fbfbfc;
+  --rk-day-50: #f7f8f9;
+  --rk-day-100: #f1f3f5;
+  --rk-day-150: #e9ebee;
+  --rk-day-200: #e5e7eb;
+  --rk-day-300: #d4d7dd;
+  --rk-day-400: #b4b8c0;
+  --rk-day-500: #9096a1;
+  --rk-day-600: #6b7280;
+  --rk-day-700: #4b5563;
+  --rk-day-800: #374151;
+  --rk-day-900: #111827;
+
+  /*
+   * --- Severity ----------------------------------------------------------
+   * Reserved. Never reused as a chart series, and always paired with a label,
+   * so meaning never rests on hue alone.
+   *
+   * Each level has two values, and the split is the point: `mark` fills a bar,
+   * a dot or a chart area, `text` sets a word. A fill and a word need
+   * different lightness to read at the same strength against the same
+   * surface -- the mark at text weight glares, the text at mark weight
+   * disappears. The product uses both, and this is where the pair is named.
+   *
+   * `error` covers fatal too; the tooltip breaks them out. `info` is the
+   * de-emphasis grey: info and debug are context, not something an error
+   * chart should shout about.
+   */
+  --rk-sev-error-mark-dark: oklch(0.584 0.209 26.6);
+  --rk-sev-error-text-dark: oklch(0.72 0.19 25);
+  --rk-sev-warning-mark-dark: oklch(0.67 0.143 73.2);
+  --rk-sev-warning-text-dark: oklch(0.75 0.143 73.2);
+  --rk-sev-info-mark-dark: oklch(0.468 0 0);
+
+  --rk-sev-error-mark-light: oklch(0.623 0.191 24.9);
+  --rk-sev-error-text-light: oklch(0.51 0.19 26);
+  --rk-sev-warning-mark-light: oklch(0.764 0.161 75.1);
+  --rk-sev-warning-text-light: oklch(0.52 0.12 70);
+  --rk-sev-info-mark-light: oklch(0.77 0 0);
+
+  /*
+   * --- Chart series ------------------------------------------------------
+   * Categorical slots in a fixed order: assign by entity, never cycle, never
+   * reorder when a filter changes the series count. Two ramps, not one flipped
+   * automatically: the same five hues re-stepped for each surface.
+   */
+  --rk-chart-1-dark: oklch(0.622 0.161 255.1); /* blue    */
+  --rk-chart-2-dark: oklch(0.622 0.173 40.1); /* orange  */
+  --rk-chart-3-dark: oklch(0.621 0.128 163.1); /* aqua    */
+  --rk-chart-4-dark: oklch(0.67 0.143 73.2); /* yellow  */
+  --rk-chart-5-dark: oklch(0.622 0.171 0.8); /* magenta */
+
+  --rk-chart-1-light: oklch(0.575 0.163 255.5);
+  --rk-chart-2-light: oklch(0.671 0.175 40.6);
+  --rk-chart-3-light: oklch(0.669 0.141 162.1);
+  --rk-chart-4-light: oklch(0.764 0.161 75.1);
+  --rk-chart-5-light: oklch(0.716 0.141 357.4);
+}
+
+/* ========================================================================== */
+/* 2 · SEMANTIC · dark · the reference theme                                  */
+/* ========================================================================== */
+
+:root,
+[data-theme="dark"] {
+  /* --- Surfaces ---------------------------------------------------------
+     Four levels and they are not interchangeable. The canvas is the floor;
+     the panel is what sits on it and holds a list; the surface is what floats
+     on the panel and holds a control; raised is what sits on a surface. Going
+     up is always lighter, which is the only way depth reads without shadow. */
+  --surface-canvas: var(--rk-ink-900);
+  --surface-panel: var(--rk-ink-850);
+  --surface: var(--rk-ink-800);
+  --surface-raised: var(--rk-ink-780);
+  --surface-hover: var(--rk-ink-760);
+  --surface-active: var(--rk-ink-720);
+  --surface-selected: var(--rk-ink-720);
+  --surface-chip: var(--rk-ink-680);
+  --surface-disabled: var(--rk-ink-850);
+  /* A popup does not sit on the canvas, it sits over everything. In dark the
+     shadow barely separates, so it borrows the surface level and leans on its
+     border instead. */
+  --surface-floating: var(--rk-ink-800);
+  --surface-tooltip: var(--rk-ink-720);
+  --surface-inverse: var(--rk-ash-50);
+  --surface-brand: var(--rk-lime-500);
+  --surface-brand-hover: var(--rk-lime-400);
+
+  /* --- Borders ---------------------------------------------------------- */
+  --border: var(--rk-ink-650);
+  --border-subtle: var(--rk-ink-700);
+  --border-divider: var(--rk-ink-780);
+  --border-muted: var(--rk-ink-750);
+  --border-raised: var(--rk-ink-680);
+  --border-field: var(--rk-ink-650);
+  --border-strong: var(--rk-ink-600);
+  --border-control: var(--rk-ink-550);
+  --border-tooltip: var(--rk-ink-620);
+  --border-brand: var(--rk-lime-500);
+
+  /* --- Type ---------------------------------------------------------------
+     Ten steps sounds like a lot until you count a real row: it carries a
+     title, an identifier, a timestamp, a count and a path, and each has to
+     read as a different rank at a glance. */
+  --fg: var(--rk-ash-50);
+  --fg-secondary: var(--rk-ash-200);
+  --fg-tertiary: var(--rk-ash-350);
+  --fg-muted: var(--rk-ash-500);
+  --fg-subtle: var(--rk-ash-600);
+  --fg-meta: var(--rk-ash-700);
+  --fg-ghost: var(--rk-ash-800);
+  --fg-placeholder: var(--rk-ash-900);
+  --fg-disabled: var(--rk-ash-900);
+  --fg-brand: var(--rk-lime-500);
+  /* Lime is bright: what sits on it is near-black, never white. */
+  --fg-on-brand: var(--rk-ink-800);
+  --fg-inverse: var(--rk-ink-900);
+  /*
+   * The tooltip carries its own foreground because its surface is the one
+   * thing in the system that is not the same *kind* of surface in both themes.
+   * In dark it is a raised chip a step above the panel; in light it is
+   * inverted, near-black on a white page, which is how a tooltip reads as
+   * floating over the document rather than being part of it. So the text on it
+   * is near-white in both, and in light that is the opposite of `--fg`.
+   *
+   * Reaching for `--fg` here is exactly the bug this token exists to stop: it
+   * resolves to near-black in light, which put black text on a black chip.
+   */
+  --fg-on-tooltip: var(--rk-ash-50);
+
+  /* --- Severity ---------------------------------------------------------- */
+  --sev-error: var(--rk-sev-error-mark-dark);
+  --sev-error-fg: var(--rk-sev-error-text-dark);
+  --sev-error-surface: oklch(0.584 0.209 26.6 / 0.08);
+  --sev-warning: var(--rk-sev-warning-mark-dark);
+  --sev-warning-fg: var(--rk-sev-warning-text-dark);
+  --sev-warning-surface: oklch(0.67 0.143 73.2 / 0.15);
+  --sev-info: var(--rk-sev-info-mark-dark);
+  --sev-info-fg: var(--rk-ash-500);
+  --sev-info-surface: var(--rk-ink-680);
+
+  /* --- Interaction states -------------------------------------------------
+     `danger` is the destructive action; `sev-error` is the datum. They point
+     at the same red today and they are still two names, because the day the
+     product wants a calmer red for a delete button than for a fatal event,
+     that is one line here and not a search across the components. */
+  --danger: var(--rk-sev-error-mark-dark);
+  --danger-fg: var(--rk-sev-error-text-dark);
+  --danger-surface: oklch(0.584 0.209 26.6 / 0.12);
+  --success: var(--rk-lime-500);
+  --success-fg: var(--rk-lime-500);
+  --success-surface: oklch(0.91 0.18 127 / 0.12);
+
+  /* --- Chart ------------------------------------------------------------- */
+  --chart-1: var(--rk-chart-1-dark);
+  --chart-2: var(--rk-chart-2-dark);
+  --chart-3: var(--rk-chart-3-dark);
+  --chart-4: var(--rk-chart-4-dark);
+  --chart-5: var(--rk-chart-5-dark);
+  /* A series that is there for scale and not for reading. */
+  --chart-muted: var(--rk-ink-500);
+
+  /* --- Focus · lime ring --------------------------------------------------
+     One ring for the whole application. Lime, because it is the only colour
+     the product owns that is not already spoken for by severity. */
+  --ring: oklch(0.91 0.18 127 / 0.45);
+  --ring-subtle: oklch(0.91 0.18 127 / 0.28);
+
+  --scrim: oklch(0 0 0 / 0.66);
+
+  /* --- Elevation ----------------------------------------------------------
+     Long and low, and darker than a light theme would need: on #121212 a
+     shadow only reads once it is nearly black. */
+  --elevation-raised: 0 1px 2px oklch(0 0 0 / 0.4);
+  --elevation-tooltip: 0 8px 24px oklch(0 0 0 / 0.5);
+  --elevation-overlay: 0 12px 32px oklch(0 0 0 / 0.5);
+  --elevation-dialog: 0 24px 60px -18px oklch(0 0 0 / 0.7);
+}
+
+/* ========================================================================== */
+/* 2b · SEMANTIC · light                                                      */
+/* Derived from the dashboard's light block. The stacking order flips: the     */
+/* canvas is the darkest surface and what rises goes towards white.            */
+/* ========================================================================== */
+
+[data-theme="light"] {
+  --surface-canvas: var(--rk-day-50);
+  --surface-panel: var(--rk-day-25);
+  --surface: var(--rk-day-0);
+  --surface-raised: var(--rk-day-0);
+  --surface-hover: var(--rk-day-100);
+  --surface-active: var(--rk-day-150);
+  --surface-selected: var(--rk-day-100);
+  --surface-chip: var(--rk-day-100);
+  --surface-disabled: var(--rk-day-100);
+  --surface-floating: var(--rk-day-0);
+  --surface-tooltip: var(--rk-day-900);
+  --surface-inverse: var(--rk-day-900);
+  --surface-brand: var(--rk-lime-800);
+  --surface-brand-hover: var(--rk-lime-900);
+
+  --border: var(--rk-day-200);
+  --border-subtle: var(--rk-day-150);
+  --border-divider: var(--rk-day-100);
+  --border-muted: var(--rk-day-100);
+  --border-raised: var(--rk-day-200);
+  --border-field: var(--rk-day-300);
+  --border-strong: var(--rk-day-400);
+  --border-control: var(--rk-day-400);
+  --border-tooltip: var(--rk-day-900);
+  --border-brand: var(--rk-lime-800);
+
+  --fg: var(--rk-day-900);
+  --fg-secondary: var(--rk-day-800);
+  --fg-tertiary: var(--rk-day-700);
+  --fg-muted: var(--rk-day-600);
+  --fg-subtle: var(--rk-day-600);
+  --fg-meta: var(--rk-day-500);
+  --fg-ghost: var(--rk-day-400);
+  --fg-placeholder: var(--rk-day-400);
+  --fg-disabled: var(--rk-day-400);
+  --fg-brand: var(--rk-lime-800);
+  /* The light lime is dark enough to carry white, and has to: on white paper
+     near-black on lime is a highlighter, not a button. */
+  --fg-on-brand: var(--rk-day-0);
+  --fg-inverse: var(--rk-day-0);
+  --fg-on-tooltip: var(--rk-day-0);
+
+  --sev-error: var(--rk-sev-error-mark-light);
+  --sev-error-fg: var(--rk-sev-error-text-light);
+  --sev-error-surface: oklch(0.623 0.191 24.9 / 0.1);
+  --sev-warning: var(--rk-sev-warning-mark-light);
+  --sev-warning-fg: var(--rk-sev-warning-text-light);
+  --sev-warning-surface: oklch(0.764 0.161 75.1 / 0.18);
+  --sev-info: var(--rk-sev-info-mark-light);
+  --sev-info-fg: var(--rk-day-600);
+  --sev-info-surface: var(--rk-day-100);
+
+  --danger: var(--rk-sev-error-mark-light);
+  --danger-fg: var(--rk-sev-error-text-light);
+  --danger-surface: oklch(0.623 0.191 24.9 / 0.1);
+  --success: var(--rk-lime-800);
+  --success-fg: var(--rk-lime-800);
+  --success-surface: oklch(0.65 0.18 127 / 0.14);
+
+  --chart-1: var(--rk-chart-1-light);
+  --chart-2: var(--rk-chart-2-light);
+  --chart-3: var(--rk-chart-3-light);
+  --chart-4: var(--rk-chart-4-light);
+  --chart-5: var(--rk-chart-5-light);
+  --chart-muted: var(--rk-day-300);
+
+  --ring: oklch(0.65 0.18 127 / 0.45);
+  --ring-subtle: oklch(0.65 0.18 127 / 0.28);
+
+  --scrim: oklch(0.15 0 0 / 0.4);
+
+  --elevation-raised: 0 1px 2px oklch(0.15 0 0 / 0.08);
+  --elevation-tooltip: 0 8px 24px oklch(0.15 0 0 / 0.14);
+  --elevation-overlay: 0 12px 32px oklch(0.15 0 0 / 0.16);
+  --elevation-dialog: 0 24px 60px -18px oklch(0.15 0 0 / 0.32);
+}
+
+/* ========================================================================== */
+/* 3 · COMPONENT CONSTANTS · the theme does not touch these                   */
+/* ========================================================================== */
+
+:root {
+  /* Lucide draws at 2. At the 13-14 px this shell uses that is the weight the
+     design was drawn with, so it stays -- and it stays a token, so moving it
+     is one line and not forty. */
+  --stroke-icon: 2px;
+  /* The rule under the selected tab, and the bar beside the active nav row. */
+  --stroke-indicator: 2px;
+}
+
+/* ========================================================================== */
+/* 4 · PUBLISHED TO TAILWIND · what a component author actually sees          */
+/* ========================================================================== */
+
+/*
+ * Closed system: Tailwind's inherited namespaces are reset so there is no
+ * `bg-red-500` and no `text-sm` to smuggle a value in through. If a utility is
+ * not declared here, it does not belong to the design.
+ */
+@theme {
+  --color-*: initial;
+  --shadow-*: initial;
+  --font-*: initial;
+  --text-*: initial;
+  --radius-*: initial;
+}
+
+@theme inline {
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-inherit: inherit;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Surfaces */
+  --color-canvas: var(--surface-canvas);
+  --color-panel: var(--surface-panel);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-active: var(--surface-active);
+  --color-surface-selected: var(--surface-selected);
+  --color-surface-chip: var(--surface-chip);
+  --color-surface-disabled: var(--surface-disabled);
+  --color-surface-floating: var(--surface-floating);
+  --color-surface-tooltip: var(--surface-tooltip);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-surface-brand: var(--surface-brand);
+  --color-surface-brand-hover: var(--surface-brand-hover);
+
+  /* Borders */
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-divider: var(--border-divider);
+  --color-border-muted: var(--border-muted);
+  --color-border-raised: var(--border-raised);
+  --color-border-field: var(--border-field);
+  --color-border-strong: var(--border-strong);
+  --color-border-control: var(--border-control);
+  --color-border-tooltip: var(--border-tooltip);
+  --color-border-brand: var(--border-brand);
+
+  /* Type */
+  --color-fg: var(--fg);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-tertiary: var(--fg-tertiary);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-fg-meta: var(--fg-meta);
+  --color-fg-ghost: var(--fg-ghost);
+  --color-fg-placeholder: var(--fg-placeholder);
+  --color-fg-disabled: var(--fg-disabled);
+  --color-fg-brand: var(--fg-brand);
+  --color-fg-on-brand: var(--fg-on-brand);
+  --color-fg-inverse: var(--fg-inverse);
+  --color-fg-on-tooltip: var(--fg-on-tooltip);
+
+  /* Severity */
+  --color-sev-error: var(--sev-error);
+  --color-sev-error-fg: var(--sev-error-fg);
+  --color-sev-error-surface: var(--sev-error-surface);
+  --color-sev-warning: var(--sev-warning);
+  --color-sev-warning-fg: var(--sev-warning-fg);
+  --color-sev-warning-surface: var(--sev-warning-surface);
+  --color-sev-info: var(--sev-info);
+  --color-sev-info-fg: var(--sev-info-fg);
+  --color-sev-info-surface: var(--sev-info-surface);
+
+  /* Interaction */
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-surface: var(--danger-surface);
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-success-surface: var(--success-surface);
+
+  /* Chart */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-muted: var(--chart-muted);
+
+  /* Focus and overlay */
+  --color-ring: var(--ring);
+  --color-ring-subtle: var(--ring-subtle);
+  --color-scrim: var(--scrim);
+
+  /* Elevation · follows the theme */
+  --shadow-raised: var(--elevation-raised);
+  --shadow-tooltip: var(--elevation-tooltip);
+  --shadow-overlay: var(--elevation-overlay);
+  --shadow-dialog: var(--elevation-dialog);
+}
+
+@theme {
+  /* ---------------------------------------------------------------------- */
+  /* Typography · Geist for prose, Geist Mono for machine text.              */
+  /*                                                                         */
+  /* The second family is not decoration. Half of what this product shows is */
+  /* written by a machine and read as an identifier: an event id, a release  */
+  /* tag, a stack frame, a duration, a count that has to line up down a      */
+  /* column. Setting those in the prose face makes them look like prose and  */
+  /* stops the digits from aligning. The rule that follows from it: if the   */
+  /* value came out of the system and can be copied and pasted somewhere     */
+  /* else, it is mono.                                                       */
+  /* ---------------------------------------------------------------------- */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Page title · 20 / 600 / -.02em */
+  --text-page-title: 1.25rem;
+  --text-page-title--line-height: 1.2;
+  --text-page-title--font-weight: 600;
+  --text-page-title--letter-spacing: -0.02em;
+
+  /* Record title · 19 / 600 · the one line of an issue you read first */
+  --text-title: 1.1875rem;
+  --text-title--line-height: 1.25;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.02em;
+
+  /* Section · 16 / 600 */
+  --text-section: 1rem;
+  --text-section--line-height: 1.3;
+  --text-section--font-weight: 600;
+  --text-section--letter-spacing: -0.01em;
+
+  /* Card title · 13.5 / 600 */
+  --text-card-title: 0.84375rem;
+  --text-card-title--line-height: 1.3;
+  --text-card-title--font-weight: 600;
+
+  /* Body · 13 / 400 / 1.7 */
+  --text-body: 0.8125rem;
+  --text-body--line-height: 1.7;
+  --text-body--font-weight: 400;
+
+  /* Value · 13 / 400 · a nav row, a cell, a field */
+  --text-value: 0.8125rem;
+  --text-value--line-height: 1.35;
+  --text-value--font-weight: 400;
+
+  /* Control · 12.5 / 500 · buttons, tabs, menu items. The workhorse. */
+  --text-control: 0.78125rem;
+  --text-control--line-height: 1.2;
+  --text-control--font-weight: 500;
+
+  /* Label · 12 / 500 */
+  --text-label: 0.75rem;
+  --text-label--line-height: 1.35;
+  --text-label--font-weight: 500;
+
+  /* Meta · 12 / 400 */
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.35;
+  --text-meta--font-weight: 400;
+
+  /* Hint · 11 / 400 */
+  --text-hint: 0.6875rem;
+  --text-hint--line-height: 1.4;
+  --text-hint--font-weight: 400;
+
+  /* --- Machine text · always with font-mono ----------------------------- */
+
+  /* Code · 12.5 / 500 · what is being typed into a filter, a stack frame */
+  --text-code: 0.78125rem;
+  --text-code--line-height: 1.35;
+  --text-code--font-weight: 500;
+
+  /* Mono · 11.5 / 500 · an identifier, a release, a value in a cell */
+  --text-mono: 0.71875rem;
+  --text-mono--line-height: 1.3;
+  --text-mono--font-weight: 500;
+
+  /* Mono small · 11 / 400 · a timestamp, a count beside a label */
+  --text-mono-sm: 0.6875rem;
+  --text-mono-sm--line-height: 1.3;
+  --text-mono-sm--font-weight: 400;
+
+  /* Column head · 10.5 / 500 / .1em uppercase */
+  --text-column: 0.65625rem;
+  --text-column--line-height: 1.2;
+  --text-column--font-weight: 500;
+  --text-column--letter-spacing: 0.1em;
+
+  /* Badge · 10.5 / 600 / .08em */
+  --text-badge: 0.65625rem;
+  --text-badge--line-height: 1.2;
+  --text-badge--font-weight: 600;
+  --text-badge--letter-spacing: 0.08em;
+
+  /* Tag · 10 / 600 / .06em · ERROR, FATAL, REGRESSION */
+  --text-tag: 0.625rem;
+  --text-tag--line-height: 1.2;
+  --text-tag--font-weight: 600;
+  --text-tag--letter-spacing: 0.06em;
+
+  /* Keyboard shortcut · 10.5 / 500 */
+  --text-kbd: 0.65625rem;
+  --text-kbd--line-height: 1.2;
+  --text-kbd--font-weight: 500;
+
+  /* Figure · 18 / 600 · a KPI on a summary card */
+  --text-numeric: 1.125rem;
+  --text-numeric--line-height: 1.2;
+  --text-numeric--font-weight: 600;
+  --text-numeric--letter-spacing: -0.01em;
+
+  /* Large figure · 24 / 600 · the KPI on a summary card */
+  --text-numeric-lg: 1.5rem;
+  --text-numeric-lg--line-height: 1;
+  --text-numeric-lg--font-weight: 600;
+  --text-numeric-lg--letter-spacing: -0.02em;
+
+  /* ---------------------------------------------------------------------- */
+  /* Motion                                                                  */
+  /*                                                                         */
+  /* IBM Carbon's `productive` scale, which is the one designed for dense    */
+  /* work software. Material's was rejected: it is calibrated for consumer   */
+  /* and mobile, and its 225-375 ms feel slow when you press two hundred     */
+  /* controls a day.                                                         */
+  /*                                                                         */
+  /* The names say intent, not milliseconds, so nobody has to remember       */
+  /* whether hover was 70 or 110.                                            */
+  /* ---------------------------------------------------------------------- */
+  --transition-duration-instant: 70ms; /* colour and hover               */
+  --transition-duration-fast: 110ms; /* a press, an icon crossfade     */
+  --transition-duration-moderate: 150ms; /* an indicator that slides       */
+  --transition-duration-slow: 240ms; /* a panel, collapsing the sidebar */
+  --transition-duration-deliberate: 400ms; /* large expansions, rare   */
+
+  --ease-*: initial;
+  --ease-linear: linear;
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /*
+   * A line of text that replaces itself: a live count, "3 min ago", the
+   * status of a run.
+   *
+   * It is the exception to the rule that motion explains cause and effect.
+   * Here the effect is that something changed *without anyone doing
+   * anything*, and text swapped in place in the corner of a screen is not
+   * seen -- the eye only catches what moves. The 2 px rise is what turns the
+   * change into a legible handover instead of a repaint glitch.
+   */
+  --animate-swap-in: swap-in var(--transition-duration-moderate)
+    var(--ease-entrance);
+
+  @keyframes swap-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Radii · 2 · 4 · 5 · 6 · 8 · 10 · pill                                   */
+  /* 6 is the workhorse: buttons, chips, nav rows, inputs. 8 is a popup, 10  */
+  /* a panel. Anything above 10 is not in the design.                        */
+  /* ---------------------------------------------------------------------- */
+  --radius-2xs: 2px;
+  --radius-xs: 4px;
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-pill: 9999px;
+
+  /* ---------------------------------------------------------------------- */
+  /* Component measurements                                                  */
+  /* They live in the spacing namespace, so they work for h-, w-, size-, p-  */
+  /* and gap- alike: h-control-md, w-sidebar, size-icon-lg.                  */
+  /* ---------------------------------------------------------------------- */
+  --spacing-control-xs: 26px; /* pagination, a chevron pair in a header */
+  --spacing-control-sm: 30px; /* a control in the 48 px topbar          */
+  --spacing-control-md: 32px; /* the default button                     */
+  --spacing-control-lg: 36px; /* the filter bar, a search field         */
+  --spacing-chip: 23px; /* a token inside a filter field          */
+  --spacing-topbar: 48px;
+  --spacing-wordmark: 15px; /* the mark in the topbar, cap height    */
+  --spacing-subheader: 42px; /* breadcrumb strip under the topbar      */
+  --spacing-tab: 36px;
+  --spacing-sidebar: 216px;
+  --spacing-sidebar-rail: 56px;
+  --spacing-nav-item: 32px;
+  --spacing-rail-item: 34px;
+  --spacing-rail-item-w: 36px;
+  --spacing-project-card: 52px;
+  --spacing-menu-item: 32px;
+  --spacing-row: 48px;
+  --spacing-row-head: 38px;
+  --spacing-page-gutter: 28px;
+  --spacing-search: 260px;
+  --spacing-avatar: 26px;
+  --spacing-avatar-lg: 30px;
+  --spacing-badge: 20px;
+  --spacing-dot: 5px;
+  --spacing-icon-xs: 10px;
+  --spacing-icon-sm: 12px;
+  --spacing-icon-md: 13px;
+  --spacing-icon-lg: 14px;
+  --spacing-icon-xl: 15px;
+  --spacing-icon-2xl: 16px;
+}

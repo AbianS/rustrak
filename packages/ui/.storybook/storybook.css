@@ -1,0 +1,21 @@
+@import "tailwindcss";
+@import "../src/styles/index.css";
+
+/* Tailwind only emits what it sees, and what it sees are the `tv` recipes. */
+@source "../src";
+
+/*
+ * Storybook paints the preview body itself, with a colour from the manager
+ * theme. That colour is fixed, so on its own it would keep the page dark while
+ * the components inside it went light.
+ *
+ * Handing the body back to the token makes the whole preview follow the theme
+ * switch. `body.sb-show-main` rather than `!important`: it is one class more
+ * specific than Storybook's own rule, which is enough to win, and it leaves the
+ * rule readable.
+ */
+body.sb-show-main,
+body.sb-show-nopreview {
+  background-color: var(--surface-canvas);
+  color: var(--fg);
+}

@@ -1,0 +1,80 @@
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap"
+/>
+
+<style>
+  /*
+   * What `create()` cannot reach.
+   *
+   * The theme covers colour and type but not size or spacing, and the two
+   * things that make this feel like the product rather than like Storybook are
+   * the mark and the density of the sidebar. Everything here is a class name
+   * from Storybook's own markup, so it is the one part of this setup that can
+   * break on an upgrade -- it is all cosmetic, and a break degrades to the
+   * stock look rather than to a broken page.
+   */
+
+  /* The wordmark is trimmed to the ink: no ascender room, no descender room.
+     Matched by box height it overpowers everything beside it, so it is set
+     against the surrounding cap height, which means one step smaller than
+     feels right. */
+  .sidebar-header img {
+    height: 17px;
+    width: auto;
+  }
+
+  /* Section headings: the same overline the product uses for a column head. */
+  .sidebar-container [data-nodetype='root'] {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #777777;
+  }
+
+  /* The selected story is left to `colorSecondary` from the theme, which is
+     the lime. It is louder than the product marks an active row, and that is
+     right here: this is a list of two hundred stories, not a nav of seven. */
+
+  /*
+   * The sidebar's node icons.
+   *
+   * Storybook colours them from its own brand palette, which `create()` does
+   * not expose: a component is `colorSecondary` (so it already picked up the
+   * lime), but a story is seafoam `#37D5D3` and a docs page is orange
+   * `#FC521F`. Beside the lime the seafoam reads as a stray blue, and two
+   * saturated hues in one list is one more than this palette spends anywhere.
+   *
+   * So the hierarchy is carried by the same rule the rest of the system uses:
+   * the one thing that matters keeps the colour, everything else goes grey. A
+   * component is what is being documented, so it stays lime; its stories are
+   * annotations of it, so they take `--fg-meta`.
+   */
+  .sidebar-item[data-nodetype='story'] svg,
+  .sidebar-item[data-nodetype='document'] svg {
+    color: #777777;
+  }
+
+  /* On the lime bar the icon takes the row's own colour, which is near-black.
+     Left alone it stayed grey and disappeared into the highlight. */
+  .sidebar-item[data-selected='true'] svg {
+    color: inherit;
+  }
+
+  /*
+   * The count on an addon tab ("Controls 8").
+   *
+   * Storybook tints it from its own blue, so a navy pill sat two pixels from
+   * the lime underline of the selected tab. It becomes the same chip the
+   * product puts a count in: a neutral raised surface, grey figures. A count is
+   * machine text and never the thing you are meant to look at.
+   */
+  [aria-label='Available addons'] [role='tab'] > * > *:last-child {
+    background: #262626;
+    color: #999999;
+  }
+</style>

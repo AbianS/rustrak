@@ -1,0 +1,176 @@
+/**
+ * @rustrak/ui -- the design system behind the Rustrak dashboard.
+ *
+ * Everything is exported from here. There are no deep imports: the paths inside
+ * `src` are an implementation detail and moving a file should not break a
+ * consumer.
+ */
+
+/* --- Foundations --------------------------------------------------------- */
+
+export { cn } from './lib/cn';
+export {
+  focusRing,
+  focusRingInset,
+  focusRingWithin,
+} from './lib/focus';
+export {
+  chevronFlip,
+  interactiveTransition,
+  popTransition,
+  pressNudge,
+  pressScale,
+  pressScaleSmall,
+  pressScaleTrigger,
+  slideTransition,
+  swapAnimation,
+  wipeReveal,
+} from './lib/motion';
+export type {
+  ColorToken,
+  DurationToken,
+  EaseToken,
+  FontToken,
+  RadiusToken,
+  ShadowToken,
+  SpacingToken,
+  TextToken,
+} from './lib/tokens';
+export {
+  colorTokens,
+  durationTokens,
+  easeTokens,
+  fontTokens,
+  radiusTokens,
+  shadowTokens,
+  spacingTokens,
+  textTokens,
+} from './lib/tokens';
+export type { VariantProps } from './lib/tv';
+export { tv } from './lib/tv';
+export type { WithClassName } from './lib/types';
+export { useMobileBreakpoint } from './lib/use-mobile';
+
+/* --- Brand --------------------------------------------------------------- */
+
+export { Wordmark } from './components/brand/wordmark';
+
+/* --- Icons --------------------------------------------------------------- */
+
+export { fromLucide } from './components/icon/adapters/lucide';
+export type {
+  IconComponent,
+  IconProps,
+  IconSize,
+} from './components/icon/icon';
+export { iconVariants } from './components/icon/icon';
+export * from './components/icon/icon-catalog';
+
+/* --- Presentation -------------------------------------------------------- */
+
+export type { AvatarProps, AvatarShape } from './components/avatar/avatar';
+export { Avatar } from './components/avatar/avatar';
+export type { CountProps } from './components/count/count';
+export { Count } from './components/count/count';
+export type { KbdProps } from './components/kbd/kbd';
+export { Kbd } from './components/kbd/kbd';
+export type { SeparatorProps } from './components/separator/separator';
+export { Separator } from './components/separator/separator';
+export type { SpinnerProps } from './components/spinner/spinner';
+export { Spinner } from './components/spinner/spinner';
+export type { TagProps, TagTone } from './components/tag/tag';
+export { Tag } from './components/tag/tag';
+export type { TextProps, TextTone, TextVariant } from './components/text/text';
+export { Text } from './components/text/text';
+
+/* --- Actions ------------------------------------------------------------- */
+
+export type {
+  ButtonProps,
+  ButtonSize,
+  ButtonVariant,
+} from './components/button/button';
+export { Button } from './components/button/button';
+export type { SplitButtonProps } from './components/button/split-button';
+export { SplitButton } from './components/button/split-button';
+
+/* --- Navigation ---------------------------------------------------------- */
+
+export type {
+  BreadcrumbsProps,
+  Crumb,
+} from './components/breadcrumbs/breadcrumbs';
+export { Breadcrumbs } from './components/breadcrumbs/breadcrumbs';
+export type { MenuProps } from './components/menu/menu';
+export {
+  Menu,
+  MenuActions,
+  MenuGroup,
+  MenuGroupLabel,
+} from './components/menu/menu';
+export type { MenuAction } from './components/menu/menu-parts';
+export { explainAction } from './components/menu/menu-parts';
+export type {
+  SegmentedControlProps,
+  SegmentedItemProps,
+} from './components/segmented-control/segmented-control';
+export {
+  SegmentedControl,
+  SegmentedItem,
+} from './components/segmented-control/segmented-control';
+export type {
+  TabListProps,
+  TabPanelProps,
+  TabProps,
+  TabsProps,
+  TabsSize,
+} from './components/tabs/tabs';
+export { Tab, TabList, TabPanel, Tabs } from './components/tabs/tabs';
+export type { TooltipProps } from './components/tooltip/tooltip';
+export { Tooltip, TooltipProvider } from './components/tooltip/tooltip';
+
+/* --- Shell --------------------------------------------------------------- */
+
+export type {
+  AppShellProps,
+  PageHeaderProps,
+  PageProps,
+  SubHeaderProps,
+} from './components/shell/app-shell';
+export {
+  AppShell,
+  Page,
+  PageHeader,
+  SubHeader,
+} from './components/shell/app-shell';
+export type {
+  SidebarItemProps,
+  SidebarProjectProps,
+  SidebarProps,
+} from './components/shell/sidebar';
+export {
+  Sidebar,
+  SidebarCollapseButton,
+  SidebarItem,
+  SidebarProject,
+} from './components/shell/sidebar';
+export type { SidebarProviderProps } from './components/shell/sidebar-context';
+export {
+  SidebarProvider,
+  useSidebar,
+} from './components/shell/sidebar-context';
+export type {
+  TopbarActionProps,
+  TopbarBrandProps,
+  TopbarProps,
+  TopbarSearchProps,
+  TopbarUserProps,
+} from './components/shell/topbar';
+export {
+  Topbar,
+  TopbarAction,
+  TopbarBrand,
+  TopbarMenuButton,
+  TopbarSearch,
+  TopbarUser,
+} from './components/shell/topbar';
