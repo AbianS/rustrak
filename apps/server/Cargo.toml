@@ -7,8 +7,15 @@ description = "Ultra-lightweight error tracking server compatible with Sentry SD
 license = "GPL-3.0-only"
 
 [dependencies]
-# Web framework
-actix-web = { version = "4.14.1", features = ["cookies"] }
+# Web framework (HTTP/2 is disabled until Actix moves to h2 0.4.)
+actix-web = { version = "4.14.1", default-features = false, features = [
+    "macros",
+    "compress-brotli",
+    "compress-gzip",
+    "compress-zstd",
+    "cookies",
+    "unicode",
+] }
 actix-rt = "2.11.0"
 
 # Session management
@@ -117,8 +124,6 @@ rustrak = { path = ".", default-features = false, features = ["test-seams"] }
 rstest = "0.26.1"
 serial_test = "4.0.1"
 
-# HTTP testing for actix-web
-actix-test = "0.1.5"
 # Note: reqwest available from main dependencies
 
 # Database testing with real PostgreSQL containers

@@ -6,20 +6,39 @@ use uuid::Uuid;
 
 pub struct SpanProcessor;
 
-impl Processor for SpanProcessor {
-    type Input = Vec<u8>;
+struct ParsedSpan {
+    span_id: String,
+    trace_id: String,
+    start_timestamp: DateTime<Utc>,
+    timestamp: DateTime<Utc>,
+    duration_ms: Option<f64>,
+    exclusive_time_ms: Option<f64>,
+    op: Option<String>,
+    gen_ai: GenAiColumns,
+    parent_span_id: Option<String>,
+    description: Option<String>,
+    status: Option<String>,
+    segment_id: Option<String>,
+    is_segment: bool,
+    platform: Option<String>,
+    release: Option<String>,
+    environment: Option<String>,
+    tags: Option<serde_json::Value>,
+    data: serde_json::Value,
+}
 
-    /// Stores a standalone span payload (Sentry "span" item type — Relay's
-    /// legacy schema, one flat span object per envelope item, NOT a
-    /// container like logs) into the shared `spans` table with
-    /// `transaction_id = NULL`. Mirrors `TransactionProcessor::insert_span`'s
-    /// column extraction so both producers write a consistent row shape.
-    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
-        let mut data: serde_json::Value = serde_json::from_slice(&work)
-            .map_err(|e| AppError::Validation(format!("Invalid span JSON: {}", e)))?;
+/// Bound parsed-span memory while batching.
+const SPAN_BATCH_CHUNK: usize = 64;
 
-        // Mirrors Relay's DiscardReason::InvalidSpan — span_id and trace_id
-        // are required for a standalone span to be accepted.
+impl SpanProcessor {
+    /// Parses and validates one standalone span payload (Relay's legacy
+    /// "span" schema — one flat span object per envelope item).
+    fn parse_item(work: &[u8]) -> AppResult<ParsedSpan> {
+        let mut data: serde_json::Value = serde_json::from_slice(work)
+            .map_err(|e| AppError::Validation(format!("Invalid span JSON: {e}")))?;
+
+        // span_id and trace_id are required for a standalone span to be
+        // accepted.
         let span_id = data
             .get("span_id")
             .and_then(|v| v.as_str())
@@ -33,9 +52,8 @@ impl Processor for SpanProcessor {
             .map(str::to_string)
             .ok_or_else(|| AppError::Validation("span missing trace_id".to_string()))?;
 
-        // Both timestamps are required for a standalone span — Relay's
-        // `validate_standalone_span` rejects the span outright when either is
-        // absent, so accepting it here would store rows Sentry would discard.
+        // Both timestamps are required — Relay's `validate_standalone_span`
+        // rejects the span outright when either is absent.
         let start_timestamp = extract_timestamp(&data, "start_timestamp")
             .ok_or_else(|| AppError::Validation("span missing start_timestamp".to_string()))?;
         let timestamp = extract_timestamp(&data, "timestamp")
@@ -102,8 +120,35 @@ impl Processor for SpanProcessor {
 
         let tags = data.get("tags").cloned();
 
-        sqlx::query(
-            r#"
+        Ok(ParsedSpan {
+            span_id,
+            trace_id,
+            start_timestamp,
+            timestamp,
+            duration_ms,
+            exclusive_time_ms,
+            op,
+            gen_ai,
+            parent_span_id,
+            description,
+            status,
+            segment_id,
+            is_segment,
+            platform,
+            release,
+            environment,
+            tags,
+            data,
+        })
+    }
+
+    /// Writes one chunk in one transaction.
+    async fn insert_all(&self, ctx: &ProcessorCtx, parsed: Vec<ParsedSpan>) -> AppResult<()> {
+        let mut tx = ctx.pool.begin().await?;
+
+        for item in parsed {
+            sqlx::query(
+                r#"
             INSERT INTO spans (
                 id, transaction_id, project_id,
                 span_id, trace_id, parent_span_id,
@@ -130,42 +175,78 @@ impl Processor for SpanProcessor {
                 $24, $25,
                 $26, $27, $28, $29, $30
             )
+            ON CONFLICT (project_id, trace_id, span_id)
+                WHERE transaction_id IS NULL
+                  AND trace_id IS NOT NULL
+                  AND span_id IS NOT NULL DO NOTHING
             "#,
-        )
-        .bind(Uuid::new_v4())
-        .bind(ctx.project_id)
-        .bind(span_id)
-        .bind(trace_id)
-        .bind(parent_span_id)
-        .bind(op)
-        .bind(description)
-        .bind(status)
-        .bind(start_timestamp)
-        .bind(timestamp)
-        .bind(duration_ms)
-        .bind(exclusive_time_ms)
-        .bind(is_segment)
-        .bind(segment_id)
-        .bind(platform)
-        .bind(release)
-        .bind(environment)
-        .bind(tags)
-        .bind(serde_json::json!(data))
-        .bind(gen_ai.operation_type)
-        .bind(gen_ai.agent_name)
-        .bind(gen_ai.request_model)
-        .bind(gen_ai.response_model)
-        .bind(gen_ai.tool_name)
-        .bind(gen_ai.conversation_id)
-        .bind(gen_ai.usage_input_tokens)
-        .bind(gen_ai.usage_output_tokens)
-        .bind(gen_ai.usage_total_tokens)
-        .bind(gen_ai.usage_cached_input_tokens)
-        .bind(gen_ai.usage_reasoning_output_tokens)
-        .execute(&ctx.pool)
-        .await?;
+            )
+            .bind(Uuid::new_v4())
+            .bind(ctx.project_id)
+            .bind(item.span_id)
+            .bind(item.trace_id)
+            .bind(item.parent_span_id)
+            .bind(item.op)
+            .bind(item.description)
+            .bind(item.status)
+            .bind(item.start_timestamp)
+            .bind(item.timestamp)
+            .bind(item.duration_ms)
+            .bind(item.exclusive_time_ms)
+            .bind(item.is_segment)
+            .bind(item.segment_id)
+            .bind(item.platform)
+            .bind(item.release)
+            .bind(item.environment)
+            .bind(item.tags)
+            .bind(item.data)
+            .bind(item.gen_ai.operation_type)
+            .bind(item.gen_ai.agent_name)
+            .bind(item.gen_ai.request_model)
+            .bind(item.gen_ai.response_model)
+            .bind(item.gen_ai.tool_name)
+            .bind(item.gen_ai.conversation_id)
+            .bind(item.gen_ai.usage_input_tokens)
+            .bind(item.gen_ai.usage_output_tokens)
+            .bind(item.gen_ai.usage_total_tokens)
+            .bind(item.gen_ai.usage_cached_input_tokens)
+            .bind(item.gen_ai.usage_reasoning_output_tokens)
+            .execute(&mut *tx)
+            .await?;
+        }
 
+        tx.commit().await?;
         Ok(())
+    }
+
+    /// Writes items in bounded transactions and skips malformed items.
+    pub async fn process_batch(&self, items: Vec<Vec<u8>>, ctx: &ProcessorCtx) -> AppResult<()> {
+        let mut chunk: Vec<ParsedSpan> = Vec::with_capacity(SPAN_BATCH_CHUNK);
+        for work in items {
+            match Self::parse_item(&work) {
+                Ok(item) => {
+                    chunk.push(item);
+                    if chunk.len() == SPAN_BATCH_CHUNK {
+                        self.insert_all(ctx, std::mem::take(&mut chunk)).await?;
+                    }
+                }
+                Err(e) => log::warn!("span item rejected: {e:?}"),
+            }
+        }
+        if !chunk.is_empty() {
+            self.insert_all(ctx, chunk).await?;
+        }
+        Ok(())
+    }
+}
+
+impl Processor for SpanProcessor {
+    type Input = Vec<u8>;
+
+    /// Stores one standalone span through the batched write path.
+    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
+        let item = Self::parse_item(&work)?;
+        self.insert_all(ctx, vec![item]).await
     }
 }
 
@@ -182,4 +263,18 @@ fn extract_timestamp(data: &serde_json::Value, key: &str) -> Option<DateTime<Utc
             .map(|dt| dt.with_timezone(&Utc));
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SpanProcessor;
+
+    #[test]
+    fn parse_item_validates_shape() {
+        assert!(SpanProcessor::parse_item(br#"{}"#).is_err());
+        assert!(SpanProcessor::parse_item(
+            br#"{"span_id":"s","trace_id":"t","start_timestamp":1.0,"timestamp":2.0}"#
+        )
+        .is_ok());
+    }
 }

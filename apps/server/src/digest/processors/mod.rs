@@ -5,6 +5,7 @@ pub mod span;
 pub mod span_v2;
 pub mod transaction;
 
+pub(crate) use event::is_retryable_write_contention;
 pub use event::ErrorProcessor;
 pub use logs::LogsProcessor;
 pub use session::{SessionItem, SessionProcessor};

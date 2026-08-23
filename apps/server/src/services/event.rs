@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::models::Event;
+use crate::models::{AlertType, Event};
 use crate::pagination::{EventCursor, SortOrder};
 use crate::services::grouping::DenormalizedFields;
 
@@ -118,6 +118,20 @@ impl EventService {
         Ok(event)
     }
 
+    /// Gets an event by the client-supplied event id within its project.
+    pub async fn get_by_event_id(
+        pool: &DbPool,
+        project_id: i32,
+        event_id: Uuid,
+    ) -> AppResult<Event> {
+        sqlx::query_as::<_, Event>("SELECT * FROM events WHERE project_id = $1 AND event_id = $2")
+            .bind(project_id)
+            .bind(event_id)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("Event {} not found", event_id)))
+    }
+
     /// Creates a new event.
     ///
     /// Takes an executor rather than the pool so the digest can insert the
@@ -135,6 +149,7 @@ impl EventService {
         ingested_at: DateTime<Utc>,
         denormalized: &DenormalizedFields,
         remote_addr: Option<&str>,
+        alert_type: Option<AlertType>,
     ) -> AppResult<Event>
     where
         E: sqlx::Executor<'e, Database = crate::db::Db>,
@@ -206,9 +221,9 @@ impl EventService {
                 calculated_type, calculated_value, "transaction",
                 last_frame_filename, last_frame_module, last_frame_function,
                 level, platform, release, environment, server_name,
-                sdk_name, sdk_version, remote_addr
+                sdk_name, sdk_version, remote_addr, alert_type
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
             RETURNING *
             "#,
         )
@@ -234,6 +249,7 @@ impl EventService {
         .bind(sdk_name)
         .bind(sdk_version)
         .bind(remote_addr_str)
+        .bind(alert_type)
         .fetch_one(executor)
         .await?;
 
@@ -251,5 +267,22 @@ impl EventService {
         .await?;
 
         Ok(count > 0)
+    }
+
+    /// Finds the issue for an already-digested event during durable retry.
+    pub async fn issue_id_for_event(
+        pool: &DbPool,
+        project_id: i32,
+        event_id: Uuid,
+    ) -> AppResult<Option<Uuid>> {
+        sqlx::query_scalar::<_, Option<Uuid>>(
+            "SELECT issue_id FROM events WHERE project_id = $1 AND event_id = $2",
+        )
+        .bind(project_id)
+        .bind(event_id)
+        .fetch_optional(pool)
+        .await
+        .map(|issue_id| issue_id.flatten())
+        .map_err(AppError::Database)
     }
 }

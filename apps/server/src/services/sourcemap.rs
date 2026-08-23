@@ -258,6 +258,50 @@ pub async fn assemble_bundle(
     chunk_checksums: &[String],
     max_bundle_size_bytes: usize,
 ) -> AppResult<()> {
+    assemble_bundle_inner(
+        pool,
+        store,
+        project_id,
+        bundle_checksum,
+        chunk_checksums,
+        max_bundle_size_bytes,
+        None,
+    )
+    .await
+}
+
+/// Assembles a worker-owned job and commits its terminal state with the source
+/// metadata and chunk deletion.
+pub async fn assemble_bundle_for_job(
+    pool: &DbPool,
+    store: &dyn SourceMapStore,
+    project_id: i32,
+    bundle_checksum: &str,
+    chunk_checksums: &[String],
+    max_bundle_size_bytes: usize,
+    job_id: i64,
+) -> AppResult<()> {
+    assemble_bundle_inner(
+        pool,
+        store,
+        project_id,
+        bundle_checksum,
+        chunk_checksums,
+        max_bundle_size_bytes,
+        Some(job_id),
+    )
+    .await
+}
+
+async fn assemble_bundle_inner(
+    pool: &DbPool,
+    store: &dyn SourceMapStore,
+    project_id: i32,
+    bundle_checksum: &str,
+    chunk_checksums: &[String],
+    max_bundle_size_bytes: usize,
+    job_id: Option<i64>,
+) -> AppResult<()> {
     // --- Step 1: fetch + join chunk bytes ---
     let mut joined: Vec<u8> = Vec::new();
     for checksum in chunk_checksums {
@@ -365,10 +409,7 @@ pub async fn assemble_bundle(
     let manifest: serde_json::Value = serde_json::from_slice(&manifest_bytes)
         .map_err(|e| AppError::Validation(format!("invalid manifest.json: {}", e)))?;
 
-    let files = match manifest.get("files").and_then(|f| f.as_object()) {
-        Some(f) => f.clone(),
-        None => return Ok(()), // no files to process
-    };
+    let files = manifest_files(&manifest);
 
     // --- Steps 7+8: process each file entry, then delete chunks ---
     // We run in a transaction for the DB writes; store writes are outside (idempotent CAS).
@@ -532,9 +573,19 @@ pub async fn assemble_bundle(
         .await?;
     }
 
-    // --- Step 8: delete chunk rows ---
+    // --- Step 8: release this job's chunk references and delete only chunks
+    // no other pending or retryable job still owns. ---
+    if let Some(job_id) = job_id {
+        sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
+            .bind(job_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
     #[cfg(feature = "postgres")]
-    sqlx::query("DELETE FROM chunk WHERE checksum = ANY($1)")
+    sqlx::query(
+        "DELETE FROM chunk c WHERE c.checksum = ANY($1) AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks r WHERE r.checksum = c.checksum)",
+    )
         .bind(chunk_checksums)
         .execute(&mut *tx)
         .await?;
@@ -548,14 +599,47 @@ pub async fn assemble_bundle(
             for c in chunk_checksums {
                 sep.push_bind(c);
             }
-            qb.push(")");
+            qb.push(") AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks r WHERE r.checksum = chunk.checksum)");
             qb.build().execute(&mut *tx).await?;
+        }
+    }
+
+    if let Some(job_id) = job_id {
+        #[cfg(feature = "postgres")]
+        let updated = sqlx::query(
+            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = NOW() WHERE id = $1 AND state = 'assembling'",
+        )
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        #[cfg(not(feature = "postgres"))]
+        let updated = sqlx::query(
+            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = datetime('now') WHERE id = $1 AND state = 'assembling'",
+        )
+        .bind(job_id)
+        .execute(&mut *tx)
+        .await?;
+
+        if updated.rows_affected() != 1 {
+            return Err(AppError::Internal(format!(
+                "assembly job {} was not assembling",
+                job_id
+            )));
         }
     }
 
     tx.commit().await?;
 
     Ok(())
+}
+
+fn manifest_files(manifest: &serde_json::Value) -> serde_json::Map<String, serde_json::Value> {
+    manifest
+        .get("files")
+        .and_then(|files| files.as_object())
+        .cloned()
+        .unwrap_or_default()
 }
 
 // ---------------------------------------------------------------------------
@@ -947,5 +1031,11 @@ mod tests {
             matches!(decoded, sourcemap::DecodedMap::Hermes(_)),
             "DecodedMap must detect Hermes from x_facebook_sources"
         );
+    }
+
+    #[test]
+    fn invalid_manifest_files_are_treated_as_empty() {
+        assert!(manifest_files(&serde_json::json!({})).is_empty());
+        assert!(manifest_files(&serde_json::json!({"files": []})).is_empty());
     }
 }

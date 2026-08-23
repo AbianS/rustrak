@@ -4,8 +4,9 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::db::DbPool;
+use crate::error::AppResult;
 use crate::models::source_file::AssemblyJob;
-use crate::services::sourcemap::assemble_bundle;
+use crate::services::sourcemap::assemble_bundle_for_job;
 use crate::services::sourcemap_store::SourceMapStore;
 
 pub struct AssemblyWorker {
@@ -40,10 +41,14 @@ impl AssemblyWorker {
         let mut interval = tokio::time::interval(Duration::from_secs(1));
         loop {
             interval.tick().await;
-            if let Err(e) = self.poll_once().await {
+            if let Err(e) = self.run_once().await {
                 log::error!("Assembly worker poll error: {:?}", e);
             }
         }
+    }
+
+    pub async fn run_once(&self) -> AppResult<()> {
+        self.poll_once().await
     }
 
     /// Reset assembling jobs whose lock has expired (crash recovery).
@@ -75,7 +80,7 @@ impl AssemblyWorker {
     }
 
     /// Claim and process one job, if available.
-    async fn poll_once(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn poll_once(&self) -> AppResult<()> {
         #[cfg(feature = "postgres")]
         let job: Option<AssemblyJob> = {
             sqlx::query_as(
@@ -156,20 +161,20 @@ impl AssemblyWorker {
             job.bundle_checksum
         );
 
-        let result = assemble_bundle(
+        let result = assemble_bundle_for_job(
             &self.pool,
             self.store.as_ref(),
             job.project_id,
             &job.bundle_checksum,
             job.chunk_list(),
             self.max_bundle_size_bytes,
+            job.id,
         )
         .await;
 
         match result {
             Ok(()) => {
                 log::info!("Assembly worker: job {} completed successfully", job.id);
-                self.mark_success(job.id).await?;
             }
             Err(e) => {
                 let detail = format!("{:?}", e);
@@ -181,27 +186,9 @@ impl AssemblyWorker {
         Ok(())
     }
 
-    async fn mark_success(&self, job_id: i64) -> Result<(), sqlx::Error> {
-        #[cfg(feature = "postgres")]
-        sqlx::query(
-            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = NOW() WHERE id = $1",
-        )
-        .bind(job_id)
-        .execute(&self.pool)
-        .await?;
-
-        #[cfg(not(feature = "postgres"))]
-        sqlx::query(
-            "UPDATE assembly_jobs SET state = 'ok', detail = NULL, updated_at = datetime('now') WHERE id = $1",
-        )
-        .bind(job_id)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
     async fn mark_failure(&self, job_id: i64, detail: &str) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
         #[cfg(feature = "postgres")]
         sqlx::query(
             r#"
@@ -216,7 +203,7 @@ impl AssemblyWorker {
         )
         .bind(job_id)
         .bind(detail)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
         #[cfg(not(feature = "postgres"))]
@@ -233,9 +220,34 @@ impl AssemblyWorker {
         )
         .bind(job_id)
         .bind(detail)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
-        Ok(())
+        let (retry_count, max_retries): (i32, i32) =
+            sqlx::query_as("SELECT retry_count, max_retries FROM assembly_jobs WHERE id = $1")
+                .bind(job_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if retry_count >= max_retries {
+            let owned_checksums: Vec<String> =
+                sqlx::query_scalar("SELECT checksum FROM assembly_job_chunks WHERE job_id = $1")
+                    .bind(job_id)
+                    .fetch_all(&mut *tx)
+                    .await?;
+            sqlx::query("DELETE FROM assembly_job_chunks WHERE job_id = $1")
+                .bind(job_id)
+                .execute(&mut *tx)
+                .await?;
+            for checksum in owned_checksums {
+                sqlx::query(
+                    "DELETE FROM chunk WHERE checksum = $1 AND NOT EXISTS (SELECT 1 FROM assembly_job_chunks WHERE checksum = $1)",
+                )
+                .bind(checksum)
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        tx.commit().await
     }
 }

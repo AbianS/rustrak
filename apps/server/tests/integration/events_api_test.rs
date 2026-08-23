@@ -161,6 +161,7 @@ async fn create_test_event(
         timestamp,
         &denormalized,
         None,
+        None,
     )
     .await
     .expect("Failed to create test event")

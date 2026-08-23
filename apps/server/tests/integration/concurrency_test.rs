@@ -7,6 +7,8 @@ use crate::common::process_error_event;
 use crate::common::TestDb;
 use chrono::Utc;
 use rustrak::config::RateLimitConfig;
+#[cfg(feature = "sqlite")]
+use rustrak::ingest::get_event_path;
 use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
 use rustrak::pagination::{IssueSort, SortOrder};
@@ -955,6 +957,12 @@ async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
         result.is_err(),
         "exhausted retries must fail, not drop the event silently"
     );
+    assert!(
+        get_event_path(&ingest_dir, &metadata.event_id)
+            .unwrap()
+            .exists(),
+        "a retryable failure must retain the durable event file"
+    );
 
     // The rolled-back transaction left no partial issue/grouping behind.
     let (issues, _) = IssueService::list_paginated(
@@ -1331,4 +1339,130 @@ async fn test_a_digest_that_cannot_store_its_event_leaves_no_issue_behind() {
         .await
         .expect("Failed to count groupings");
     assert_eq!(groupings, 0, "the grouping must roll back with the issue");
+}
+
+/// A post-commit platform refresh must not turn an already durable digest into
+/// a failed processor result.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_post_commit_platform_refresh_failure_does_not_fail_digest() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_quota.db"), 5).await);
+    let project = create_test_project(&pool, "Post Commit Platform").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    sqlx::query(
+        "CREATE TRIGGER reject_platform_inference BEFORE UPDATE OF platform ON projects \
+         BEGIN SELECT RAISE(ABORT, 'injected: platform inference unavailable'); END",
+    )
+    .execute(pool.as_ref())
+    .await
+    .expect("Failed to install the platform fault-injection trigger");
+
+    let (event_id, event_json) = create_unique_event_json("PlatformRefreshError", "Msg");
+    let mut event_json = event_json;
+    event_json["platform"] = serde_json::json!("python");
+    store_event(
+        &ingest_dir,
+        &event_id,
+        &serde_json::to_vec(&event_json).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("post-commit platform refresh failure must not fail the digest");
+
+    let events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(pool.as_ref())
+        .await
+        .expect("Failed to count durable events");
+    assert_eq!(events, 1, "the digest must remain durable");
+}
+
+/// Quota counters are part of the digest transaction: a partial counter write
+/// must roll back the event, issue, and both counter values together.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_quota_counter_failure_rolls_back_digest_and_counters() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_counter.db"), 5).await);
+    let project = create_test_project(&pool, "Atomic Quota Counters").await;
+    let initial_project = ProjectService::get_by_id(&pool, project.id).await.unwrap();
+    let initial_installation: i64 =
+        sqlx::query_scalar("SELECT digested_event_count FROM installation WHERE id = 1")
+            .fetch_one(pool.as_ref())
+            .await
+            .unwrap();
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    sqlx::query(
+        "CREATE TRIGGER reject_project_counter BEFORE UPDATE OF digested_event_count ON projects \
+         BEGIN SELECT RAISE(ABORT, 'injected: project counter unavailable'); END",
+    )
+    .execute(pool.as_ref())
+    .await
+    .expect("Failed to install the counter fault-injection trigger");
+
+    let (event_id, event_json) = create_unique_event_json("AtomicCounterError", "Msg");
+    store_event(
+        &ingest_dir,
+        &event_id,
+        &serde_json::to_vec(&event_json).unwrap(),
+    )
+    .await
+    .unwrap();
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    assert!(process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .is_err());
+
+    let updated_project = ProjectService::get_by_id(&pool, project.id).await.unwrap();
+    let installation_count: i64 =
+        sqlx::query_scalar("SELECT digested_event_count FROM installation WHERE id = 1")
+            .fetch_one(pool.as_ref())
+            .await
+            .unwrap();
+    let events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(pool.as_ref())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        updated_project.stored_event_count,
+        initial_project.stored_event_count
+    );
+    assert_eq!(
+        updated_project.digested_event_count,
+        initial_project.digested_event_count
+    );
+    assert_eq!(installation_count, initial_installation);
+    assert_eq!(events, 0);
 }

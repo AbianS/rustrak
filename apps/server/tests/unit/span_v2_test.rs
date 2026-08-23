@@ -223,6 +223,13 @@ mod level2 {
             )
             .await
             .unwrap();
+        SpanV2Processor
+            .process(
+                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                &ctx(&db.pool, project.id),
+            )
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";

@@ -5,11 +5,13 @@
 use crate::common::TestDb;
 use actix_web::{test, web, App};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
+use rustrak::ingest::{store_event_with_metadata, EventMetadata};
 use rustrak::routes;
 use rustrak::services::{DbSourceMapProvider, LocalSourceMapStore, ProjectService};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
+use tempfile::TempDir;
 use uuid::Uuid;
 
 fn create_test_config() -> Config {
@@ -225,4 +227,198 @@ async fn test_transaction_envelope_returns_200_with_id() {
         stored, 1,
         "transaction must be stored in the dedicated transactions table"
     );
+}
+
+#[actix_web::test]
+async fn same_event_id_isolated_between_projects_over_http() {
+    let db = TestDb::new().await;
+    let (first_project, first_key) = create_test_project(&db.pool, "Scoped Event One").await;
+    let (second_project, second_key) = create_test_project(&db.pool, "Scoped Event Two").await;
+    let temp_dir = TempDir::new().unwrap();
+    let mut config = create_test_config();
+    config.ingest_dir = Some(temp_dir.path().to_string_lossy().into_owned());
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(crate::common::null_sourcemap_provider()))
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().simple().to_string();
+    for (project_id, sentry_key) in [(first_project, first_key), (second_project, second_key)] {
+        let req = test::TestRequest::post()
+            .uri(&format!("/api/{project_id}/envelope/"))
+            .insert_header(("X-Sentry-Auth", format!("Sentry sentry_key={sentry_key}")))
+            .insert_header(("Content-Type", "application/x-sentry-envelope"))
+            .set_payload(error_envelope(&event_id))
+            .to_request();
+        assert_eq!(test::call_service(&app, req).await.status(), 200);
+    }
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let first_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+                .bind(first_project)
+                .fetch_one(&db.pool)
+                .await
+                .unwrap();
+        let second_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+                .bind(second_project)
+                .fetch_one(&db.pool)
+                .await
+                .unwrap();
+        if first_count == 1 && second_count == 1 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "both project events must be stored"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[actix_web::test]
+async fn pending_event_recovery_replays_a_scoped_event() {
+    let db = TestDb::new().await;
+    let (project, _) = create_test_project(&db.pool, "Recovery Replay Test").await;
+    let temp_dir = TempDir::new().unwrap();
+    let config = create_test_config();
+    let event_id = Uuid::new_v4().simple().to_string();
+    let metadata = EventMetadata {
+        event_id: event_id.clone(),
+        project_id: project,
+        ingested_at: chrono::Utc::now(),
+        remote_addr: None,
+    };
+    let event_data = serde_json::json!({
+        "event_id": event_id,
+        "timestamp": 1704801600.0_f64,
+        "platform": "rust",
+        "level": "error",
+        "exception": {"values": [{"type": "Recovered", "value": "after restart"}]}
+    });
+    store_event_with_metadata(
+        temp_dir.path(),
+        &metadata.event_id,
+        &serde_json::to_vec(&event_data).unwrap(),
+        &metadata,
+    )
+    .await
+    .unwrap();
+
+    let processors = web::Data::new(rustrak::digest::processors::Processors::new(
+        temp_dir.path().to_path_buf(),
+        config.rate_limit,
+        crate::common::null_sourcemap_provider(),
+        None,
+    ));
+    routes::ingest::recover_pending_events_once(
+        db.pool.clone(),
+        processors,
+        temp_dir.path().to_path_buf(),
+    )
+    .await;
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+        .bind(project)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+/// Relay parity: a malformed item payload never fails the envelope — the
+/// invalid item is dropped (Relay records an Invalid outcome) and every
+/// sibling item is still processed, with the endpoint returning 200.
+/// (relay-server/src/processing/relay.rs run_one: "This is not a fatal error
+/// case ... other items from the same original envelope must still be
+/// processed.")
+#[actix_web::test]
+async fn malformed_log_item_is_dropped_and_sibling_event_still_ingests() {
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Malformed Log Sibling").await;
+    let temp_dir = TempDir::new().unwrap();
+    let mut config = create_test_config();
+    config.ingest_dir = Some(temp_dir.path().to_string_lossy().into_owned());
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(crate::common::null_sourcemap_provider()))
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().simple().to_string();
+    let event = json!({
+        "event_id": event_id,
+        "timestamp": 1704801600.0_f64,
+        "platform": "python",
+        "level": "error",
+        "exception": {
+            "values": [{ "type": "ValueError", "value": "sibling survives" }]
+        }
+    })
+    .to_string();
+    let broken_log_container = "{this is not json";
+    let envelope = format!(
+        "{}\n{}\n{}\n{}\n{}\n",
+        json!({ "event_id": event_id }),
+        json!({ "type": "log", "item_count": 1, "content_type": "application/vnd.sentry.items.log+json" }),
+        broken_log_container,
+        json!({ "type": "event" }),
+        event,
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{project_id}/envelope/"))
+        .insert_header(("X-Sentry-Auth", format!("Sentry sentry_key={sentry_key}")))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope)
+        .to_request();
+    assert_eq!(
+        test::call_service(&app, req).await.status(),
+        200,
+        "a malformed log item must be dropped, not fail the envelope"
+    );
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+            .bind(project_id)
+            .fetch_one(&db.pool)
+            .await
+            .unwrap();
+        if count == 1 {
+            break;
+        }
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "the sibling event must still be ingested"
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }

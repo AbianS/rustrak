@@ -8,7 +8,8 @@ use chrono::{Duration, Utc};
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::routes;
 use rustrak::services::{
-    DbSourceMapProvider, LocalSourceMapStore, ProjectService, SourceMapProvider, SourceMapStore,
+    DbSourceMapProvider, LocalSourceMapStore, ProjectService, RateLimitService, SourceMapProvider,
+    SourceMapStore,
 };
 use serde_json::json;
 use std::sync::Arc;
@@ -73,21 +74,61 @@ async fn set_project_quota_exceeded(
     project_id: i32,
     until: chrono::DateTime<Utc>,
 ) {
-    sqlx::query("UPDATE projects SET quota_exceeded_until = $1 WHERE id = $2")
-        .bind(until)
-        .bind(project_id)
-        .execute(pool)
-        .await
-        .expect("Failed to set project quota");
+    sqlx::query(
+        "UPDATE projects SET quota_exceeded_until = $1, next_quota_check = 1 WHERE id = $2",
+    )
+    .bind(until)
+    .bind(project_id)
+    .execute(pool)
+    .await
+    .expect("Failed to set project quota");
 }
 
 /// Sets installation quota exceeded until the given time
 async fn set_installation_quota_exceeded(pool: &rustrak::db::DbPool, until: chrono::DateTime<Utc>) {
-    sqlx::query("UPDATE installation SET quota_exceeded_until = $1 WHERE id = 1")
-        .bind(until)
-        .execute(pool)
+    sqlx::query(
+        "UPDATE installation SET quota_exceeded_until = $1, next_quota_check = 1 WHERE id = 1",
+    )
+    .bind(until)
+    .execute(pool)
+    .await
+    .expect("Failed to set installation quota");
+}
+
+#[actix_web::test]
+async fn stale_quota_cache_is_refreshed_before_the_next_ingest() {
+    let db = TestDb::new().await;
+    let (project_id, _) = create_test_project(&db.pool, "Stale Quota Cache").await;
+    let config = default_rate_limit_config();
+    sqlx::query("UPDATE installation SET next_quota_check = 1 WHERE id = 1")
+        .execute(&db.pool)
         .await
-        .expect("Failed to set installation quota");
+        .unwrap();
+    sqlx::query("UPDATE projects SET next_quota_check = 1 WHERE id = $1")
+        .bind(project_id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .unwrap();
+    let stale_until = Utc::now() + Duration::minutes(10);
+    set_project_quota_exceeded(&db.pool, project_id, stale_until).await;
+    sqlx::query("UPDATE projects SET next_quota_check = 0 WHERE id = $1")
+        .bind(project_id)
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    assert!(RateLimitService::check_quota(&db.pool, &project, &config)
+        .await
+        .unwrap()
+        .is_none());
+    let refreshed = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .unwrap();
+    assert!(refreshed.quota_exceeded_until.is_none());
+    assert!(refreshed.next_quota_check > i64::from(refreshed.digested_event_count));
 }
 
 /// Creates a minimal valid Sentry envelope
@@ -530,4 +571,48 @@ async fn test_rate_limit_affects_only_specific_project() {
 
     let resp_b = test::call_service(&app, req_b).await;
     assert!(resp_b.status().is_success());
+}
+
+#[tokio::test]
+async fn test_check_quota_degrades_to_stale_state_when_refresh_fails() {
+    // Quota refresh is derived bookkeeping. When it cannot run (e.g. SQLite
+    // busy under write load), ingestion must proceed on the stale quota state
+    // instead of failing the request: the digest side already treats the same
+    // refresh as best-effort, and a 5xx here would reject an event that
+    // nothing else objects to.
+    let db = TestDb::new().await;
+    let (project_id, _key) = create_test_project(&db.pool, "Stale Quota Project").await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+    let config = RateLimitConfig {
+        max_events_per_minute: 1000,
+        max_events_per_hour: 10000,
+        max_events_per_project_per_minute: 500,
+        max_events_per_project_per_hour: 5000,
+    };
+
+    // Make the derived state stale so check_quota attempts a refresh...
+    sqlx::query(
+        "UPDATE installation SET next_quota_check = 1, digested_event_count = 5 WHERE id = 1",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("staleness setup must succeed");
+    // ...and make that refresh fail deterministically.
+    sqlx::query(
+        "CREATE TRIGGER fail_quota_refresh BEFORE UPDATE OF next_quota_check ON installation \
+         BEGIN SELECT RAISE(ABORT, 'injected: quota refresh unavailable'); END",
+    )
+    .execute(&db.pool)
+    .await
+    .expect("trigger creation must succeed");
+
+    let verdict = RateLimitService::check_quota(&db.pool, &project, &config)
+        .await
+        .expect("a failed quota refresh must not fail the ingest request");
+    assert!(
+        verdict.is_none(),
+        "stale non-exceeded quota state must admit the event"
+    );
 }

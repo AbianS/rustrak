@@ -1,3 +1,4 @@
+use crate::models::AlertType;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::FromRow;
@@ -31,6 +32,7 @@ pub struct Event {
     pub sdk_name: String,
     pub sdk_version: String,
     pub remote_addr: Option<String>,
+    pub alert_type: Option<AlertType>,
     /// "error" for error events, "transaction" for performance events
     pub event_type: String,
 }

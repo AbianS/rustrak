@@ -6,15 +6,18 @@
 use crate::common::TestDb;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App};
+use chrono::Utc;
 use rustrak::config::{Config, DatabaseConfig, RateLimitConfig};
 use rustrak::models::{
     AlertRuleChannelInput, AlertType, ChannelType, CreateAlertRule, CreateNotificationChannel,
     UpdateAlertRule, UpdateNotificationChannel,
 };
 use rustrak::routes;
-use rustrak::services::{AlertService, ProjectService};
+use rustrak::services::grouping::DenormalizedFields;
+use rustrak::services::{AlertService, IssueService, ProjectService};
 use serde_json::json;
 use std::time::Duration;
+use uuid::Uuid;
 
 /// Creates a test config
 fn create_test_config() -> Config {
@@ -66,6 +69,179 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
     .await
     .expect("Failed to create test project");
     project.id
+}
+
+#[tokio::test]
+async fn test_event_alert_history_is_scoped_to_project() {
+    let db = TestDb::new().await;
+    let first_project = create_test_project(&db.pool).await;
+    let second_project = create_test_project(&db.pool).await;
+    let event_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'test', 'pending', $2)",
+    )
+    .bind(first_project)
+    .bind(format!(
+        "event-{first_project}-{event_id}-new_issue-integration"
+    ))
+    .execute(&db.pool)
+    .await
+    .expect("alert history insert must succeed");
+
+    assert!(AlertService::event_alert_exists(
+        &db.pool,
+        first_project,
+        event_id,
+        AlertType::NewIssue
+    )
+    .await
+    .expect("first project lookup must succeed"));
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'legacy', 'pending', $2)",
+    )
+    .bind(first_project)
+    .bind(format!("event-{event_id}-new_issue-integration"))
+    .execute(&db.pool)
+    .await
+    .expect("legacy alert history insert must succeed");
+
+    assert!(AlertService::event_alert_exists(
+        &db.pool,
+        first_project,
+        event_id,
+        AlertType::NewIssue,
+    )
+    .await
+    .expect("first project legacy lookup must succeed"));
+
+    assert!(!AlertService::event_alert_exists(
+        &db.pool,
+        second_project,
+        event_id,
+        AlertType::NewIssue,
+    )
+    .await
+    .expect("second project lookup must succeed"));
+}
+
+#[tokio::test]
+async fn test_alert_retry_queue_processes_pending_history_without_retry_time() {
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'unconfigured', 'pending', $2)",
+    )
+    .bind(project_id)
+    .bind(format!("retry-null-next-{project_id}"))
+    .execute(&db.pool)
+    .await
+    .expect("pending alert history insert must succeed");
+
+    assert_eq!(
+        AlertService::process_retry_queue(&db.pool, 5)
+            .await
+            .expect("retry queue processing must succeed"),
+        1
+    );
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM alert_history WHERE idempotency_key = $1")
+            .bind(format!("retry-null-next-{project_id}"))
+            .fetch_one(&db.pool)
+            .await
+            .expect("retry status lookup must succeed");
+    assert_eq!(status, "failed");
+}
+
+#[tokio::test]
+async fn test_event_alert_cooldown_is_a_durable_replay_barrier() {
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+    let channel = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Cooldown Webhook".to_string(),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": "https://example.com/webhook" }),
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("channel creation must succeed");
+    let rule = AlertService::create_rule(
+        &db.pool,
+        project_id,
+        CreateAlertRule {
+            name: "Cooldown Rule".to_string(),
+            alert_type: AlertType::NewIssue,
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel.id,
+                routing_override: json!({}),
+            }],
+            conditions: json!({}),
+            cooldown_minutes: 60,
+        },
+    )
+    .await
+    .expect("rule creation must succeed");
+    sqlx::query("UPDATE alert_rules SET last_triggered_at = $1 WHERE id = $2")
+        .bind(Utc::now())
+        .bind(rule.id)
+        .execute(&db.pool)
+        .await
+        .expect("cooldown setup must succeed");
+
+    let issue = IssueService::create(
+        &db.pool,
+        project_id,
+        Utc::now(),
+        &DenormalizedFields {
+            calculated_type: "Error".to_string(),
+            calculated_value: "cooldown replay".to_string(),
+            transaction: "/test".to_string(),
+            last_frame_filename: "test.rs".to_string(),
+            last_frame_module: "test".to_string(),
+            last_frame_function: "test".to_string(),
+            culprit: "test".to_string(),
+            logger: String::new(),
+            release: String::new(),
+        },
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .expect("issue creation must succeed");
+    let event_id = Uuid::new_v4();
+
+    AlertService::trigger_event_alert(
+        &db.pool,
+        &project,
+        &issue,
+        AlertType::NewIssue,
+        event_id,
+        "https://dashboard.example.com",
+    )
+    .await
+    .expect("cooldown suppression must succeed");
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM alert_history WHERE idempotency_key LIKE $1")
+            .bind(format!("event-{project_id}-{event_id}-new_issue-%"))
+            .fetch_one(&db.pool)
+            .await
+            .expect("suppressed alert history must exist");
+    assert_eq!(status, "skipped");
+    assert!(
+        AlertService::event_alert_exists(&db.pool, project_id, event_id, AlertType::NewIssue,)
+            .await
+            .expect("replay barrier lookup must succeed")
+    );
 }
 
 // =============================================================================
@@ -651,4 +827,138 @@ async fn test_create_rule_success() {
 #[ignore = "Session cookies not preserved in actix test framework - use E2E tests"]
 async fn test_test_channel_endpoint() {
     // This test requires proper session cookie handling
+}
+
+#[tokio::test]
+async fn test_claim_due_retries_leases_rows_exclusively() {
+    // A pending history row must be dispatchable by exactly one worker:
+    // claiming it takes a lease, so a concurrent (or immediately following)
+    // claim cannot pick up the same row and double-deliver the alert.
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+
+    sqlx::query(
+        "INSERT INTO alert_history (project_id, alert_type, channel_type, channel_name, status, idempotency_key) VALUES ($1, 'new_issue', 'webhook', 'unconfigured', 'pending', $2)",
+    )
+    .bind(project_id)
+    .bind(format!("claim-lease-{project_id}"))
+    .execute(&db.pool)
+    .await
+    .expect("pending alert history insert must succeed");
+
+    let first = AlertService::claim_due_retries(&db.pool, 5, 100)
+        .await
+        .expect("first claim must succeed");
+    assert_eq!(first.len(), 1, "first claim must lease the pending row");
+
+    let second = AlertService::claim_due_retries(&db.pool, 5, 100)
+        .await
+        .expect("second claim must succeed");
+    assert!(
+        second.is_empty(),
+        "a leased row must not be claimable again while its lease holds"
+    );
+}
+
+#[tokio::test]
+async fn test_trigger_alert_does_not_block_on_slow_webhook_delivery() {
+    // Relay never couples ingestion latency to notification I/O. Rustrak's
+    // digest awaits trigger_*_alert for durability, so the durable part
+    // (history rows) must commit synchronously while the network dispatch
+    // happens off the digest path: a hung webhook endpoint must not stall
+    // the caller for the 30s HTTP timeout.
+    let db = TestDb::new().await;
+    let project_id = create_test_project(&db.pool).await;
+    let project = ProjectService::get_by_id(&db.pool, project_id)
+        .await
+        .expect("project lookup must succeed");
+
+    // A webhook endpoint that accepts connections and never responds.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind hanging webhook listener");
+    let addr = listener.local_addr().expect("listener addr");
+    tokio::spawn(async move {
+        loop {
+            let Ok((socket, _)) = listener.accept().await else {
+                break;
+            };
+            tokio::spawn(async move {
+                let _socket = socket;
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            });
+        }
+    });
+
+    let channel = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Hanging Webhook".to_string(),
+            provider_type: ChannelType::Webhook,
+            credentials: json!({ "url": format!("http://{addr}/hook") }),
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("channel creation must succeed");
+    AlertService::create_rule(
+        &db.pool,
+        project_id,
+        CreateAlertRule {
+            name: "Slow Webhook Rule".to_string(),
+            alert_type: AlertType::NewIssue,
+            channels: vec![AlertRuleChannelInput {
+                integration_id: channel.id,
+                routing_override: json!({}),
+            }],
+            conditions: json!({}),
+            cooldown_minutes: 0,
+        },
+    )
+    .await
+    .expect("rule creation must succeed");
+
+    let issue = IssueService::create(
+        &db.pool,
+        project_id,
+        Utc::now(),
+        &DenormalizedFields {
+            calculated_type: "Error".to_string(),
+            calculated_value: "slow webhook".to_string(),
+            transaction: "/test".to_string(),
+            last_frame_filename: "test.rs".to_string(),
+            last_frame_module: "test".to_string(),
+            last_frame_function: "test".to_string(),
+            culprit: "test".to_string(),
+            logger: String::new(),
+            release: String::new(),
+        },
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .expect("issue creation must succeed");
+
+    let trigger =
+        AlertService::trigger_new_issue_alert(&db.pool, &project, &issue, "http://localhost:3000");
+    tokio::time::timeout(Duration::from_secs(2), trigger)
+        .await
+        .expect("trigger must return without waiting for webhook I/O")
+        .expect("trigger must succeed");
+
+    // The durable delivery record is committed before the caller returns,
+    // leased to the in-flight dispatcher so the retry worker cannot
+    // double-send it while the dispatch is still running.
+    let (status, leased): (String, bool) = sqlx::query_as(
+        "SELECT status, next_retry_at IS NOT NULL AND datetime(next_retry_at) > datetime('now') FROM alert_history WHERE project_id = $1",
+    )
+    .bind(project_id)
+    .fetch_one(&db.pool)
+    .await
+    .expect("history row must exist before trigger returns");
+    assert_eq!(status, "pending");
+    assert!(
+        leased,
+        "in-flight delivery must hold a future next_retry_at lease"
+    );
 }

@@ -2,17 +2,20 @@ use super::{Processor, ProcessorCtx};
 use crate::config::RateLimitConfig;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::ingest::{delete_event, read_event, EventMetadata};
-use crate::models::{Grouping, Issue};
+use crate::ingest::storage::{delete_event_at, read_event_with_location};
+use crate::ingest::EventMetadata;
+use crate::models::{AlertType, Grouping, Issue};
 use crate::services::sourcemap::SourceMapProvider;
 use crate::services::{
     calculate_grouping_key, get_denormalized_fields, hash_grouping_key, AlertService,
-    DenormalizedFields, EventService, ProjectService, RateLimitService,
+    DenormalizedFields, EventService, IssueService, ProjectService, RateLimitService,
 };
 use chrono::Utc;
 use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
+
+const INVALID_EVENT_JSON_PREFIX: &str = "Invalid event JSON";
 
 /// Processes error/exception events: source-map rewrite → grouping → issue → store.
 ///
@@ -24,6 +27,8 @@ pub struct ErrorProcessor {
     ingest_dir: PathBuf,
     rate_limit_config: RateLimitConfig,
     sourcemap_provider: Arc<dyn SourceMapProvider>,
+    // Coalesces SQLite durability checkpoints across concurrent digests.
+    checkpoint_gate: tokio::sync::Mutex<crate::db::CheckpointGate>,
 }
 
 impl ErrorProcessor {
@@ -36,31 +41,45 @@ impl ErrorProcessor {
             ingest_dir,
             rate_limit_config,
             sourcemap_provider,
+            checkpoint_gate: tokio::sync::Mutex::new(crate::db::CheckpointGate::default()),
         }
     }
 
-    /// The digest pipeline body. Guarantees the temp file is deleted on failure.
+    /// Runs the digest pipeline; retryable contention leaves the durable event queued.
     async fn process_impl(&self, metadata: &EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
         let pool = &ctx.pool;
         let _digested_at = Utc::now();
 
-        // 0. Double-check rate limits (for backlog scenarios)
+        // 0. Read the event before quota checks so cleanup can target the exact
+        // project-scoped file that was read.
         let project = ProjectService::get_by_id(pool, metadata.project_id).await?;
-        if let Some(_exceeded) = RateLimitService::check_quota(pool, &project).await? {
+        let (event_bytes, storage_location) =
+            read_event_with_location(&self.ingest_dir, metadata.project_id, &metadata.event_id)
+                .await?;
+
+        // 1. Double-check rate limits (for backlog scenarios)
+        if let Some(_exceeded) =
+            RateLimitService::check_quota(pool, &project, &self.rate_limit_config).await?
+        {
             log::warn!(
                 "Event {} discarded due to quota exceeded (backlog)",
                 metadata.event_id
             );
-            delete_event(&self.ingest_dir, &metadata.event_id).await?;
+            delete_event_at(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+                storage_location,
+            )
+            .await?;
             return Ok(());
         }
 
-        // 1. Read event from filesystem
-        let event_bytes = read_event(&self.ingest_dir, &metadata.event_id).await?;
+        // 2. Parse event from filesystem
         let mut event_data: serde_json::Value = serde_json::from_slice(&event_bytes)
-            .map_err(|e| AppError::Internal(format!("Invalid event JSON: {}", e)))?;
+            .map_err(|e| AppError::Internal(format!("{INVALID_EVENT_JSON_PREFIX}: {e}")))?;
 
-        // 1b. Rewrite stack frames using source maps (non-fatal)
+        // 2b. Rewrite stack frames using source maps (non-fatal)
         if let Err(e) = crate::services::sourcemap::rewrite_frames(
             self.sourcemap_provider.as_ref(),
             metadata.project_id,
@@ -75,7 +94,7 @@ impl ErrorProcessor {
             );
         }
 
-        // 1c. Trim oversized fields (deep context windows, frame vars, huge
+        // 2c. Trim oversized fields (deep context windows, frame vars, huge
         // breadcrumb trails) for events whose raw payload came in above the
         // original per-item budget — see services::event_trim. Only runs for
         // the (rare) events that needed the relaxed ingest ceiling, so this
@@ -84,28 +103,60 @@ impl ErrorProcessor {
             crate::services::trim_oversized_event(&mut event_data);
         }
 
-        // 2. Parse event_id as UUID
+        // 3. Parse event_id as UUID
         let event_id = Uuid::parse_str(&metadata.event_id)
             .map_err(|_| AppError::Validation("Invalid event_id".to_string()))?;
 
-        // 3. Check for duplicates
+        // 4. Check for duplicates
         if EventService::exists(pool, metadata.project_id, event_id).await? {
             log::warn!("Duplicate event_id: {}", metadata.event_id);
-            delete_event(&self.ingest_dir, &metadata.event_id).await?;
+            let existing =
+                EventService::get_by_event_id(pool, metadata.project_id, event_id).await?;
+            if let (Some(alert_type), Some(issue_id)) = (existing.alert_type, existing.issue_id) {
+                if !AlertService::event_alert_exists(
+                    pool,
+                    metadata.project_id,
+                    event_id,
+                    alert_type,
+                )
+                .await?
+                {
+                    let issue = IssueService::get_by_id(pool, issue_id).await?;
+                    AlertService::trigger_event_alert(
+                        pool,
+                        &project,
+                        &issue,
+                        alert_type,
+                        event_id,
+                        &std::env::var("DASHBOARD_URL")
+                            .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+                    )
+                    .await?;
+                }
+            }
+            delete_after_success(
+                pool,
+                &self.checkpoint_gate,
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+                storage_location,
+            )
+            .await?;
             return Ok(());
         }
 
-        // 4. Calculate grouping key and hash
+        // 5. Calculate grouping key and hash
         let grouping_key = calculate_grouping_key(&event_data);
         let grouping_key_hash = hash_grouping_key(&grouping_key);
 
-        // 5. Extract denormalized fields
+        // 6. Extract denormalized fields
         let denormalized = get_denormalized_fields(&event_data);
 
-        // 6+7. Write the digest: grouping, issue, the event itself and the
+        // 7+8. Write the digest: grouping, issue, the event itself and the
         // project's stored-event counter, in one transaction, retried as a
         // whole when SQLite reports the database busy.
-        let (issue, issue_created, regressed) = write_digest(
+        let (issue, issue_created, regressed, installation_count, project_count) = write_digest(
             pool,
             &DigestWrite {
                 event_id,
@@ -123,18 +174,88 @@ impl ErrorProcessor {
         )
         .await?;
 
-        // 8b. Sentry-parity platform auto-detection (set once, never overwritten)
+        // 9b. Sentry-parity platform auto-detection (set once, never overwritten).
+        // Best-effort: the digest transaction already committed the event, so
+        // ancillary project metadata must not make the durable event fail.
         if let Some(event_platform) = event_data.get("platform").and_then(|p| p.as_str()) {
-            ProjectService::infer_platform_from_event(pool, metadata.project_id, event_platform)
-                .await?;
+            if let Err(e) =
+                ProjectService::infer_platform_from_event(pool, metadata.project_id, event_platform)
+                    .await
+            {
+                log::warn!(
+                    "platform inference failed for project {} (best-effort; a later event can self-heal): {:?}",
+                    metadata.project_id,
+                    e
+                );
+            }
         }
 
-        // Update rate limiting quotas (handles digested_event_count)
-        RateLimitService::update_quota_state(pool, metadata.project_id, &self.rate_limit_config)
-            .await?;
+        // Update rate limiting quotas (handles digested_event_count).
+        // Best-effort: counters already committed with the event; a failed
+        // quota-state refresh self-heals on the next digest and must not
+        // fail an event that is already durable. One retry on contention
+        // absorbs a collision with the next digest's transaction.
+        let mut quota_attempt = 0;
+        loop {
+            match RateLimitService::update_quota_state(
+                pool,
+                metadata.project_id,
+                &self.rate_limit_config,
+                installation_count,
+                project_count,
+            )
+            .await
+            {
+                Ok(()) => break,
+                Err(e)
+                    if should_retry_quota_state(
+                        quota_attempt,
+                        is_retryable_write_contention(&e),
+                    ) =>
+                {
+                    tokio::time::sleep(sqlite_retry_delay(quota_attempt)).await;
+                    quota_attempt += 1;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "quota state update failed for project {} (best-effort, will self-heal): {:?}",
+                        metadata.project_id, e
+                    );
+                    break;
+                }
+            }
+        }
 
-        // 9. Delete temporary file
-        delete_event(&self.ingest_dir, &metadata.event_id).await?;
+        // 10. Persist alert history before deleting the only durable source.
+        if issue_created || regressed {
+            let alert_type = if issue_created {
+                AlertType::NewIssue
+            } else {
+                AlertType::Regression
+            };
+            AlertService::trigger_event_alert(
+                pool,
+                &project,
+                &issue,
+                alert_type,
+                event_id,
+                &std::env::var("DASHBOARD_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            )
+            .await?;
+        }
+
+        // 11. Delete after the event and alert writes complete; SQLite also
+        // requires a successful durability checkpoint.
+        delete_after_success(
+            pool,
+            &self.checkpoint_gate,
+            &self.ingest_dir,
+            metadata.project_id,
+            &metadata.event_id,
+            storage_location,
+        )
+        .await?;
 
         log::info!(
             "Digested event {} -> issue {} ({})",
@@ -142,28 +263,6 @@ impl ErrorProcessor {
             issue.id,
             if issue_created { "new" } else { "existing" }
         );
-
-        // 10. Trigger alerts for new issues and regressions
-        if issue_created || regressed {
-            let pool = pool.clone();
-            let project = project.clone();
-            let issue = issue.clone();
-            let dashboard_url = std::env::var("DASHBOARD_URL")
-                .unwrap_or_else(|_| "http://localhost:3000".to_string());
-
-            tokio::spawn(async move {
-                let result = if issue_created {
-                    AlertService::trigger_new_issue_alert(&pool, &project, &issue, &dashboard_url)
-                        .await
-                } else {
-                    AlertService::trigger_regression_alert(&pool, &project, &issue, &dashboard_url)
-                        .await
-                };
-                if let Err(e) = result {
-                    log::error!("Failed to trigger issue alert: {}", e);
-                }
-            });
-        }
 
         Ok(())
     }
@@ -174,22 +273,114 @@ impl Processor for ErrorProcessor {
 
     async fn process(&self, metadata: EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
         let result = self.process_impl(&metadata, ctx).await;
-        if result.is_err() {
-            if let Err(e) = delete_event(&self.ingest_dir, &metadata.event_id).await {
-                log::warn!(
-                    "Failed to clean up orphaned event file {}: {:?}",
+        if let Err(e) = &result {
+            if should_retain_event(e) {
+                return result;
+            }
+            match read_event_with_location(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+            )
+            .await
+            {
+                Ok((_, location)) => {
+                    if let Err(e) = delete_event_at(
+                        &self.ingest_dir,
+                        metadata.project_id,
+                        &metadata.event_id,
+                        location,
+                    )
+                    .await
+                    {
+                        log::warn!(
+                            "Failed to clean up orphaned event file {}: {:?}",
+                            metadata.event_id,
+                            e
+                        );
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Failed to locate orphaned event file {}: {:?}",
                     metadata.event_id,
                     e
-                );
+                ),
             }
         }
         result
     }
 }
 
+fn should_retain_event(err: &AppError) -> bool {
+    match err.kind() {
+        AppError::Database(_) => true,
+        // Unknown internal failures are safer to replay than to discard: a new
+        // transient failure must not silently become data loss.
+        AppError::Internal(message) => !message.starts_with(INVALID_EVENT_JSON_PREFIX),
+        _ => false,
+    }
+}
+
+#[cfg(feature = "sqlite")]
+async fn delete_after_success(
+    pool: &DbPool,
+    checkpoint_gate: &tokio::sync::Mutex<crate::db::CheckpointGate>,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    event_id: &str,
+    storage_location: crate::ingest::storage::EventStorageLocation,
+) -> AppResult<()> {
+    if matches!(
+        storage_location,
+        crate::ingest::storage::EventStorageLocation::Legacy
+    ) {
+        delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+        return Ok(());
+    }
+
+    for attempt in 0..3 {
+        if crate::db::ensure_checkpointed(pool, checkpoint_gate).await? {
+            delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+            return Ok(());
+        }
+        if attempt < 2 {
+            tokio::time::sleep(sqlite_retry_delay(attempt)).await;
+        }
+    }
+
+    log::warn!(
+        "SQLite durability checkpoint busy; retaining event file {}",
+        event_id
+    );
+    Ok(())
+}
+
+#[cfg(feature = "postgres")]
+async fn delete_after_success(
+    _pool: &DbPool,
+    _checkpoint_gate: &tokio::sync::Mutex<crate::db::CheckpointGate>,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    event_id: &str,
+    storage_location: crate::ingest::storage::EventStorageLocation,
+) -> AppResult<()> {
+    delete_event_at(ingest_dir, project_id, event_id, storage_location).await?;
+    Ok(())
+}
+
 /// Write attempts per digest on SQLite. Bounded: sustained contention
 /// fails fast instead of piling up more waiters.
 const MAX_SQLITE_WRITE_ATTEMPTS: usize = 3;
+
+/// Attempts for the post-commit quota-state check: one 50ms retry absorbs
+/// a collision with the next digest's transaction, then warn and self-heal.
+const QUOTA_STATE_ATTEMPTS: usize = 2;
+
+/// Whether to retry the quota-state check: transient contention only,
+/// at most [`QUOTA_STATE_ATTEMPTS`] times.
+fn should_retry_quota_state(attempt: usize, contention: bool) -> bool {
+    attempt + 1 < QUOTA_STATE_ATTEMPTS && contention
+}
 
 /// Backoff before retry `attempt` (0-based): 50ms, then 100ms — brief,
 /// so writers that timed out together don't retry in lockstep.
@@ -201,7 +392,7 @@ fn sqlite_retry_delay(attempt: usize) -> std::time::Duration {
 /// 261, 517, 773). Always false on Postgres, whose SQLSTATEs never collide
 /// with these. Pool exhaustion is deliberately excluded: it is a capacity
 /// signal, and retrying it only lengthens the queue that caused it.
-fn is_retryable_write_contention(err: &AppError) -> bool {
+pub(crate) fn is_retryable_write_contention(err: &AppError) -> bool {
     match err.kind() {
         AppError::Database(sqlx::Error::Database(db)) => {
             db.code().as_deref().is_some_and(is_sqlite_busy_code)
@@ -240,8 +431,11 @@ struct DigestWrite<'a> {
 /// triggers: a per-project advisory lock serializes issue creation and no busy
 /// code is ever reported.
 ///
-/// Returns the issue plus whether it was created and whether it regressed.
-async fn write_digest(pool: &DbPool, write: &DigestWrite<'_>) -> AppResult<(Issue, bool, bool)> {
+/// Returns the issue, lifecycle flags, and committed quota-counter values.
+async fn write_digest(
+    pool: &DbPool,
+    write: &DigestWrite<'_>,
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     let mut attempt = 0usize;
     let event_id = write.raw_event_id;
     loop {
@@ -281,7 +475,7 @@ async fn write_digest(pool: &DbPool, write: &DigestWrite<'_>) -> AppResult<(Issu
 async fn write_digest_once(
     pool: &DbPool,
     write: &DigestWrite<'_>,
-) -> AppResult<(Issue, bool, bool)> {
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     // Start a write transaction. On SQLite this is `BEGIN IMMEDIATE` so the
     // read-then-write below (SELECT MAX(digest_order) → INSERT) takes the write
     // lock up front instead of failing with "database is locked" on upgrade.
@@ -322,7 +516,7 @@ async fn write_digest_once(
 async fn write_digest_rows(
     tx: &mut sqlx::Transaction<'_, DbBackend>,
     write: &DigestWrite<'_>,
-) -> AppResult<(Issue, bool, bool)> {
+) -> AppResult<(Issue, bool, bool, i64, i64)> {
     let (issue, grouping, created, regressed) = find_or_create_issue_and_grouping_inner(
         tx,
         write.project_id,
@@ -348,15 +542,14 @@ async fn write_digest_rows(
         write.timestamp,
         write.denormalized,
         write.remote_addr,
+        alert_type_for_lifecycle(created, regressed),
     )
     .await?;
 
-    sqlx::query("UPDATE projects SET stored_event_count = stored_event_count + 1 WHERE id = $1")
-        .bind(write.project_id)
-        .execute(&mut **tx)
-        .await?;
+    let (installation_count, project_count) =
+        RateLimitService::increment_quota_counters(tx, write.project_id).await?;
 
-    Ok((issue, created, regressed))
+    Ok((issue, created, regressed, installation_count, project_count))
 }
 
 /// Inner function that performs the actual find-or-create logic within a transaction
@@ -520,6 +713,16 @@ async fn find_or_create_issue_and_grouping_inner(
     Ok((issue, grouping, true, false))
 }
 
+fn alert_type_for_lifecycle(created: bool, regressed: bool) -> Option<AlertType> {
+    if created {
+        Some(AlertType::NewIssue)
+    } else if regressed {
+        Some(AlertType::Regression)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -536,6 +739,19 @@ mod tests {
     }
 
     #[test]
+    fn persists_only_alerting_lifecycles() {
+        assert_eq!(
+            alert_type_for_lifecycle(true, false),
+            Some(AlertType::NewIssue)
+        );
+        assert_eq!(
+            alert_type_for_lifecycle(false, true),
+            Some(AlertType::Regression)
+        );
+        assert_eq!(alert_type_for_lifecycle(false, false), None);
+    }
+
+    #[test]
     fn retries_back_off_exponentially_from_50ms() {
         assert_eq!(sqlite_retry_delay(0), std::time::Duration::from_millis(50));
         assert_eq!(sqlite_retry_delay(1), std::time::Duration::from_millis(100));
@@ -545,6 +761,9 @@ mod tests {
     fn only_lock_contention_is_retryable() {
         // A busy database is a wait; everything else is a decision the retry
         // loop cannot change by trying again.
+        assert!(should_retry_quota_state(0, true));
+        assert!(!should_retry_quota_state(1, true));
+        assert!(!should_retry_quota_state(0, false));
         assert!(!is_retryable_write_contention(&AppError::Database(
             sqlx::Error::RowNotFound
         )));
@@ -552,6 +771,28 @@ mod tests {
         // add three more waiters to the queue that caused it.
         assert!(!is_retryable_write_contention(&AppError::Database(
             sqlx::Error::PoolTimedOut
+        )));
+    }
+
+    #[test]
+    fn database_and_event_read_failures_are_retained_for_recovery() {
+        assert!(should_retain_event(&AppError::Database(
+            sqlx::Error::PoolTimedOut
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "Failed to read event file: connection reset".to_string(),
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "Invalid pending event record: truncated".to_string(),
+        )));
+        assert!(should_retain_event(&AppError::Internal(
+            "temporary database connection failure".to_string(),
+        )));
+        assert!(!should_retain_event(&AppError::Internal(
+            "Invalid event JSON: trailing data".to_string(),
+        )));
+        assert!(!should_retain_event(&AppError::Validation(
+            "Invalid event JSON".to_string(),
         )));
     }
 }

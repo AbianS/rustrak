@@ -1,15 +1,19 @@
 use actix_web::{web, HttpRequest, HttpResponse};
 use bytes::Bytes;
 use chrono::Utc;
+use sha2::{Digest as _, Sha256};
 
 use crate::auth::SentryAuth;
 use crate::config::Config;
 use crate::db::DbPool;
-use crate::digest::processors::{Processor, ProcessorCtx, Processors, SessionItem};
+use crate::digest::processors::{
+    is_retryable_write_contention, Processor, ProcessorCtx, Processors, SessionItem,
+};
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
-    decompress_body, get_content_encoding, get_ingest_dir, store_event, EnvelopeItemKind,
-    EnvelopeParser, EventMetadata, MAX_COMPRESSED_SIZE,
+    decompress_body, get_content_encoding, get_ingest_dir, list_pending_event_metadata,
+    store_event_with_metadata, EnvelopeItemKind, EnvelopeParser, EventMetadata,
+    MAX_COMPRESSED_SIZE,
 };
 use crate::services::RateLimitService;
 
@@ -32,7 +36,9 @@ pub async fn ingest_envelope(
     processors: web::Data<Processors>,
 ) -> AppResult<HttpResponse> {
     // 0. Check rate limits (fail fast before processing)
-    if let Some(exceeded) = RateLimitService::check_quota(pool.get_ref(), &auth.project).await? {
+    if let Some(exceeded) =
+        RateLimitService::check_quota(pool.get_ref(), &auth.project, &config.rate_limit).await?
+    {
         log::warn!(
             "Rate limit exceeded for project {}: retry_after={}s",
             auth.project.id,
@@ -63,6 +69,25 @@ pub async fn ingest_envelope(
     let mut parser = EnvelopeParser::new(&decompressed);
     let envelope = parser.parse()?;
 
+    // Relay parity for item payloads: a malformed item is dropped and its
+    // siblings continue (relay-server/src/processing/relay.rs run_one — "This
+    // is not a fatal error case ... other items from the same original
+    // envelope must still be processed"). Only infrastructure failures
+    // (database, storage) may fail the envelope: they return 5xx so the SDK
+    // retries, preserving the commit-before-ack durability promise. A 4xx here
+    // would make the SDK drop the sibling data permanently.
+    fn drop_malformed_item(result: AppResult<()>, item_type: &str) -> AppResult<()> {
+        match result {
+            Err(AppError::Validation(message)) => {
+                log::warn!(
+                    "dropping malformed {item_type} item, keeping envelope siblings: {message}"
+                );
+                Ok(())
+            }
+            other => other,
+        }
+    }
+
     // 4. Typed dispatch — exhaustive, compiler-verified.
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
@@ -71,6 +96,7 @@ pub async fn ingest_envelope(
     let mut span_items: Vec<Vec<u8>> = Vec::new();
     let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
     let mut requires_event_id = false;
+    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), &decompressed);
     for item_kind in envelope.items {
         if item_kind.requires_event() {
             requires_event_id = true;
@@ -87,33 +113,48 @@ pub async fn ingest_envelope(
                 }
             }
             EnvelopeItemKind::Session(s) => {
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors
-                    .sessions
-                    .process(SessionItem::Update(s), &ctx)
-                    .await
-                {
-                    log::warn!("session item processing failed: {:?}", e);
-                }
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
+                drop_malformed_item(
+                    processors
+                        .sessions
+                        .process(SessionItem::Update(s), &ctx)
+                        .await,
+                    "session",
+                )?;
             }
             EnvelopeItemKind::Sessions(s) => {
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors
-                    .sessions
-                    .process(SessionItem::Aggregates(s), &ctx)
-                    .await
-                {
-                    log::warn!("sessions item processing failed: {:?}", e);
-                }
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
+                drop_malformed_item(
+                    processors
+                        .sessions
+                        .process(SessionItem::Aggregates(s), &ctx)
+                        .await,
+                    "sessions",
+                )?;
             }
             EnvelopeItemKind::Log(payload) => {
                 // Logs are processed inline (parse container + store): the work is
-                // bounded and storing before responding keeps the batch durable —
-                // a spawned task could lose logs on shutdown. Mirrors sessions.
-                let ctx = direct_store_ctx(&pool, auth.project.id, ingested_at, &remote_addr);
-                if let Err(e) = processors.logs.process(payload, &ctx).await {
-                    log::warn!("log item processing failed: {:?}", e);
-                }
+                // bounded and storing before responding keeps the batch durable.
+                let ctx = direct_store_ctx(
+                    &pool,
+                    auth.project.id,
+                    delivery_id,
+                    ingested_at,
+                    &remote_addr,
+                );
+                drop_malformed_item(processors.logs.process(payload, &ctx).await, "log")?;
             }
             EnvelopeItemKind::Span(payload) => {
                 // Unlike Event/Transaction, an envelope may carry many standalone
@@ -133,100 +174,71 @@ pub async fn ingest_envelope(
         }
     }
 
-    // 5. Resolve event_id — only required when there is an event item.
-    //    If the SDK omitted it, auto-generate (mirrors Relay's get_or_insert_with(EventId::new)).
+    // 5. Resolve event_id — only required for event-bearing item types.
+    //    If the SDK omitted it, derive it from the durable delivery identity.
     //    For session-only envelopes, pass through whatever the SDK provided (may be None).
-    let event_id: Option<String> = if requires_event_id {
-        let id = envelope
-            .headers
-            .event_id
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
-        uuid::Uuid::parse_str(&id)
-            .map_err(|_| AppError::Validation("event_id must be a valid UUID".to_string()))?;
-        Some(id)
-    } else {
-        envelope.headers.event_id.clone()
-    };
+    let event_id = resolve_event_id(envelope.headers.event_id, delivery_id, requires_event_id);
+    if requires_event_id {
+        if let Some(id) = &event_id {
+            uuid::Uuid::parse_str(id)
+                .map_err(|_| AppError::Validation("event_id must be a valid UUID".to_string()))?;
+        }
+    }
 
-    // 6. Spawn transaction processing (direct, bypasses filesystem and digest worker).
-    //    Must happen BEFORE the early-return so transaction-only envelopes are stored.
+    // Persist direct items before the early return; otherwise 200 could suppress
+    // an SDK retry for data that was never stored.
     if let Some(txn_payload) = transaction_item {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
         let event_id_txn = event_id
             .clone()
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string().replace("-", ""));
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let parsed_id =
-                uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: parsed_id,
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            if let Err(e) = processors.transactions.process(txn_payload, &ctx).await {
-                log::error!("Failed to store transaction {}: {:?}", event_id_txn, e);
-            }
-        });
+            .unwrap_or_else(|| delivery_id.simple().to_string());
+        let parsed_id =
+            uuid::Uuid::parse_str(&event_id_txn).unwrap_or_else(|_| uuid::Uuid::new_v4());
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: parsed_id,
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        drop_malformed_item(
+            processors.transactions.process(txn_payload, &ctx).await,
+            "transaction",
+        )?;
     }
 
-    // 6b. Spawn standalone span processing (direct, bypasses filesystem and
-    //     digest worker) — same rationale as transactions: no grouping/issue
-    //     concept, so no need for the durable temp-file path. Must happen
-    //     BEFORE the early-return so span-only envelopes are stored.
+    // Persist standalone spans inline; they have no grouping or issue path.
     if !span_items.is_empty() {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: uuid::Uuid::nil(),
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            for span_payload in span_items {
-                if let Err(e) = processors.spans.process(span_payload, &ctx).await {
-                    log::warn!("Failed to store standalone span: {:?}", e);
-                }
-            }
-        });
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: uuid::Uuid::nil(),
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        drop_malformed_item(
+            processors.spans.process_batch(span_items, &ctx).await,
+            "span",
+        )?;
     }
 
-    // 6c. Spawn Spans Protocol v2 batch processing — same rationale as 6b,
-    //     just a different (batched, typed-attribute) wire format. Must
-    //     happen BEFORE the early-return so v2-span-only envelopes are stored.
+    // Persist v2 span batches inline for the same reason.
     if !span_v2_items.is_empty() {
-        let processors = processors.clone();
-        let pool_clone = pool.get_ref().clone();
-        let project_id = auth.project.id;
-        let ingested = ingested_at;
-        let remote = remote_addr.clone();
-        tokio::spawn(async move {
-            let ctx = ProcessorCtx {
-                pool: pool_clone,
-                project_id,
-                event_id: uuid::Uuid::nil(),
-                ingested_at: ingested,
-                remote_addr: remote,
-            };
-            for batch_payload in span_v2_items {
-                if let Err(e) = processors.spans_v2.process(batch_payload, &ctx).await {
-                    log::warn!("Failed to store span v2 batch: {:?}", e);
-                }
-            }
-        });
+        let ctx = ProcessorCtx {
+            pool: pool.get_ref().clone(),
+            project_id: auth.project.id,
+            event_id: uuid::Uuid::nil(),
+            ingested_at,
+            remote_addr: remote_addr.clone(),
+        };
+        for batch_payload in span_v2_items {
+            drop_malformed_item(
+                processors.spans_v2.process(batch_payload, &ctx).await,
+                "span container",
+            )?;
+        }
     }
 
-    // 7. Early return for session-only (and other non-event) envelopes.
+    // Return for session-only and other non-event envelopes.
     let event_item = match event_item {
         Some(item) => item,
         None => {
@@ -235,26 +247,21 @@ pub async fn ingest_envelope(
         }
     };
 
-    // event_id is guaranteed Some from this point: event_item.is_some() was true above.
     let event_id = event_id.expect("event_id is Some when event_item is Some");
 
-    // 6. Validate that payload is valid JSON
     let _: serde_json::Value = serde_json::from_slice(&event_item)
         .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
 
-    // 7. Store event in filesystem
-    store_event(&ingest_dir, &event_id, &event_item).await?;
-
-    // 8. Create metadata
+    // Store metadata beside the raw event so a failed digest can be recovered.
     let metadata = EventMetadata {
         event_id: event_id.clone(),
         project_id: auth.project.id,
         ingested_at,
         remote_addr,
     };
+    store_event_with_metadata(&ingest_dir, &event_id, &event_item, &metadata).await?;
 
-    // 9. Spawn digest task — the ErrorProcessor reads the temp file and runs
-    //    grouping/issue creation. It owns ingest_dir/rate_limit/sourcemap deps.
+    // The digest worker owns grouping, issue creation, and its durable retry path.
     let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
     tokio::spawn(async move {
@@ -267,28 +274,148 @@ pub async fn ingest_envelope(
             ingested_at: metadata.ingested_at,
             remote_addr: metadata.remote_addr.clone(),
         };
-        if let Err(e) = processors.errors.process(metadata, &ctx).await {
-            log::error!("Failed to digest event {}: {:?}", event_id_log, e);
+        for attempt in 0..4 {
+            match processors.errors.process(metadata.clone(), &ctx).await {
+                Ok(()) => break,
+                Err(e) if is_retryable_write_contention(&e) && attempt < 3 => {
+                    let delay = std::time::Duration::from_millis(250 << attempt);
+                    log::warn!(
+                        "Digest {} remains locked; retrying after {:?}: {:?}",
+                        event_id_log,
+                        delay,
+                        e
+                    );
+                    tokio::time::sleep(delay).await;
+                }
+                Err(e) => {
+                    log::error!(
+                        "Failed to digest event {}; it remains queued: {:?}",
+                        event_id_log,
+                        e
+                    );
+                    break;
+                }
+            }
         }
     });
 
-    // 10. Return immediately (CORS handled by middleware)
     Ok(HttpResponse::Ok().json(IngestResponse { id: Some(event_id) }))
+}
+
+/// Replays event files left by a previous process after a digest failure.
+pub async fn recover_pending_events(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) {
+    let mut previous_delay = None;
+
+    loop {
+        let has_pending = recover_pending_events_once_with_status(
+            pool.clone(),
+            processors.clone(),
+            ingest_dir.clone(),
+        )
+        .await;
+        let delay = next_recovery_delay(previous_delay, has_pending);
+        previous_delay = has_pending.then_some(delay);
+        tokio::time::sleep(delay).await;
+    }
+}
+
+/// Processes the current set of pending event files once.
+pub async fn recover_pending_events_once(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) {
+    let _ = recover_pending_events_once_with_status(pool, processors, ingest_dir).await;
+}
+
+async fn recover_pending_events_once_with_status(
+    pool: DbPool,
+    processors: web::Data<Processors>,
+    ingest_dir: std::path::PathBuf,
+) -> bool {
+    let pending = match list_pending_event_metadata(&ingest_dir).await {
+        Ok(pending) => pending,
+        Err(e) => {
+            log::error!("Failed to scan pending event metadata: {:?}", e);
+            return true;
+        }
+    };
+
+    let mut has_pending = false;
+    for metadata in pending {
+        let event_id = metadata.event_id.clone();
+        let ctx = ProcessorCtx {
+            pool: pool.clone(),
+            project_id: metadata.project_id,
+            event_id: uuid::Uuid::parse_str(&metadata.event_id)
+                .unwrap_or_else(|_| uuid::Uuid::nil()),
+            ingested_at: metadata.ingested_at,
+            remote_addr: metadata.remote_addr.clone(),
+        };
+        if let Err(e) = processors.errors.process(metadata, &ctx).await {
+            has_pending = true;
+            log::warn!("Pending digest {} remains queued: {:?}", event_id, e);
+        }
+    }
+    has_pending
+}
+
+fn next_recovery_delay(
+    previous_delay: Option<std::time::Duration>,
+    has_pending: bool,
+) -> std::time::Duration {
+    const MIN: std::time::Duration = std::time::Duration::from_secs(1);
+    const MAX: std::time::Duration = std::time::Duration::from_secs(30);
+
+    if !has_pending {
+        return MAX;
+    }
+    previous_delay
+        .map(|delay| delay.saturating_mul(2).min(MAX))
+        .unwrap_or(MIN)
 }
 
 /// Builds a [`ProcessorCtx`] for session items, which carry no event id.
 fn direct_store_ctx(
     pool: &web::Data<DbPool>,
     project_id: i32,
+    event_id: uuid::Uuid,
     ingested_at: chrono::DateTime<Utc>,
     remote_addr: &Option<String>,
 ) -> ProcessorCtx {
     ProcessorCtx {
         pool: pool.get_ref().clone(),
         project_id,
-        event_id: uuid::Uuid::nil(),
+        event_id,
         ingested_at,
         remote_addr: remote_addr.clone(),
+    }
+}
+
+fn stable_delivery_id(event_id: Option<&str>, envelope: &[u8]) -> uuid::Uuid {
+    event_id
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .unwrap_or_else(|| {
+            let digest = Sha256::digest(envelope);
+            let mut bytes = [0; 16];
+            bytes.copy_from_slice(&digest[..16]);
+            uuid::Uuid::from_bytes(bytes)
+        })
+}
+
+fn resolve_event_id(
+    event_id: Option<String>,
+    delivery_id: uuid::Uuid,
+    requires_event_id: bool,
+) -> Option<String> {
+    if requires_event_id {
+        Some(event_id.unwrap_or_else(|| delivery_id.simple().to_string()))
+    } else {
+        event_id
     }
 }
 
@@ -327,4 +454,65 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                 web::method(actix_web::http::Method::OPTIONS).to(options),
             ),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{next_recovery_delay, resolve_event_id, stable_delivery_id};
+    use std::time::Duration;
+
+    #[test]
+    fn recovery_backoff_starts_small_and_caps() {
+        assert_eq!(next_recovery_delay(None, true), Duration::from_secs(1));
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(8)), true),
+            Duration::from_secs(16)
+        );
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(30)), true),
+            Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn recovery_backoff_resets_when_idle() {
+        assert_eq!(
+            next_recovery_delay(Some(Duration::from_secs(16)), false),
+            Duration::from_secs(30)
+        );
+    }
+
+    #[test]
+    fn headerless_delivery_id_is_stable_for_retries() {
+        let first = stable_delivery_id(None, b"same envelope");
+        assert_eq!(first, stable_delivery_id(None, b"same envelope"));
+        assert_ne!(first, stable_delivery_id(None, b"different envelope"));
+    }
+
+    #[test]
+    fn valid_event_id_remains_the_delivery_id() {
+        let event_id = uuid::Uuid::new_v4();
+        assert_eq!(
+            stable_delivery_id(Some(&event_id.to_string()), b"ignored"),
+            event_id
+        );
+    }
+
+    #[test]
+    fn headerless_required_event_uses_delivery_id() {
+        let delivery_id = uuid::Uuid::nil();
+        assert_eq!(
+            resolve_event_id(None, delivery_id, true),
+            Some(delivery_id.simple().to_string())
+        );
+    }
+
+    #[test]
+    fn session_event_id_is_not_synthesized() {
+        assert_eq!(resolve_event_id(None, uuid::Uuid::nil(), false), None);
+        assert_eq!(
+            resolve_event_id(Some("session-id".to_string()), uuid::Uuid::nil(), false),
+            Some("session-id".to_string())
+        );
+    }
 }

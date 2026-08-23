@@ -2,6 +2,7 @@ use super::{Processor, ProcessorCtx};
 use crate::error::AppResult;
 use crate::models::log::{LogContainer, LogItem};
 use chrono::{DateTime, TimeZone, Utc};
+use sha1::{Digest as _, Sha1};
 use uuid::Uuid;
 
 /// Processor for standalone logs (Sentry "log" item type).
@@ -23,9 +24,11 @@ impl Processor for LogsProcessor {
         // batch is harder to reason about than an all-or-nothing one, and the
         // SDK will resend on failure.
         let mut tx = ctx.pool.begin().await?;
+        let container_hash = hex::encode(Sha1::digest(&work));
 
-        for log in logs {
+        for (index, log) in logs.into_iter().enumerate() {
             let id = Uuid::new_v4();
+            let dedupe_key = dedupe_key(&container_hash, index, ctx.event_id);
             let timestamp = epoch_to_datetime(log.timestamp).unwrap_or(ctx.ingested_at);
             let level = normalize_level(&log.level);
             let severity_number = severity_number(&level);
@@ -33,20 +36,23 @@ impl Processor for LogsProcessor {
             sqlx::query(
                 r#"
                 INSERT INTO logs (
-                    id, project_id,
+                    id, project_id, dedupe_key,
                     trace_id, span_id,
                     level, severity_number, body, attributes,
                     timestamp, ingested_at
                 ) VALUES (
-                    $1, $2,
-                    $3, $4,
-                    $5, $6, $7, $8,
-                    $9, $10
+                    $1, $2, $3,
+                    $4, $5,
+                    $6, $7, $8, $9,
+                    $10, $11
                 )
+                ON CONFLICT (project_id, dedupe_key)
+                    WHERE dedupe_key IS NOT NULL DO NOTHING
                 "#,
             )
             .bind(id)
             .bind(ctx.project_id)
+            .bind(dedupe_key)
             .bind(empty_to_none(&log.trace_id))
             .bind(log.span_id.as_deref())
             .bind(&level)
@@ -62,6 +68,10 @@ impl Processor for LogsProcessor {
         tx.commit().await?;
         Ok(())
     }
+}
+
+fn dedupe_key(container_hash: &str, index: usize, delivery_id: Uuid) -> String {
+    format!("{container_hash}:{delivery_id}:{index}")
 }
 
 /// Converts an epoch-seconds float (with sub-second precision) to a UTC instant.
@@ -118,5 +128,26 @@ fn empty_to_none(s: &str) -> Option<String> {
         None
     } else {
         Some(s.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::dedupe_key;
+    use uuid::Uuid;
+
+    #[test]
+    fn log_dedupe_key_distinguishes_deliveries() {
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+
+        assert_eq!(
+            dedupe_key("container", 0, first),
+            dedupe_key("container", 0, first)
+        );
+        assert_ne!(
+            dedupe_key("container", 0, first),
+            dedupe_key("container", 0, second)
+        );
     }
 }

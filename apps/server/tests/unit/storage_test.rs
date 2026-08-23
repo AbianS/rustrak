@@ -6,6 +6,7 @@
 use crate::common::TestDb;
 use bytes::Bytes;
 use chrono::Utc;
+use rustrak::ingest::{delete_event, read_event_for_project as read_scoped, store_event};
 use rustrak::models::{CleanupFilter, CreateProject};
 use rustrak::services::sourcemap_store::{LocalSourceMapStore, SourceMapStore};
 use rustrak::services::{ProjectService, StorageService};
@@ -16,6 +17,18 @@ use uuid::Uuid;
 /// Monotonic source of `digest_order` so seeded issues never collide on the
 /// `UNIQUE(project_id, digest_order)` constraint within a project.
 static DIGEST_ORDER: AtomicI32 = AtomicI32::new(1);
+
+#[tokio::test]
+async fn ingest_legacy_event_cleanup_removes_the_payload() {
+    let dir = tempdir().unwrap();
+    let event_id = Uuid::new_v4().to_string();
+    let payload = br#"{"legacy":true}"#;
+    store_event(dir.path(), &event_id, payload).await.unwrap();
+    let got = read_scoped(dir.path(), 99999, &event_id).await.unwrap();
+    assert_eq!(got, payload);
+    delete_event(dir.path(), &event_id).await.unwrap();
+    assert!(read_scoped(dir.path(), 99999, &event_id).await.is_err());
+}
 
 /// Inserts a chunk row directly (CAS table: checksum PK, size, data BYTEA).
 async fn insert_chunk(pool: &rustrak::db::DbPool, checksum: &str, size: i64) {

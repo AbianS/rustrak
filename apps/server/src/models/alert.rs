@@ -380,6 +380,8 @@ pub struct AlertHistory {
     pub alert_type: String,
     pub channel_type: String,
     pub channel_name: String,
+    #[serde(skip_serializing)]
+    pub payload: serde_json::Value,
     pub status: AlertStatus,
     pub attempt_count: i32,
     pub next_retry_at: Option<DateTime<Utc>>,
@@ -395,7 +397,7 @@ pub struct AlertHistory {
 // =============================================================================
 
 /// Payload sent to notification integrations
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertPayload {
     /// Unique alert ID for idempotency
     pub alert_id: String,
@@ -414,7 +416,7 @@ pub struct AlertPayload {
 }
 
 /// Project information for alert payload
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectInfo {
     pub id: i32,
     pub name: String,
@@ -422,7 +424,7 @@ pub struct ProjectInfo {
 }
 
 /// Issue information for alert payload
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IssueInfo {
     pub id: String,
     pub short_id: String,
@@ -440,7 +442,37 @@ pub struct IssueInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use serde_json::json;
+
+    #[test]
+    fn alert_history_payload_is_internal_only() {
+        let now = Utc::now();
+        let history = AlertHistory {
+            id: 1,
+            alert_rule_id: None,
+            integration_id: None,
+            issue_id: None,
+            project_id: None,
+            alert_type: "new_issue".into(),
+            channel_type: "webhook".into(),
+            channel_name: "test".into(),
+            payload: json!({"secret": true}),
+            status: AlertStatus::Pending,
+            attempt_count: 0,
+            next_retry_at: None,
+            error_message: None,
+            http_status_code: None,
+            idempotency_key: "key".into(),
+            created_at: now,
+            sent_at: None,
+        };
+        assert!(!serde_json::to_value(history)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("payload"));
+    }
 
     // -------------------------------------------------------------------------
     // Task 3 RED→GREEN: Flat routing struct deserialization (NO provider_type tag)
