@@ -1,0 +1,148 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Anatomy,
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { ResolveIcon } from '../icon/icon-catalog';
+import { Button } from './button';
+import { SplitButton } from './split-button';
+import * as SplitButtonStories from './split-button.stories';
+
+<Meta of={SplitButtonStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="SplitButton"
+  lede="One action plus its variations: Resolve, and behind the chevron “Resolve in the next release”, “Resolve until it happens again”."
+  note="One pill, two halves, and a press that belongs to the whole control."
+/>
+
+<Section
+  n="01"
+  title="When it earns its complexity"
+  intro="The common case is one click away and the rarer ones are one click away from that, without either costing the other any width."
+>
+
+<Anatomy
+  parts={[
+    { x: 30, label: 'action', note: 'the answer nine times out of ten' },
+    { x: 74, below: true, label: 'divider', note: 'foreground at low opacity, so it works on lime too' },
+    { x: 84, label: 'chevron', note: 'opens the variations, and turns over while they are up' },
+  ]}
+>
+  <SplitButton
+    variant="primary"
+    icon={ResolveIcon}
+    onClick={() => {}}
+    menuLabel="More ways to resolve"
+    actions={[
+      { id: 'next-release', label: 'Resolve in the next release', onClick: () => {} },
+      { id: 'recurs', label: 'Resolve until it happens again', onClick: () => {} },
+    ]}
+  >
+    Resolve
+  </SplitButton>
+</Anatomy>
+
+<Rule>
+  If the leading half is not the answer nine times out of ten, this is a menu
+  button and not a split button.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="The press belongs to the whole control"
+  intro="Sinking whichever half was pressed tears the seam open and leaves the divider floating in a gap. The root sinks instead, driven by either half."
+>
+
+<Stage label="press either half" stack>
+  <SplitButton
+    variant="primary"
+    icon={ResolveIcon}
+    onClick={() => {}}
+    menuLabel="More ways to resolve"
+    actions={[{ id: 'next-release', label: 'Resolve in the next release', onClick: () => {} }]}
+  >
+    Resolve
+  </SplitButton>
+  <SplitButton
+    variant="secondary"
+    onClick={() => {}}
+    menuLabel="Export formats"
+    actions={[{ id: 'csv', label: 'Export as CSV', onClick: () => {} }]}
+  >
+    Export
+  </SplitButton>
+</Stage>
+
+<P>Base UI opens the menu on pointer-down and hands capture to the popup, so <code>:active</code> never lands on the chevron. It does set <code>data-pressed</code> and holds it for as long as the menu is open, so the control stays sunk the whole time it is holding something open.</P>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<SplitButton variant="primary" icon={ResolveIcon} onClick={() => {}} menuLabel="More ways to resolve" actions={[{ id: 'next-release', label: 'Resolve in the next release', onClick: () => {} }]}>Resolve</SplitButton>}>
+    A default action with variations <em>of that action</em>.
+  </Do>
+  <Dont example={<SplitButton variant="primary" onClick={() => {}} menuLabel="More actions" actions={[{ id: 'delete', label: 'Delete project', onClick: () => {} }]}>Resolve</SplitButton>}>
+    Unrelated actions behind the chevron. That is a menu.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Button variant="secondary" menu>Sort</Button>}>
+    A plain menu button when there is no obvious default.
+  </Do>
+  <Dont example={<SplitButton variant="secondary" onClick={() => {}} menuLabel="Sort options" actions={[{ id: 'last-seen', label: 'By last seen', onClick: () => {} }]}>Sort</SplitButton>}>
+    A split whose leading half nobody presses. Half the control is dead weight.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue detail">Resolve, with the two conditional resolutions behind it.</Place>
+  <Place at="Issue list">The bulk action over a selection.</Place>
+  <Place at="Exports">Export, with the formats behind the chevron.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="TheHalvesAreIndependent">The two halves fire independently: the label runs the action, the chevron only opens the menu.</Guarantee>
+  <Guarantee story="TheWholePillSinks">The whole pill sinks from either half, so the seam never opens.</Guarantee>
+  <Guarantee>The halves take an inset focus ring, because the root clips: an outward ring on a child at the pill's edge would show on two sides only.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

@@ -17,12 +17,14 @@ pnpm check-types -w @rustrak/ui
 src/
 ├── styles/      tokens.css, base.css, and the contrast test that pins the palette
 ├── lib/         cn, tv, tw-merge, tokens.ts, motion, focus, types
+├── docs/        the blocks the documentation pages are written with
 └── components/
-    └── <name>/  <name>.tsx, <name>.stories.tsx
+    └── <name>/  <name>.tsx, <name>.stories.tsx, <name>.mdx
 ```
 
-One folder per component, flat. There is no `primitives/` versus `composites/`
-split: it would put `Button` and `Sidebar` in different places for a reason
+One folder per component, flat, and each holds three files: the component, its
+stories and its documentation page. There is no `primitives/` versus
+`composites/` split: it would put `Button` and `Sidebar` in different places for a reason
 nobody consuming the package can see.
 
 ## The rules, short
@@ -49,9 +51,10 @@ nobody consuming the package can see.
 
 ## Adding a component
 
-Write the recipe, the component, and the stories in one change — the stories
-*are* the tests. A story runs in Chromium and goes through axe, so a component
-with no story has no test at all.
+Write the recipe, the component, the stories and the page in one change — the
+stories *are* the tests. A story runs in Chromium and goes through axe, so a
+component with no story has no test at all, and one with no `.mdx` has no
+documentation at all: autodocs is off on purpose.
 
 What the stories have to cover, because these are the things that rot:
 
@@ -80,6 +83,37 @@ Base UI swallows `:active` on anything that opens a popup — it opens on
 pointer-down and hands capture to the panel. Use `pressScaleTrigger`, which
 reads `data-pressed` instead, or the control gives no feedback at all until the
 panel appears.
+
+## Adding a documentation page
+
+Every component has a written `<name>.mdx` beside its stories, attached with
+`<Meta of={Stories} />`. That page **replaces** the generated one, which is why
+autodocs is off: a page exists because somebody wrote it.
+
+The shape is fixed, and it is the brandbook's — cover, numbered sections
+divided by a hairline, one `Rule` per section:
+
+1. **Cover** — eyebrow, name, one line saying what it is.
+2. **Anatomy** — the live component with its parts numbered.
+3. **Variants**, and then **every variant against every state** as a `Matrix`.
+4. **Motion**, where the component has any worth replaying.
+5. **Guidelines** — `Do`/`Dont` pairs, both halves, rendered live.
+6. **Where it is used** — the actual screens. This is the part no props table
+   answers and the part that decides how the component gets used.
+7. **What it guarantees** — one line per promise, each naming the story that
+   asserts it.
+8. **Props** — `<Controls />`, generated from the types.
+
+The blocks are in `src/docs/blocks`. Two rules about them:
+
+- the whole page goes inside `<Unstyled>`. Storybook's docs stylesheet has its
+  own container width, margins and headings, and the spacing has to come from
+  one place or it comes from two.
+- **MDX is not type-checked.** A wrong prop compiles and fails at runtime, so a
+  new page is opened in the browser before it is called done.
+
+`src/docs/overview.mdx` is the front page and `src/styles/*.mdx` are the
+Foundations. There are no token *stories*: those pages are the specimens now.
 
 ## Adding a token
 

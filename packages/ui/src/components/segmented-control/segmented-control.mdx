@@ -1,0 +1,128 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Tab, TabList, Tabs } from '../tabs/tabs';
+import { SegmentedControl, SegmentedItem } from './segmented-control';
+import * as SegmentedControlStories from './segmented-control.stories';
+
+<Meta of={SegmentedControlStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="SegmentedControl"
+  lede="A short, closed set of mutually exclusive choices, all visible at once: the time range, a sort direction, a chart's unit."
+  note="It is a radio group, because exactly one option is always taken."
+/>
+
+<Section
+  n="01"
+  title="It is not a dropdown and it is not tabs"
+  intro="A dropdown would hide five options to save the width of four words, and this control is used constantly. Tabs change what the page is about; this changes a parameter of what is already on it."
+>
+
+<Stage stack>
+  <SegmentedControl aria-label="Time range" defaultValue="24h">
+    <SegmentedItem value="1h">1 h</SegmentedItem>
+    <SegmentedItem value="24h">24 h</SegmentedItem>
+    <SegmentedItem value="7d">7 d</SegmentedItem>
+    <SegmentedItem value="14d">14 d</SegmentedItem>
+    <SegmentedItem value="30d">30 d</SegmentedItem>
+    <SegmentedItem value="all">All</SegmentedItem>
+  </SegmentedControl>
+  <SegmentedControl aria-label="Unit" defaultValue="events">
+    <SegmentedItem value="events">Events</SegmentedItem>
+    <SegmentedItem value="users">Users</SegmentedItem>
+  </SegmentedControl>
+</Stage>
+
+<Rule>
+  Beyond about six options this is the wrong control: the row starts competing
+  with the page title for width. That is where a menu belongs.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="One option is always chosen"
+  intro="It used to be a toggle group, and clicking the selected option switched it off: a control showing “1 h · 24 h · 7 d” with none of them lit, and a chart with no range. There is no such state."
+>
+
+<P>A set of choices where exactly one is always taken <em>is</em> a radio group, so it is built on one — which means the browser refuses to deselect, the arrow keys move through the options, and a screen reader announces “1 of 6” rather than six unrelated switches.</P>
+
+<Stage label="the chip slides between options">
+  <SegmentedControl aria-label="Sort direction" defaultValue="desc">
+    <SegmentedItem value="asc">Ascending</SegmentedItem>
+    <SegmentedItem value="desc">Descending</SegmentedItem>
+  </SegmentedControl>
+</Stage>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<SegmentedControl aria-label="Range" defaultValue="24h"><SegmentedItem value="1h">1 h</SegmentedItem><SegmentedItem value="24h">24 h</SegmentedItem><SegmentedItem value="7d">7 d</SegmentedItem></SegmentedControl>}>
+    A parameter of the page: the range the chart is drawn over.
+  </Do>
+  <Dont example={<Tabs defaultValue="a"><TabList><Tab value="a">1 h</Tab><Tab value="b">24 h</Tab><Tab value="c">7 d</Tab></TabList></Tabs>}>
+    Tabs for a parameter. Tabs change what the page is about.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<SegmentedControl aria-label="Unit" defaultValue="events"><SegmentedItem value="events">Events</SegmentedItem><SegmentedItem value="users">Users</SegmentedItem></SegmentedControl>}>
+    Two to six short labels.
+  </Do>
+  <Dont example={<SegmentedControl aria-label="Environment" defaultValue="prod"><SegmentedItem value="prod">production</SegmentedItem><SegmentedItem value="stag">staging</SegmentedItem><SegmentedItem value="dev">development</SegmentedItem><SegmentedItem value="qa">quality assurance</SegmentedItem></SegmentedControl>}>
+    Long labels, or more than six. The row eats the header.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list header">The time range the counts are over.</Place>
+  <Place at="Overview">The unit of every chart on the page.</Place>
+  <Place at="Charts">Stacked against overlaid.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItIsARadioGroup">It is a radio group: a screen reader announces the option's place in the set.</Guarantee>
+  <Guarantee story="TheChosenOptionCannotBeSwitchedOff">Clicking the chosen option does nothing. There is no empty state to fall into.</Guarantee>
+  <Guarantee story="TheArrowKeysMove">Arrow keys move between options and choose as they go.</Guarantee>
+  <Guarantee story="TheChipSlides">The chip slides to the new option rather than reappearing under it.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

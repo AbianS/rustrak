@@ -1,0 +1,131 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Card,
+  Cards,
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Avatar } from './avatar';
+import * as AvatarStories from './avatar.stories';
+
+<Meta of={AvatarStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Avatar"
+  lede="Who or what something belongs to. Round is a person, square is a thing."
+  note="The shape is the taxonomy, not a style choice. The initials are the normal state, not a placeholder for a missing photo."
+/>
+
+<Section
+  n="01"
+  title="Two shapes, and they mean different things"
+  intro="A person's initials are set in the prose face, because a name is prose. A project's platform code is set in mono, because JS, PY and RS are identifiers the system chose."
+>
+
+<Cards columns={2}>
+  <Card title="circle · a person" note="The account in the topbar, an assignee, a member row">
+    <Avatar name="Ana Ruiz" />
+    <Avatar name="Marc Lopez" size="md" />
+  </Card>
+  <Card title="square · a thing" note="The project tile, with its platform code inside">
+    <Avatar name="Checkout API" initials="JS" shape="square" />
+    <Avatar name="Billing" initials="RS" shape="square" size="md" />
+  </Card>
+</Cards>
+
+<Rule>
+  This product has no avatar upload and never will. A photo, when one arrives
+  from an identity provider, is the exception.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Every shape at every size"
+  intro="Round against square at both sizes is the only comparison that catches the radius or the type size drifting between them."
+>
+
+<Matrix
+  columns={['sm', 'md']}
+  rows={['circle', 'square']}
+  cell={(size, shape) => (
+    <Avatar
+      name="Ana Ruiz"
+      initials={shape === 'square' ? 'JS' : undefined}
+      shape={shape}
+      size={size}
+    />
+  )}
+/>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-2"><Avatar name="Ana Ruiz" /><Text variant="control">Ana Ruiz</Text></div>}>
+    Beside the name it belongs to.
+  </Do>
+  <Dont example={<Avatar name="Ana Ruiz" />}>
+    On its own as the only identifier. Two initials are ambiguous the moment a
+    team has two people called Ana.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Avatar name="Checkout API" initials="JS" shape="square" />}>
+    Square for a project, with the platform code as its initials.
+  </Do>
+  <Dont example={<Avatar name="Checkout API" shape="circle" />}>
+    Round for a project. Round means a person.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Topbar">The account, round, small.</Place>
+  <Place at="Sidebar project card">The project, square, with its platform.</Place>
+  <Place at="Issue detail">The assignee.</Place>
+  <Place at="Members">One per row, beside the name and the role.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee>It announces nothing. An avatar sits beside the name it belongs to on every screen that has one, so announcing it would repeat the row.</Guarantee>
+  <Guarantee>Two initials at most: three is the width of a word and stops reading as a monogram.</Guarantee>
+  <Guarantee story="States">The fallback is the normal path, so a broken <code>src</code> is not a broken layout.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

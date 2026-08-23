@@ -1,0 +1,248 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Anatomy,
+  Card,
+  Cards,
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  MotionDemo,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import {
+  DeleteIcon,
+  ExportIcon,
+  MuteIcon,
+  NewIcon,
+  OverflowIcon,
+  ResolveIcon,
+} from '../icon/icon-catalog';
+import { Button } from './button';
+import * as ButtonStories from './button.stories';
+
+{/*
+  Button's page, written by hand.
+
+  What a reader needs first is which of the five variants this situation calls
+  for, and no generated props table has ever answered that. The props are the
+  last section: they are the reference, not the explanation.
+*/}
+
+<Meta of={ButtonStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Button"
+  lede="Five looks, and they are not interchangeable. The variant is a statement about where the action stands on the screen, not a colour preference."
+  note="Base UI under it for behaviour, one tv recipe for the looks, and eleven stories asserting what it promises."
+/>
+
+<Section n="01" title="Anatomy" intro="Four slots, and only the label is required.">
+
+<Anatomy
+  parts={[
+    { x: 10, label: 'icon', note: 'optional, always leading' },
+    { x: 38, label: 'label', note: 'never wraps, never shrinks' },
+    { x: 76, below: true, label: 'shortcut', note: 'the key that does the same thing' },
+    { x: 94, label: 'chevron', note: 'only when the button opens a menu' },
+  ]}
+>
+  <Button variant="primary" size="lg" icon={ResolveIcon} shortcut="R" menu>
+    Resolve issue
+  </Button>
+</Anatomy>
+
+</Section>
+
+<Section
+  n="02"
+  title="The five variants"
+  intro="Pick by where the action stands on the screen, not by how much attention you would like it to get."
+>
+
+<Cards columns={3}>
+  <Card title="primary" note="One per screen, and it is what the screen is for">
+    <Button variant="primary" icon={ResolveIcon}>Resolve</Button>
+  </Card>
+  <Card title="secondary" note="The alternatives standing next to it">
+    <Button variant="secondary" icon={MuteIcon}>Mute</Button>
+  </Card>
+  <Card title="ghost" note="Rows and toolbars, where borders would draw a grid">
+    <Button variant="ghost" icon={ExportIcon}>Export</Button>
+  </Card>
+  <Card title="danger" note="Destructive, always behind a confirmation">
+    <Button variant="danger" icon={DeleteIcon}>Delete project</Button>
+  </Card>
+  <Card title="danger-primary" note="Only inside that confirmation">
+    <Button variant="danger-primary">Delete</Button>
+  </Card>
+  <Card title="icon only" note="Square, and the type demands aria-label">
+    <Button variant="ghost" aria-label="More actions" icon={OverflowIcon} />
+  </Card>
+</Cards>
+
+<Rule>
+  Lime is the only saturated colour Rustrak spends on something that is not an
+  alarm. Spending it twice on one screen spends it on nothing.
+</Rule>
+
+</Section>
+
+<Section
+  n="03"
+  title="Every variant against every state"
+  intro="The comparison is the documentation: drift shows up as one cell that does not match its row."
+>
+
+<Matrix
+  columns={['primary', 'secondary', 'ghost', 'danger', 'danger-primary']}
+  rows={['default', 'selected', 'loading', 'disabled']}
+  cell={(variant, state) => (
+    <Button
+      variant={variant}
+      icon={ResolveIcon}
+      selected={state === 'selected' ? true : undefined}
+      loading={state === 'loading'}
+      disabled={state === 'disabled'}
+    >
+      Resolve
+    </Button>
+  )}
+/>
+
+<P><code>selected</code> is only honoured by <code>secondary</code> and <code>ghost</code>: a primary is already the screen's main action, so it cannot additionally be switched on.</P>
+
+</Section>
+
+<Section
+  n="04"
+  title="Four sizes"
+  intro="All of them are the control scale, so a button lines up with an input and a select without anybody measuring."
+>
+
+<Stage label="control-xs · sm · md · lg">
+  <Button size="xs" icon={NewIcon}>New</Button>
+  <Button size="sm" icon={NewIcon}>New</Button>
+  <Button size="md" icon={NewIcon}>New</Button>
+  <Button size="lg" icon={NewIcon}>New</Button>
+</Stage>
+
+</Section>
+
+<Section
+  n="05"
+  title="Motion"
+  intro="The press is not a colour change: the button sinks, and that is what separates “I pressed it” from “the pointer went over it”."
+>
+
+<MotionDemo duration="duration-fast" ease="ease-standard" label="Press">
+  {(playing) => (
+    <Button
+      variant="primary"
+      icon={ResolveIcon}
+      className={playing ? 'scale-97' : undefined}
+    >
+      Resolve
+    </Button>
+  )}
+</MotionDemo>
+
+<P>Three per cent is a proportion, not a distance: on a 120 px button it is nearly 4 px and reads, on the 26 px square in a table row it is 0.8 px and nobody notices — so <code>xs</code> and <code>sm</code> get the shorter press. A button that opens a menu stays sunk for as long as the menu is up, because Base UI takes <code>:active</code> away the moment the panel opens.</P>
+
+</Section>
+
+<Section n="06" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex gap-2"><Button variant="primary" icon={ResolveIcon}>Resolve</Button><Button variant="secondary" icon={MuteIcon}>Mute</Button></div>}>
+    One primary, with its alternatives as secondaries beside it.
+  </Do>
+  <Dont example={<div className="flex gap-2"><Button variant="primary" icon={ResolveIcon}>Resolve</Button><Button variant="primary" icon={MuteIcon}>Mute</Button></div>}>
+    Two primaries. The screen now has no main action.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<div className="flex gap-2"><Button variant="ghost" aria-label="Export" icon={ExportIcon} /><Button variant="ghost" aria-label="Delete" icon={DeleteIcon} /><Button variant="ghost" aria-label="More actions" icon={OverflowIcon} /></div>}>
+    Ghost for a dense row of icon actions.
+  </Do>
+  <Dont example={<div className="flex gap-2"><Button variant="secondary" aria-label="Export" icon={ExportIcon} /><Button variant="secondary" aria-label="Delete" icon={DeleteIcon} /><Button variant="secondary" aria-label="More actions" icon={OverflowIcon} /></div>}>
+    Three outlines in a row. The toolbar has become a table.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Button variant="secondary" menu>Sort</Button>}>
+    Mark a button that opens a menu with <code>menu</code>. The chevron says it
+    is a folder, and it turns over while the menu is up.
+  </Do>
+  <Dont example={<Button variant="secondary">Sort</Button>}>
+    Open a menu from a plain button. It looks like something that runs.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Button variant="danger" icon={DeleteIcon}>Delete project</Button>}>
+    <code>danger</code> in a toolbar, with the confirmation behind it.
+  </Do>
+  <Dont example={<Button variant="danger-primary" icon={DeleteIcon}>Delete project</Button>}>
+    <code>danger-primary</code> outside a confirmation. A filled red button
+    gets pressed before it gets read.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="07" title="Where it is used" intro="The part that decides how many of these belong in one place.">
+
+<UsedIn>
+  <Place at="Issue detail">The primary is Resolve, once, top right. Mute and Share are secondaries beside it.</Place>
+  <Place at="Issue list rows">Ghost only. A grid of outlined buttons down a list reads as a second table.</Place>
+  <Place at="Topbar">Ghost, icon-only, under a tooltip.</Place>
+  <Place at="Confirmation dialogs">danger-primary, and only there.</Place>
+  <Place at="Empty states">The primary is the way out: New project, Send a test event.</Place>
+  <Place at="Query bar">Small secondaries, so they line up with the input beside them.</Place>
+</UsedIn>
+
+</Section>
+
+<Section
+  n="08"
+  title="What it guarantees"
+  intro="Every line is asserted by a story in the sidebar, not by this page."
+>
+
+<Guarantees>
+  <Guarantee>A button with no label requires <code>aria-label</code>, and the type enforces it: <code>{'<Button icon={X} />'}</code> with no name does not compile.</Guarantee>
+  <Guarantee story="SelectedIsAnnounced"><code>selected</code> publishes <code>aria-pressed</code> in both directions, so a filter that is off still announces itself as a toggle.</Guarantee>
+  <Guarantee story="DoesNotFireWhileLoading"><code>loading</code> sets <code>aria-busy</code>, swaps the icon for a spin and blocks the click.</Guarantee>
+  <Guarantee story="DoesNotFireWhenDisabled">Disabled swallows the click, and neither disabled nor loading sinks on press.</Guarantee>
+  <Guarantee story="RespondsToTheKeyboard">Space and Enter fire it, and the focus ring is the same 2 px lime as everything else in the system.</Guarantee>
+  <Guarantee story="AsALink"><code>render</code> keeps the semantics of whatever element it becomes, including an anchor.</Guarantee>
+  <Guarantee story="TheCursorSaysItIsPressable">The cursor is a pointer while it can be pressed and the default arrow when it cannot.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="09" title="Props" intro="Generated from the types. If something here is undocumented, the fix is a doc comment on the prop.">
+
+<Controls of={ButtonStories.Primary} />
+
+</Section>
+
+</DocPage>
+</Unstyled>

@@ -1,0 +1,137 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  TypeRow,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from './text';
+import * as TextStories from './text.stories';
+
+<Meta of={TextStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Text"
+  lede="Every piece of text in the system. The variant chooses the role — page-title, control, mono — never the size."
+  note="Nineteen roles and fourteen tones. Retuning the scale is one file, not two hundred call sites."
+/>
+
+<Section
+  n="01"
+  title="Role, tone and element are three separate questions"
+  intro="A component asks for the rank the text has in the page; the system decides what that costs in pixels, how loud it is, and nothing about which tag it becomes."
+>
+
+<Stage label="one role, three elements" stack>
+  <Text variant="card-title" render={<h3 />}>As a heading</Text>
+  <Text variant="card-title" render={<span />}>As a span inside a row</Text>
+  <Text variant="card-title" render={<p />}>As a paragraph</Text>
+</Stage>
+
+<Rule>
+  A card title is an h3 on one screen and a span inside a row on another, and
+  it has to look the same in both.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="The roles"
+  intro="Ten in Geist for what a person wrote, seven in Geist Mono for what the machine did, and two figures that break the rule on purpose. The whole scale, set in itself, is on Foundations → Typography."
+>
+
+<TypeRow token="title" role="an issue's title" className="text-title" sample="TypeError: cannot read properties of undefined" />
+<TypeRow token="control" role="inside a button or a tab" className="text-control" sample="Resolve issue" />
+<TypeRow token="meta" role="annotation beside something" className="text-meta" sample="3 minutes ago · 12 releases" />
+<TypeRow token="mono" role="an identifier" className="font-mono text-mono tabular-nums" sample="CHECKOUT-API-4F2" />
+<TypeRow token="numeric-lg" role="a KPI" className="text-numeric-lg tabular-nums" sample="99.42%" />
+
+</Section>
+
+<Section
+  n="03"
+  title="The tones"
+  intro="Ten steps of foreground plus the two severities, and any of them on any role. They are read against the canvas, which is the only place they ever appear."
+>
+
+<Stage label="the ranks of one row" stack>
+  <Text variant="body">default — a title</Text>
+  <Text variant="body" tone="secondary">secondary — body</Text>
+  <Text variant="body" tone="tertiary">tertiary — a label</Text>
+  <Text variant="body" tone="muted">muted — an identifier</Text>
+  <Text variant="body" tone="subtle">subtle — an icon at rest</Text>
+  <Text variant="body" tone="meta">meta — a timestamp</Text>
+  <Text variant="body" tone="ghost">ghost — a chevron</Text>
+  <Text variant="body" tone="error">error — a level</Text>
+</Stage>
+
+</Section>
+
+<Section n="04" title="Guidelines">
+
+<DoDont>
+  <Do example={<Text variant="mono">CHECKOUT-API-4F2</Text>}>
+    Mono for anything the system produced and somebody might copy out of the
+    page.
+  </Do>
+  <Dont example={<Text variant="body">CHECKOUT-API-4F2</Text>}>
+    An identifier in the prose face. It stops reading as a value.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Text variant="section" render={<h2 />}>Unresolved issues</Text>}>
+    Pick the role for its rank, then choose the element separately.
+  </Do>
+  <Dont example={<Text variant="title" render={<h2 />} className="text-meta">Unresolved issues</Text>}>
+    Override the size through <code>className</code>. That is a new role
+    nobody else can reach.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="05" title="Where it is used">
+
+<UsedIn>
+  <Place at="Everywhere">There is no bare span with a type class in this package.</Place>
+  <Place at="Issue rows">card-title for the title, mono-sm for the frame, meta for the age.</Place>
+  <Place at="Overview KPIs">numeric-lg, the one place Geist is used for figures.</Place>
+  <Place at="Table heads">column, which is uppercase mono on its own.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="06" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="TheElementIsChosenSeparately"><code>render</code> keeps the semantics of the element it becomes; the role only decides how it is set.</Guarantee>
+  <Guarantee story="Truncated"><code>truncate</code> clips to one line and brings its own <code>min-w-0</code>, so it works inside a flex row without the caller knowing why.</Guarantee>
+  <Guarantee>The machine roles carry <code>font-mono</code> and <code>tabular-nums</code> themselves — a caller cannot forget the figures.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="07" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

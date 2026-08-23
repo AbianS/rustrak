@@ -1,0 +1,187 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Anatomy,
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Field, FieldError, FieldHint, FieldLabel } from '../field/field';
+import { CloseIcon, SearchIcon } from '../icon/icon-catalog';
+import { Kbd } from '../kbd/kbd';
+import { Text } from '../text/text';
+import { Input, InputAction, Textarea } from './input';
+import * as InputStories from './input.stories';
+
+<Meta of={InputStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Input"
+  lede="The text field, and the box every text control in the system shares with it."
+  note="Input, Textarea and whatever field comes next all measure, frame and react the same, because the box is one file they all use."
+/>
+
+<Section
+  n="01"
+  title="Anatomy"
+  intro="A symbol glued to the start, the control itself, and a button at the end."
+>
+
+<Anatomy
+  parts={[
+    { x: 8, label: 'leading', note: 'a search glass, a unit, a currency' },
+    { x: 45, label: 'control', note: 'the input or the textarea' },
+    { x: 92, below: true, label: 'action', note: 'clear, reveal, open — an InputAction' },
+  ]}
+>
+  <div className="w-80">
+    <Input
+      aria-label="Search issues"
+      placeholder="Search issues…"
+      leading={<SearchIcon size="sm" />}
+      action={<InputAction aria-label="Clear" icon={CloseIcon} />}
+    />
+  </div>
+</Anatomy>
+
+<Rule>
+  The box takes no state props: it reads the control it wraps. Whoever sets
+  disabled — the caller, a fieldset above, Base UI while validating — the box
+  finds out the same way.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Every state"
+  intro="Rule order is priority order, and they all weigh the same in CSS: normal, read-only, invalid, disabled."
+>
+
+<Matrix
+  columns={['normal', 'read-only', 'invalid', 'disabled']}
+  rows={['input']}
+  cell={(state) => (
+    <div className="w-52">
+      <Input
+        aria-label={state}
+        defaultValue="checkout-api"
+        readOnly={state === 'read-only'}
+        invalid={state === 'invalid'}
+        disabled={state === 'disabled'}
+      />
+    </div>
+  )}
+/>
+
+</Section>
+
+<Section
+  n="03"
+  title="Inside a Field"
+  intro="Field is what ties the label, the control, the hint and the error together by id and aria-describedby. On its own, an input needs an aria-label instead."
+>
+
+<Stage stack>
+  <div className="w-80">
+    <Field>
+      <FieldLabel required>Environment</FieldLabel>
+      <Input placeholder="production" />
+      <FieldHint>Comma separated. Leave empty for every environment.</FieldHint>
+    </Field>
+  </div>
+  <div className="w-80">
+    <Field invalid>
+      <FieldLabel>DSN</FieldLabel>
+      <Input defaultValue="http://" invalid />
+      <FieldError>A DSN has to include the project id.</FieldError>
+    </Field>
+  </div>
+</Stage>
+
+<P>The error replaces the hint while it stands, so a field never stacks two lines of small print. The required asterisk is decoration: what announces it is the control's own <code>required</code>.</P>
+
+</Section>
+
+<Section n="04" title="Textarea and numeric">
+
+<Stage stack>
+  <div className="w-80">
+    <Textarea aria-label="Note" rows={3} placeholder="Why this was muted…" />
+  </div>
+  <div className="w-40">
+    <Input aria-label="Threshold" numeric defaultValue="12480" />
+  </div>
+</Stage>
+
+<P><code>numeric</code> is tabular figures and end alignment: a column of thresholds has to line up down the page.</P>
+
+</Section>
+
+<Section n="05" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="w-64"><Field><FieldLabel>Environment</FieldLabel><Input placeholder="production" /></Field></div>}>
+    A label above the field, always.
+  </Do>
+  <Dont example={<div className="w-64"><Input aria-label="Environment" placeholder="Environment" /></div>}>
+    A placeholder standing in for the label. It disappears as soon as somebody
+    types.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<div className="w-64"><Input aria-label="Search" leading={<SearchIcon size="sm" />} placeholder="Search Rustrak…" action={<Kbd>⌘K</Kbd>} /></div>}>
+    One symbol leading, one action trailing.
+  </Do>
+  <Dont example={<div className="w-64"><Input aria-label="Search" leading={<SearchIcon size="sm" />} action={<div className="flex gap-1"><InputAction aria-label="Clear" icon={CloseIcon} /><InputAction aria-label="Close" icon={CloseIcon} /></div>} /></div>}>
+    A row of buttons inside the field. That is a toolbar wearing a field.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="06" title="Where it is used">
+
+<UsedIn>
+  <Place at="Global search">Leading glass, trailing ⌘K.</Place>
+  <Place at="Query bar">The token search, which builds on the same box.</Place>
+  <Place at="Settings">Inside Field, with labels, hints and errors.</Place>
+  <Place at="Filter panels">Small, inside a popup.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="07" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="Wired">Inside a <code>Field</code> it wires itself to the label and the error through Base UI; nothing has to be threaded by hand.</Guarantee>
+  <Guarantee story="States">Read-only settles into the surface and keeps its text: what goes is the promise of a caret.</Guarantee>
+  <Guarantee>The focus ring is on the box, not the control, so the whole field lights up as one thing.</Guarantee>
+  <Guarantee><code>:read-only</code> is matched only on an <code>input</code> or <code>textarea</code> — in CSS it also matches a span or a button, which once painted every adorned field grey.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="08" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

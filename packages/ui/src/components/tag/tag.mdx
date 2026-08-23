@@ -1,0 +1,138 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Card,
+  Cards,
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Tag } from './tag';
+import * as TagStories from './tag.stories';
+
+<Meta of={TagStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Tag"
+  lede="A status label: ERROR, FATAL, REGRESSION, STABLE, Owner. Plain coloured text by default, and a fill only when it stands alone."
+  note="Uppercase mono, five tones, two variants. The tone never carries the meaning on its own."
+/>
+
+<Section
+  n="01"
+  title="Why it has no box"
+  intro="An issue list is already a grid of rows and rules. A filled pill on every row turned severity into confetti: the eye stopped reading the words and started counting the colours."
+>
+
+<Stage label="the default, down a column" stack>
+  <div className="flex items-baseline gap-3">
+    <Tag tone="error">error</Tag>
+    <Text variant="card-title">TypeError: cannot read properties of undefined</Text>
+  </div>
+  <div className="flex items-baseline gap-3">
+    <Tag tone="error">fatal</Tag>
+    <Text variant="card-title">ConnectionTimeout: pool exhausted after 30000ms</Text>
+  </div>
+  <div className="flex items-baseline gap-3">
+    <Tag tone="warning">warn</Tag>
+    <Text variant="card-title">ValidationError: coupon code not applicable</Text>
+  </div>
+  <div className="flex items-baseline gap-3">
+    <Tag tone="info">info</Tag>
+    <Text variant="card-title">DeprecationWarning: legacy shipping API called</Text>
+  </div>
+</Stage>
+
+<Rule>
+  The uppercase mono setting is what makes it read as a label rather than as
+  prose. The colour is a second signal, never the only one.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Both variants against every tone"
+  intro="text and soft share a palette and differ only in whether it fills, so a tone that has drifted in one and not the other is invisible on separate pages."
+>
+
+<Matrix
+  columns={['error', 'warning', 'info', 'brand', 'neutral']}
+  rows={['text', 'soft']}
+  cell={(tone, variant) => (
+    <Tag tone={tone} variant={variant}>
+      {tone}
+    </Tag>
+  )}
+/>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex items-baseline gap-3"><Tag tone="error">error</Tag><Text variant="card-title">TypeError: undefined</Text></div>}>
+    Plain text beside the thing it labels, in a list.
+  </Do>
+  <Dont example={<div className="flex items-baseline gap-3"><Tag tone="error" variant="soft">error</Tag><Text variant="card-title">TypeError: undefined</Text></div>}>
+    A fill on every row. Two hundred of these and the list is confetti.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-2"><Text variant="value">Ana Ruiz</Text><Tag tone="brand" variant="soft">owner</Tag></div>}>
+    <code>soft</code> for a label standing on its own, with nothing nearby to
+    read it against.
+  </Do>
+  <Dont example={<Tag tone="neutral">18 events</Tag>}>
+    A figure in a tag. That is <code>Count</code>, and it is mono for a
+    different reason.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list">The level, first column, plain text.</Place>
+  <Place at="Issue detail">Regression and New beside the title.</Place>
+  <Place at="Releases">The state of a release, soft, on its card.</Place>
+  <Place at="Members">A role beside a name, soft.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee>Every tag is a word, and the word survives the colour being unavailable.</Guarantee>
+  <Guarantee story="DownAColumn">It never wraps and never shrinks, so a column of levels stays a column.</Guarantee>
+  <Guarantee story="States">The two variants share one palette: a tone cannot drift in <code>text</code> without drifting in <code>soft</code>.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

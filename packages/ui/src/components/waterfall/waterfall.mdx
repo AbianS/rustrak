@@ -1,0 +1,94 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  DocPage,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as WaterfallStories from './waterfall.stories';
+
+<Meta of={WaterfallStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Waterfall"
+  lede="The request, drawn: every span a bar on one shared clock."
+  note="The reading it has to give up in one glance is where the time went and what broke."
+/>
+
+<Section
+  n="01"
+  title="Two columns, split by a divider you can drag"
+  intro="The tree names, the timeline measures. A fixed gutter is always wrong for somebody's span names."
+>
+
+<Canvas of={WaterfallStories.Trace} sourceState="none" />
+
+<Rule>
+  The duration rides beside its own bar — outside it until the bar is wide
+  enough to hold it — so the number never has to be hunted across the row.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="What a fold hides is written on the fold"
+  intro="The chevron is a pill carrying the descendant count, and runs of identical leaf siblings collapse into one autogrouped row."
+>
+
+<Canvas of={WaterfallStories.FoldsAndGroups} sourceState="none" />
+
+<P>An N+1 of forty queries is one line saying ×40, not forty lines saying the same thing.</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="Colour by kind, and one red"
+  intro="db, internal and http each have their own colour; the error is the page's only red."
+>
+
+<Canvas of={WaterfallStories.MissingInstrumentation} sourceState="none" />
+
+<P>A hatched row is time nobody measured: the gap between a parent's span and its children's. Drawing it is what stops a trace from lying by omission.</P>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Trace view">The whole screen.</Place>
+  <Place at="Issue detail">The trace the event belongs to, under its own tab.</Place>
+  <Place at="Performance">A slow transaction, opened from the list.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="Keyboard">The tree is a roving-tabindex tree: arrows walk and fold, and the whole trace is reachable without a pointer.</Guarantee>
+  <Guarantee story="Selection">Selecting a span keeps it selected while the tree folds around it.</Guarantee>
+  <Guarantee story="ResizableSplit">The divider is draggable and the split survives a re-render.</Guarantee>
+  <Guarantee story="Narrow">At a narrow width the timeline keeps its clock; it is the names that give up room.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

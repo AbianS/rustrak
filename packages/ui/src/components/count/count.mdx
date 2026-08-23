@@ -1,0 +1,126 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Count } from './count';
+import * as CountStories from './count.stories';
+
+<Meta of={CountStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Count"
+  lede="The figure that trails a label: 143 beside Issues, 12.4 K beside the Events tab, 8 beside a menu entry."
+  note="Mono, no box, four tones, and zero draws nothing at all."
+/>
+
+<Section
+  n="01"
+  title="It never stands on its own"
+  intro="A count is an annotation of the thing beside it. On its own it is a number with no unit and no subject."
+>
+
+<Stage label="where it appears" stack>
+  <div className="flex items-center gap-2">
+    <Text variant="control">Issues</Text>
+    <Count>143</Count>
+  </div>
+  <div className="flex items-center gap-2">
+    <Text variant="control">Events</Text>
+    <Count tone="strong">12.4 K</Count>
+  </div>
+  <div className="flex items-center gap-2">
+    <Text variant="control">Muted</Text>
+    <Count tone="muted">36</Count>
+  </div>
+</Stage>
+
+<Rule>
+  Being mono is what stops the sidebar twitching sideways every time a number
+  gains a digit.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Four tones"
+  intro="One step of contrast apart, and that is deliberate: a count is never the thing you are meant to look at."
+>
+
+<Matrix
+  columns={['default', 'muted', 'strong', 'brand']}
+  rows={['count']}
+  cell={(tone) => <Count tone={tone}>1,208</Count>}
+/>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-2"><Text variant="control">Unresolved</Text><Count>143</Count></div>}>
+    Trailing its label, one step quieter than it.
+  </Do>
+  <Dont example={<Count tone="brand">143</Count>}>
+    On its own. Without the label it is a number about nothing.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-2"><Text variant="control">Events</Text><Count>12.4 K</Count></div>}>
+    Formatted by the caller, for the reader's locale.
+  </Do>
+  <Dont example={<div className="flex items-center gap-2"><Text variant="control">Events</Text><Count>12408.0</Count></div>}>
+    A raw figure. The component prints what it is handed.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Sidebar routes">The unresolved count beside Issues.</Place>
+  <Place at="Tabs">The size of each bucket: Unresolved, Resolved, Muted.</Place>
+  <Place at="Menus">How many a filter would match.</Place>
+  <Place at="Table headers">The number of rows behind a group.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ZeroDrawsNothing">Zero renders nothing at all, so no caller has to guard: an empty count reads as “there are none”, which is the state that deserves no ink.</Guarantee>
+  <Guarantee>Tabular figures, so a column of counts lines up and a changing number does not move its neighbours.</Guarantee>
+  <Guarantee>It takes the string the caller formatted; it does not format, and it does not know the locale.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

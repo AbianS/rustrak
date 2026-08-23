@@ -1,0 +1,109 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Separator } from './separator';
+import * as SeparatorStories from './separator.stories';
+
+<Meta of={SeparatorStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Separator"
+  lede="A rule, in the weight the surface it lands on can carry."
+  note="Three tones, two orientations. The tone exists because this product stacks four surfaces."
+/>
+
+<Section
+  n="01"
+  title="Three weights, one step apart"
+  intro="divider is the hairline between rows of a list, default separates blocks on a panel, strong closes a region off."
+>
+
+<Stage label="the three, on the panel they are read against" stack>
+  <Text variant="mono-sm" tone="ghost">divider</Text>
+  <Separator tone="divider" />
+  <Text variant="mono-sm" tone="ghost">default</Text>
+  <Separator />
+  <Text variant="mono-sm" tone="ghost">strong</Text>
+  <Separator tone="strong" />
+</Stage>
+
+<Rule>
+  The three are one step of contrast apart, so the only way to tell that two
+  have not drifted into each other is to put them in one frame.
+</Rule>
+
+</Section>
+
+<Section n="02" title="Vertical" intro="Between controls in a toolbar, where it needs a parent with a height.">
+
+<Stage>
+  <div className="flex h-8 items-center gap-3">
+    <Text variant="control">Unresolved</Text>
+    <Separator orientation="vertical" />
+    <Text variant="control" tone="secondary">Resolved</Text>
+    <Separator orientation="vertical" tone="divider" />
+    <Text variant="control" tone="secondary">Muted</Text>
+  </div>
+</Stage>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="w-56"><Text variant="meta" tone="secondary">Between rows</Text><Separator tone="divider" /><Text variant="meta" tone="secondary">of a list</Text></div>}>
+    <code>divider</code> inside a list, where there is one every row.
+  </Do>
+  <Dont example={<div className="w-56"><Text variant="meta" tone="secondary">Between rows</Text><Separator tone="strong" /><Text variant="meta" tone="secondary">of a list</Text></div>}>
+    <code>strong</code> repeated down a list. The rules start reading as the
+    content.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Menus">Between groups of entries.</Place>
+  <Place at="Dialog">Under the header and over the footer.</Place>
+  <Place at="Toolbars">Vertical, between clusters of controls.</Place>
+  <Place at="Sidebar">Closing the project card off from the routes.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItAnnouncesAsASeparator">It announces as a separator, which is what keeps it out of the reading order as content.</Guarantee>
+  <Guarantee>Vertical takes its height from the parent, so a toolbar decides how tall its rules are.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

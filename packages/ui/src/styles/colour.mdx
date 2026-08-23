@@ -1,0 +1,202 @@
+import { Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import { Tag } from '../components/tag/tag';
+import { Text } from '../components/text/text';
+import {
+  Arrow,
+  Cover,
+  DocPage,
+  Flow,
+  P,
+  Ramp,
+  Rule,
+  Section,
+  Stage,
+  Step,
+  Swatch,
+} from '../docs/blocks';
+
+{/*
+  The palette, drawn rather than described.
+
+  Provenance and the ratios are in README.md and pinned in contrast.test.ts.
+  This page is for the eye: what the colours are, in the order they stack, and
+  what each one is allowed to mean.
+*/}
+
+<Meta title="Foundations/Colour" />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Foundations"
+  title="Colour"
+  lede="Pure grey. One lime. Colour after that only when something is wrong."
+  note="Every value here is a token in styles/tokens.css. The ratios are pinned in contrast.test.ts, so a change to any colour has to show up in the diff as a number moving."
+/>
+
+<Section
+  n="01"
+  title="Surfaces"
+  intro="Four levels, and going up is always lighter. In dark that is the only way depth reads at all: a shadow on #121212 has almost nothing to cast onto. In light the order flips and what rises goes towards white."
+>
+
+<Ramp columns={4}>
+  <Swatch token="canvas" note="the page behind everything" className="bg-canvas" />
+  <Swatch token="panel" note="a card, a sidebar" className="bg-panel" />
+  <Swatch token="surface" note="a control at rest" className="bg-surface" />
+  <Swatch token="surface-raised" note="a menu, a dialog" className="bg-surface-raised" />
+</Ramp>
+
+<Ramp columns={4}>
+  <Swatch token="surface-hover" note="pointed at" className="bg-surface-hover" />
+  <Swatch token="surface-selected" note="held on" className="bg-surface-selected" />
+  <Swatch token="surface-chip" note="a count, a key cap" className="bg-surface-chip" />
+  <Swatch token="surface-brand" note="the one action" className="bg-surface-brand" on="text-fg-on-brand" />
+</Ramp>
+
+</Section>
+
+<Section
+  n="02"
+  title="Borders"
+  intro="Five weights, because a rule has to be read against whichever of the four surfaces it lands on."
+>
+
+<Ramp columns={6}>
+  <Swatch token="border-divider" note="between rows" className="bg-border-divider" />
+  <Swatch token="border-muted" note="inside a panel" className="bg-border-muted" />
+  <Swatch token="border-subtle" note="around a panel" className="bg-border-subtle" />
+  <Swatch token="border" note="a control" className="bg-border" />
+  <Swatch token="border-strong" note="pointed at" className="bg-border-strong" />
+  <Swatch token="border-brand" note="selected" className="bg-border-brand" on="text-canvas" />
+</Ramp>
+
+</Section>
+
+<Section
+  n="03"
+  title="Foreground"
+  intro="Ten steps sounds like a lot until you count a row: a title, an identifier, a timestamp, a count and a path all have to read as different ranks at a glance."
+>
+
+<Stage label="one row, five ranks" stack>
+  <Text variant="card-title">TypeError: cannot read properties of undefined</Text>
+  <Text variant="mono-sm" tone="secondary">at Object.handler (/srv/api/routes/checkout.ts:142:19)</Text>
+  <div className="flex gap-3">
+    <Text variant="meta" tone="muted">checkout-api</Text>
+    <Text variant="meta" tone="subtle">production</Text>
+    <Text variant="meta" tone="meta">3 minutes ago</Text>
+  </div>
+</Stage>
+
+<Ramp columns={5}>
+  <Swatch token="fg" note="a title" className="bg-fg" on="text-canvas" />
+  <Swatch token="fg-secondary" note="body" className="bg-fg-secondary" on="text-canvas" />
+  <Swatch token="fg-tertiary" note="a label" className="bg-fg-tertiary" on="text-canvas" />
+  <Swatch token="fg-muted" note="an identifier" className="bg-fg-muted" on="text-canvas" />
+  <Swatch token="fg-subtle" note="an icon at rest" className="bg-fg-subtle" on="text-canvas" />
+</Ramp>
+
+<Ramp columns={5}>
+  <Swatch token="fg-meta" note="a timestamp" className="bg-fg-meta" on="text-canvas" />
+  <Swatch token="fg-ghost" note="a chevron" className="bg-fg-ghost" on="text-canvas" />
+  <Swatch token="fg-placeholder" note="an empty field" className="bg-fg-placeholder" on="text-canvas" />
+  <Swatch token="fg-disabled" note="switched off" className="bg-fg-disabled" on="text-canvas" />
+  <Swatch token="fg-brand" note="a link, the mark" className="bg-fg-brand" on="text-canvas" />
+</Ramp>
+
+<Rule>
+  Everything from fg-meta down is annotation, and never carries meaning on its
+  own.
+</Rule>
+
+</Section>
+
+<Section
+  n="04"
+  title="Severity"
+  intro="The only colours in the product that mean something. Each level is a mark, a foreground and a surface, so the same level can be a dot, a word and a band."
+>
+
+<Ramp columns={3}>
+  <Swatch token="sev-error" note="the dot" className="bg-sev-error" on="text-white" />
+  <Swatch token="sev-error-fg" note="the word" className="bg-sev-error-fg" on="text-white" />
+  <Swatch token="sev-error-surface" note="the band" className="bg-sev-error-surface" />
+</Ramp>
+
+<Ramp columns={3}>
+  <Swatch token="sev-warning" className="bg-sev-warning" on="text-black" />
+  <Swatch token="sev-warning-fg" className="bg-sev-warning-fg" on="text-black" />
+  <Swatch token="sev-warning-surface" className="bg-sev-warning-surface" />
+</Ramp>
+
+<Ramp columns={3}>
+  <Swatch token="sev-info" className="bg-sev-info" on="text-black" />
+  <Swatch token="sev-info-fg" className="bg-sev-info-fg" on="text-black" />
+  <Swatch token="sev-info-surface" className="bg-sev-info-surface" />
+</Ramp>
+
+<Stage label="how they read in place">
+  <Tag tone="error">error</Tag>
+  <Tag tone="warning">warning</Tag>
+  <Tag tone="info">info</Tag>
+  <Tag tone="error" variant="soft">error</Tag>
+  <Tag tone="warning" variant="soft">warning</Tag>
+  <Tag tone="info" variant="soft">info</Tag>
+</Stage>
+
+</Section>
+
+<Section
+  n="05"
+  title="Destructive is not severity"
+  intro="Red on a button is an outcome you are about to cause; red on a tag is a state the system is reporting. Separate tokens, because they answer to different rules."
+>
+
+<Ramp columns={3}>
+  <Swatch token="danger" note="the filled destructive button" className="bg-danger" on="text-white" />
+  <Swatch token="danger-fg" note="its label everywhere else" className="bg-danger-fg" on="text-white" />
+  <Swatch token="danger-surface" note="its hover" className="bg-danger-surface" />
+</Ramp>
+
+</Section>
+
+<Section
+  n="06"
+  title="Charts"
+  intro="Five hues plus a muted one, validated as a palette rather than picked one at a time: they have to stay apart stacked, and under the three common colour vision deficiencies."
+>
+
+<Ramp columns={6}>
+  <Swatch token="chart-1" className="bg-chart-1" on="text-black" />
+  <Swatch token="chart-2" className="bg-chart-2" on="text-black" />
+  <Swatch token="chart-3" className="bg-chart-3" on="text-black" />
+  <Swatch token="chart-4" className="bg-chart-4" on="text-black" />
+  <Swatch token="chart-5" className="bg-chart-5" on="text-black" />
+  <Swatch token="chart-muted" note="everything else" className="bg-chart-muted" on="text-black" />
+</Ramp>
+
+<Rule>
+  Never hand a chart a colour that is not in this list or in severity. The
+  palette is validated as a set; a sixth hue invalidates the check.
+</Rule>
+
+</Section>
+
+<Section n="07" title="How a colour reaches a component">
+
+<Flow>
+  <Step label="primitive · used by nobody" value="--rk-lime-500" />
+  <Arrow />
+  <Step label="semantic · what the theme rewrites" value="--surface-brand" />
+  <Arrow />
+  <Step label="published · what a component writes" value="bg-surface-brand" tone="brand" />
+</Flow>
+
+<P>The light theme rewrites the middle layer and nothing else: one block, not fifty components. A <code>dark:</code> variant inside a component means a token is missing.</P>
+
+</Section>
+
+</DocPage>
+</Unstyled>

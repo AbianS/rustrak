@@ -1,0 +1,83 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  DocPage,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as TimeSeriesStories from './time-series-chart.stories';
+
+<Meta of={TimeSeriesStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Charts"
+  title="TimeSeriesChart"
+  lede="Events over time, adoption of a release, latency. Areas with a 2 px stroke and a gradient fill that falls to nothing."
+  note="recharts underneath, and it never leaks: the component takes series and tokens, not a chart library's props."
+/>
+
+<Section
+  n="01"
+  title="The line carries the reading"
+  intro="The fill only seats it on the baseline. Stacked, the fills turn solid at low opacity instead — stacked gradients over gradients turn to mud."
+>
+
+<Canvas of={TimeSeriesStories.SingleSeries} sourceState="none" />
+
+<Rule>
+  The grid is horizontal only and dashed: enough to carry the eye to the axis,
+  not enough to cage the data.
+</Rule>
+
+</Section>
+
+<Section n="02" title="More than one series" intro="Overlaid to compare shapes, stacked to compare composition.">
+
+<Canvas of={TimeSeriesStories.TwoSeries} sourceState="none" />
+
+<Canvas of={TimeSeriesStories.StackedAdoption} sourceState="none" />
+
+</Section>
+
+<Section n="03" title="Colour" intro="var(--chart-1) through var(--chart-5), plus the severity tokens when the series are severities.">
+
+<P>Both palettes are validated as a set — distinguishable stacked, and under the three common colour vision deficiencies. Never hand a chart a colour that is not in one of them: a sixth hue invalidates the check. The whole palette is on <strong>Foundations → Colour</strong>.</P>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Overview">Events over the chosen range.</Place>
+  <Place at="Issue detail">The issue's own volume.</Place>
+  <Place at="Releases">Adoption, stacked by version.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee>Values live in the crosshair, the tooltip and the axis — never printed on every point.</Guarantee>
+  <Guarantee>The axis is formatted by the caller, so a duration, a count and a percentage each read as themselves.</Guarantee>
+  <Guarantee>recharts stays inside: no consumer imports it, and replacing it would not change a call site.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

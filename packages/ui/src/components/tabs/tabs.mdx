@@ -1,0 +1,148 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Count } from '../count/count';
+import { Text } from '../text/text';
+import { Tab, TabList, TabPanel, Tabs } from './tabs';
+import * as TabsStories from './tabs.stories';
+
+<Meta of={TabsStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Tabs"
+  lede="The tabs that split one record or one list into views: Unresolved / Resolved / Muted, or Details / Events / Traces."
+  note="No box and no pill. A word on the page, and a lime rule underneath it."
+/>
+
+<Section
+  n="01"
+  title="Why there is no container"
+  intro="These sit directly under a page title on a dark canvas, and any container would make the header look like a toolbar. What separates one tab from the next is the gap between them, not padding inside them, so the rule ends up exactly as wide as the word it belongs to."
+>
+
+<Stage>
+  <Tabs defaultValue="unresolved">
+    <TabList meta={<Text variant="meta" tone="ghost">sort: events desc</Text>}>
+      <Tab value="unresolved">
+        Unresolved <Count>143</Count>
+      </Tab>
+      <Tab value="resolved">
+        Resolved <Count tone="muted">1,208</Count>
+      </Tab>
+      <Tab value="muted">
+        Muted <Count tone="muted">36</Count>
+      </Tab>
+    </TabList>
+  </Tabs>
+</Stage>
+
+<Rule>
+  The rule does not jump from one tab to the next, it slides. It is the only
+  animation in the system that lasts longer than instant, and the travel is
+  what says where you came from.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Manual activation, and why"
+  intro="The arrows move focus; Enter or Space chooses."
+>
+
+<P>In this product a tab is a different query — Events against Traces against Breadcrumbs — so activating on focus would fire four requests on the way from the first tab to the last.</P>
+
+<Stage stack>
+  <Tabs defaultValue="details">
+    <TabList>
+      <Tab value="details">Details</Tab>
+      <Tab value="events">Events</Tab>
+      <Tab value="traces">Traces</Tab>
+      <Tab value="breadcrumbs">Breadcrumbs</Tab>
+    </TabList>
+    <TabPanel value="details">
+      <Text variant="meta" tone="secondary">The panel each tab reveals.</Text>
+    </TabPanel>
+    <TabPanel value="events">
+      <Text variant="meta" tone="secondary">One request, made when you choose it.</Text>
+    </TabPanel>
+    <TabPanel value="traces">
+      <Text variant="meta" tone="secondary">Not on the way past.</Text>
+    </TabPanel>
+    <TabPanel value="breadcrumbs">
+      <Text variant="meta" tone="secondary">Nor here.</Text>
+    </TabPanel>
+  </Tabs>
+</Stage>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<Tabs defaultValue="a"><TabList><Tab value="a">Unresolved</Tab><Tab value="b">Resolved</Tab><Tab value="c">Muted</Tab></TabList></Tabs>}>
+    Views of one thing: the same records, filtered.
+  </Do>
+  <Dont example={<Tabs defaultValue="a"><TabList><Tab value="a">Issues</Tab><Tab value="b">Settings</Tab><Tab value="c">Members</Tab></TabList></Tabs>}>
+    Sections of the product. That is the sidebar.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Tabs defaultValue="a"><TabList><Tab value="a">Unresolved <Count>143</Count></Tab><Tab value="b">Resolved <Count tone="muted">1,208</Count></Tab></TabList></Tabs>}>
+    A count beside the label, one step quieter.
+  </Do>
+  <Dont example={<Tabs defaultValue="a"><TabList><Tab value="a">1 h</Tab><Tab value="b">24 h</Tab><Tab value="c">7 d</Tab></TabList></Tabs>}>
+    A parameter of what is already on the page. That is
+    <code>SegmentedControl</code>.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list">Unresolved / Resolved / Muted, with counts.</Place>
+  <Place at="Issue detail">Details / Events / Breadcrumbs / Traces.</Place>
+  <Place at="Release detail">The views of one release.</Place>
+  <Place at="Settings">The pages of one section, when there are few.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="TheArrowKeysMoveFocusAndEnterChooses">Arrow keys move focus and Enter or Space chooses; nothing is fetched on the way past.</Guarantee>
+  <Guarantee story="SelectionIsNotOnlyColour">The selected tab gains weight as well as the rule, so somebody who cannot pick lime out still finds it.</Guarantee>
+  <Guarantee>Base UI supplies <code>aria-selected</code>, <code>role="tabpanel"</code> and the roving focus; only the appearance lives here.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

@@ -1,0 +1,90 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as QueryBarStories from './query-bar.stories';
+
+<Meta of={QueryBarStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="QueryBar"
+  lede="One line that holds the whole question: key:value chips, with free text riding after them."
+  note="The bar always reads back as the exact string the parser accepts, so what you see is what a teammate can paste."
+/>
+
+<Section
+  n="01"
+  title="Filters are chips, and the chips are the query"
+  intro="It edits the same filter state the column header panels edit: tick Warning in the Level column and a chip appears here; delete the chip and the column's funnel goes out."
+>
+
+<Canvas of={QueryBarStories.WithFilters} sourceState="none" />
+
+<Rule>
+  One state, two views of it. A second source of truth for the same filters is
+  how two controls start disagreeing.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Autocomplete in two phases"
+  intro="The way GitHub's does. Typing offers the fields that can be asked about; choosing one writes level: and the popup turns to that field's values, ticking live as they are chosen."
+>
+
+<Canvas of={QueryBarStories.CompleteAFilter} sourceState="none" />
+
+<P>Free text never needs a phase: whatever no key claims is the search, and Enter sends it.</P>
+
+</Section>
+
+<Section n="03" title="At a narrow width" intro="The chips keep their shape and the bar scrolls; the query is never truncated into something that would parse differently.">
+
+<Canvas of={QueryBarStories.Narrow} sourceState="none" />
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list">Above the table, holding the whole query.</Place>
+  <Place at="Events">The same bar over a different field set.</Place>
+  <Place at="Saved views">What a saved view stores is the string this bar produces.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="RemoveWithBackspace">Backspace at the start of the text deletes the chip before it, the way every token field has taught.</Guarantee>
+  <Guarantee story="FreeText">Whatever no key claims is free text, and Enter sends the query.</Guarantee>
+  <Guarantee story="TypedRange">A typed range is parsed into the same filter a panel would have produced.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

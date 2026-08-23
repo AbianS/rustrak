@@ -1,0 +1,121 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Kbd } from './kbd';
+import * as KbdStories from './kbd.stories';
+
+<Meta of={KbdStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Kbd"
+  lede="A keyboard shortcut, shown next to the thing it triggers."
+  note="No key cap, no border, no box. The mono face and the drop in contrast are what separate it from the label."
+/>
+
+<Section
+  n="01"
+  title="It is always inside something that already has an edge"
+  intro="A search field, a menu row, the foot of a popup. Drawing a second frame inside the first one made a search box look like it contained a button."
+>
+
+<Stage label="in place" stack>
+  <div className="flex w-72 items-center justify-between rounded-md border border-border-field bg-surface px-3 py-2">
+    <Text variant="control" tone="placeholder">Search Rustrak…</Text>
+    <Kbd>⌘K</Kbd>
+  </div>
+  <div className="flex w-72 items-center justify-between rounded-sm px-3 py-1.5">
+    <Text variant="control">Resolve</Text>
+    <Kbd tone="muted">R</Kbd>
+  </div>
+</Stage>
+
+<Rule>
+  A shortcut is read once and then remembered. It never needs to be louder than
+  the label it belongs to.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Three tones"
+  intro="on-brand is drawn on lime because that is the only surface it is ever used on."
+>
+
+<Stage>
+  <Kbd>⌘K</Kbd>
+  <Kbd tone="muted">Esc</Kbd>
+  <span className="rounded-sm bg-surface-brand px-2 py-1">
+    <Kbd tone="on-brand">⏎</Kbd>
+  </span>
+</Stage>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-3"><Text variant="control">Resolve</Text><Kbd>R</Kbd></div>}>
+    At the end of the thing it triggers.
+  </Do>
+  <Dont example={<Kbd>R</Kbd>}>
+    On its own, with nothing to trigger. A shortcut is not a badge.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Kbd>⌘K</Kbd>}>
+    The symbol as it is printed on the key.
+  </Do>
+  <Dont example={<Kbd>Cmd + K</Kbd>}>
+    Spelled out. The reader is looking for the shape on the keyboard.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Global search">⌘K, at the right edge of the field.</Place>
+  <Place at="Menus">The shortcut for each entry.</Place>
+  <Place at="Buttons">Through the button's own <code>shortcut</code> prop.</Place>
+  <Place at="Filter panels">Esc at the foot of the popup.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItIsMarkedUpAsAKey">It renders a <code>&lt;kbd&gt;</code>, so the shortcut is marked up as one and not as prose.</Guarantee>
+  <Guarantee>It never wraps: a two-key shortcut stays on one line inside a row that is already tight.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

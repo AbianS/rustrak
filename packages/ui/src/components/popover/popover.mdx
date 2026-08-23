@@ -1,0 +1,123 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Button } from '../button/button';
+import { Checkbox } from '../checkbox/checkbox';
+import { FacetsIcon, SearchIcon } from '../icon/icon-catalog';
+import { Input } from '../input/input';
+import { Text } from '../text/text';
+import { Popover } from './popover';
+import * as PopoverStories from './popover.stories';
+
+<Meta of={PopoverStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Popover"
+  lede="A floating panel with interactive content: a filter with its search field, a date range with its presets."
+  note="The same surface as a menu, on purpose. What differs is who owns focus."
+/>
+
+<Section
+  n="01"
+  title="It exists beside Menu, and the difference is the whole point"
+  intro="A menu owns focus — arrow keys walk items, typing selects by first letter — which is exactly wrong for a panel whose first element is an input. A popover hands focus to its content and lets it be content."
+>
+
+<Stage label="a filter panel">
+  <Popover
+    title="Environment"
+    trigger={<Button variant="secondary" icon={FacetsIcon}>Filter</Button>}
+    hints={['Enter applies', 'Esc closes']}
+    popupClassName="w-64"
+  >
+    <div className="flex flex-col gap-3">
+      <Input aria-label="Search environments" leading={<SearchIcon size="sm" />} placeholder="Search…" />
+      <div className="flex flex-col gap-2">
+        {['production', 'staging', 'development'].map((env) => (
+          <div key={env} className="flex items-center gap-2">
+            <Checkbox aria-label={env} defaultChecked={env === 'production'} />
+            <Text variant="control">{env}</Text>
+          </div>
+        ))}
+      </div>
+    </div>
+  </Popover>
+</Stage>
+
+<Rule>
+  To the person looking at it, both are “a panel out of that button”. Two
+  shades of the same panel would read as a bug, so the surface is shared line
+  for line.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Focus lands where the work is"
+  intro="Base UI's default is the popup itself; a filter panel points initialFocus at its search input instead, so the panel opens ready to be typed into."
+>
+
+<Canvas of={PopoverStories.FocusHandling} sourceState="none" />
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<Popover title="Range" trigger={<Button variant="secondary">Custom range</Button>} popupClassName="w-56"><Text variant="meta" tone="secondary">Two date fields and four presets.</Text></Popover>}>
+    Content that has to be operated: fields, checkboxes, a calendar.
+  </Do>
+  <Dont example={<Popover trigger={<Button variant="secondary">Actions</Button>} popupClassName="w-48"><div className="flex flex-col gap-2"><Text variant="control">Resolve</Text><Text variant="control">Mute</Text></div></Popover>}>
+    A list of actions. That is a <code>Menu</code>, and it walks with the arrow
+    keys.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Data table">The filter panel behind a column header.</Place>
+  <Place at="Query bar">The value picker for a token.</Place>
+  <Place at="Charts">The custom range.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="FocusHandling">Focus goes where the caller points it, and comes back to the trigger when the panel closes.</Guarantee>
+  <Guarantee>Escape closes it; the click that closes it does not also press what is underneath.</Guarantee>
+  <Guarantee>It grows out of the button it was opened from, rising 4 px as it arrives and sinking back as it goes.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

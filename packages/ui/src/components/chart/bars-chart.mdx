@@ -1,0 +1,82 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  DocPage,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as BarsStories from './bars-chart.stories';
+
+<Meta of={BarsStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Charts"
+  title="BarsChart"
+  lede="Bucketed bars over time: the events-by-severity chart, a log volume."
+  note="Stacked by default, because that is what the product asks of it — one column per bucket, severity as bands."
+/>
+
+<Section
+  n="01"
+  title="The bands separate with a gap, not a shade"
+  intro="A 1 px stroke of the surface between bands, rather than a lighter tint of the colour above."
+>
+
+<Canvas of={BarsStories.BySeverity} sourceState="none" />
+
+<Rule>
+  A real gap survives every kind of colour-blindness, which is what lets error
+  sit next to warning.
+</Rule>
+
+<P>Only the top of the column is rounded: data grows from the baseline, and the baseline stays sharp.</P>
+
+</Section>
+
+<Section n="02" title="One series" intro="A volume with nothing to compose: the same bars, one colour.">
+
+<Canvas of={BarsStories.SingleSeries} sourceState="none" />
+
+</Section>
+
+<Section n="03" title="Colour">
+
+<P>When the series are severities, they are handed their own tokens — <code>var(--sev-error)</code> and its neighbours. Status colours are reserved and never come out of the categorical order: an error band that happened to land on chart-3 would be teaching the reader the wrong thing.</P>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Overview">Events by severity, over the chosen range.</Place>
+  <Place at="Logs">Volume by level.</Place>
+  <Place at="Issue detail">The bucketed history under the title.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee>Empty buckets keep their place: a gap in time is drawn as a gap, not closed up.</Guarantee>
+  <Guarantee>The tooltip reports the whole column, so a stacked reading is available without hovering each band.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>
