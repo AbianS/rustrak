@@ -56,3 +56,27 @@ jobs:
           cargo run --manifest-path apps/server/Cargo.toml --bin gen_openapi --features openapi
           git diff --exit-code -- apps/server/openapi.json || \
             (echo "::error::openapi.json is out of date. Run: cd apps/server && cargo run --bin gen_openapi --features openapi" && exit 1)
+
+  # The default build is SQLite, which happily masks Postgres-only breakage
+  # (e.g. sqlx type_name/column-type mismatches only fail at decode time on
+  # Postgres). The e2e suite runs migrations and the full ingest pipeline
+  # against a real Postgres via testcontainers — the only suite that compiles
+  # under the postgres feature.
+  postgres-e2e:
+    if: github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+
+      - uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
+
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+        with:
+          workspaces: apps/server -> target
+          key: postgres
+
+      - name: Run Postgres e2e tests
+        working-directory: apps/server
+        run: cargo test --no-default-features --features postgres --test e2e_tests
