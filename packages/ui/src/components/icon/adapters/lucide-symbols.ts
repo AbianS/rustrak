@@ -62,6 +62,7 @@ export {
   Star,
   Trash2,
   TriangleAlert,
+  Undo2,
   User,
   Users,
   VolumeX,
