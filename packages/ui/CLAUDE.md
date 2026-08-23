@@ -100,9 +100,11 @@ right and the new number gets written down, or it is not.
 - import `lucide-react` anywhere except `components/icon/adapters/lucide.tsx`.
 - build classes with template literals. Tailwind extracts statically, so
   `bg-${name}` is a rule that is silently never generated.
-- reach for a chart. That is a later pass and it needs decisions this one has
-  not made. The table and the filter bar exist now: `data-table/` and
-  `query-bar/` — extend those rather than starting parallel ones.
+- start a parallel table, filter bar or chart. They exist: `data-table/`,
+  `query-bar/` and `chart/` (recharts behind `TimeSeriesChart`/`BarsChart`,
+  hand-drawn `Sparkline` for rows) — extend those. Chart colours are
+  `var(--chart-*)` and the severity tokens, validated as a palette; never
+  hand a chart a new colour without re-running that validation.
 - give the `backgrounds` addon a hex. It writes its value onto the preview body,
   so a literal pins the page to one theme while the components inside it follow
   the other. Hand it `var(--surface-canvas)`.

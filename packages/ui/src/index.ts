@@ -134,6 +134,26 @@ export { Tooltip, TooltipProvider } from './components/tooltip/tooltip';
 
 export type { CheckboxProps } from './components/checkbox/checkbox';
 export { Checkbox } from './components/checkbox/checkbox';
+export type {
+  FieldErrorProps,
+  FieldHintProps,
+  FieldLabelProps,
+  FieldProps,
+} from './components/field/field';
+export {
+  Field,
+  FieldError,
+  FieldHint,
+  FieldLabel,
+} from './components/field/field';
+export type {
+  InputActionProps,
+  InputProps,
+  TextareaProps,
+} from './components/input/input';
+export { Input, InputAction, Textarea } from './components/input/input';
+export type { InputShellSize } from './components/input/input-shell';
+export { inputShell } from './components/input/input-shell';
 export type { PopoverProps } from './components/popover/popover';
 export { Popover } from './components/popover/popover';
 
@@ -176,6 +196,27 @@ export type {
   UseDataTableOptions,
 } from './components/data-table/use-data-table';
 export { useDataTable } from './components/data-table/use-data-table';
+
+/* --- Charts -------------------------------------------------------------- */
+
+export type { BarsChartProps } from './components/chart/bars-chart';
+export { BarsChart } from './components/chart/bars-chart';
+export type {
+  ChartSeries,
+  ChartTooltipProps,
+} from './components/chart/chart-parts';
+export {
+  ChartLegend,
+  ChartTooltip,
+  seriesColor,
+} from './components/chart/chart-parts';
+export type {
+  SparklineProps,
+  SparklineTone,
+} from './components/chart/sparkline';
+export { Sparkline } from './components/chart/sparkline';
+export type { TimeSeriesChartProps } from './components/chart/time-series-chart';
+export { TimeSeriesChart } from './components/chart/time-series-chart';
 
 /* --- Overlays ------------------------------------------------------------ */
 

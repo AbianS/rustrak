@@ -1,8 +1,6 @@
-import { type ReactNode, useId, useState } from 'react';
-import { focusRingWithin } from '../../lib/focus';
-import { interactiveTransition } from '../../lib/motion';
-import { tv } from '../../lib/tv';
+import { type ReactNode, useState } from 'react';
 import { Button } from '../button/button';
+import { Field, FieldLabel } from '../field/field';
 import type { IconComponent } from '../icon/icon';
 import {
   DeleteIcon,
@@ -10,6 +8,7 @@ import {
   OkIcon,
   WarningIcon,
 } from '../icon/icon-catalog';
+import { Input } from '../input/input';
 import {
   DialogBody,
   DialogClose,
@@ -28,28 +27,6 @@ import { createDialog } from './dialog-manager';
  * -- choosing in a table, filling a form, showing a long process's outcome
  * -- is written with `createDialog`.
  */
-
-/*
- * The unlock field. The package has no Input primitive yet; when one
- * arrives, this recipe is what it replaces.
- */
-const phraseField = tv({
-  slots: {
-    field: [
-      'mt-2 flex h-control-md items-center rounded-md',
-      'border border-border-field bg-canvas px-2.5',
-      interactiveTransition,
-      focusRingWithin,
-    ],
-    input: [
-      'h-full w-full min-w-0 bg-transparent font-mono text-control text-fg',
-      'outline-none placeholder:text-fg-placeholder',
-    ],
-    label: 'block pt-3.5 text-fg-secondary text-label first:pt-0',
-  },
-});
-
-const phraseStyles = phraseField();
 
 export interface ConfirmOptions {
   /** What will happen, subject included: "Delete the RUSTRAK-1042 issue". */
@@ -90,7 +67,6 @@ function ConfirmContent({
   phrase,
   close,
 }: ConfirmOptions & { close: (result?: boolean) => void }) {
-  const id = useId();
   const [typed, setTyped] = useState('');
   const locked = phrase != null && typed.trim() !== phrase;
   const remaining = phrase == null ? 0 : phrase.length - typed.trim().length;
@@ -109,22 +85,21 @@ function ConfirmContent({
         <DialogBody inset>
           {details}
           {phrase ? (
-            <>
-              <label htmlFor={id} className={phraseStyles.label()}>
+            // A `Field`, which is what ties the label to the box: written by
+            // hand it would end in an `htmlFor` with no partner.
+            <Field className="pt-3.5 first:pt-0">
+              <FieldLabel>
                 Type <b className="font-mono text-fg">{phrase}</b> to continue
-              </label>
-              <div className={phraseStyles.field()}>
-                <input
-                  id={id}
-                  type="text"
-                  value={typed}
-                  onChange={(event) => setTyped(event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  className={phraseStyles.input()}
-                />
-              </div>
-            </>
+              </FieldLabel>
+              <Input
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                size="sm"
+                className="font-mono"
+              />
+            </Field>
           ) : null}
         </DialogBody>
       ) : null}
