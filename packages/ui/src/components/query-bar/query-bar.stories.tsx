@@ -5,7 +5,8 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import type { FilterOption } from '../data-table/features';
 import { IssuesIcon, ReleasesIcon, TimeIcon } from '../icon/icon-catalog';
 import { Text } from '../text/text';
-import { QueryBar, type QueryField } from './query-bar';
+import { QueryBar } from './query-bar';
+import type { QueryField } from './query-bar-parts';
 
 const LEVELS: FilterOption[] = [
   { value: 'fatal', label: 'Fatal', tone: 'error', count: 5 },

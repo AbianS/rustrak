@@ -116,6 +116,7 @@ export function OptionsFilterPanel<TData extends RowData>({
   const options = spec.options ?? loaded;
   const multiple = spec.multiple ?? true;
   const selected = (column.getFilterValue() as string[] | undefined) ?? [];
+  const selectedSet = new Set(selected);
 
   const visible = options?.filter(
     (option) =>
@@ -164,12 +165,12 @@ export function OptionsFilterPanel<TData extends RowData>({
         <button
           key={option.value}
           type="button"
-          aria-pressed={selected.includes(option.value)}
+          aria-pressed={selectedSet.has(option.value)}
           onClick={() => toggle(option.value)}
           className={styles.option()}
         >
           <span aria-hidden="true" className={styles.box()}>
-            {selected.includes(option.value) ? (
+            {selectedSet.has(option.value) ? (
               <ResolveIcon size="sm" aria-hidden="true" />
             ) : null}
           </span>
@@ -240,8 +241,8 @@ export function RangeFilterPanel<TData extends RowData>({
   const applied =
     (column.getFilterValue() as [number | null, number | null] | undefined) ??
     ([null, null] as [number | null, number | null]);
-  const [min, setMin] = useState(applied[0]?.toString() ?? '');
-  const [max, setMax] = useState(applied[1]?.toString() ?? '');
+  const [min, setMin] = useState(() => applied[0]?.toString() ?? '');
+  const [max, setMax] = useState(() => applied[1]?.toString() ?? '');
 
   if (spec?.variant !== 'range') return null;
 

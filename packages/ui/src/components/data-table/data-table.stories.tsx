@@ -8,7 +8,8 @@ import {
   MuteIcon,
   ResolveIcon,
 } from '../icon/icon-catalog';
-import { QueryBar, queryFieldsFromColumns } from '../query-bar/query-bar';
+import { QueryBar } from '../query-bar/query-bar';
+import { queryFieldsFromColumns } from '../query-bar/query-bar-parts';
 import { Tag, type TagTone } from '../tag/tag';
 import { Text } from '../text/text';
 import { TooltipProvider } from '../tooltip/tooltip';
