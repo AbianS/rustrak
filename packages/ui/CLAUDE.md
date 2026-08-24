@@ -104,13 +104,19 @@ divided by a hairline, one `Rule` per section:
    asserts it.
 8. **Props** — `<Controls />`, generated from the types.
 
-The blocks are in `src/docs/blocks`. Two rules about them:
+The blocks are in `src/docs/blocks`. Three rules about them:
 
 - the whole page goes inside `<Unstyled>`. Storybook's docs stylesheet has its
   own container width, margins and headings, and the spacing has to come from
   one place or it comes from two.
 - **MDX is not type-checked.** A wrong prop compiles and fails at runtime, so a
   new page is opened in the browser before it is called done.
+- **Nothing else reads MDX either.** `react-doctor` parses `.tsx` only, so every
+  block in `src/docs/blocks` looks like a file nobody imports. That is what
+  `doctor.config.json` in this package is for, and it is scoped here rather than
+  at the root so the pattern cannot match some other package's `src/docs`. It
+  also silences `heading-has-content` on `page.tsx`: the rule reads the element
+  given to Base UI's `render` prop literally and sees `<h2 />` with no children.
 
 `src/docs/overview.mdx` is the front page and `src/styles/*.mdx` are the
 Foundations. There are no token *stories*: those pages are the specimens now.
