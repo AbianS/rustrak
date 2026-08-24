@@ -16,6 +16,7 @@ export {
 } from './lib/focus';
 export {
   chevronFlip,
+  dropIn,
   interactiveTransition,
   popTransition,
   pressNudge,
@@ -128,6 +129,63 @@ export type {
 export { Tab, TabList, TabPanel, Tabs } from './components/tabs/tabs';
 export type { TooltipProps } from './components/tooltip/tooltip';
 export { Tooltip, TooltipProvider } from './components/tooltip/tooltip';
+
+/* --- Forms --------------------------------------------------------------- */
+
+export type { CheckboxProps } from './components/checkbox/checkbox';
+export { Checkbox } from './components/checkbox/checkbox';
+export type { PopoverProps } from './components/popover/popover';
+export { Popover } from './components/popover/popover';
+
+/* --- Data table ---------------------------------------------------------- */
+
+export type { DataTableColumnsButtonProps } from './components/data-table/columns-menu';
+export { DataTableColumnsButton } from './components/data-table/columns-menu';
+export type {
+  DataTableEmptyProps,
+  DataTableProps,
+} from './components/data-table/data-table';
+export { DataTable } from './components/data-table/data-table';
+export type {
+  ColumnFilterSpec,
+  DataTableColumnDef,
+  DataTableColumnMeta,
+  DataTableFeatures,
+  FilterOption,
+} from './components/data-table/features';
+export {
+  createDataTableColumnHelper,
+  dataTableFeatures,
+} from './components/data-table/features';
+export type { DataTablePaginationProps } from './components/data-table/pagination';
+export { DataTablePagination } from './components/data-table/pagination';
+export type {
+  DataTableQuery,
+  FilterVariants,
+} from './components/data-table/query';
+export {
+  DEFAULT_PAGE_SIZE,
+  emptyTableQuery,
+  formatFilterQuery,
+  parseFilterQuery,
+  parseTableQuery,
+  serializeTableQuery,
+} from './components/data-table/query';
+export type {
+  DataTableInstance,
+  UseDataTableOptions,
+} from './components/data-table/use-data-table';
+export { useDataTable } from './components/data-table/use-data-table';
+
+/* --- Query bar ----------------------------------------------------------- */
+
+export type { QueryBarProps } from './components/query-bar/query-bar';
+export { QueryBar } from './components/query-bar/query-bar';
+export type { QueryField } from './components/query-bar/query-bar-parts';
+export {
+  queryFieldsFromColumns,
+  variantsFromFields,
+} from './components/query-bar/query-bar-parts';
 
 /* --- Shell --------------------------------------------------------------- */
 
