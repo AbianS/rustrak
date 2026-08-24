@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useMemo, useState } from 'react';
-import { expect, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { Button } from '../button/button';
 import {
   AssignIcon,
@@ -8,7 +8,8 @@ import {
   MuteIcon,
   ResolveIcon,
 } from '../icon/icon-catalog';
-import { QueryBar, queryFieldsFromColumns } from '../query-bar/query-bar';
+import { QueryBar } from '../query-bar/query-bar';
+import { queryFieldsFromColumns } from '../query-bar/query-bar-parts';
 import { Tag, type TagTone } from '../tag/tag';
 import { Text } from '../text/text';
 import { TooltipProvider } from '../tooltip/tooltip';
@@ -275,6 +276,7 @@ const fields = queryFieldsFromColumns(columns);
 function IssuesTable({
   loading = false,
   data = undefined as Issue[] | undefined,
+  onRowClick = (row: { id: string }) => console.info('open', row.id),
 }) {
   const [query, setQuery] = useState<DataTableQuery>(() => ({
     ...emptyTableQuery(10),
@@ -350,7 +352,7 @@ function IssuesTable({
         <DataTable
           table={table}
           loading={loading}
-          onRowClick={(row) => console.info('open', row.id)}
+          onRowClick={(row) => onRowClick(row)}
           bulkActions={
             <>
               <Button
@@ -502,6 +504,30 @@ export const RowMenu: Story = {
     // Escape closes and the trigger takes the focus back.
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(first).toHaveFocus());
+  },
+};
+
+/** A row opens with Enter once focus reaches it -- the keyboard path for `onRowClick`. */
+const rowOpensFromKeyboardSpy = fn();
+
+export const RowOpensFromKeyboard: Story = {
+  render: () => <IssuesTable onRowClick={rowOpensFromKeyboardSpy} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getAllByRole('row')[1] as HTMLElement;
+
+    // Tab through the toolbar and header controls that precede the row --
+    // real key events, bounded so an unrelated column change cannot hang it.
+    for (let tabs = 0; document.activeElement !== row; tabs++) {
+      await expect(tabs).toBeLessThan(60);
+      await userEvent.tab();
+    }
+    await expect(row).toHaveFocus();
+
+    await userEvent.keyboard('{Enter}');
+    await expect(rowOpensFromKeyboardSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: expect.stringMatching(/^RUSTRAK-\d+$/) }),
+    );
   },
 };
 

@@ -1,4 +1,5 @@
 import {
+  type Column,
   type ColumnDef,
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -135,4 +136,13 @@ export type DataTableColumnDef<TData extends RowData> = ColumnDef<
 /** The column helper, pre-bound so consumers never repeat the generics. */
 export function createDataTableColumnHelper<TData extends RowData>() {
   return createColumnHelper<DataTableFeatures, TData>();
+}
+
+/** What menus call a column: its meta label, or its header when it is text. */
+export function columnLabel<TData extends RowData>(
+  column: Column<DataTableFeatures, TData, unknown>,
+): string {
+  const { meta, header } = column.columnDef;
+  if (meta?.label) return meta.label;
+  return typeof header === 'string' ? header : column.id;
 }

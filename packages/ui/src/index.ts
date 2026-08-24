@@ -223,15 +223,13 @@ export { ToastProvider, useToast } from './components/toast/toast';
 
 /* --- Query bar ----------------------------------------------------------- */
 
-export type {
-  QueryBarProps,
-  QueryField,
-} from './components/query-bar/query-bar';
+export type { QueryBarProps } from './components/query-bar/query-bar';
+export { QueryBar } from './components/query-bar/query-bar';
+export type { QueryField } from './components/query-bar/query-bar-parts';
 export {
-  QueryBar,
   queryFieldsFromColumns,
   variantsFromFields,
-} from './components/query-bar/query-bar';
+} from './components/query-bar/query-bar-parts';
 
 /* --- Shell --------------------------------------------------------------- */
 
