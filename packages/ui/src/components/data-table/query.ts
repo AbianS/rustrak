@@ -90,6 +90,15 @@ function tokenize(input: string): string[] {
   return tokens;
 }
 
+/** A space or a quote forces quoting; a bare quote or backslash would else read as syntax. */
+function needsQuoting(value: string): boolean {
+  return /[\s"\\]/.test(value);
+}
+
+function quoteValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 function parseRange(raw: string): [number | null, number | null] | null {
   const parts = raw.split('..');
   if (parts.length !== 2) return null;
@@ -180,15 +189,11 @@ export function formatFilterQuery(
         tokens.push(`${id}:${min ?? ''}..${max ?? ''}`);
       }
     } else if (variant === 'text' && typeof value === 'string' && value) {
-      tokens.push(
-        value.includes(' ')
-          ? `${id}:"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-          : `${id}:${value}`,
-      );
+      tokens.push(`${id}:${needsQuoting(value) ? quoteValue(value) : value}`);
     }
   }
 
-  if (search) tokens.push(search);
+  if (search) tokens.push(needsQuoting(search) ? quoteValue(search) : search);
   return tokens.join(' ');
 }
 

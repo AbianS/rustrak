@@ -84,6 +84,15 @@ export function useDataTable<TData extends RowData>({
   enableSelection = false,
   rowMenu,
 }: UseDataTableOptions<TData>): DataTableInstance<TData> {
+  if (process.env.NODE_ENV !== 'production' && enableSelection && !getRowId) {
+    // TanStack falls back to the row's index, which selection can't survive:
+    // a refetch or a page change reassigns "row 0" to a different row.
+    console.error(
+      'useDataTable: enableSelection is true without getRowId. Selection ' +
+        'will not survive a refetch or a page change -- pass getRowId.',
+    );
+  }
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({});

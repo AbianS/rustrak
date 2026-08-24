@@ -21,6 +21,16 @@ const RELEASES: FilterOption[] = Array.from({ length: 12 }, (_, index) => ({
   count: ((index * 53) % 300) + 4,
 }));
 
+/** Rejects the first call, resolves every call after -- a transient failure. */
+function flakyLoadOptions() {
+  let attempt = 0;
+  return () => {
+    attempt += 1;
+    if (attempt === 1) return Promise.reject(new Error('network blip'));
+    return Promise.resolve(LEVELS);
+  };
+}
+
 const FIELDS: QueryField[] = [
   {
     key: 'level',
@@ -221,6 +231,57 @@ export const Narrow: Story = {
       const box = remove.getBoundingClientRect();
       await expect(box.width).toBeGreaterThan(0);
     }
+  },
+};
+
+/**
+ * A rejected load must not read as "loaded, and empty" forever: leaving the
+ * field and coming back has to retry rather than stay stuck.
+ */
+export const RetriesAfterAFailedLoad: Story = {
+  render: function RetriesAfterAFailedLoadStory() {
+    // One closure for the story's lifetime, so the second attempt is really
+    // the second call and not a fresh counter from a re-render.
+    const [loadOptions] = useState(() => flakyLoadOptions());
+    const [fields] = useState<QueryField[]>(() => [
+      ...FIELDS,
+      { key: 'flaky', label: 'Flaky', variant: 'options', loadOptions },
+    ]);
+    const [filters, setFilters] = useState<ColumnFiltersState>([]);
+    const [search, setSearch] = useState('');
+    return (
+      <QueryBar
+        fields={fields}
+        filters={filters}
+        search={search}
+        onChange={(next) => {
+          setFilters(next.filters);
+          setSearch(next.search);
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    await userEvent.click(input);
+    await userEvent.keyboard('flaky{Enter}');
+
+    // The first attempt rejects: the skeleton ends rather than spinning
+    // forever, and nothing is offered yet.
+    await waitFor(() =>
+      expect(canvas.getByText('Nothing matches')).toBeInTheDocument(),
+    );
+
+    // Leaving the field and picking it again is a new attempt.
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('flaky{Enter}');
+
+    await waitFor(() =>
+      expect(canvas.getByRole('option', { name: /Fatal/ })).toBeInTheDocument(),
+    );
   },
 };
 

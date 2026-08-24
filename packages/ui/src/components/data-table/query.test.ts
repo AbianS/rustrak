@@ -121,6 +121,26 @@ describe('formatFilterQuery', () => {
     ]);
   });
 
+  it('quotes an unspaced value that contains a quote, so it round-trips', () => {
+    const formatted = formatFilterQuery(
+      [{ id: 'release', value: 'a"b' }],
+      '',
+      variants,
+    );
+
+    expect(formatted).toBe('release:"a\\"b"');
+    expect(parseFilterQuery(formatted, variants).filters).toEqual([
+      { id: 'release', value: 'a"b' },
+    ]);
+  });
+
+  it('quotes free-text search that contains a quote, so it round-trips', () => {
+    const formatted = formatFilterQuery([], 'say "hi" there', variants);
+
+    expect(formatted).toBe('"say \\"hi\\" there"');
+    expect(parseFilterQuery(formatted, variants).search).toBe('say "hi" there');
+  });
+
   it('drops empty filters instead of writing empty tokens', () => {
     expect(
       formatFilterQuery(

@@ -53,6 +53,14 @@ export function useQueryBar({
   const [loadedOptions, setLoadedOptions] = useState<
     Record<string, FilterOption[]>
   >({});
+  /*
+   * The key of the field whose load most recently rejected. Kept apart from
+   * `loadedOptions` on purpose: caching `[]` there would read as "loaded, and
+   * empty" forever, so a transient failure could never be retried. Leaving
+   * and returning to the field clears it, because that is what starts a new
+   * attempt below.
+   */
+  const [failedKey, setFailedKey] = useState<string | null>(null);
 
   const variants = useMemo(() => variantsFromFields(fields), [fields]);
 
@@ -112,14 +120,17 @@ export function useQueryBar({
   const fieldOptions = activeField
     ? (activeField.options ?? loadedOptions[activeField.key])
     : undefined;
-  const optionsPending = Boolean(
-    activeField?.loadOptions &&
-      !activeField.options &&
-      !loadedOptions[activeField.key],
-  );
+  // Drives the fetch: unconditioned on a prior failure, so leaving the field
+  // and coming back -- which changes this key -- retries automatically.
+  const pendingKey =
+    activeField?.loadOptions && !activeField.options && !fieldOptions
+      ? activeField.key
+      : undefined;
+  const pendingLoad = pendingKey ? activeField?.loadOptions : undefined;
+  // Drives the skeleton: false once a failure has already been recorded, so
+  // it does not spin forever waiting for an attempt that already ended.
+  const optionsPending = Boolean(pendingKey) && failedKey !== pendingKey;
 
-  const pendingKey = optionsPending ? activeField?.key : undefined;
-  const pendingLoad = optionsPending ? activeField?.loadOptions : undefined;
   useEffect(() => {
     if (!pendingKey || !pendingLoad) return;
     let cancelled = false;
@@ -133,10 +144,7 @@ export function useQueryBar({
         }
       })
       .catch(() => {
-        // An empty list ends the skeleton and reads as "nothing to offer".
-        if (!cancelled) {
-          setLoadedOptions((previous) => ({ ...previous, [pendingKey]: [] }));
-        }
+        if (!cancelled) setFailedKey(pendingKey);
       });
     return () => {
       cancelled = true;

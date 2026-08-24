@@ -91,6 +91,10 @@ export function OptionsFilterPanel<TData extends RowData>({
 }: PanelProps<TData>) {
   const spec = column.columnDef.meta?.filter;
   const [loaded, setLoaded] = useState<FilterOption[] | null>(null);
+  // Kept apart from `loaded` so a rejected load never reads as "loaded, and
+  // empty" -- that would survive as long as this panel stays mounted and
+  // block a retry, rather than clearing when the panel remounts.
+  const [failed, setFailed] = useState(false);
   const [search, setSearch] = useState('');
 
   const loadOptions =
@@ -103,8 +107,7 @@ export function OptionsFilterPanel<TData extends RowData>({
         if (!cancelled) setLoaded(options);
       })
       .catch(() => {
-        // An empty list ends the skeleton and reads as "nothing to offer".
-        if (!cancelled) setLoaded([]);
+        if (!cancelled) setFailed(true);
       });
     return () => {
       cancelled = true;
@@ -113,7 +116,7 @@ export function OptionsFilterPanel<TData extends RowData>({
 
   if (spec?.variant !== 'options') return null;
 
-  const options = spec.options ?? loaded;
+  const options = spec.options ?? loaded ?? (failed ? [] : null);
   const multiple = spec.multiple ?? true;
   const selected = (column.getFilterValue() as string[] | undefined) ?? [];
   const selectedSet = new Set(selected);
