@@ -177,6 +177,50 @@ export type {
 } from './components/data-table/use-data-table';
 export { useDataTable } from './components/data-table/use-data-table';
 
+/* --- Overlays ------------------------------------------------------------ */
+
+export type {
+  AlertOptions,
+  ConfirmOptions,
+} from './components/dialog/confirm';
+export { alert, confirm } from './components/dialog/confirm';
+export type {
+  DialogBodyProps,
+  DialogFooterProps,
+  DialogHeaderProps,
+  DialogProps,
+  DialogSize,
+  DialogTone,
+} from './components/dialog/dialog';
+export {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogFooter,
+  DialogHeader,
+} from './components/dialog/dialog';
+export type { DialogProviderProps } from './components/dialog/dialog-manager';
+export { DialogProvider } from './components/dialog/dialog-manager';
+export type {
+  DialogComponent,
+  DialogDefinition,
+  DialogDefinitionOptions,
+  DialogHostProps,
+} from './components/dialog/dialog-store';
+export {
+  closeAllDialogs,
+  createDialog,
+} from './components/dialog/dialog-store';
+export type {
+  ToastActionSpec,
+  ToastOptions,
+  ToastPromiseState,
+  ToastProviderProps,
+  ToastTone,
+  UseToastReturn,
+} from './components/toast/toast';
+export { ToastProvider, useToast } from './components/toast/toast';
+
 /* --- Query bar ----------------------------------------------------------- */
 
 export type { QueryBarProps } from './components/query-bar/query-bar';

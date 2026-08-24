@@ -51,6 +51,7 @@ import {
   Star,
   Trash2,
   TriangleAlert,
+  Undo2,
   User,
   Users,
   VolumeX,
@@ -137,6 +138,8 @@ export const ConfigureIcon = fromLucide('ConfigureIcon', Wrench);
 export const ResolveIcon = fromLucide('ResolveIcon', Check);
 export const MuteIcon = fromLucide('MuteIcon', VolumeX);
 export const UnresolveIcon = fromLucide('UnresolveIcon', CircleX);
+/** Take it back: the action an undo toast carries. */
+export const UndoIcon = fromLucide('UndoIcon', Undo2);
 
 /* --- Severity and status --------------------------------------------------
    `error` is the crossed circle, `warning` the triangle, `ok` the ticked
@@ -213,6 +216,7 @@ export const icons = {
   resolve: ResolveIcon,
   mute: MuteIcon,
   unresolve: UnresolveIcon,
+  undo: UndoIcon,
   error: ErrorIcon,
   warning: WarningIcon,
   ok: OkIcon,

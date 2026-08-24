@@ -207,6 +207,11 @@ project card, the seven routes, ⌘B).
 
 **Forms** · `Checkbox` `Popover`.
 
+**Overlays** · `ToastProvider`/`useToast` (a stacked corner notice: tones
+with their own lifetimes, actions, progress, `promise`), `Dialog` with its
+`Header`/`Body`/`Footer`, `createDialog`/`DialogProvider` (modals opened by
+calling and awaited), and `confirm`/`alert` on top.
+
 **Data** · the table family — `useDataTable` (TanStack Table v9, fully manual)
 with `DataTable`, `DataTablePagination`, `DataTableColumnsButton`, the
 column-header sort/filter panels behind them — and `QueryBar`, the token
@@ -264,6 +269,16 @@ No charts. Those are a later pass and need decisions this one does not.
   selected the 38 px header strip swaps -- with `swapAnimation`, both
   directions -- into count, `bulkActions` and Clear, so nothing pushes the
   table down mid-gesture.
+- **Modals open by being called.** `createDialog` returns `open()`, which
+  resolves with the answer; a `DialogProvider` at the root mounts them inside
+  the tree, so context still holds. `confirm()` returns `true` only when the
+  action is pressed -- Escape, like Cancel, is a no -- and the irreversible
+  asks for its phrase to be typed.
+- **A toast's lifetime follows from its tone.** Confirmations leave in 5 s
+  with a countdown at the foot, undo waits 8 s, and what demands action
+  (`warning`, `danger`) stays until dismissed. The stack peeks and opens on
+  hover; the geometry rides the individual `translate`/`scale` properties,
+  like all motion here.
 - **Selection and column visibility never reach the URL.** A selection is a
   gesture and visibility is a reading preference; restoring either from a
   pasted link would fabricate a choice the reader never made. They live
