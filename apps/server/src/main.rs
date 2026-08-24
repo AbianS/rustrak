@@ -17,6 +17,10 @@ use rustrak::services::AuthTokenService;
 use rustrak::workers::session_aggregator::SessionAggregator;
 use rustrak::workers::sourcemap_assembly::AssemblyWorker;
 
+#[cfg(feature = "dhat-heap")]
+#[global_allocator]
+static DHAT_ALLOCATOR: dhat::Alloc = dhat::Alloc;
+
 #[cfg(feature = "openapi")]
 use rustrak::openapi;
 #[cfg(feature = "openapi")]
@@ -24,6 +28,9 @@ use utoipa::OpenApi;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    #[cfg(feature = "dhat-heap")]
+    let _dhat_profiler = dhat::Profiler::new_heap();
+
     // Load .env file if present
     dotenvy::dotenv().ok();
 

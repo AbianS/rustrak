@@ -77,6 +77,9 @@ zstd = "0.13.3"
 futures-util = "0.3.34"
 bytes = "1.12.1"
 
+# Feature-gated heap profiling; never enabled for the shipped binary.
+dhat = { version = "0.3.3", optional = true }
+
 # Hashing (for grouping key hash)
 sha2 = "0.11.0"
 
@@ -174,6 +177,7 @@ default = ["sqlite"]
 postgres = ["sqlx/postgres"]
 sqlite = ["sqlx/sqlite"]
 openapi = ["dep:utoipa", "dep:utoipa-scalar"]
+dhat-heap = ["dep:dhat"]
 # Compiles the `ProjectService` test seams (`create_with_stale_slug` and the two
 # race helpers). Never enabled for the shipped binary: the self dev-dependency
 # below turns it on for test targets only, so `cargo test --release` builds
