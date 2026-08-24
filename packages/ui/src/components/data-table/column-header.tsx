@@ -1,5 +1,6 @@
 import type { Header, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
+import { useState } from 'react';
 import { focusRingInset } from '../../lib/focus';
 import { chevronFlip, interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
@@ -100,6 +101,7 @@ export function DataTableColumnHeader<TData extends RowData>({
   const canSort = column.getCanSort();
   const canHide = column.getCanHide();
   const filterSpec = meta?.filter;
+  const [open, setOpen] = useState(false);
 
   const title = flexRender(column.columnDef.header, header.getContext());
   const sorted = column.getIsSorted();
@@ -123,6 +125,8 @@ export function DataTableColumnHeader<TData extends RowData>({
       title={typeof title === 'string' ? title : (meta?.label ?? '')}
       align={meta?.align === 'end' ? 'end' : 'start'}
       popupClassName="w-60"
+      open={open}
+      onOpenChange={setOpen}
       trigger={
         <button
           type="button"
@@ -164,6 +168,7 @@ export function DataTableColumnHeader<TData extends RowData>({
                 // question, and asking the same question twice withdraws it.
                 if (sorted === direction) column.clearSorting();
                 else column.toggleSorting(direction === 'desc');
+                setOpen(false);
               }}
             >
               <span aria-hidden="true" className="w-3 shrink-0 text-fg-ghost">

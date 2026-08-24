@@ -12,7 +12,8 @@ import {
   DialogFooter,
   DialogHeader,
 } from './dialog';
-import { createDialog, DialogProvider } from './dialog-manager';
+import { DialogProvider } from './dialog-manager';
+import { createDialog } from './dialog-store';
 
 const meta = {
   title: 'Components/Dialog',

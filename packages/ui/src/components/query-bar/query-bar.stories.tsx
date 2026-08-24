@@ -5,7 +5,8 @@ import { expect, userEvent, waitFor, within } from 'storybook/test';
 import type { FilterOption } from '../data-table/features';
 import { IssuesIcon, ReleasesIcon, TimeIcon } from '../icon/icon-catalog';
 import { Text } from '../text/text';
-import { QueryBar, type QueryField } from './query-bar';
+import { QueryBar } from './query-bar';
+import type { QueryField } from './query-bar-parts';
 
 const LEVELS: FilterOption[] = [
   { value: 'fatal', label: 'Fatal', tone: 'error', count: 5 },
@@ -19,6 +20,16 @@ const RELEASES: FilterOption[] = Array.from({ length: 12 }, (_, index) => ({
   label: `2.${11 - index}.0`,
   count: ((index * 53) % 300) + 4,
 }));
+
+/** Rejects the first call, resolves every call after -- a transient failure. */
+function flakyLoadOptions() {
+  let attempt = 0;
+  return () => {
+    attempt += 1;
+    if (attempt === 1) return Promise.reject(new Error('network blip'));
+    return Promise.resolve(LEVELS);
+  };
+}
 
 const FIELDS: QueryField[] = [
   {
@@ -85,6 +96,19 @@ type Story = StoryObj;
 
 export const Basic: Story = {
   render: () => <Harness />,
+};
+
+/** Every state side by side: resting, chips of each variant, free text. */
+export const States: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Harness />
+      <Harness initialFilters={[{ id: 'level', value: ['error', 'fatal'] }]} />
+      <Harness initialFilters={[{ id: 'events', value: [100, null] }]} />
+      <Harness initialSearch="connection reset" />
+    </div>
+  ),
 };
 
 export const WithFilters: Story = {
@@ -160,6 +184,34 @@ export const FreeText: Story = {
   },
 };
 
+/**
+ * A second Escape, once the popup is already closed, clears the committed
+ * search along with the draft -- an empty bar must not filter on hidden text.
+ */
+export const EscapeClearsACommittedSearch: Story = {
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    await userEvent.click(input);
+    await userEvent.keyboard('connection reset{Escape}{Enter}');
+    await waitFor(() =>
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search="connection reset"',
+      ),
+    );
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search=""',
+      );
+      expect(input).toHaveValue('');
+    });
+  },
+};
+
 /** Backspace on an empty input eats the last chip, like every tag input. */
 export const RemoveWithBackspace: Story = {
   render: () => (
@@ -207,6 +259,57 @@ export const Narrow: Story = {
       const box = remove.getBoundingClientRect();
       await expect(box.width).toBeGreaterThan(0);
     }
+  },
+};
+
+/**
+ * A rejected load must not read as "loaded, and empty" forever: leaving the
+ * field and coming back has to retry rather than stay stuck.
+ */
+export const RetriesAfterAFailedLoad: Story = {
+  render: function RetriesAfterAFailedLoadStory() {
+    // One closure for the story's lifetime, so the second attempt is really
+    // the second call and not a fresh counter from a re-render.
+    const [loadOptions] = useState(() => flakyLoadOptions());
+    const [fields] = useState<QueryField[]>(() => [
+      ...FIELDS,
+      { key: 'flaky', label: 'Flaky', variant: 'options', loadOptions },
+    ]);
+    const [filters, setFilters] = useState<ColumnFiltersState>([]);
+    const [search, setSearch] = useState('');
+    return (
+      <QueryBar
+        fields={fields}
+        filters={filters}
+        search={search}
+        onChange={(next) => {
+          setFilters(next.filters);
+          setSearch(next.search);
+        }}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    await userEvent.click(input);
+    await userEvent.keyboard('flaky{Enter}');
+
+    // The first attempt rejects: the skeleton ends rather than spinning
+    // forever, and nothing is offered yet.
+    await waitFor(() =>
+      expect(canvas.getByText('Nothing matches')).toBeInTheDocument(),
+    );
+
+    // Leaving the field and picking it again is a new attempt.
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('flaky{Enter}');
+
+    await waitFor(() =>
+      expect(canvas.getByRole('option', { name: /Fatal/ })).toBeInTheDocument(),
+    );
   },
 };
 

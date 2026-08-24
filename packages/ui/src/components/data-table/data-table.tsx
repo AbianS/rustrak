@@ -249,7 +249,17 @@ export function DataTable<TData extends RowData>({
                 key={row.id}
                 data-selected={row.getIsSelected() || undefined}
                 data-clickable={onRowClick ? true : undefined}
+                // A `role` override would break the row/cell relationship a
+                // table needs; the row stays a row and only gains a tab stop.
+                tabIndex={onRowClick ? 0 : undefined}
                 onClick={(event) => handleRowClick(row, event)}
+                onKeyDown={(event) => {
+                  if (!onRowClick) return;
+                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  if (event.target !== event.currentTarget) return;
+                  event.preventDefault();
+                  onRowClick(row);
+                }}
                 className={styles.row()}
               >
                 {row.getVisibleCells().map((cell) => (
@@ -308,7 +318,7 @@ export function DataTable<TData extends RowData>({
                 size="sm"
                 onClick={() => {
                   table.setColumnFilters([]);
-                  table.setGlobalFilter(undefined);
+                  table.setGlobalFilter('');
                 }}
               >
                 Clear filters
