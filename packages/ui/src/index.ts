@@ -213,6 +213,15 @@ export { Sparkline } from './components/chart/sparkline';
 export type { TimeSeriesChartProps } from './components/chart/time-series-chart';
 export { TimeSeriesChart } from './components/chart/time-series-chart';
 
+/* --- Waterfall ------------------------------------------------------------ */
+
+export { formatSpanDuration } from './components/waterfall/format';
+export type {
+  WaterfallProps,
+  WaterfallSpan,
+} from './components/waterfall/waterfall';
+export { Waterfall } from './components/waterfall/waterfall';
+
 /* --- Overlays ------------------------------------------------------------ */
 
 export type {

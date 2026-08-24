@@ -219,6 +219,13 @@ animation, no tooltip). Colours are `var(--chart-*)` and the severity
 tokens; both palettes pass the CVD/contrast validation. TanStack Charts was
 evaluated and parked: relaunched 2026-07, pre-alpha, to be revisited at 1.0.
 
+**Waterfall** · `Waterfall`, the trace view: split columns with a draggable
+divider, durations riding their bars, chevron pills carrying descendant
+counts, tree guide lines, autogrouping of identical leaf siblings (the N+1),
+optional hatched missing-instrumentation rows, and a roving-tabindex tree
+for the keyboard. Colour by kind — db / internal / http — plus the error as
+the page's only red.
+
 **Overlays** · `ToastProvider`/`useToast` (a stacked corner notice: tones
 with their own lifetimes, actions, progress, `promise`), `Dialog` with its
 `Header`/`Body`/`Footer`, `createDialog`/`DialogProvider` (modals opened by
