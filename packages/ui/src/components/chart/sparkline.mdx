@@ -1,0 +1,110 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Text } from '../text/text';
+import { Sparkline } from './sparkline';
+import * as SparklineStories from './sparkline.stories';
+
+<Meta of={SparklineStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Charts"
+  title="Sparkline"
+  lede="The fourteen days of an issue, in a table cell."
+  note="Hand-drawn SVG, not recharts: a page of fifty rows means fifty of these."
+/>
+
+<Section
+  n="01"
+  title="It is a shape to be skimmed"
+  intro="Fixed viewBox, no axes, no tooltip, no motion. The row's own text says the numbers."
+>
+
+<Stage label="in a row" stack>
+  <div className="flex items-center gap-4">
+    <Text variant="control" className="w-64">TypeError: cannot read properties…</Text>
+    <Sparkline label="Events, last 14 days" values={[3, 8, 5, 12, 9, 18, 14, 22, 17, 26, 21, 31, 28, 34]} />
+    <Text variant="mono-sm" tone="secondary">12,431</Text>
+  </div>
+  <div className="flex items-center gap-4">
+    <Text variant="control" className="w-64">ConnectionTimeout: pool exhausted</Text>
+    <Sparkline label="Events, last 14 days" tone="danger" values={[2, 4, 3, 6, 5, 9, 8, 14, 18, 26, 33, 41, 52, 68]} />
+    <Text variant="mono-sm" tone="secondary">3,902</Text>
+  </div>
+</Stage>
+
+<Rule>
+  Each recharts chart brings its own store, its observers and its animation.
+  Fifty of them in a list is a page that fights the scroll.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="The tone is state, not decoration"
+  intro="danger for the row that is getting worse, brand for the one being watched, neutral for everything else."
+>
+
+<Canvas of={SparklineStories.Tones} sourceState="none" />
+
+<P>A column where every sparkline is coloured says nothing.</P>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<div className="flex items-center gap-3"><Sparkline label="Events" values={[3, 6, 4, 9, 7, 14, 11, 18]} /><Text variant="mono-sm" tone="secondary">12,431</Text></div>}>
+    Beside the figure it is the shape of.
+  </Do>
+  <Dont example={<Sparkline label="Events" values={[3, 6, 4, 9, 7, 14, 11, 18]} />}>
+    On its own as the only reading. A sparkline has no axis to read against.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list">One per row, in the trend column.</Place>
+  <Place at="Releases">The volume of each release.</Place>
+  <Place at="Overview">Beside a KPI, as its recent shape.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee>The <code>label</code> is required: without it a screen reader meets an unnamed image in every row.</Guarantee>
+  <Guarantee>No animation and no store, so a page of fifty costs fifty paths and nothing else.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

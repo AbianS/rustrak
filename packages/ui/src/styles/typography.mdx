@@ -1,0 +1,119 @@
+import { Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import { Text } from '../components/text/text';
+import {
+  Cover,
+  DocPage,
+  P,
+  Rule,
+  Section,
+  Stage,
+  TypeRow,
+} from '../docs/blocks';
+
+{/*
+  The type scale, set in itself.
+
+  Nineteen roles is a lot to describe and nothing to look at: the page is the
+  specimen, and the prose is only there for the rule between the two families
+  and the one exception to it.
+*/}
+
+<Meta title="Foundations/Typography" />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Foundations"
+  title="Typography"
+  lede="Two families. Geist for what a person wrote, Geist Mono for what the machine did."
+  note="Nineteen roles in one component. A component asks for the rank the text has in the page and the system decides what that costs in pixels, so retuning the scale is one file and not two hundred call sites."
+/>
+
+<Section
+  n="01"
+  title="The rule between the two families"
+  intro="Half of what this product shows was written by a machine and is read as an identifier: an event id, a release tag, a stack frame, a duration, a count that has to line up down a column. The second family is not a flourish, it is what tells a reader which of those they are looking at."
+>
+
+<Rule>
+  If the value came out of the system and somebody might copy it out of the
+  page, it is mono.
+</Rule>
+
+<Stage label="the same row, both families" stack>
+  <Text variant="card-title">TypeError: cannot read properties of undefined</Text>
+  <Text variant="mono">CHECKOUT-API-4F2</Text>
+  <Text variant="mono-sm" tone="secondary">at Object.handler (/srv/api/routes/checkout.ts:142:19)</Text>
+</Stage>
+
+</Section>
+
+<Section
+  n="02"
+  title="Geist · prose"
+  intro="What a person wrote or a designer chose. Ten roles, from the name of a screen down to a hint under a field."
+>
+
+<TypeRow token="page-title" role="the screen's name" className="text-page-title" sample="Issues" />
+<TypeRow token="title" role="an issue's title" className="text-title" sample="TypeError: cannot read properties of undefined" />
+<TypeRow token="section" role="a heading inside a page" className="text-section" sample="Unresolved issues in Checkout API" />
+<TypeRow token="card-title" role="the title of a card or a row" className="text-card-title" sample="ConnectionTimeout: pool exhausted after 30000ms" />
+<TypeRow token="body" role="prose" className="text-body" sample="Seen 1,204 times across 3 environments in the last 24 hours." />
+<TypeRow token="value" role="a figure or a name being read" className="text-value" sample="checkout-api · production" />
+<TypeRow token="control" role="inside a button, an input, a tab" className="text-control" sample="Resolve issue" />
+<TypeRow token="label" role="a field's name" className="text-label" sample="Environment" />
+<TypeRow token="meta" role="annotation beside something else" className="text-meta" sample="3 minutes ago · 12 releases" />
+<TypeRow token="hint" role="under a field, and nowhere else" className="text-hint" sample="Comma separated. Leave empty for every environment." />
+
+</Section>
+
+<Section
+  n="03"
+  title="Figures"
+  intro="The one exception to the rule above: a KPI is Geist, not Geist Mono."
+>
+
+<Stage label="text-numeric · text-numeric-lg">
+  <Text variant="numeric">48.2 K</Text>
+  <Text variant="numeric-lg">99.42%</Text>
+</Stage>
+
+<P>At 24 px mono stops reading as precision and starts reading as a terminal, and the thousands separator opens a hole in the middle of the number. Tabular figures already give the alignment, which was the only reason mono was ever wanted here.</P>
+
+</Section>
+
+<Section
+  n="04"
+  title="Geist Mono · machine"
+  intro="Seven roles, all of them carrying tabular figures on their own. Anything the system produced is one of these."
+>
+
+<TypeRow token="code" role="a query, a fragment inline" className="font-mono text-code tabular-nums" sample="level:error,fatal" />
+<TypeRow token="mono" role="an identifier" className="font-mono text-mono tabular-nums" sample="CHECKOUT-API-4F2" />
+<TypeRow token="mono-sm" role="a timestamp, a path" className="font-mono text-mono-sm tabular-nums" sample="2026-08-23 11:04:37" />
+<TypeRow token="column" role="a column head" className="font-mono text-column uppercase tabular-nums" sample="Last seen" />
+<TypeRow token="badge" role="a count on a chip" className="font-mono text-badge tabular-nums" sample="9a" />
+<TypeRow token="tag" role="a severity, a label" className="font-mono text-tag uppercase" sample="regression" />
+<TypeRow token="kbd" role="a key cap" className="font-mono text-kbd" sample="⌘K" />
+
+</Section>
+
+<Section
+  n="05"
+  title="The element is a separate question"
+  intro="Rank and tag are decided apart, with render. A card title is an h3 on one screen and a span inside a row on another, and it has to look the same in both."
+>
+
+<Stage label="same variant, three elements" stack>
+  <Text variant="card-title" render={<h3 />}>As a heading</Text>
+  <Text variant="card-title" render={<span />}>As a span inside a row</Text>
+  <Text variant="card-title" render={<p />}>As a paragraph</Text>
+</Stage>
+
+<P>Which is also why the tones are separate from the variants: ten steps of foreground, on <strong>Foundations → Colour</strong>, and any of them on any role.</P>
+
+</Section>
+
+</DocPage>
+</Unstyled>

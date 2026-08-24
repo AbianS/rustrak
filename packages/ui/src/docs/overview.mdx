@@ -1,0 +1,243 @@
+import { Canvas, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import * as AppShellStories from '../components/shell/app-shell.stories';
+import { Avatar } from '../components/avatar/avatar';
+import { Button } from '../components/button/button';
+import { Count } from '../components/count/count';
+import { Kbd } from '../components/kbd/kbd';
+import {
+  SegmentedControl,
+  SegmentedItem,
+} from '../components/segmented-control/segmented-control';
+import { Sparkline } from '../components/chart/sparkline';
+import { Tag } from '../components/tag/tag';
+import { Text } from '../components/text/text';
+import { ResolveIcon, MuteIcon, OverflowIcon } from '../components/icon/icon-catalog';
+import {
+  Arrow,
+  Card,
+  Cards,
+  Cover,
+  DocPage,
+  Flow,
+  P,
+  Ramp,
+  Rule,
+  Section,
+  Stage,
+  Step,
+  Subsection,
+  Swatch,
+  TypeRow,
+} from './blocks';
+
+{/*
+  The page Storybook opens on.
+
+  A showroom, not a preface: the mark, the palette, the type, the components
+  and the product they build, in that order, with as little prose between them
+  as the pictures can carry on their own.
+
+  It wears the brandbook's furniture -- cover, numbered sections, one rule set
+  apart per section -- so the design system and the brand book read as the same
+  document. Everything is inside `Unstyled`, because Storybook's docs
+  stylesheet has its own idea about container width, margins and headings, and
+  the spacing has to come from one place or it comes from two.
+*/}
+
+<Meta title="Overview" />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Design system"
+  mark
+  lede="Pure grey, Geist, lime for the one thing on the screen that is the point, and colour otherwise reserved for severity."
+  note={<>Twenty-five components, developed and reviewed here. Every story on this site runs as a component test in a real Chromium and goes through axe on the way.</>}
+>
+  <Tag variant="soft">Base UI 1.7</Tag>
+  <Tag variant="soft">Tailwind 4.3</Tag>
+  <Tag variant="soft">React 19</Tag>
+  <Tag variant="soft" tone="brand">Dark by default</Tag>
+</Cover>
+
+<Section
+  n="01"
+  title="The product this is for"
+  intro="Rustrak is self-hosted error tracking. The dashboard is a dense reading tool: lists of issues, stack traces, traces, counts over time. Somebody in front of it is looking for one row among two hundred, at eleven at night, having been paged. Every decision below comes back to that."
+>
+
+<Canvas of={AppShellStories.IssueListScreen} sourceState="none" />
+
+</Section>
+
+<Section
+  n="02"
+  title="Colour"
+  intro="Four greys stacking upward, one lime, and colour after that only when something is wrong."
+>
+
+<Ramp columns={4}>
+  <Swatch token="canvas" note="the page" className="bg-canvas" />
+  <Swatch token="panel" note="a region of it" className="bg-panel" />
+  <Swatch token="surface" note="a control" className="bg-surface" />
+  <Swatch token="surface-raised" note="what rises" className="bg-surface-raised" />
+</Ramp>
+
+<Ramp columns={4}>
+  <Swatch token="surface-brand" note="the one action" className="bg-surface-brand" on="text-fg-on-brand" />
+  <Swatch token="sev-error" note="error" className="bg-sev-error" on="text-white" />
+  <Swatch token="sev-warning" note="warning" className="bg-sev-warning" on="text-black" />
+  <Swatch token="sev-info" note="info" className="bg-sev-info" on="text-black" />
+</Ramp>
+
+<Rule>
+  Lime is the only saturated colour the product spends on something that is not
+  an alarm. Spending it twice on one screen spends it on nothing.
+</Rule>
+
+<P>The whole palette, the ten steps of foreground and the ratios they are pinned to are on <strong>Foundations → Colour</strong>.</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="Type"
+  intro="Two families. Geist for prose, Geist Mono for anything the machine wrote."
+>
+
+<TypeRow token="text-page-title" role="the screen's name" className="text-page-title" sample="Issues" />
+<TypeRow token="text-title" role="an issue's title" className="text-title" sample="TypeError: cannot read properties of undefined" />
+<TypeRow token="text-body" role="prose" className="text-body" sample="Seen 1,204 times across 3 environments in the last 24 hours." />
+<TypeRow token="text-mono" role="a stack frame" className="font-mono text-mono tabular-nums" sample="at Object.handler (/srv/api/routes/checkout.ts:142:19)" />
+<TypeRow token="text-numeric-lg" role="a KPI" className="text-numeric-lg tabular-nums" sample="12,480" />
+
+<Rule>
+  If the value came out of the system and somebody might copy it out of the
+  page, it is mono.
+</Rule>
+
+</Section>
+
+<Section
+  n="04"
+  title="What it is made of"
+  intro="Twenty-five components. Each one has a written page: what it is, where it is used in Rustrak, the guidance already settled, what it guarantees, and only then the props."
+>
+
+<Cards columns={3}>
+  <Card title="Button" note="Five variants, four sizes">
+    <Button variant="primary" icon={ResolveIcon}>Resolve</Button>
+    <Button variant="secondary" icon={MuteIcon}>Mute</Button>
+    <Button variant="ghost" aria-label="More actions" icon={OverflowIcon} />
+  </Card>
+  <Card title="Tag" note="Severity, plain text by default">
+    <Tag tone="error">error</Tag>
+    <Tag tone="warning">warning</Tag>
+    <Tag tone="info" variant="soft">info</Tag>
+  </Card>
+  <Card title="Count" note="Machine figures, tabular">
+    <Count>12,480</Count>
+    <Count tone="brand">31</Count>
+  </Card>
+  <Card title="Sparkline" note="Hand-drawn SVG, for table rows">
+    <Sparkline label="Events, last 12 hours" values={[3, 8, 5, 12, 9, 18, 14, 22, 17, 26, 21, 31]} />
+  </Card>
+  <Card title="SegmentedControl" note="One choice, every option visible">
+    <SegmentedControl aria-label="Range" defaultValue="24h">
+      <SegmentedItem value="1h">1h</SegmentedItem>
+      <SegmentedItem value="24h">24h</SegmentedItem>
+      <SegmentedItem value="7d">7d</SegmentedItem>
+    </SegmentedControl>
+  </Card>
+  <Card title="Kbd" note="The shortcut, as it is printed">
+    <Kbd>⌘</Kbd>
+    <Kbd>K</Kbd>
+  </Card>
+  <Card title="Avatar" note="Initials, never announced">
+    <Avatar name="Abian Suarez" />
+    <Avatar name="Rustrak Bot" />
+  </Card>
+  <Card title="Text" note="Nineteen roles, two families">
+    <Text variant="mono">RUSTRAK-1042</Text>
+    <Text variant="meta" tone="meta">3 minutes ago</Text>
+  </Card>
+  <Card title="Charts" note="recharts behind three components">
+    <Sparkline label="Errors, last 12 hours" tone="danger" values={[12, 9, 14, 8, 19, 11, 24, 16, 28, 20, 31, 26]} />
+  </Card>
+</Cards>
+
+</Section>
+
+<Section
+  n="05"
+  title="Three rules"
+  intro="Everything in the package follows from these, and every review comes back to them."
+>
+
+<Subsection
+  title="1 · No loose values"
+  intro="Every size, colour and radius is a token. Tailwind's factory namespaces are reset, so bg-red-500 and text-sm compile to nothing here: if it is not in tokens.css, it is not part of the design."
+>
+
+<Flow>
+  <Step label="primitive" value="--rk-lime-500" />
+  <Arrow />
+  <Step label="semantic · what the theme rewrites" value="--surface-brand" />
+  <Arrow />
+  <Step label="published · what a component writes" value="bg-surface-brand" tone="brand" />
+</Flow>
+
+</Subsection>
+
+<Subsection
+  title="2 · State is read from the DOM"
+  intro="Base UI hands out data-active, data-highlighted, data-disabled and data-popup-open, and the recipes read them as variants. No state props to thread, and no two sources of truth to disagree."
+>
+
+<Stage label="the same button, three states">
+  <Button variant="secondary" icon={ResolveIcon}>Resolve</Button>
+  <Button variant="secondary" icon={ResolveIcon} selected>Resolve</Button>
+  <Button variant="secondary" icon={ResolveIcon} disabled>Resolve</Button>
+</Stage>
+
+</Subsection>
+
+<Subsection
+  title="3 · The stories are the tests"
+  intro="There is no separate test file. A story runs in Chromium, goes through axe, and the ones named like sentences are assertions rather than examples — which is why they are in the sidebar: a promise nobody can see is a promise that quietly stops being true."
+>
+
+<Stage label="assertions, in the sidebar" stack>
+  <Text variant="mono-sm" tone="secondary">DoesNotFireWhenDisabled</Text>
+  <Text variant="mono-sm" tone="secondary">AMenuTriggerStaysSunkWhileOpen</Text>
+  <Text variant="mono-sm" tone="secondary">TheActiveRouteIsAnnounced</Text>
+  <Text variant="mono-sm" tone="secondary">OnlyTheContentScrolls</Text>
+</Stage>
+
+</Subsection>
+
+</Section>
+
+<Section
+  n="06"
+  title="How to read this site"
+  intro="Three sections, in the order they were built."
+>
+
+<Cards columns={3}>
+  <Card title="Foundations" note="Colour, type, space, motion, icons, accessibility">
+    <Text variant="meta" tone="secondary">The decisions everything else is made of. Read these before adding anything.</Text>
+  </Card>
+  <Card title="Components" note="One written page each, then its stories">
+    <Text variant="meta" tone="secondary">Anatomy, variants against states, guidance, guarantees, props.</Text>
+  </Card>
+  <Card title="Shell" note="Topbar, sidebar, page frames">
+    <Text variant="meta" tone="secondary">The application frame the components are arranged inside.</Text>
+  </Card>
+</Cards>
+
+</Section>
+
+</DocPage>
+</Unstyled>

@@ -31,6 +31,14 @@ const preview: Preview = {
     docs: {
       // The documentation pages wear the same theme as the manager around them.
       theme: rustrakTheme,
+      /*
+       * No table of contents.
+       *
+       * The pages carry their own numbered sections, and a second list of the
+       * same headings pinned to the right takes a third of the width to repeat
+       * what the page already says on the way down.
+       */
+      toc: false,
     },
     a11y: {
       // A failing accessibility check breaks the component test; it does not
@@ -51,7 +59,14 @@ const preview: Preview = {
     },
     options: {
       storySort: {
-        order: ['Foundations', ['Tokens', 'Typography'], 'Components', 'Shell'],
+        order: [
+          'Overview',
+          'Foundations',
+          ['Colour', 'Typography', 'Space', 'Motion', 'Icons', 'Accessibility'],
+          'Components',
+          'Charts',
+          'Shell',
+        ],
       },
     },
   },

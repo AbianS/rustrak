@@ -1,0 +1,129 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  DocPage,
+  Flow,
+  Arrow,
+  Step,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as DataTableStories from './data-table.stories';
+
+<Meta of={DataTableStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="DataTable"
+  lede="The issue list, and every list built to its blueprint: a 38 px header, 48 px rows, and a footer that places you in the result."
+  note="Two halves. useDataTable is the state, DataTable is the rendering, and TanStack Table v9 underneath is fully manual: the server sorts, filters and paginates."
+/>
+
+<Section
+  n="01"
+  title="Everything is decided by the column definitions"
+  intro="The component adds no options of its own beyond the three slots the columns cannot express: what an empty result says, what a loading one shows, and what the header offers once rows are selected."
+>
+
+<Canvas of={DataTableStories.Issues} sourceState="none" />
+
+<Rule>
+  One state, two views of it: the column header panels and the query bar edit
+  the same filters.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="The state half"
+  intro="useDataTable holds sorting, filters, selection, pagination and column visibility, and hands them to the server as a query."
+>
+
+<Flow>
+  <Step label="the URL" value="?level=error&sort=-events" />
+  <Arrow />
+  <Step label="useDataTable" value="ColumnFiltersState" />
+  <Arrow />
+  <Step label="what the server is asked" value="query.ts codecs" tone="brand" />
+</Flow>
+
+<P>Because the codecs live in <code>data-table/query.ts</code>, a filter set is a link: what you are looking at is what a teammate can paste.</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="Sorting and filtering from the header"
+  intro="Each column header carries its own sort and, when the column can be filtered, its own panel."
+>
+
+<Canvas of={DataTableStories.FilterFromHeader} sourceState="none" />
+
+</Section>
+
+<Section
+  n="04"
+  title="Selection"
+  intro="Ticking rows turns the header into the bulk bar: what can be done to the selection, and how many are in it."
+>
+
+<Canvas of={DataTableStories.Selection} sourceState="none" />
+
+</Section>
+
+<Section n="05" title="Empty and loading" intro="Both are slots, because only the caller knows what an empty result means: no issues at all, or none matching this filter.">
+
+<Canvas of={DataTableStories.Empty} sourceState="none" />
+
+</Section>
+
+<Section n="06" title="One table family">
+
+<Rule>
+  Never start a parallel table. A column, a filter or a bulk action is added
+  through the column definitions and the instance — a second table for one
+  screen is two tables to keep in step for ever.
+</Rule>
+
+<P>The same rule covers the filter bar and the charts: <code>query-bar/</code> and <code>chart/</code> exist, and they are extended rather than reinvented.</P>
+
+</Section>
+
+<Section n="07" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue list">The whole screen.</Place>
+  <Place at="Releases">The same table, different columns.</Place>
+  <Place at="Members">Selection and bulk actions.</Place>
+  <Place at="Dialog xl">Choosing a project or a release from a table.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="08" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="BarAndHeaderStayInSync">The query bar and the column panels are two views of one state; changing either updates the other.</Guarantee>
+  <Guarantee story="SortFromHeader">Sorting is manual: the table asks the server and never reorders rows behind its back.</Guarantee>
+  <Guarantee story="Loading">A loading table keeps its header and its width, so the page does not jump when the rows arrive.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="09" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

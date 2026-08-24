@@ -1,0 +1,93 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  DocPage,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  UsedIn,
+} from '../../docs/blocks';
+import * as AppShellStories from './app-shell.stories';
+
+<Meta of={AppShellStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Shell"
+  title="AppShell"
+  lede="The application frame: topbar across the top, sidebar and content below it."
+  note="It occupies exactly the window, and the only thing that scrolls is the content."
+/>
+
+<Section
+  n="01"
+  title="The navigation does not scroll away"
+  intro="An error tracker is a place you spend the day jumping between a list and a record. Having the navigation scroll away while you read down a thousand events means scrolling back up to leave."
+>
+
+<Canvas of={AppShellStories.IssueListScreen} sourceState="none" />
+
+<Rule>
+  h-dvh and not h-screen: on a phone the browser chrome appears and disappears
+  as you scroll, and with vh the last row of a list sits permanently underneath
+  it.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="A record inside the same frame"
+  intro="The sidebar and the topbar do not move between a list and the record opened from it — only the content does."
+>
+
+<Canvas of={AppShellStories.IssueDetailScreen} sourceState="none" />
+
+</Section>
+
+<Section
+  n="03"
+  title="The sidebar collapses to a rail"
+  intro="216 px, or a 56 px rail, with ⌘B between them. The rail keeps the routes as icons and hands their names to tooltips."
+>
+
+<Canvas of={AppShellStories.CollapsedSidebar} sourceState="none" />
+
+<P>Which is why the shell brings the tooltip provider with it: without a shared delay, running down a rail of seven icons means waiting the full delay seven times.</P>
+
+</Section>
+
+<Section n="04" title="What the sidebar holds">
+
+<Rule>
+  The project and the routes, and nothing else. A navigation column that also
+  holds controls stops being scannable.
+</Rule>
+
+<P>Earlier passes carried an environment selector and a quota block; both went.</P>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="OnlyTheContentScrolls">Only the content scrolls, and the scrolling region is focusable — a scroll box with nothing focusable inside cannot be paged with a keyboard at all.</Guarantee>
+  <Guarantee story="TheActiveRouteIsAnnounced">The active route carries <code>aria-current</code> and gains weight, not only a background.</Guarantee>
+  <Guarantee story="TheShortcutCollapsesIt">⌘B collapses and restores the sidebar, and the choice survives the page.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

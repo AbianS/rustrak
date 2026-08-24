@@ -1,0 +1,137 @@
+import { Canvas, Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Button } from '../button/button';
+import {
+  AssignIcon,
+  DeleteIcon,
+  ExportIcon,
+  MuteIcon,
+  OverflowIcon,
+  ResolveIcon,
+} from '../icon/icon-catalog';
+import { Menu } from './menu';
+import * as MenuStories from './menu.stories';
+
+<Meta of={MenuStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Menu"
+  lede="A dropdown of actions, described as data rather than as JSX."
+  note="The same list is drawn on the button that opens it, on the trailing half of a split button, and in the overflow a row falls back to when the width runs out."
+/>
+
+<Section
+  n="01"
+  title="Actions are data"
+  intro="Written as JSX the same list would be written three times, and the three would drift."
+>
+
+<Stage label="one list, one source">
+  <Menu
+    trigger={<Button variant="secondary" menu>Actions</Button>}
+    actions={[
+      { id: 'resolve', label: 'Resolve', icon: ResolveIcon, shortcut: 'R' },
+      { id: 'mute', label: 'Mute', icon: MuteIcon, shortcut: 'M' },
+      { id: 'assign', label: 'Assign', icon: AssignIcon },
+      { id: 'export', label: 'Export', icon: ExportIcon },
+      { id: 'delete', label: 'Delete', icon: DeleteIcon, disabled: true, disabledReason: 'Only an owner can delete an issue' },
+    ]}
+  />
+  <Menu
+    trigger={<Button variant="ghost" aria-label="More actions" icon={OverflowIcon} />}
+    actions={[
+      { id: 'copy-id', label: 'Copy issue id' },
+      { id: 'open', label: 'Open in new tab' },
+    ]}
+  />
+</Stage>
+
+<Rule>
+  A menu owns focus: arrow keys walk the items and typing selects by first
+  letter. If the panel's first element is an input, it is a Popover.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="What an entry can carry"
+  intro="A label, an icon, the shortcut that does the same thing, a count, and — when it is off — why."
+>
+
+<Canvas of={MenuStories.WithKeyboardHints} sourceState="none" />
+
+<P>A disabled entry says why in a tooltip. “Delete” greyed out with no reason is a dead end; “Only an owner can delete an issue” is an answer.</P>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<Menu trigger={<Button variant="secondary" menu>Sort</Button>} actions={[{ id: 'last', label: 'By last seen' }, { id: 'events', label: 'By events' }]} />}>
+    A folder button: it runs nothing, it opens the list.
+  </Do>
+  <Dont example={<Button variant="secondary">Sort</Button>}>
+    A plain button that opens a menu. It looks like something that runs.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Menu trigger={<Button variant="ghost" aria-label="More actions" icon={OverflowIcon} />} actions={[{ id: 'a', label: 'Copy issue id' }, { id: 'b', label: 'Open in new tab' }]} />}>
+    The overflow, for what did not fit in the row.
+  </Do>
+  <Dont example={<Menu trigger={<Button variant="primary">Resolve</Button>} actions={[{ id: 'a', label: 'Resolve' }]} />}>
+    The screen's main action hidden inside a menu.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue rows">The overflow at the end of the row.</Place>
+  <Place at="Topbar">The account menu.</Place>
+  <Place at="Data table">Sort, and the columns menu.</Place>
+  <Place at="SplitButton">The variations behind the chevron.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItOpensAndSelects">Arrow keys walk the entries, Enter selects, and typing jumps by first letter.</Guarantee>
+  <Guarantee story="EscapeReturnsFocus">Escape closes it and focus goes back to the trigger, after the exit transition rather than during it.</Guarantee>
+  <Guarantee story="DisabledSaysWhy">A disabled entry carries its reason, and the reason is reachable.</Guarantee>
+  <Guarantee>The trigger stays sunk while the panel is open, and its chevron turns over.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

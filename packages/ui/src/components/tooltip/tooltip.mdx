@@ -1,0 +1,136 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Button } from '../button/button';
+import {
+  ColumnsIcon,
+  ExportIcon,
+  MuteIcon,
+  RefreshIcon,
+} from '../icon/icon-catalog';
+import { Tooltip } from './tooltip';
+import * as TooltipStories from './tooltip.stories';
+
+<Meta of={TooltipStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Tooltip"
+  lede="One line, explaining the control it sits on. If it needs two, it is not a tooltip."
+  note="The delay is shared across an area: once one is open the next appears instantly."
+/>
+
+<Section
+  n="01"
+  title="It exists because of the icon-only button"
+  intro="Every button with no label in this product sits under one of these. Hover it and the name is there; tab to it and the same string is already its accessible name."
+>
+
+<Stage label="a toolbar of icon buttons">
+  <Tooltip content="Refresh">
+    <Button variant="ghost" aria-label="Refresh" icon={RefreshIcon} />
+  </Tooltip>
+  <Tooltip content="Export as CSV">
+    <Button variant="ghost" aria-label="Export as CSV" icon={ExportIcon} />
+  </Tooltip>
+  <Tooltip content="Choose columns">
+    <Button variant="ghost" aria-label="Choose columns" icon={ColumnsIcon} />
+  </Tooltip>
+  <Tooltip content="Mute this issue">
+    <Button variant="ghost" aria-label="Mute this issue" icon={MuteIcon} />
+  </Tooltip>
+</Stage>
+
+<Rule>
+  Running along a rail of twelve icons should cost one delay, not twelve. The
+  provider shares it; AppShell already includes one.
+</Rule>
+
+</Section>
+
+<Section n="02" title="Sides" intro="It goes where there is room, starting from the side the caller asked for.">
+
+<Stage>
+  <Tooltip content="Above" side="top">
+    <Button variant="secondary">top</Button>
+  </Tooltip>
+  <Tooltip content="To the right" side="right">
+    <Button variant="secondary">right</Button>
+  </Tooltip>
+  <Tooltip content="Below" side="bottom">
+    <Button variant="secondary">bottom</Button>
+  </Tooltip>
+  <Tooltip content="To the left" side="left">
+    <Button variant="secondary">left</Button>
+  </Tooltip>
+</Stage>
+
+</Section>
+
+<Section n="03" title="Guidelines">
+
+<DoDont>
+  <Do example={<Tooltip content="Mute this issue"><Button variant="ghost" aria-label="Mute this issue" icon={MuteIcon} /></Tooltip>}>
+    The name of the control, and nothing else.
+  </Do>
+  <Dont example={<Tooltip content="Muting stops notifications for this issue until it regresses, and it stays in the Muted tab"><Button variant="ghost" aria-label="Mute" icon={MuteIcon} /></Tooltip>}>
+    A paragraph. What needs explaining belongs in a hint or the docs.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Button variant="secondary" icon={ExportIcon}>Export</Button>}>
+    No tooltip on a button that already says what it does.
+  </Do>
+  <Dont example={<Tooltip content="Export"><Button variant="secondary" icon={ExportIcon}>Export</Button></Tooltip>}>
+    A tooltip repeating the label under the pointer.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="04" title="Where it is used">
+
+<UsedIn>
+  <Place at="Topbar">Every icon-only control.</Place>
+  <Place at="Collapsed sidebar">The route names, which the rail cannot show.</Place>
+  <Place at="Table headers">What a truncated column is.</Place>
+  <Place at="Disabled menu entries">Why the entry is off.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="05" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItAppearsOnHover">It appears on hover and on focus, and leaves as soon as either goes.</Guarantee>
+  <Guarantee>Anything else passed to it falls through to the trigger, so a tooltip can wrap something which is already the trigger of something else.</Guarantee>
+  <Guarantee>It is never the only place a name exists: the control carries its own <code>aria-label</code>.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="06" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

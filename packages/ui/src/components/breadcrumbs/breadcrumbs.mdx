@@ -1,0 +1,113 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Breadcrumbs } from './breadcrumbs';
+import * as BreadcrumbsStories from './breadcrumbs.stories';
+
+<Meta of={BreadcrumbsStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Breadcrumbs"
+  lede="Where you are, and the way back: Issues / CHECKOUT-API-4F2."
+  note="Two levels, three at most. The sidebar already says which section you are in."
+/>
+
+<Section
+  n="01"
+  title="It bridges a list and the record opened from it"
+  intro="Nothing more. A trail that needs four levels is a navigation problem, not a breadcrumb problem."
+>
+
+<Stage label="the shape it has on every screen" stack>
+  <Breadcrumbs
+    items={[
+      { label: 'Issues', render: <a href="#issues" /> },
+      { label: 'CHECKOUT-API-4F2' },
+    ]}
+  />
+  <Breadcrumbs
+    items={[
+      { label: 'Releases', render: <a href="#releases" /> },
+      { label: 'web@2026.8.1', render: <a href="#release" /> },
+      { label: 'CHECKOUT-API-4F2' },
+    ]}
+  />
+</Stage>
+
+<Rule>
+  The last crumb is an identifier, so it is set in mono and it is not a link:
+  you are already there.
+</Rule>
+
+</Section>
+
+<Section n="02" title="Guidelines">
+
+<DoDont>
+  <Do example={<Breadcrumbs items={[{ label: 'Issues', render: <a href="#i" /> }, { label: 'CHECKOUT-API-4F2' }]} />}>
+    Two levels: the list, and the record.
+  </Do>
+  <Dont example={<Breadcrumbs items={[{ label: 'Home', render: <a href="#h" /> }, { label: 'Projects', render: <a href="#p" /> }, { label: 'Checkout API', render: <a href="#c" /> }, { label: 'Issues', render: <a href="#i" /> }, { label: 'CHECKOUT-API-4F2' }]} />}>
+    A file tree. The sidebar already carries the section.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do example={<Breadcrumbs items={[{ label: 'Settings' }, { label: 'Members' }]} />}>
+    Leave <code>render</code> off a level that has no page. It is drawn as
+    plain text.
+  </Do>
+  <Dont example={<Breadcrumbs items={[{ label: 'Settings', render: <a /> }, { label: 'Members' }]} />}>
+    An anchor with no destination. It is not a link, is not reachable by tab,
+    and announces as nothing.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="03" title="Where it is used">
+
+<UsedIn>
+  <Place at="Issue detail">Issues / the issue's id.</Place>
+  <Place at="Release detail">Releases / the version.</Place>
+  <Place at="Settings">The section, then the page inside it.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="04" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="TheLastCrumbIsNotALink">The last crumb carries <code>aria-current="page"</code> and is not a link.</Guarantee>
+  <Guarantee story="TheTrailIsReachableByKeyboard">Every crumb with a destination is reachable by tab, in order.</Guarantee>
+  <Guarantee story="ACrumbWithNowhereToGoIsNotALink">A crumb with no <code>render</code> is plain text, not an empty anchor.</Guarantee>
+  <Guarantee>Every crumb truncates rather than wrapping: the trail is one line at any width.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="05" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>
