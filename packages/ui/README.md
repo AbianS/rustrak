@@ -207,6 +207,18 @@ project card, the seven routes, ⌘B).
 
 **Forms** · `Checkbox` `Popover`.
 
+**Forms, continued** · `Field` (`FieldLabel`/`FieldHint`/`FieldError`, wired
+by Base UI), `Input` (leading symbol, trailing `InputAction`, numeric,
+read-only, invalid), `Textarea` — all sharing one `inputShell` box.
+
+**Charts** · recharts 3 behind three components that never leak it:
+`TimeSeriesChart` (areas with gradient fills, stacked or overlaid),
+`BarsChart` (bucketed, stacked by default, 1 px surface seams between
+bands), and `Sparkline` (hand-drawn SVG for table rows: no store, no
+animation, no tooltip). Colours are `var(--chart-*)` and the severity
+tokens; both palettes pass the CVD/contrast validation. TanStack Charts was
+evaluated and parked: relaunched 2026-07, pre-alpha, to be revisited at 1.0.
+
 **Overlays** · `ToastProvider`/`useToast` (a stacked corner notice: tones
 with their own lifetimes, actions, progress, `promise`), `Dialog` with its
 `Header`/`Body`/`Footer`, `createDialog`/`DialogProvider` (modals opened by
@@ -217,8 +229,6 @@ with `DataTable`, `DataTablePagination`, `DataTableColumnsButton`, the
 column-header sort/filter panels behind them — and `QueryBar`, the token
 search with two-phase autocomplete. `data-table/query.ts` holds the shared
 query model and the URL codecs.
-
-No charts. Those are a later pass and need decisions this one does not.
 
 ### Named decisions
 
