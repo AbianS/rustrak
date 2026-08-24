@@ -88,8 +88,10 @@ import * as CheckboxStories from './checkbox.stories';
   <Do example={<div className="flex items-center gap-3"><Checkbox aria-label="Select row" /><Text variant="control">Select this issue</Text></div>}>
     A name for it, always. It carries no visible text of its own.
   </Do>
-  <Dont example={<Checkbox aria-label="" />}>
-    An unnamed box. A screen reader announces “checkbox” and nothing else.
+  <Dont example={<Checkbox aria-label="" disabled />}>
+    An empty name. A screen reader announces “checkbox” and nothing else. The
+    box here is disabled so this page does not ship the very failure it is
+    describing.
   </Dont>
 </DoDont>
 
@@ -118,7 +120,7 @@ import * as CheckboxStories from './checkbox.stories';
 <Section n="05" title="What it guarantees">
 
 <Guarantees>
-  <Guarantee>The <code>aria-label</code> is required by the type: a box with no name does not compile.</Guarantee>
+  <Guarantee>The <code>aria-label</code> is required by the type: leaving it out does not compile. An empty string still does, which is why it is the one thing the guidelines above single out.</Guarantee>
   <Guarantee story="Keyboard">Space toggles it, and the focus ring is the same 2 px lime as every other control.</Guarantee>
   <Guarantee story="SelectAll">The header reads its rows: all, none or split, without a third state anybody has to set by hand.</Guarantee>
 </Guarantees>

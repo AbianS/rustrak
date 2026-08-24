@@ -55,7 +55,15 @@ export function Cover({
         {eyebrow}
       </Text>
       {mark ? (
-        <Wordmark className="h-10 w-auto text-fg" />
+        /*
+         * The wordmark *is* the title on the front page, so it has to be the
+         * `h1` as well. It is an SVG with `role="img"` and an `aria-label`, so
+         * the heading is announced as "Rustrak" and the page keeps the
+         * level-one heading every other page gets from `title`.
+         */
+        <h1>
+          <Wordmark className="h-10 w-auto text-fg" />
+        </h1>
       ) : (
         <Text variant="page-title" render={<h1 />} className="font-semibold">
           {title}

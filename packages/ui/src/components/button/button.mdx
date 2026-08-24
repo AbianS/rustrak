@@ -124,7 +124,7 @@ import * as ButtonStories from './button.stories';
   )}
 />
 
-<P><code>selected</code> is only honoured by <code>secondary</code> and <code>ghost</code>: a primary is already the screen's main action, so it cannot additionally be switched on.</P>
+<P><code>selected</code> writes <code>aria-pressed</code> on every variant, so it is a toggle to anything that reads the page. Only <code>secondary</code> and <code>ghost</code> draw the pressed treatment: a primary is already the screen's main action, so there is nothing left for it to look switched on against. Reach for it on a control that is genuinely two-state, and not on a primary.</P>
 
 </Section>
 

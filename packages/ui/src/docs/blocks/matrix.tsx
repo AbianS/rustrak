@@ -22,12 +22,19 @@ export function Matrix<C extends string, R extends string>({
 }) {
   return (
     <figure className="my-6 overflow-x-auto rounded-lg border border-border-subtle bg-canvas">
-      {label ? (
-        <Text variant="column" tone="ghost" className="block px-4 pt-3">
-          {label}
-        </Text>
-      ) : null}
       <table className="w-full border-collapse">
+        {/*
+         * The label is the table's accessible name, so it is a `caption` and
+         * not a line above the grid. Outside the table it read as a paragraph
+         * that happened to sit nearby, and the table itself went unnamed.
+         */}
+        {label ? (
+          <caption className="px-4 pt-3 text-left">
+            <Text variant="column" tone="ghost">
+              {label}
+            </Text>
+          </caption>
+        ) : null}
         <thead>
           <tr>
             <th className="w-0" />
