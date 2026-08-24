@@ -98,11 +98,15 @@ export function useDataTable<TData extends RowData>({
     slice: TSlice,
     updater: Updater<DataTableQuery[TSlice]>,
   ) {
-    onQueryChange((previous) => ({
-      ...previous,
-      [slice]: functionalUpdate(updater, previous[slice]),
-      pagination: { ...previous.pagination, pageIndex: 0 },
-    }));
+    onQueryChange((previous) => {
+      const next = functionalUpdate(updater, previous[slice]);
+      return {
+        ...previous,
+        // TanStack's global filter can be set to `undefined`; `search` never is.
+        [slice]: slice === 'search' && next == null ? '' : next,
+        pagination: { ...previous.pagination, pageIndex: 0 },
+      };
+    });
   }
 
   return useTable<DataTableFeatures, TData>({

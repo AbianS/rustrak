@@ -305,14 +305,21 @@ export function QueryBar({
   useEffect(() => {
     if (!pendingKey || !pendingLoad) return;
     let cancelled = false;
-    pendingLoad().then((options) => {
-      if (!cancelled) {
-        setLoadedOptions((previous) => ({
-          ...previous,
-          [pendingKey]: options,
-        }));
-      }
-    });
+    pendingLoad()
+      .then((options) => {
+        if (!cancelled) {
+          setLoadedOptions((previous) => ({
+            ...previous,
+            [pendingKey]: options,
+          }));
+        }
+      })
+      .catch(() => {
+        // An empty list ends the skeleton and reads as "nothing to offer".
+        if (!cancelled) {
+          setLoadedOptions((previous) => ({ ...previous, [pendingKey]: [] }));
+        }
+      });
     return () => {
       cancelled = true;
     };
@@ -435,6 +442,7 @@ export function QueryBar({
     }
     commitDraft(draft);
     setOpen(false);
+    setPickedKey(null);
   }
 
   function removeFilter(key: string) {
@@ -622,115 +630,116 @@ export function QueryBar({
             <div className={styles.groupLabel()}>Filter by</div>
           ) : null}
 
-          <div
-            role="listbox"
-            id={listboxId}
-            aria-label="Suggestions"
-            className={styles.list()}
-          >
-            {optionsPending
-              ? [0, 1, 2].map((line) => (
-                  <div
-                    key={line}
-                    aria-hidden="true"
-                    className={styles.skeleton()}
-                  />
-                ))
-              : null}
+          <div className={styles.list()}>
+            {optionsPending ? (
+              <div aria-hidden="true">
+                {[0, 1, 2].map((line) => (
+                  <div key={line} className={styles.skeleton()} />
+                ))}
+              </div>
+            ) : null}
 
-            {suggestions.map((suggestion, index) => {
-              const highlightedRow = index === highlightIndex;
-              const shared = {
-                id: `${id}-option-${index}`,
-                'data-highlighted': highlightedRow,
-                className: styles.option(),
-                onMouseEnter: () => setHighlighted(index),
-                // Fires before the input's blur: the click must win.
-                onMouseDown: (event: ReactMouseEvent) => event.preventDefault(),
-                onClick: () => apply(suggestion),
-              };
+            <div
+              role="listbox"
+              id={listboxId}
+              aria-label="Suggestions"
+              aria-busy={optionsPending || undefined}
+            >
+              {suggestions.map((suggestion, index) => {
+                const highlightedRow = index === highlightIndex;
+                const shared = {
+                  id: `${id}-option-${index}`,
+                  'data-highlighted': highlightedRow,
+                  className: styles.option(),
+                  onMouseEnter: () => setHighlighted(index),
+                  // Fires before the input's blur: the click must win.
+                  onMouseDown: (event: ReactMouseEvent) =>
+                    event.preventDefault(),
+                  onClick: () => apply(suggestion),
+                };
 
-              if (suggestion.kind === 'field') {
-                const Icon = suggestion.field.icon ?? FacetsIcon;
+                if (suggestion.kind === 'field') {
+                  const Icon = suggestion.field.icon ?? FacetsIcon;
+                  return (
+                    <div
+                      key={`field-${suggestion.field.key}`}
+                      {...shared}
+                      role="option"
+                      // Steered from the input via aria-activedescendant.
+                      tabIndex={-1}
+                      aria-selected={false}
+                    >
+                      <Icon size="lg" className={styles.optionIcon()} />
+                      <span className={styles.optionLabel()}>
+                        {suggestion.field.label}
+                      </span>
+                      <span className={styles.optionHint()}>
+                        {suggestion.field.description ??
+                          `${suggestion.field.key}:`}
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (suggestion.kind === 'value') {
+                  const ticked = selectedValues(suggestion.field.key).includes(
+                    suggestion.option.value,
+                  );
+                  return (
+                    <div
+                      key={`value-${suggestion.option.value}`}
+                      {...shared}
+                      role="option"
+                      tabIndex={-1}
+                      aria-selected={ticked}
+                    >
+                      <span
+                        aria-hidden="true"
+                        data-ticked={ticked}
+                        className={styles.optionBox()}
+                      >
+                        {ticked ? (
+                          <ResolveIcon size="sm" aria-hidden="true" />
+                        ) : null}
+                      </span>
+                      {suggestion.option.tone ? (
+                        <span
+                          aria-hidden="true"
+                          className={styles.optionDot({
+                            className: TONE_DOT[suggestion.option.tone],
+                          })}
+                        />
+                      ) : null}
+                      <span className={styles.optionLabel()}>
+                        {suggestion.option.label}
+                      </span>
+                      {suggestion.option.hint ? (
+                        <span className={styles.optionHint()}>
+                          {suggestion.option.hint}
+                        </span>
+                      ) : null}
+                      <Count>{suggestion.option.count}</Count>
+                    </div>
+                  );
+                }
+
                 return (
                   <div
-                    key={`field-${suggestion.field.key}`}
+                    key="search"
                     {...shared}
                     role="option"
-                    // Steered from the input via aria-activedescendant.
                     tabIndex={-1}
                     aria-selected={false}
                   >
-                    <Icon size="lg" className={styles.optionIcon()} />
+                    <SearchIcon size="lg" className={styles.optionIcon()} />
                     <span className={styles.optionLabel()}>
-                      {suggestion.field.label}
+                      Search “{suggestion.text}”
                     </span>
-                    <span className={styles.optionHint()}>
-                      {suggestion.field.description ??
-                        `${suggestion.field.key}:`}
-                    </span>
+                    <Kbd>⏎</Kbd>
                   </div>
                 );
-              }
-
-              if (suggestion.kind === 'value') {
-                const ticked = selectedValues(suggestion.field.key).includes(
-                  suggestion.option.value,
-                );
-                return (
-                  <div
-                    key={`value-${suggestion.option.value}`}
-                    {...shared}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={ticked}
-                  >
-                    <span
-                      aria-hidden="true"
-                      data-ticked={ticked}
-                      className={styles.optionBox()}
-                    >
-                      {ticked ? (
-                        <ResolveIcon size="sm" aria-hidden="true" />
-                      ) : null}
-                    </span>
-                    {suggestion.option.tone ? (
-                      <span
-                        aria-hidden="true"
-                        className={styles.optionDot({
-                          className: TONE_DOT[suggestion.option.tone],
-                        })}
-                      />
-                    ) : null}
-                    <span className={styles.optionLabel()}>
-                      {suggestion.option.label}
-                    </span>
-                    {suggestion.option.hint ? (
-                      <span className={styles.optionHint()}>
-                        {suggestion.option.hint}
-                      </span>
-                    ) : null}
-                    <Count>{suggestion.option.count}</Count>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key="search"
-                  {...shared}
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={false}
-                >
-                  <SearchIcon size="lg" className={styles.optionIcon()} />
-                  <span className={styles.optionLabel()}>
-                    Search “{suggestion.text}”
-                  </span>
-                  <Kbd>⏎</Kbd>
-                </div>
-              );
-            })}
+              })}
+            </div>
 
             {activeField && activeField.variant === 'range' ? (
               <div className={styles.option()}>

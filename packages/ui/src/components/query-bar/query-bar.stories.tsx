@@ -87,6 +87,19 @@ export const Basic: Story = {
   render: () => <Harness />,
 };
 
+/** Every state side by side: resting, chips of each variant, free text. */
+export const States: Story = {
+  parameters: { controls: { disable: true } },
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <Harness />
+      <Harness initialFilters={[{ id: 'level', value: ['error', 'fatal'] }]} />
+      <Harness initialFilters={[{ id: 'events', value: [100, null] }]} />
+      <Harness initialSearch="connection reset" />
+    </div>
+  ),
+};
+
 export const WithFilters: Story = {
   render: () => (
     <Harness

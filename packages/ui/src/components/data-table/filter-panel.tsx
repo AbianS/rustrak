@@ -98,9 +98,14 @@ export function OptionsFilterPanel<TData extends RowData>({
   useEffect(() => {
     if (!loadOptions) return;
     let cancelled = false;
-    loadOptions().then((options) => {
-      if (!cancelled) setLoaded(options);
-    });
+    loadOptions()
+      .then((options) => {
+        if (!cancelled) setLoaded(options);
+      })
+      .catch(() => {
+        // An empty list ends the skeleton and reads as "nothing to offer".
+        if (!cancelled) setLoaded([]);
+      });
     return () => {
       cancelled = true;
     };

@@ -63,6 +63,15 @@ describe('parseFilterQuery', () => {
     expect(search).toBe('connection reset');
   });
 
+  it('reads an escaped quote inside a quoted text value literally', () => {
+    const { filters } = parseFilterQuery(
+      'release:"say \\"hi\\" now"',
+      variants,
+    );
+
+    expect(filters).toEqual([{ id: 'release', value: 'say "hi" now' }]);
+  });
+
   it('merges a key written twice instead of duplicating it', () => {
     const { filters } = parseFilterQuery('level:error level:fatal', variants);
 
@@ -97,6 +106,19 @@ describe('formatFilterQuery', () => {
         variants,
       ),
     ).toBe('release:"not deployed"');
+  });
+
+  it('escapes an embedded quote so it round-trips through parse', () => {
+    const formatted = formatFilterQuery(
+      [{ id: 'release', value: 'say "hi" now' }],
+      '',
+      variants,
+    );
+
+    expect(formatted).toBe('release:"say \\"hi\\" now"');
+    expect(parseFilterQuery(formatted, variants).filters).toEqual([
+      { id: 'release', value: 'say "hi" now' },
+    ]);
   });
 
   it('drops empty filters instead of writing empty tokens', () => {
