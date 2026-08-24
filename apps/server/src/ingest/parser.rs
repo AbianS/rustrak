@@ -12,8 +12,15 @@ const MAX_ITEM_SIZE: usize = 1024 * 1024;
 /// Bound per-envelope metadata amplification from many tiny items.
 const MAX_ITEM_COUNT: usize = 1024;
 
-/// The size digest's trimming pass (`services::event_trim`) targets shrinking
-/// event payloads under. Matches the original, un-relaxed per-item limit.
+/// Do not retain a large envelope allocation for a tiny selected payload.
+pub(crate) const RETAINED_ENVELOPE_OVERHEAD_COPY_FLOOR: usize = 16 * 1024;
+/// Copy only when the retained envelope overhead is at least four times the
+/// selected payload, avoiding an expensive copy of a large payload for a
+/// comparatively small memory saving.
+pub(crate) const RETAINED_ENVELOPE_OVERHEAD_COPY_RATIO: usize = 4;
+
+/// The digest's trimming pass (`services::event_trim`) targets shrinking event
+/// payloads under this size, matching the original per-item limit.
 pub(crate) const TARGET_EVENT_SIZE: usize = 1024 * 1024;
 
 /// Hard abuse ceiling for "event" items specifically — raised above
@@ -31,6 +38,20 @@ pub(crate) const MAX_RAW_EVENT_SIZE: usize = 4 * 1024 * 1024;
 pub struct EnvelopeParser {
     data: Bytes,
     position: usize,
+}
+
+pub(crate) fn detach_payload_if_needed(payload: Bytes, envelope_len: usize) -> Bytes {
+    let retained_overhead = envelope_len.saturating_sub(payload.len());
+    let should_detach = retained_overhead >= RETAINED_ENVELOPE_OVERHEAD_COPY_FLOOR
+        && retained_overhead
+            >= payload
+                .len()
+                .saturating_mul(RETAINED_ENVELOPE_OVERHEAD_COPY_RATIO);
+    if should_detach {
+        Bytes::copy_from_slice(&payload)
+    } else {
+        payload
+    }
 }
 
 impl EnvelopeParser {
@@ -242,5 +263,59 @@ mod tests {
 
         let result = EnvelopeParser::new(Bytes::from(data)).parse();
         assert!(matches!(result, Err(AppError::PayloadTooLarge(_))));
+    }
+
+    #[test]
+    fn selected_payload_detaches_when_envelope_overhead_is_large() {
+        let payload_len = 1024;
+        let overhead = RETAINED_ENVELOPE_OVERHEAD_COPY_FLOOR
+            .max(payload_len * RETAINED_ENVELOPE_OVERHEAD_COPY_RATIO)
+            + 1;
+        let envelope = Bytes::from(vec![b'x'; overhead + payload_len]);
+        let payload = envelope.slice(..payload_len);
+
+        let detached = detach_payload_if_needed(payload.clone(), envelope.len());
+
+        assert_eq!(detached, payload);
+        assert_ne!(detached.as_ptr(), payload.as_ptr());
+    }
+
+    #[test]
+    fn selected_payload_stays_zero_copy_below_overhead_threshold() {
+        let payload_len = 1024;
+        let overhead = RETAINED_ENVELOPE_OVERHEAD_COPY_FLOOR - 1;
+        let envelope = Bytes::from(vec![b'x'; overhead + payload_len]);
+        let payload = envelope.slice(..payload_len);
+
+        let retained = detach_payload_if_needed(payload.clone(), envelope.len());
+
+        assert_eq!(retained, payload);
+        assert_eq!(retained.as_ptr(), payload.as_ptr());
+    }
+
+    #[test]
+    fn large_payload_stays_zero_copy_when_overhead_is_not_four_times_larger() {
+        let payload_len = 128 * 1024;
+        let overhead = RETAINED_ENVELOPE_OVERHEAD_COPY_FLOOR + 1;
+        let envelope = Bytes::from(vec![b'x'; overhead + payload_len]);
+        let payload = envelope.slice(..payload_len);
+
+        let retained = detach_payload_if_needed(payload.clone(), envelope.len());
+
+        assert_eq!(retained, payload);
+        assert_eq!(retained.as_ptr(), payload.as_ptr());
+    }
+
+    #[test]
+    fn payload_detaches_at_the_size_aware_boundary() {
+        let payload_len = 16 * 1024;
+        let overhead = payload_len * RETAINED_ENVELOPE_OVERHEAD_COPY_RATIO;
+        let envelope = Bytes::from(vec![b'x'; overhead + payload_len]);
+        let payload = envelope.slice(..payload_len);
+
+        let detached = detach_payload_if_needed(payload.clone(), envelope.len());
+
+        assert_eq!(detached, payload);
+        assert_ne!(detached.as_ptr(), payload.as_ptr());
     }
 }

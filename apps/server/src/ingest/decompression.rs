@@ -268,42 +268,32 @@ fn decompress_zstd(data: &Bytes) -> AppResult<Bytes> {
     // request before handing it to the application.
     let assume_decompressed = data.starts_with(b"{") || data.starts_with(b"[");
 
-    let mut decoder = match zstd::stream::read::Decoder::new(data.as_ref()) {
-        Ok(decoder) => decoder,
-        Err(_) if assume_decompressed => {
+    let decompressed = match decompress_zstd_payload(data) {
+        Ok(decompressed) => decompressed,
+        Err(_error) if assume_decompressed => {
             log::debug!(
                 "decompress_zstd: invalid stream looks like JSON, assuming already decompressed"
             );
             return Ok(data.clone());
         }
-        Err(error) => {
-            return Err(AppError::Validation(format!(
-                "Invalid zstd data: {}",
-                error
-            )))
-        }
+        Err(error) => return Err(error),
     };
+    Ok(Bytes::from(decompressed))
+}
+
+pub(crate) fn decompress_zstd_payload(data: &[u8]) -> AppResult<Vec<u8>> {
+    let mut decoder = zstd::stream::read::Decoder::new(data)
+        .map_err(|e| AppError::Validation(format!("Invalid zstd data: {}", e)))?;
     decoder
         .window_log_max(MAX_ZSTD_WINDOW_LOG)
         .map_err(|e| AppError::Validation(format!("Invalid zstd data: {}", e)))?;
     let mut decompressed = Vec::new();
-    let read_result = decoder
+    decoder
         .take((MAX_DECOMPRESSED_SIZE + 1) as u64)
-        .read_to_end(&mut decompressed);
-    if let Err(error) = read_result {
-        if assume_decompressed {
-            log::debug!(
-                "decompress_zstd: invalid stream looks like JSON, assuming already decompressed"
-            );
-            return Ok(data.clone());
-        }
-        return Err(AppError::Validation(format!(
-            "Invalid zstd data: {}",
-            error
-        )));
-    }
+        .read_to_end(&mut decompressed)
+        .map_err(|error| AppError::Validation(format!("Invalid zstd data: {}", error)))?;
     reject_oversized_decompressed(&decompressed)?;
-    Ok(Bytes::from(decompressed))
+    Ok(decompressed)
 }
 
 fn reject_oversized_decompressed(data: &[u8]) -> AppResult<()> {

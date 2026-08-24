@@ -11,7 +11,7 @@ use crate::digest::processors::{
 };
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
-    decompress_body, get_content_encoding, get_ingest_dir, list_pending_event_metadata,
+    decompress_body, detach_payload_if_needed, get_content_encoding, list_pending_event_metadata,
     store_event_with_metadata, EnvelopeItemKind, EnvelopeParser, EventMetadata,
     MAX_COMPRESSED_SIZE,
 };
@@ -63,8 +63,6 @@ pub async fn ingest_envelope(
     }
 
     let ingested_at = Utc::now();
-    let ingest_dir = get_ingest_dir(config.ingest_dir.as_deref());
-
     // 1. Get client IP
     let remote_addr = req
         .connection_info()
@@ -106,6 +104,7 @@ pub async fn ingest_envelope(
     let mut span_items: Vec<Bytes> = Vec::new();
     let mut span_v2_items: Vec<Bytes> = Vec::new();
     let mut requires_event_id = false;
+    let envelope_len = parser.data().len();
     let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), parser.data());
     for item_kind in envelope.items {
         if item_kind.requires_event() {
@@ -114,7 +113,7 @@ pub async fn ingest_envelope(
         match item_kind {
             EnvelopeItemKind::Event(p) => {
                 if event_item.is_none() {
-                    event_item = Some(p);
+                    event_item = Some(detach_payload_if_needed(p, envelope_len));
                 }
             }
             EnvelopeItemKind::Transaction(p) => {
@@ -183,6 +182,7 @@ pub async fn ingest_envelope(
             }
         }
     }
+    drop(parser);
 
     // 5. Resolve event_id — only required for event-bearing item types.
     //    If the SDK omitted it, derive it from the durable delivery identity.
@@ -287,7 +287,13 @@ pub async fn ingest_envelope(
         ingested_at,
         remote_addr,
     };
-    store_event_with_metadata(&ingest_dir, &event_id, &event_item, &metadata).await?;
+    store_event_with_metadata(
+        processors.errors.ingest_dir(),
+        &event_id,
+        &event_item,
+        &metadata,
+    )
+    .await?;
 
     // The digest worker owns grouping, issue creation, and its durable retry path.
     let processors = processors.clone();
@@ -297,23 +303,22 @@ pub async fn ingest_envelope(
         // grouping working set stay bounded to the concurrent cap, not the
         // burst size.
         let _permit = processors.processing_slot.acquire().await;
-        let event_id_log = metadata.event_id.clone();
         let ctx = ProcessorCtx {
             pool: pool_clone,
             project_id: metadata.project_id,
             event_id: uuid::Uuid::parse_str(&metadata.event_id)
                 .unwrap_or_else(|_| uuid::Uuid::nil()),
             ingested_at: metadata.ingested_at,
-            remote_addr: metadata.remote_addr.clone(),
+            remote_addr: None,
         };
         for attempt in 0..4 {
-            match processors.errors.process(metadata.clone(), &ctx).await {
+            match processors.errors.process_ref(&metadata, &ctx).await {
                 Ok(()) => break,
                 Err(e) if is_retryable_write_contention(&e) && attempt < 3 => {
                     let delay = std::time::Duration::from_millis(250 << attempt);
                     log::warn!(
                         "Digest {} remains locked; retrying after {:?}: {:?}",
-                        event_id_log,
+                        metadata.event_id,
                         delay,
                         e
                     );
@@ -322,7 +327,7 @@ pub async fn ingest_envelope(
                 Err(e) => {
                     log::error!(
                         "Failed to digest event {}; it remains queued: {:?}",
-                        event_id_log,
+                        metadata.event_id,
                         e
                     );
                     break;
@@ -379,18 +384,21 @@ async fn recover_pending_events_once_with_status(
 
     let mut has_pending = false;
     for metadata in pending {
-        let event_id = metadata.event_id.clone();
         let ctx = ProcessorCtx {
             pool: pool.clone(),
             project_id: metadata.project_id,
             event_id: uuid::Uuid::parse_str(&metadata.event_id)
                 .unwrap_or_else(|_| uuid::Uuid::nil()),
             ingested_at: metadata.ingested_at,
-            remote_addr: metadata.remote_addr.clone(),
+            remote_addr: None,
         };
-        if let Err(e) = processors.errors.process(metadata, &ctx).await {
+        if let Err(e) = processors.errors.process_ref(&metadata, &ctx).await {
             has_pending = true;
-            log::warn!("Pending digest {} remains queued: {:?}", event_id, e);
+            log::warn!(
+                "Pending digest {} remains queued: {:?}",
+                metadata.event_id,
+                e
+            );
         }
     }
     has_pending

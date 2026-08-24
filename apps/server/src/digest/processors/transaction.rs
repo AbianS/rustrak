@@ -15,7 +15,7 @@ impl Processor for TransactionProcessor {
     async fn process(&self, work: Bytes, ctx: &ProcessorCtx) -> AppResult<()> {
         // Reject malformed payloads instead of persisting a null-data row.
         // The ingest route propagates this error so the SDK can retry the envelope.
-        let data: serde_json::Value = serde_json::from_slice(&work)
+        let mut data: serde_json::Value = serde_json::from_slice(&work)
             .map_err(|e| AppError::Validation(format!("Invalid transaction JSON: {}", e)))?;
 
         let timestamp = extract_timestamp(&data, "timestamp").unwrap_or(ctx.ingested_at);
@@ -30,10 +30,6 @@ impl Processor for TransactionProcessor {
         let parent_span_id = trace_str(trace, "parent_span_id");
         let op = trace_str(trace, "op");
         let status = trace_str(trace, "status");
-        // Owned clone, mutated independently of `data` below — needed for the
-        // AI-root-span promotion pass after the transaction/child-span inserts.
-        let mut trace_context = trace.cloned();
-
         // transaction_info.source carries Relay's TransactionSource. Stored
         // verbatim (Relay keeps unrecognized values via its `Other(String)`
         // variant); defaults to "unknown" when the SDK omits transaction_info.
@@ -123,7 +119,7 @@ impl Processor for TransactionProcessor {
         .bind(sdk_name)
         .bind(sdk_version)
         .bind(level)
-        .bind(serde_json::json!(data))
+        .bind(sqlx::types::Json(&data))
         .bind(ctx.remote_addr.as_deref())
         .bind(ctx.ingested_at)
         .execute(&mut *tx)
@@ -137,11 +133,10 @@ impl Processor for TransactionProcessor {
         // extraction (DataCategory::SpanIndexed): individually queryable rows
         // linked to the parent transaction. A span inherits the transaction's
         // trace_id when it doesn't carry its own.
-        if let Some(spans) = data.get("spans").and_then(|s| s.as_array()) {
-            // Cloned (not borrowed) so gen_ai normalization can mutate each
-            // span's own `data` attributes bag independently of the parent
-            // transaction's already-serialized `data` column above.
-            for span in spans.clone() {
+        if let Some(spans) = data.get_mut("spans").and_then(|s| s.as_array_mut()) {
+            // Mutate each span's own `data` attributes bag in place; the parent
+            // transaction was already serialized above.
+            for span in spans {
                 insert_span(
                     span,
                     id,
@@ -168,8 +163,11 @@ impl Processor for TransactionProcessor {
         // an ordinary, non-AI transaction's span count is unaffected —
         // verified live against a real captured trace, 2026-07-17.
         if let (Some(root_span_id), Some(root_trace_id)) = (&span_id, &trace_id) {
+            let mut trace_context = data
+                .get_mut("contexts")
+                .and_then(|contexts| contexts.get_mut("trace"));
             let gen_ai = match trace_context
-                .as_mut()
+                .as_deref_mut()
                 .and_then(serde_json::Value::as_object_mut)
             {
                 Some(trace) => {
@@ -191,7 +189,9 @@ impl Processor for TransactionProcessor {
                     duration_ms,
                     id,
                     ctx.project_id,
-                    trace_context.unwrap_or(serde_json::json!({})),
+                    trace_context
+                        .as_deref()
+                        .expect("trace context exists when root span identifiers exist"),
                     // `extract_str` yields "" for an absent field, but the
                     // spans table's nullable columns mean "not reported" —
                     // and an empty string would surface as a filter option.
@@ -226,7 +226,7 @@ type Db = sqlx::Sqlite;
 // row, and there is one call site.
 #[allow(clippy::too_many_arguments)]
 async fn insert_span<'e, E>(
-    mut span: serde_json::Value,
+    span: &mut serde_json::Value,
     transaction_id: Uuid,
     project_id: i32,
     txn_trace_id: Option<&str>,
@@ -276,8 +276,8 @@ where
         .map(str::to_string)
         .or_else(|| txn_trace_id.map(str::to_string));
 
-    let start_timestamp = extract_timestamp(&span, "start_timestamp");
-    let timestamp = extract_timestamp(&span, "timestamp");
+    let start_timestamp = extract_timestamp(span, "start_timestamp");
+    let timestamp = extract_timestamp(span, "timestamp");
     let duration_ms = match (start_timestamp, timestamp) {
         (Some(st), Some(ts)) => (ts - st)
             .num_microseconds()
@@ -342,7 +342,7 @@ where
     .bind(is_segment)
     .bind(segment_id)
     .bind(tags)
-    .bind(serde_json::json!(span))
+    .bind(sqlx::types::Json(&*span))
     .bind(platform)
     .bind(release)
     .bind(environment)
@@ -383,7 +383,7 @@ async fn insert_root_span<'e, E>(
     duration_ms: Option<f64>,
     transaction_id: Uuid,
     project_id: i32,
-    trace_context: serde_json::Value,
+    trace_context: &serde_json::Value,
     platform: Option<&str>,
     release: Option<&str>,
     environment: Option<&str>,
@@ -435,7 +435,7 @@ where
     .bind(timestamp)
     .bind(duration_ms)
     .bind(span_id) // segment_id: the root is its own segment
-    .bind(serde_json::json!(trace_context))
+    .bind(sqlx::types::Json(trace_context))
     // Inherited from the transaction event: contexts.trace carries none of
     // these, and a promoted root with a NULL environment would vanish from
     // any environment-filtered aggregate while its own children survived.

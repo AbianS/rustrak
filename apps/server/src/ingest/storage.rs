@@ -10,11 +10,12 @@ use tokio::io::{AsyncWriteExt, BufWriter};
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
-use crate::ingest::EventMetadata;
+use crate::ingest::{decompression::decompress_zstd_payload, EventMetadata};
 
 /// Default base directory for pending events
 const DEFAULT_INGEST_DIR: &str = "/tmp/rustrak/ingest";
 const PENDING_EVENT_VERSION: u8 = 1;
+const PENDING_EVENT_ZSTD_VERSION: u8 = 2;
 const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
 const BASE64_WRITE_CHUNK_SIZE: usize = 48 * 1024;
 
@@ -69,17 +70,24 @@ fn validate_pending_record(
     event_id: &str,
     project_id: Option<i32>,
 ) -> AppResult<Vec<u8>> {
-    if record.version != PENDING_EVENT_VERSION
-        || !same_event_id(&record.metadata.event_id, event_id)
+    if !matches!(
+        record.version,
+        PENDING_EVENT_VERSION | PENDING_EVENT_ZSTD_VERSION
+    ) || !same_event_id(&record.metadata.event_id, event_id)
         || project_id.is_some_and(|id| record.metadata.project_id != id)
     {
         return Err(AppError::Internal(
             "Invalid pending event record identity".to_string(),
         ));
     }
-    STANDARD
+    let encoded = STANDARD
         .decode(record.event_data)
-        .map_err(|e| AppError::Internal(format!("Invalid pending event payload: {}", e)))
+        .map_err(|e| AppError::Internal(format!("Invalid pending event payload: {}", e)))?;
+    if record.version == PENDING_EVENT_ZSTD_VERSION {
+        decompress_zstd_payload(&encoded)
+    } else {
+        Ok(encoded)
+    }
 }
 
 async fn read_pending_record(
@@ -112,6 +120,11 @@ fn base64_chunk_ranges(data_len: usize) -> impl Iterator<Item = Range<usize>> {
     })
 }
 
+fn encode_base64_chunk(input: &[u8], output: &mut String) {
+    output.clear();
+    STANDARD.encode_string(input, output);
+}
+
 async fn write_pending_record(
     file: &mut fs::File,
     metadata: &EventMetadata,
@@ -119,11 +132,17 @@ async fn write_pending_record(
 ) -> io::Result<()> {
     let metadata_bytes = serde_json::to_vec(metadata).map_err(io::Error::other)?;
     let mut writer = BufWriter::new(file);
-    writer.write_all(br#"{"version":1,"metadata":"#).await?;
+    let version = PENDING_EVENT_VERSION;
+    let payload = event_data;
+    writer
+        .write_all(format!(r#"{{"version":{version},"metadata":"#).as_bytes())
+        .await?;
     writer.write_all(&metadata_bytes).await?;
     writer.write_all(br#","event_data":""#).await?;
-    for range in base64_chunk_ranges(event_data.len()) {
-        let encoded = STANDARD.encode(&event_data[range]);
+    let initial_chunk_len = payload.len().min(BASE64_WRITE_CHUNK_SIZE);
+    let mut encoded = String::with_capacity(initial_chunk_len.div_ceil(3) * 4);
+    for range in base64_chunk_ranges(payload.len()) {
+        encode_base64_chunk(&payload[range], &mut encoded);
         writer.write_all(encoded.as_bytes()).await?;
     }
     writer.write_all(br#""}"#).await?;
@@ -262,6 +281,13 @@ async fn write_pending_record_atomically(
     publish_pending_file(path, &temporary_path, event_id, project_id).await
 }
 
+/// Creates the ingest directory once during server startup.
+pub async fn prepare_ingest_dir(base_dir: &Path) -> AppResult<()> {
+    fs::create_dir_all(base_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))
+}
+
 async fn sync_parent_directory(path: &Path) -> AppResult<()> {
     if let Some(parent) = path.parent() {
         let directory = fs::File::open(parent)
@@ -322,9 +348,7 @@ async fn write_legacy_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
 
 /// Saves an event using the legacy, unscoped path.
 pub async fn store_event(base_dir: &Path, event_id: &str, event_data: &[u8]) -> AppResult<PathBuf> {
-    fs::create_dir_all(base_dir)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))?;
+    prepare_ingest_dir(base_dir).await?;
     let path = get_event_path(base_dir, event_id)?;
     write_legacy_atomically(&path, event_data).await?;
     Ok(path)
@@ -343,10 +367,7 @@ pub async fn store_event_with_metadata(
         ));
     }
     let path = get_project_event_path(base_dir, metadata.project_id, event_id)?;
-    let pending_path = get_project_pending_event_path(base_dir, metadata.project_id, event_id)?;
-    fs::create_dir_all(base_dir)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))?;
+    let pending_path = path.with_extension("pending.json");
     write_pending_record_atomically(
         &pending_path,
         event_id,
@@ -706,6 +727,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn prepare_ingest_dir_creates_nested_directory_idempotently() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("nested/ingest");
+
+        prepare_ingest_dir(&dir).await.unwrap();
+        prepare_ingest_dir(&dir).await.unwrap();
+
+        assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn base64_scratch_buffer_replaces_previous_chunk() {
+        let mut encoded = String::new();
+
+        encode_base64_chunk(b"abc", &mut encoded);
+        assert_eq!(encoded, "YWJj");
+        encode_base64_chunk(b"d", &mut encoded);
+        assert_eq!(encoded, "ZA==");
+    }
+
+    #[tokio::test]
     async fn project_scopes_same_event_id_and_recovery_listing() {
         let dir = tempfile::tempdir().unwrap();
         let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
@@ -777,6 +819,8 @@ mod tests {
             2,
             3,
             4,
+            32 * 1024,
+            32 * 1024 + 1,
             BASE64_WRITE_CHUNK_SIZE - 1,
             BASE64_WRITE_CHUNK_SIZE,
             BASE64_WRITE_CHUNK_SIZE + 1,
@@ -799,7 +843,8 @@ mod tests {
                 serde_json::from_slice(&fs::read(&pending_path).await.unwrap()).unwrap();
             assert_eq!(record.version, PENDING_EVENT_VERSION);
             assert_eq!(record.metadata.event_id, event_id);
-            assert_eq!(record.event_data, STANDARD.encode(&payload));
+            let stored_payload = STANDARD.decode(record.event_data).unwrap();
+            assert_eq!(stored_payload, payload);
             assert_eq!(
                 read_event_for_project(dir.path(), 7, &event_id)
                     .await
@@ -807,6 +852,28 @@ mod tests {
                 payload
             );
         }
+    }
+
+    #[tokio::test]
+    async fn malformed_compressed_pending_payload_is_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        let record = PendingEventRecord {
+            version: PENDING_EVENT_ZSTD_VERSION,
+            metadata: metadata(event_id, 7),
+            event_data: STANDARD.encode(b"not-zstd"),
+        };
+
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, serde_json::to_vec(&record).unwrap())
+            .await
+            .unwrap();
+
+        assert!(read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .is_err());
+        assert!(fs::try_exists(pending_path).await.unwrap());
     }
 
     proptest! {

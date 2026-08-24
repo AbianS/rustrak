@@ -11,7 +11,7 @@ use crate::services::{
     DenormalizedFields, EventService, IssueService, ProjectService, RateLimitService,
 };
 use chrono::Utc;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -43,6 +43,53 @@ impl ErrorProcessor {
             sourcemap_provider,
             checkpoint_gate: tokio::sync::Mutex::new(crate::db::CheckpointGate::default()),
         }
+    }
+
+    pub(crate) fn ingest_dir(&self) -> &Path {
+        &self.ingest_dir
+    }
+
+    pub(crate) async fn process_ref(
+        &self,
+        metadata: &EventMetadata,
+        ctx: &ProcessorCtx,
+    ) -> AppResult<()> {
+        let result = self.process_impl(metadata, ctx).await;
+        if let Err(e) = &result {
+            if should_retain_event(e) {
+                return result;
+            }
+            match read_event_with_location(
+                &self.ingest_dir,
+                metadata.project_id,
+                &metadata.event_id,
+            )
+            .await
+            {
+                Ok((_, location)) => {
+                    if let Err(e) = delete_event_at(
+                        &self.ingest_dir,
+                        metadata.project_id,
+                        &metadata.event_id,
+                        location,
+                    )
+                    .await
+                    {
+                        log::warn!(
+                            "Failed to clean up orphaned event file {}: {:?}",
+                            metadata.event_id,
+                            e
+                        );
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Failed to locate orphaned event file {}: {:?}",
+                    metadata.event_id,
+                    e
+                ),
+            }
+        }
+        result
     }
 
     /// Runs the digest pipeline; retryable contention leaves the durable event queued.
@@ -276,42 +323,7 @@ impl Processor for ErrorProcessor {
     type Input = EventMetadata;
 
     async fn process(&self, metadata: EventMetadata, ctx: &ProcessorCtx) -> AppResult<()> {
-        let result = self.process_impl(&metadata, ctx).await;
-        if let Err(e) = &result {
-            if should_retain_event(e) {
-                return result;
-            }
-            match read_event_with_location(
-                &self.ingest_dir,
-                metadata.project_id,
-                &metadata.event_id,
-            )
-            .await
-            {
-                Ok((_, location)) => {
-                    if let Err(e) = delete_event_at(
-                        &self.ingest_dir,
-                        metadata.project_id,
-                        &metadata.event_id,
-                        location,
-                    )
-                    .await
-                    {
-                        log::warn!(
-                            "Failed to clean up orphaned event file {}: {:?}",
-                            metadata.event_id,
-                            e
-                        );
-                    }
-                }
-                Err(e) => log::warn!(
-                    "Failed to locate orphaned event file {}: {:?}",
-                    metadata.event_id,
-                    e
-                ),
-            }
-        }
-        result
+        self.process_ref(&metadata, ctx).await
     }
 }
 
