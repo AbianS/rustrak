@@ -201,15 +201,10 @@ export { useDataTable } from './components/data-table/use-data-table';
 
 export type { BarsChartProps } from './components/chart/bars-chart';
 export { BarsChart } from './components/chart/bars-chart';
-export type {
-  ChartSeries,
-  ChartTooltipProps,
-} from './components/chart/chart-parts';
-export {
-  ChartLegend,
-  ChartTooltip,
-  seriesColor,
-} from './components/chart/chart-parts';
+export type { ChartTooltipProps } from './components/chart/chart-parts';
+export { ChartLegend, ChartTooltip } from './components/chart/chart-parts';
+export type { ChartSeries } from './components/chart/chart-series';
+export { seriesColor } from './components/chart/chart-series';
 export type {
   SparklineProps,
   SparklineTone,
@@ -220,14 +215,12 @@ export { TimeSeriesChart } from './components/chart/time-series-chart';
 
 /* --- Waterfall ------------------------------------------------------------ */
 
+export { formatSpanDuration } from './components/waterfall/format';
 export type {
   WaterfallProps,
   WaterfallSpan,
 } from './components/waterfall/waterfall';
-export {
-  formatSpanDuration,
-  Waterfall,
-} from './components/waterfall/waterfall';
+export { Waterfall } from './components/waterfall/waterfall';
 
 /* --- Overlays ------------------------------------------------------------ */
 
@@ -251,18 +244,18 @@ export {
   DialogFooter,
   DialogHeader,
 } from './components/dialog/dialog';
+export type { DialogProviderProps } from './components/dialog/dialog-manager';
+export { DialogProvider } from './components/dialog/dialog-manager';
 export type {
   DialogComponent,
   DialogDefinition,
   DialogDefinitionOptions,
   DialogHostProps,
-  DialogProviderProps,
-} from './components/dialog/dialog-manager';
+} from './components/dialog/dialog-store';
 export {
   closeAllDialogs,
   createDialog,
-  DialogProvider,
-} from './components/dialog/dialog-manager';
+} from './components/dialog/dialog-store';
 export type {
   ToastActionSpec,
   ToastOptions,
@@ -275,15 +268,13 @@ export { ToastProvider, useToast } from './components/toast/toast';
 
 /* --- Query bar ----------------------------------------------------------- */
 
-export type {
-  QueryBarProps,
-  QueryField,
-} from './components/query-bar/query-bar';
+export type { QueryBarProps } from './components/query-bar/query-bar';
+export { QueryBar } from './components/query-bar/query-bar';
+export type { QueryField } from './components/query-bar/query-bar-parts';
 export {
-  QueryBar,
   queryFieldsFromColumns,
   variantsFromFields,
-} from './components/query-bar/query-bar';
+} from './components/query-bar/query-bar-parts';
 
 /* --- Shell --------------------------------------------------------------- */
 

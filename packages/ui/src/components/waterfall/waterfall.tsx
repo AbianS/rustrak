@@ -11,8 +11,14 @@ import {
 import { focusRingInset } from '../../lib/focus';
 import { interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
-import { ChevronDownIcon, ChevronRightIcon } from '../icon/icon-catalog';
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  EmptyIcon,
+} from '../icon/icon-catalog';
 import { Tag } from '../tag/tag';
+import { Text } from '../text/text';
+import { formatSpanDuration } from './format';
 
 /**
  * The request, drawn: every span a bar on one shared clock.
@@ -155,6 +161,11 @@ const waterfall = tv({
     ],
     legendItem: 'inline-flex items-center gap-1.5',
     legendSwatch: 'size-2 rounded-2xs',
+    /* A trace with no spans: the figure says so in words, in font-sans. */
+    empty: [
+      'flex flex-col items-center justify-center gap-3',
+      'px-6 py-16 text-center font-sans',
+    ],
   },
 });
 
@@ -197,12 +208,6 @@ function spanKind(span: WaterfallSpan): SpanKind {
   if (op.startsWith('db') || op.startsWith('cache')) return 'db';
   if (op.startsWith('http') || op.startsWith('resource')) return 'http';
   return 'internal';
-}
-
-export function formatSpanDuration(ms: number): string {
-  if (ms < 1) return `${Math.round(ms * 1000)} µs`;
-  if (ms < 1000) return `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} ms`;
-  return `${(ms / 1000).toFixed(2)} s`;
 }
 
 /* --- The tree ------------------------------------------------------------- */
@@ -295,6 +300,18 @@ interface FlattenState {
   collapsed: Set<string>;
   openGroups: Set<string>;
   showGaps: boolean;
+}
+
+/**
+ * The coverage frontier, which only ever moves forward.
+ *
+ * Siblings overlap -- a slow query still running while a fast one starts
+ * and finishes inside it -- so taking the last unit's end as the frontier
+ * would walk it backwards and hatch time the slow span demonstrably
+ * covered. The gap is only what *nobody* claimed.
+ */
+function advance(frontier: number | null, ...ends: number[]): number {
+  return Math.max(frontier ?? Number.NEGATIVE_INFINITY, ...ends);
 }
 
 /**
@@ -393,7 +410,7 @@ function flatten(nodes: TreeNode[], state: FlattenState): Row[] {
             failed: spans.some((s) => s.status && s.status !== 'ok'),
           });
         }
-        previousEnd = Math.max(...spans.map((s) => s.endMs));
+        previousEnd = advance(previousEnd, ...spans.map((s) => s.endMs));
         return;
       }
 
@@ -412,13 +429,28 @@ function flatten(nodes: TreeNode[], state: FlattenState): Row[] {
       if (node.children.length > 0 && !isCollapsed) {
         walk(node.children, depth + 1, [...guides, !last]);
       }
-      previousEnd = node.span.endMs;
+      previousEnd = advance(previousEnd, node.span.endMs);
     });
   };
 
   walk(nodes, 0, []);
   return rows;
 }
+
+/**
+ * Flip one id in a set of ids: what a fold and an autogroup both do. Built
+ * once, at module scope -- it closes over nothing but its setter.
+ */
+const toggleSet =
+  (set: (updater: (previous: Set<string>) => Set<string>) => void) =>
+  (id: string) => {
+    set((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
 /* --- The component -------------------------------------------------------- */
 
@@ -487,18 +519,29 @@ export function Waterfall({
     );
   }, [spans]);
 
-  const toggleSet =
-    (set: (updater: (previous: Set<string>) => Set<string>) => void) =>
-    (id: string) => {
-      set((previous) => {
-        const next = new Set(previous);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
-    };
   const toggleCollapsed = toggleSet(setCollapsed);
   const toggleGroup = toggleSet(setOpenGroups);
+
+  /*
+   * No spans, no clock. `Math.min` of nothing is Infinity, so a ruler drawn
+   * here would be a scale invented out of two infinities -- a trace that
+   * measured nothing is a thing to say, not a thing to draw.
+   */
+  if (spans.length === 0) {
+    return (
+      <figure className={styles.root({ className })} aria-label={label}>
+        <div className={styles.empty()}>
+          <EmptyIcon size="2xl" aria-hidden="true" className="text-fg-ghost" />
+          <div className="flex flex-col gap-1">
+            <Text variant="card-title">No spans</Text>
+            <Text variant="meta" tone="subtle">
+              This trace carries no timing to draw.
+            </Text>
+          </div>
+        </div>
+      </figure>
+    );
+  }
 
   /* --- Divider ----------------------------------------------------------- */
 
@@ -568,268 +611,24 @@ export function Waterfall({
       </div>
 
       <div role="tree" aria-label={label}>
-        {rows.map((row, rowIndex) => {
-          const indent = row.guides.slice(0, -1);
-          const guides = (
-            <>
-              {indent.map((line, level) => (
-                <span
-                  // Levels are positional by construction.
-                  key={level}
-                  aria-hidden="true"
-                  className={styles.guide()}
-                >
-                  {line ? <span className={styles.guideLine()} /> : null}
-                </span>
-              ))}
-            </>
-          );
-
-          const gridlines = (
-            <>
-              {[25, 50, 75].map((position) => (
-                <span
-                  key={position}
-                  aria-hidden="true"
-                  style={{ left: `${position}%` }}
-                  className={styles.gridline()}
-                />
-              ))}
-            </>
-          );
-
-          if (row.kind === 'gap') {
-            const left = ((row.startMs - start) / total) * 100;
-            const width = ((row.endMs - row.startMs) / total) * 100;
-            return (
-              <div
-                key={row.id}
-                role="treeitem"
-                tabIndex={-1}
-                aria-level={row.depth + 1}
-                aria-selected={false}
-                aria-disabled="true"
-                className={styles.row({ className: 'cursor-default' })}
-              >
-                <div className={styles.gutter()}>
-                  {guides}
-                  <span className={styles.pillGap()} />
-                  <span className={styles.gapLabel()}>
-                    missing instrumentation
-                  </span>
-                </div>
-                <div className={styles.track()}>
-                  {gridlines}
-                  <span
-                    aria-hidden="true"
-                    style={{ left: `${left}%`, width: `${width}%` }}
-                    className={styles.gapBar()}
-                  />
-                  <DurationLabel
-                    left={left}
-                    width={width}
-                    ms={row.endMs - row.startMs}
-                  />
-                </div>
-              </div>
-            );
-          }
-
-          const spansOfRow = row.kind === 'group' ? row.spans : [row.span];
-          const rowStart = Math.min(...spansOfRow.map((s) => s.startMs));
-          const rowEnd = Math.max(...spansOfRow.map((s) => s.endMs));
-          const failed =
-            row.kind === 'group' ? row.failed : spanKind(row.span) === 'error';
-          const kind: SpanKind =
-            row.kind === 'group'
-              ? failed
-                ? 'error'
-                : spanKind(row.spans[0] as WaterfallSpan)
-              : spanKind(row.span);
-          const isSelected = row.kind === 'span' && selectedId === row.id;
-          const left = ((rowStart - start) / total) * 100;
-          // A 2 ms span in a 600 ms trace still has to be visible: it may
-          // be the one that threw.
-          const width = Math.min(
-            Math.max(((rowEnd - rowStart) / total) * 100, 0.6),
-            100 - left,
-          );
-
-          const expandable =
-            row.kind === 'group' || (row.kind === 'span' && row.hasChildren);
-          const isOpen =
-            row.kind === 'group'
-              ? false
-              : row.kind === 'span' && row.hasChildren && !row.collapsed;
-          const toggle = () => {
-            if (row.kind === 'group') toggleGroup(row.id);
-            else if (row.kind === 'span' && row.hasChildren)
-              toggleCollapsed(row.id);
-          };
-          const select = () => {
-            if (row.kind !== 'span') {
-              toggle();
-              return;
-            }
-            onSelect?.(selectedId === row.id ? null : row.span);
-          };
-
-          const onRowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-            switch (event.key) {
-              case 'Enter':
-              case ' ':
-                event.preventDefault();
-                select();
-                break;
-              case 'ArrowDown':
-                event.preventDefault();
-                moveFocus(event.currentTarget, 1);
-                break;
-              case 'ArrowUp':
-                event.preventDefault();
-                moveFocus(event.currentTarget, -1);
-                break;
-              case 'Home':
-                event.preventDefault();
-                moveFocus(event.currentTarget, 'home');
-                break;
-              case 'End':
-                event.preventDefault();
-                moveFocus(event.currentTarget, 'end');
-                break;
-              case 'ArrowRight':
-                if (expandable && !isOpen) toggle();
-                break;
-              case 'ArrowLeft':
-                if (expandable && isOpen) toggle();
-                break;
-            }
-          };
-
-          const onRowClick = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (
-              target.closest('[data-chevron]') ||
-              target.closest('[data-wf-detail]')
-            ) {
-              return;
-            }
-            select();
-          };
-
-          const count = row.kind === 'group' ? row.spans.length : row.count;
-
-          return (
-            <div
+        {rows.map((row, rowIndex) =>
+          row.kind === 'gap' ? (
+            <GapRow key={row.id} row={row} start={start} total={total} />
+          ) : (
+            <SpanRow
               key={row.id}
-              role="treeitem"
-              // The tree is one tab stop; inside, the arrows take over.
-              tabIndex={rowIndex === 0 ? 0 : -1}
-              data-wf-row
-              aria-level={row.depth + 1}
-              aria-selected={isSelected}
-              aria-expanded={expandable ? isOpen : undefined}
-              data-failed={failed || undefined}
-              onClick={onRowClick}
-              onKeyDown={onRowKeyDown}
-              className={styles.row()}
-            >
-              <div className={styles.gutter()}>
-                {guides}
-                {expandable ? (
-                  /* A pointer shortcut for the treeitem's own expand; the
-                     state is announced by aria-expanded above. */
-                  <span
-                    aria-hidden="true"
-                    data-chevron
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggle();
-                    }}
-                    className={styles.pill()}
-                  >
-                    {isOpen ? (
-                      <ChevronDownIcon size="sm" aria-hidden="true" />
-                    ) : (
-                      <ChevronRightIcon size="sm" aria-hidden="true" />
-                    )}
-                    {count}
-                  </span>
-                ) : (
-                  <span className={styles.pillGap()} />
-                )}
-                <span className={styles.op()}>
-                  {row.kind === 'group'
-                    ? `${row.op} ×${row.spans.length}`
-                    : (row.span.op ?? 'span')}
-                </span>
-                <span className={styles.description()}>
-                  {row.kind === 'group'
-                    ? row.description
-                    : row.span.description}
-                </span>
-                {failed ? (
-                  <Tag tone="error" className="shrink-0">
-                    {row.kind === 'span'
-                      ? (row.span.status ?? 'error')
-                      : 'error'}
-                  </Tag>
-                ) : null}
-              </div>
-
-              <div className={styles.track()}>
-                {gridlines}
-                {row.kind === 'group' ? (
-                  spansOfRow.map((span) => {
-                    const segLeft = ((span.startMs - start) / total) * 100;
-                    const segWidth = Math.max(
-                      ((span.endMs - span.startMs) / total) * 100,
-                      0.4,
-                    );
-                    return (
-                      <span
-                        key={span.id}
-                        aria-hidden="true"
-                        style={{
-                          left: `${segLeft}%`,
-                          width: `${segWidth}%`,
-                        }}
-                        className={styles.bar({
-                          className: KIND_BAR[kind],
-                        })}
-                      />
-                    );
-                  })
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    style={{ left: `${left}%`, width: `${width}%` }}
-                    className={styles.bar({ className: KIND_BAR[kind] })}
-                  />
-                )}
-                <DurationLabel
-                  left={left}
-                  width={width}
-                  ms={
-                    row.kind === 'group'
-                      ? spansOfRow.reduce(
-                          (acc, s) => acc + (s.endMs - s.startMs),
-                          0,
-                        )
-                      : rowEnd - rowStart
-                  }
-                  failed={failed}
-                />
-              </div>
-
-              {isSelected && renderDetail && row.kind === 'span' ? (
-                <div data-wf-detail className={styles.detail()}>
-                  {renderDetail(row.span)}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+              row={row}
+              start={start}
+              total={total}
+              tabStop={rowIndex === 0}
+              selected={row.kind === 'span' && selectedId === row.id}
+              onSelect={onSelect}
+              renderDetail={renderDetail}
+              onToggle={row.kind === 'group' ? toggleGroup : toggleCollapsed}
+              moveFocus={moveFocus}
+            />
+          ),
+        )}
       </div>
 
       {/* biome-ignore lint/a11y/useSemanticElements: a window splitter is
@@ -864,6 +663,331 @@ export function Waterfall({
 }
 
 Waterfall.displayName = 'Waterfall';
+
+/* --- The rows ------------------------------------------------------------- */
+
+/** One indent step per ancestor, carrying a guide line where one belongs. */
+function RowGuides({ guides }: { guides: boolean[] }) {
+  return (
+    <>
+      {guides.slice(0, -1).map((line, level) => (
+        <span
+          // Levels are positional by construction.
+          key={level}
+          aria-hidden="true"
+          className={styles.guide()}
+        >
+          {line ? <span className={styles.guideLine()} /> : null}
+        </span>
+      ))}
+    </>
+  );
+}
+
+RowGuides.displayName = 'RowGuides';
+
+/** The ruler's quarters, repeated down every track so bars stay readable. */
+function RowGridlines() {
+  return (
+    <>
+      {[25, 50, 75].map((position) => (
+        <span
+          key={position}
+          aria-hidden="true"
+          style={{ left: `${position}%` }}
+          className={styles.gridline()}
+        />
+      ))}
+    </>
+  );
+}
+
+RowGridlines.displayName = 'RowGridlines';
+
+/** Time inside the parent that no child claimed, hatched and named. */
+function GapRow({
+  row,
+  start,
+  total,
+}: {
+  row: Extract<Row, { kind: 'gap' }>;
+  start: number;
+  total: number;
+}) {
+  const left = ((row.startMs - start) / total) * 100;
+  const width = ((row.endMs - row.startMs) / total) * 100;
+  return (
+    <div
+      role="treeitem"
+      tabIndex={-1}
+      aria-level={row.depth + 1}
+      aria-selected={false}
+      aria-disabled="true"
+      className={styles.row({ className: 'cursor-default' })}
+    >
+      <div className={styles.gutter()}>
+        <RowGuides guides={row.guides} />
+        <span className={styles.pillGap()} />
+        <span className={styles.gapLabel()}>missing instrumentation</span>
+      </div>
+      <div className={styles.track()}>
+        <RowGridlines />
+        <span
+          aria-hidden="true"
+          style={{ left: `${left}%`, width: `${width}%` }}
+          className={styles.gapBar()}
+        />
+        <DurationLabel left={left} width={width} ms={row.endMs - row.startMs} />
+      </div>
+    </div>
+  );
+}
+
+GapRow.displayName = 'GapRow';
+
+type SpanRowData = Extract<Row, { kind: 'span' } | { kind: 'group' }>;
+
+/** What the row names: the op, what it did it to, and its error if it broke. */
+function RowLabel({ row, failed }: { row: SpanRowData; failed: boolean }) {
+  return (
+    <>
+      <span className={styles.op()}>
+        {row.kind === 'group'
+          ? `${row.op} ×${row.spans.length}`
+          : (row.span.op ?? 'span')}
+      </span>
+      <span className={styles.description()}>
+        {row.kind === 'group' ? row.description : row.span.description}
+      </span>
+      {failed ? (
+        <Tag tone="error" className="shrink-0">
+          {row.kind === 'span' ? (row.span.status ?? 'error') : 'error'}
+        </Tag>
+      ) : null}
+    </>
+  );
+}
+
+RowLabel.displayName = 'RowLabel';
+
+/**
+ * The bars: one for a span, one per member for an autogroup -- forty
+ * queries as forty marks on one line is the reading that says N+1.
+ */
+function RowBars({
+  row,
+  kind,
+  start,
+  total,
+  left,
+  width,
+}: {
+  row: SpanRowData;
+  kind: SpanKind;
+  start: number;
+  total: number;
+  left: number;
+  width: number;
+}) {
+  if (row.kind === 'group') {
+    return (
+      <>
+        {row.spans.map((span) => (
+          <span
+            key={span.id}
+            aria-hidden="true"
+            style={{
+              left: `${((span.startMs - start) / total) * 100}%`,
+              width: `${Math.max(((span.endMs - span.startMs) / total) * 100, 0.4)}%`,
+            }}
+            className={styles.bar({ className: KIND_BAR[kind] })}
+          />
+        ))}
+      </>
+    );
+  }
+  return (
+    <span
+      aria-hidden="true"
+      style={{ left: `${left}%`, width: `${width}%` }}
+      className={styles.bar({ className: KIND_BAR[kind] })}
+    />
+  );
+}
+
+RowBars.displayName = 'RowBars';
+
+/** One span, or one autogrouped run of them, on the shared clock. */
+function SpanRow({
+  row,
+  start,
+  total,
+  tabStop,
+  selected,
+  onSelect,
+  renderDetail,
+  onToggle,
+  moveFocus,
+}: {
+  row: SpanRowData;
+  start: number;
+  total: number;
+  tabStop: boolean;
+  selected: boolean;
+  onSelect?: (span: WaterfallSpan | null) => void;
+  renderDetail?: (span: WaterfallSpan) => ReactNode;
+  onToggle: (id: string) => void;
+  moveFocus: (from: HTMLElement, delta: number | 'home' | 'end') => void;
+}) {
+  const spans = row.kind === 'group' ? row.spans : [row.span];
+  const rowStart = Math.min(...spans.map((s) => s.startMs));
+  const rowEnd = Math.max(...spans.map((s) => s.endMs));
+  const failed =
+    row.kind === 'group' ? row.failed : spanKind(row.span) === 'error';
+  const kind: SpanKind =
+    row.kind === 'group'
+      ? failed
+        ? 'error'
+        : spanKind(row.spans[0] as WaterfallSpan)
+      : spanKind(row.span);
+
+  const left = ((rowStart - start) / total) * 100;
+  // A 2 ms span in a 600 ms trace still has to be visible: it may be the
+  // one that threw.
+  const width = Math.min(
+    Math.max(((rowEnd - rowStart) / total) * 100, 0.6),
+    100 - left,
+  );
+
+  const expandable = row.kind === 'group' || row.hasChildren;
+  const isOpen = row.kind === 'span' && row.hasChildren && !row.collapsed;
+  const toggle = () => {
+    if (expandable) onToggle(row.id);
+  };
+  const select = () => {
+    if (row.kind !== 'span') {
+      toggle();
+      return;
+    }
+    onSelect?.(selected ? null : row.span);
+  };
+
+  const onRowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    switch (event.key) {
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        select();
+        break;
+      case 'ArrowDown':
+        event.preventDefault();
+        moveFocus(event.currentTarget, 1);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        moveFocus(event.currentTarget, -1);
+        break;
+      case 'Home':
+        event.preventDefault();
+        moveFocus(event.currentTarget, 'home');
+        break;
+      case 'End':
+        event.preventDefault();
+        moveFocus(event.currentTarget, 'end');
+        break;
+      case 'ArrowRight':
+        if (expandable && !isOpen) toggle();
+        break;
+      case 'ArrowLeft':
+        if (expandable && isOpen) toggle();
+        break;
+    }
+  };
+
+  const onRowClick = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (
+      target.closest('[data-chevron]') ||
+      target.closest('[data-wf-detail]')
+    ) {
+      return;
+    }
+    select();
+  };
+
+  return (
+    <div
+      role="treeitem"
+      // The tree is one tab stop; inside, the arrows take over.
+      tabIndex={tabStop ? 0 : -1}
+      data-wf-row
+      aria-level={row.depth + 1}
+      aria-selected={selected}
+      aria-expanded={expandable ? isOpen : undefined}
+      data-failed={failed || undefined}
+      onClick={onRowClick}
+      onKeyDown={onRowKeyDown}
+      className={styles.row()}
+    >
+      <div className={styles.gutter()}>
+        <RowGuides guides={row.guides} />
+        {expandable ? (
+          /* A pointer shortcut for the treeitem's own expand; the state is
+             announced by aria-expanded above. */
+          <span
+            aria-hidden="true"
+            data-chevron
+            onClick={(event) => {
+              event.stopPropagation();
+              toggle();
+            }}
+            className={styles.pill()}
+          >
+            {isOpen ? (
+              <ChevronDownIcon size="sm" aria-hidden="true" />
+            ) : (
+              <ChevronRightIcon size="sm" aria-hidden="true" />
+            )}
+            {row.kind === 'group' ? row.spans.length : row.count}
+          </span>
+        ) : (
+          <span className={styles.pillGap()} />
+        )}
+        <RowLabel row={row} failed={failed} />
+      </div>
+
+      <div className={styles.track()}>
+        <RowGridlines />
+        <RowBars
+          row={row}
+          kind={kind}
+          start={start}
+          total={total}
+          left={left}
+          width={width}
+        />
+        <DurationLabel
+          left={left}
+          width={width}
+          ms={
+            row.kind === 'group'
+              ? spans.reduce((acc, s) => acc + (s.endMs - s.startMs), 0)
+              : rowEnd - rowStart
+          }
+          failed={failed}
+        />
+      </div>
+
+      {selected && renderDetail && row.kind === 'span' ? (
+        <div data-wf-detail className={styles.detail()}>
+          {renderDetail(row.span)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+SpanRow.displayName = 'SpanRow';
 
 /**
  * The duration beside its bar: outside its right end with room to spare,

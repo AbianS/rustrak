@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { Text } from '../text/text';
-import { formatSpanDuration, Waterfall, type WaterfallSpan } from './waterfall';
+import { formatSpanDuration } from './format';
+import { Waterfall, type WaterfallSpan } from './waterfall';
 
 /**
  * A checkout request worth reading: auth, an N+1 of six identical queries,
@@ -328,5 +329,82 @@ export const Narrow: Story = {
     await expect(figure.scrollWidth).toBeLessThanOrEqual(
       figure.clientWidth + 1,
     );
+  },
+};
+
+/**
+ * A slow sibling that overlaps a fast one does not open a hole. The
+ * coverage frontier only moves forward, so the hatched row is the 100 ms
+ * that nobody ran in -- not the 440 ms measured from whichever span
+ * happened to finish last in the list.
+ */
+const OVERLAPPING: WaterfallSpan[] = [
+  {
+    id: 'root',
+    op: 'http.server',
+    description: 'GET /report',
+    startMs: 0,
+    endMs: 600,
+  },
+  {
+    id: 'slow',
+    parentId: 'root',
+    op: 'db.query',
+    description: 'SELECT * FROM events',
+    startMs: 0,
+    endMs: 400,
+  },
+  {
+    id: 'fast',
+    parentId: 'root',
+    op: 'cache.get',
+    description: 'report:head',
+    startMs: 10,
+    endMs: 60,
+  },
+  {
+    id: 'reply',
+    parentId: 'root',
+    op: 'fn.serialize',
+    description: 'report.rs:212',
+    startMs: 500,
+    endMs: 585,
+  },
+];
+
+export const OverlappingSiblings: Story = {
+  render: () => (
+    <Waterfall
+      spans={OVERLAPPING}
+      showMissingInstrumentation
+      label="Waterfall of GET /report"
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    const gap = canvas
+      .getAllByRole('treeitem')
+      .find((el) => el.textContent?.includes('missing instrumentation'));
+    if (!gap) throw new Error('gap row not found');
+
+    // 400 ms → 500 ms, measured from the slow span the fast one hid inside.
+    await expect(gap).toHaveTextContent('100 ms');
+    await expect(canvas.queryByText('440 ms')).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * A trace with no spans has no clock: it says so, rather than drawing a
+ * ruler out of the infinities an empty min and max produce.
+ */
+export const EmptyTrace: Story = {
+  render: () => <Waterfall spans={[]} label="Waterfall of GET /health" />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText('No spans')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('[role="tree"]')).toBeNull();
+    await expect(canvas.queryByText('0 µs')).not.toBeInTheDocument();
   },
 };

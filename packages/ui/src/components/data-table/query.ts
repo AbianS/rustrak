@@ -58,14 +58,26 @@ export function emptyTableQuery(
 
 const TOKEN = /^([A-Za-z0-9_.-]+):(.*)$/;
 
-/** Splits on spaces, except inside double quotes: `level:"not found"`. */
+/**
+ * Splits on spaces, except inside double quotes: `level:"not found"`. A
+ * backslash escapes a quote or another backslash inside the quoted section,
+ * so `level:"say \"hi\""` keeps its embedded quotes rather than ending early.
+ */
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
   let current = '';
   let quoted = false;
 
-  for (const char of input) {
-    if (char === '"') {
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (
+      quoted &&
+      char === '\\' &&
+      (input[i + 1] === '"' || input[i + 1] === '\\')
+    ) {
+      current += input[i + 1];
+      i++;
+    } else if (char === '"') {
       quoted = !quoted;
     } else if (char === ' ' && !quoted) {
       if (current) tokens.push(current);
@@ -76,6 +88,15 @@ function tokenize(input: string): string[] {
   }
   if (current) tokens.push(current);
   return tokens;
+}
+
+/** A space or a quote forces quoting; a bare quote or backslash would else read as syntax. */
+function needsQuoting(value: string): boolean {
+  return /[\s"\\]/.test(value);
+}
+
+function quoteValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 function parseRange(raw: string): [number | null, number | null] | null {
@@ -168,11 +189,11 @@ export function formatFilterQuery(
         tokens.push(`${id}:${min ?? ''}..${max ?? ''}`);
       }
     } else if (variant === 'text' && typeof value === 'string' && value) {
-      tokens.push(value.includes(' ') ? `${id}:"${value}"` : `${id}:${value}`);
+      tokens.push(`${id}:${needsQuoting(value) ? quoteValue(value) : value}`);
     }
   }
 
-  if (search) tokens.push(search);
+  if (search) tokens.push(needsQuoting(search) ? quoteValue(search) : search);
   return tokens.join(' ');
 }
 

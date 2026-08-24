@@ -1,8 +1,11 @@
 import { Field as BaseField } from '@base-ui/react/field';
-import type {
-  ComponentPropsWithoutRef,
-  ComponentPropsWithRef,
-  ReactNode,
+import {
+  type ComponentPropsWithoutRef,
+  type ComponentPropsWithRef,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
 } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
@@ -25,6 +28,19 @@ export interface InputProps
 }
 
 /**
+ * The trailing action rides on the control's own `disabled`: Base UI's
+ * `Field.Root` and a bare `disabled` prop both reach `BaseField.Control` the
+ * same way, but `action` is a sibling the control knows nothing about, so
+ * without this it stays focusable and clickable on a disabled field.
+ */
+function disabledAction(action: ReactNode, disabled: boolean | undefined) {
+  if (!disabled || !isValidElement(action)) return action;
+  return cloneElement(action as ReactElement<{ disabled?: boolean }>, {
+    disabled: true,
+  });
+}
+
+/**
  * The text field. Inside a `Field` it wires itself to the label and the
  * error through Base UI's control; on its own it needs an `aria-label`.
  */
@@ -34,6 +50,7 @@ export function Input({
   leading,
   action,
   invalid,
+  disabled,
   className,
   boxClassName,
   ...props
@@ -52,13 +69,14 @@ export function Input({
       ) : null}
 
       <BaseField.Control
+        disabled={disabled}
         aria-invalid={invalid || undefined}
         data-invalid={invalid || undefined}
         className={styles.control({ className })}
         {...props}
       />
 
-      {action}
+      {disabledAction(action, disabled)}
     </span>
   );
 }
