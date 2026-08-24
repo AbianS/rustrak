@@ -51,7 +51,7 @@ export function FieldLabel({
 }: FieldLabelProps) {
   if (srOnly) {
     return (
-      <BaseField.Label className="sr-only" {...props}>
+      <BaseField.Label className={cn('sr-only', className)} {...props}>
         {children}
       </BaseField.Label>
     );
@@ -83,15 +83,25 @@ export interface FieldHintProps
 /**
  * The hint below the field: where the value goes, what format it takes.
  *
- * Hidden while the field is invalid: `FieldError` takes its place, and two
- * lines of small print under one field is a wall, not guidance.
+ * Unmounted while the field is invalid: `FieldError` takes its place, and two
+ * lines of small print under one field is a wall, not guidance. Hiding it
+ * with CSS alone would leave its id registered in `aria-describedby` -- the
+ * screen reader would still read a hint the eye can't see -- so this reads
+ * validity through `Field.Validity` instead of rendering `Description`
+ * unconditionally.
  */
 export function FieldHint({ className, ...props }: FieldHintProps) {
   return (
-    <BaseField.Description
-      className={cn('text-fg-subtle text-hint data-invalid:hidden', className)}
-      {...props}
-    />
+    <BaseField.Validity>
+      {({ validity }) =>
+        validity.valid === false ? null : (
+          <BaseField.Description
+            className={cn('text-fg-subtle text-hint', className)}
+            {...props}
+          />
+        )
+      }
+    </BaseField.Validity>
   );
 }
 
