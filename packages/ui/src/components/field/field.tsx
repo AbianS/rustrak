@@ -80,11 +80,16 @@ FieldLabel.displayName = 'FieldLabel';
 export interface FieldHintProps
   extends WithClassName<BaseField.Description.Props> {}
 
-/** The hint below the field: where the value goes, what format it takes. */
+/**
+ * The hint below the field: where the value goes, what format it takes.
+ *
+ * Hidden while the field is invalid: `FieldError` takes its place, and two
+ * lines of small print under one field is a wall, not guidance.
+ */
 export function FieldHint({ className, ...props }: FieldHintProps) {
   return (
     <BaseField.Description
-      className={cn('text-fg-subtle text-hint', className)}
+      className={cn('text-fg-subtle text-hint data-invalid:hidden', className)}
       {...props}
     />
   );

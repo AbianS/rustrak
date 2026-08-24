@@ -201,15 +201,10 @@ export { useDataTable } from './components/data-table/use-data-table';
 
 export type { BarsChartProps } from './components/chart/bars-chart';
 export { BarsChart } from './components/chart/bars-chart';
-export type {
-  ChartSeries,
-  ChartTooltipProps,
-} from './components/chart/chart-parts';
-export {
-  ChartLegend,
-  ChartTooltip,
-  seriesColor,
-} from './components/chart/chart-parts';
+export type { ChartTooltipProps } from './components/chart/chart-parts';
+export { ChartLegend, ChartTooltip } from './components/chart/chart-parts';
+export type { ChartSeries } from './components/chart/chart-series';
+export { seriesColor } from './components/chart/chart-series';
 export type {
   SparklineProps,
   SparklineTone,
