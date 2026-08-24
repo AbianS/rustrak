@@ -3,6 +3,7 @@ import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
 import { ColumnsIcon, ResolveIcon } from '../icon/icon-catalog';
 import { Popover } from '../popover/popover';
+import { columnLabel } from './features';
 import type { DataTableInstance } from './use-data-table';
 
 /**
@@ -29,15 +30,6 @@ const columnsMenu = tv({
 });
 
 const styles = columnsMenu();
-
-/** What menus call a column: its meta label, or its header when it is text. */
-export function columnLabel<TData extends RowData>(
-  column: ReturnType<DataTableInstance<TData>['getAllLeafColumns']>[number],
-): string {
-  const { meta, header } = column.columnDef;
-  if (meta?.label) return meta.label;
-  return typeof header === 'string' ? header : column.id;
-}
 
 export interface DataTableColumnsButtonProps<TData extends RowData> {
   table: DataTableInstance<TData>;

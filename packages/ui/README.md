@@ -237,8 +237,6 @@ column-header sort/filter panels behind them — and `QueryBar`, the token
 search with two-phase autocomplete. `data-table/query.ts` holds the shared
 query model and the URL codecs.
 
-No charts. Those are a later pass and need decisions this one does not.
-
 ### Named decisions
 
 - **`Tag` defaults to plain coloured text, not a filled pill.** An issue list is

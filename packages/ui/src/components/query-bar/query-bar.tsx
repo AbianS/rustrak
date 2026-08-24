@@ -1,24 +1,9 @@
-import type { ColumnFiltersState, RowData } from '@tanstack/react-table';
-import {
-  type KeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import type { ColumnFiltersState } from '@tanstack/react-table';
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { focusRingWithin } from '../../lib/focus';
 import { dropIn, interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Count } from '../count/count';
-import type { DataTableColumnDef, FilterOption } from '../data-table/features';
-import {
-  type FilterVariants,
-  formatFilterQuery,
-  parseFilterQuery,
-} from '../data-table/query';
-import type { IconComponent } from '../icon/icon';
 import {
   CloseIcon,
   FacetsIcon,
@@ -27,6 +12,8 @@ import {
 } from '../icon/icon-catalog';
 import { Kbd } from '../kbd/kbd';
 import type { TagTone } from '../tag/tag';
+import type { QueryField } from './query-bar-parts';
+import { type Suggestion, useQueryBar } from './use-query-bar';
 
 /**
  * The query bar: one line that holds the whole question.
@@ -139,65 +126,195 @@ const TONE_DOT: Record<TagTone, string> = {
   neutral: 'bg-fg-ghost',
 };
 
-/** A field the bar can complete: what `key:` means and what it takes. */
-export interface QueryField {
-  key: string;
-  label: string;
-  icon?: IconComponent;
-  /** Read in the suggestion row: "severity of the issue". */
-  description?: string;
-  variant: 'options' | 'text' | 'range';
-  options?: readonly FilterOption[];
-  loadOptions?: () => Promise<FilterOption[]>;
-  /** Options only: whether several values can hold at once. Default true. */
-  multiple?: boolean;
+function suggestionKey(suggestion: Suggestion): string {
+  if (suggestion.kind === 'field') return `field-${suggestion.field.key}`;
+  if (suggestion.kind === 'value') return `value-${suggestion.option.value}`;
+  return 'search';
 }
 
-/**
- * The bar's fields, read straight off the table's columns so the two can
- * never disagree about what is filterable or what it is called.
- */
-export function queryFieldsFromColumns<TData extends RowData>(
-  columns: DataTableColumnDef<TData>[],
-): QueryField[] {
-  const fields: QueryField[] = [];
-  for (const column of columns) {
-    const meta = column.meta;
-    const id = column.id;
-    if (!meta?.filter || !id) continue;
-    const label =
-      meta.label ?? (typeof column.header === 'string' ? column.header : id);
-    if (meta.filter.variant === 'options') {
-      fields.push({
-        key: id,
-        label,
-        icon: meta.icon,
-        variant: 'options',
-        options: meta.filter.options,
-        loadOptions: meta.filter.loadOptions,
-        multiple: meta.filter.multiple,
-      });
-    } else {
-      fields.push({
-        key: id,
-        label,
-        icon: meta.icon,
-        variant: meta.filter.variant,
-      });
-    }
+interface SuggestionRowProps {
+  suggestion: Suggestion;
+  optionId: string;
+  highlighted: boolean;
+  ticked: boolean;
+  onHighlight: () => void;
+  onSelect: () => void;
+}
+
+/** One row of the popup: a field to pick, a value to tick, or the search itself. */
+function SuggestionRow({
+  suggestion,
+  optionId,
+  highlighted,
+  ticked,
+  onHighlight,
+  onSelect,
+}: SuggestionRowProps) {
+  const shared = {
+    id: optionId,
+    'data-highlighted': highlighted,
+    className: styles.option(),
+    onMouseEnter: onHighlight,
+    // Fires before the input's blur: the click must win.
+    onMouseDown: (event: ReactMouseEvent) => event.preventDefault(),
+    onClick: onSelect,
+  };
+
+  if (suggestion.kind === 'field') {
+    const Icon = suggestion.field.icon ?? FacetsIcon;
+    return (
+      <div
+        {...shared}
+        role="option"
+        // Steered from the input via aria-activedescendant.
+        tabIndex={-1}
+        aria-selected={false}
+      >
+        <Icon size="lg" className={styles.optionIcon()} />
+        <span className={styles.optionLabel()}>{suggestion.field.label}</span>
+        <span className={styles.optionHint()}>
+          {suggestion.field.description ?? `${suggestion.field.key}:`}
+        </span>
+      </div>
+    );
   }
-  return fields;
+
+  if (suggestion.kind === 'value') {
+    return (
+      <div {...shared} role="option" tabIndex={-1} aria-selected={ticked}>
+        <span
+          aria-hidden="true"
+          data-ticked={ticked}
+          className={styles.optionBox()}
+        >
+          {ticked ? <ResolveIcon size="sm" aria-hidden="true" /> : null}
+        </span>
+        {suggestion.option.tone ? (
+          <span
+            aria-hidden="true"
+            className={styles.optionDot({
+              className: TONE_DOT[suggestion.option.tone],
+            })}
+          />
+        ) : null}
+        <span className={styles.optionLabel()}>{suggestion.option.label}</span>
+        {suggestion.option.hint ? (
+          <span className={styles.optionHint()}>{suggestion.option.hint}</span>
+        ) : null}
+        <Count>{suggestion.option.count}</Count>
+      </div>
+    );
+  }
+
+  return (
+    <div {...shared} role="option" tabIndex={-1} aria-selected={false}>
+      <SearchIcon size="lg" className={styles.optionIcon()} />
+      <span className={styles.optionLabel()}>Search “{suggestion.text}”</span>
+      <Kbd>⏎</Kbd>
+    </div>
+  );
 }
 
-/** The variants map the codecs in `query.ts` take, from the same fields. */
-export function variantsFromFields(fields: QueryField[]): FilterVariants {
-  return Object.fromEntries(fields.map((field) => [field.key, field.variant]));
+SuggestionRow.displayName = 'SuggestionRow';
+
+interface SuggestionsPopupProps {
+  id: string;
+  listboxId: string;
+  activeField: QueryField | undefined;
+  suggestions: Suggestion[];
+  optionsPending: boolean;
+  highlightIndex: number;
+  activeFieldSelected: Set<string>;
+  onHighlight: (index: number) => void;
+  onSelect: (suggestion: Suggestion) => void;
 }
 
-type Suggestion =
-  | { kind: 'field'; field: QueryField }
-  | { kind: 'value'; field: QueryField; option: FilterOption }
-  | { kind: 'search'; text: string };
+/** The floating panel under the bar: field or value suggestions, and the footer's hints. */
+function SuggestionsPopup({
+  id,
+  listboxId,
+  activeField,
+  suggestions,
+  optionsPending,
+  highlightIndex,
+  activeFieldSelected,
+  onHighlight,
+  onSelect,
+}: SuggestionsPopupProps) {
+  return (
+    <div className={styles.popup()} data-side="bottom">
+      {activeField && activeField.variant === 'options' ? (
+        <div className={styles.groupLabel()}>{activeField.label}</div>
+      ) : null}
+      {!activeField && suggestions.some((s) => s.kind === 'field') ? (
+        <div className={styles.groupLabel()}>Filter by</div>
+      ) : null}
+
+      <div className={styles.list()}>
+        {optionsPending ? (
+          <div aria-hidden="true">
+            {[0, 1, 2].map((line) => (
+              <div key={line} className={styles.skeleton()} />
+            ))}
+          </div>
+        ) : null}
+
+        <div
+          role="listbox"
+          id={listboxId}
+          aria-label="Suggestions"
+          aria-busy={optionsPending || undefined}
+        >
+          {suggestions.map((suggestion, index) => (
+            <SuggestionRow
+              key={suggestionKey(suggestion)}
+              suggestion={suggestion}
+              optionId={`${id}-option-${index}`}
+              highlighted={index === highlightIndex}
+              ticked={
+                suggestion.kind === 'value' &&
+                activeFieldSelected.has(suggestion.option.value)
+              }
+              onHighlight={() => onHighlight(index)}
+              onSelect={() => onSelect(suggestion)}
+            />
+          ))}
+        </div>
+
+        {activeField && activeField.variant === 'range' ? (
+          <div className={styles.option()}>
+            <span className={styles.optionLabel()}>
+              Type a range: {activeField.key}:100..500, then
+            </span>
+            <Kbd>⏎</Kbd>
+          </div>
+        ) : null}
+        {activeField && activeField.variant === 'text' ? (
+          <div className={styles.option()}>
+            <span className={styles.optionLabel()}>Type a value, then</span>
+            <Kbd>⏎</Kbd>
+          </div>
+        ) : null}
+
+        {!optionsPending &&
+        suggestions.length === 0 &&
+        activeField?.variant === 'options' ? (
+          <div className="px-2.5 py-3 text-center text-control text-fg-ghost">
+            Nothing matches
+          </div>
+        ) : null}
+      </div>
+
+      <span aria-hidden="true" className={styles.hints()}>
+        <span>↑↓ navigate</span>
+        <span>⏎ select</span>
+        <span>esc closes</span>
+      </span>
+    </div>
+  );
+}
+
+SuggestionsPopup.displayName = 'SuggestionsPopup';
 
 export interface QueryBarProps {
   fields: QueryField[];
@@ -219,320 +336,30 @@ export function QueryBar({
   label = 'Filter and search',
   className,
 }: QueryBarProps) {
-  const id = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState(search);
-  const [open, setOpen] = useState(false);
-  /*
-   * The field whose values the popup is offering, held as state rather than
-   * as text. Choosing "Level" used to write `level:` into the input to carry
-   * the phase; the token then sat there, fixed, beside every chip it
-   * produced. The phase is not prose, so it no longer lives in the prose --
-   * the input stays clean and the popup stays on the field's values until
-   * Escape, blur or a single-choice pick ends it. Typing `level:` by hand
-   * still works: the token form is the same question asked in writing.
-   */
-  const [pickedKey, setPickedKey] = useState<string | null>(null);
-  const [highlighted, setHighlighted] = useState(0);
-  const [loadedOptions, setLoadedOptions] = useState<
-    Record<string, FilterOption[]>
-  >({});
-
-  const variants = useMemo(() => variantsFromFields(fields), [fields]);
-
-  /*
-   * The draft belongs to the bar while it is being typed, but the committed
-   * search belongs to the owner: when it changes from outside (a cleared
-   * query, a navigated URL), the bar must show it.
-   */
-  const lastSearch = useRef(search);
-  if (search !== lastSearch.current) {
-    lastSearch.current = search;
-    setDraft(search);
-  }
-
-  /* --- Phase detection --------------------------------------------------- */
-
-  const tokenMatch = draft.match(/(^|\s)([A-Za-z0-9_.-]+):(\S*)$/);
-  const typedField = tokenMatch
-    ? fields.find((field) => field.key === tokenMatch[2])
-    : undefined;
-  const pickedField = pickedKey
-    ? fields.find((field) => field.key === pickedKey)
-    : undefined;
-  const activeField = pickedField ?? typedField;
-
-  /*
-   * Only the word under the caret is being completed; whatever stands before
-   * it is already said and survives the completion. So `timeout lev` offers
-   * Level, and taking it keeps `timeout` -- the fragment is replaced,
-   * never appended to.
-   */
-  const fragmentMatch = draft.match(/(^|\s)(\S*)$/);
-  const fragment = fragmentMatch?.[2] ?? '';
-  const fragmentPrefix = draft.slice(
-    0,
-    (fragmentMatch?.index ?? 0) + (fragmentMatch?.[1]?.length ?? 0),
-  );
-
-  // With a picked field, whatever is being typed narrows its values.
-  const valueFragment = pickedField
-    ? fragment
-    : typedField
-      ? (tokenMatch?.[3] ?? '')
-      : '';
-  const fieldNeedle = activeField ? '' : fragment.toLowerCase();
-  const prefix =
-    !pickedField && typedField
-      ? draft.slice(
-          0,
-          (tokenMatch?.index ?? 0) + (tokenMatch?.[1]?.length ?? 0),
-        )
-      : fragmentPrefix;
-
-  const fieldOptions = activeField
-    ? (activeField.options ?? loadedOptions[activeField.key])
-    : undefined;
-  const optionsPending = Boolean(
-    activeField?.loadOptions &&
-      !activeField.options &&
-      !loadedOptions[activeField.key],
-  );
-
-  const pendingKey = optionsPending ? activeField?.key : undefined;
-  const pendingLoad = optionsPending ? activeField?.loadOptions : undefined;
-  useEffect(() => {
-    if (!pendingKey || !pendingLoad) return;
-    let cancelled = false;
-    pendingLoad().then((options) => {
-      if (!cancelled) {
-        setLoadedOptions((previous) => ({
-          ...previous,
-          [pendingKey]: options,
-        }));
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingKey, pendingLoad]);
-
-  /* --- Suggestions ------------------------------------------------------- */
-
-  const selectedValues = (key: string): string[] => {
-    const filter = filters.find((f) => f.id === key);
-    return Array.isArray(filter?.value) ? (filter.value as string[]) : [];
-  };
-
-  const suggestions = useMemo<Suggestion[]>(() => {
-    if (activeField) {
-      if (activeField.variant !== 'options') return [];
-      const needle = valueFragment.split(',').pop()?.toLowerCase() ?? '';
-      return (fieldOptions ?? [])
-        .filter(
-          (option) =>
-            !needle ||
-            option.label.toLowerCase().includes(needle) ||
-            option.value.toLowerCase().includes(needle),
-        )
-        .map((option) => ({ kind: 'value', field: activeField, option }));
-    }
-
-    const matches = fields
-      .filter(
-        (field) =>
-          !fieldNeedle ||
-          field.label.toLowerCase().includes(fieldNeedle) ||
-          field.key.toLowerCase().includes(fieldNeedle),
-      )
-      .map<Suggestion>((field) => ({ kind: 'field', field }));
-
-    // The search row rides last: when fields match what was typed, the
-    // structured question is the better default under Enter.
-    return draft.trim()
-      ? [...matches, { kind: 'search', text: draft.trim() }]
-      : matches;
-  }, [activeField, valueFragment, fieldOptions, draft, fields]);
-
-  // Reaching past the end after a list shrinks parks on the last row.
-  const highlightIndex = Math.min(
-    highlighted,
-    Math.max(suggestions.length - 1, 0),
-  );
-
-  /* --- Commits ----------------------------------------------------------- */
-
-  function commitDraft(next: string) {
-    const parsed = parseFilterQuery(next, variants);
-    const untouched = filters.filter(
-      (filter) => !parsed.filters.some((f) => f.id === filter.id),
-    );
-    onChange({
-      filters: [...untouched, ...parsed.filters],
-      search: parsed.search,
-    });
-    setDraft(parsed.search);
-  }
-
-  function toggleValue(field: QueryField, option: FilterOption) {
-    const selected = selectedValues(field.key);
-    const has = selected.includes(option.value);
-    const multiple = field.multiple ?? true;
-    const nextValues = multiple
-      ? has
-        ? selected.filter((value) => value !== option.value)
-        : [...selected, option.value]
-      : has
-        ? []
-        : [option.value];
-
-    const rest = filters.filter((filter) => filter.id !== field.key);
-    onChange({
-      filters: nextValues.length
-        ? [...rest, { id: field.key, value: nextValues }]
-        : rest,
-      search,
-    });
-
-    /*
-     * The typed fragment leaves the draft the moment it is real as a chip.
-     * A multi-value field stays picked so the list stays on its values --
-     * `level:error,fatal` is two ticks in a row, not two round trips through
-     * the field list -- but the phase lives in `pickedKey`, never as a
-     * `key:` parked in the input.
-     */
-    setDraft(prefix.trimEnd() ? `${prefix.trimEnd()} ` : '');
-    if (multiple) {
-      setPickedKey(field.key);
-    } else {
-      setPickedKey(null);
-      setOpen(false);
-    }
-    inputRef.current?.focus();
-  }
-
-  function apply(suggestion: Suggestion) {
-    if (suggestion.kind === 'field') {
-      const kept = prefix.trimEnd() ? `${prefix.trimEnd()} ` : '';
-      if (suggestion.field.variant === 'options') {
-        // The phase is state; the input hands over its fragment and stays
-        // clean while the popup turns to the field's values.
-        setPickedKey(suggestion.field.key);
-        setDraft(kept);
-      } else {
-        // A text or range value is typed, so the token is started in
-        // writing: `events:` waiting for its `100..500`.
-        setDraft(`${kept}${suggestion.field.key}:`);
-      }
-      setHighlighted(0);
-      inputRef.current?.focus();
-      return;
-    }
-    if (suggestion.kind === 'value') {
-      toggleValue(suggestion.field, suggestion.option);
-      return;
-    }
-    commitDraft(draft);
-    setOpen(false);
-  }
-
-  function removeFilter(key: string) {
-    onChange({
-      filters: filters.filter((filter) => filter.id !== key),
-      search,
-    });
-    inputRef.current?.focus();
-  }
-
-  function clearAll() {
-    onChange({ filters: [], search: '' });
-    setDraft('');
-    inputRef.current?.focus();
-  }
-
-  /* --- Keyboard ---------------------------------------------------------- */
-
-  function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      const next =
-        (highlightIndex + delta + suggestions.length) %
-        Math.max(suggestions.length, 1);
-      setHighlighted(next);
-      // The list scrolls, the input keeps focus: the highlighted row has to
-      // be brought along by hand.
-      document
-        .getElementById(`${id}-option-${next}`)
-        ?.scrollIntoView({ block: 'nearest' });
-      return;
-    }
-
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const current = suggestions[highlightIndex];
-      if (open && current) {
-        apply(current);
-      } else {
-        commitDraft(draft);
-        setOpen(false);
-        setPickedKey(null);
-      }
-      return;
-    }
-
-    if (event.key === 'Tab' && open) {
-      const current = suggestions[highlightIndex];
-      if (current && current.kind === 'field') {
-        event.preventDefault();
-        apply(current);
-      }
-      return;
-    }
-
-    if (event.key === 'Escape') {
-      if (open) {
-        setOpen(false);
-        setPickedKey(null);
-      } else if (draft) {
-        setDraft('');
-      }
-      return;
-    }
-
-    if (event.key === 'Backspace' && draft === '') {
-      // First step out of the picked field, then start eating chips.
-      if (pickedKey) {
-        setPickedKey(null);
-        return;
-      }
-      const last = filters[filters.length - 1];
-      if (last) removeFilter(last.id);
-    }
-  }
-
-  /* --- Rendering --------------------------------------------------------- */
-
-  const chips = filters
-    .map((filter) => {
-      const field = fields.find((f) => f.key === filter.id);
-      if (!field) return null;
-      const text = formatFilterQuery([filter], '', variants);
-      const value = text.startsWith(`${filter.id}:`)
-        ? text.slice(filter.id.length + 1)
-        : text;
-      if (!value) return null;
-      return { key: filter.id, label: field.label, value };
-    })
-    .filter((chip) => chip !== null);
-
-  const listboxId = `${id}-listbox`;
-  const showClear = chips.length > 0 || search !== '' || draft !== '';
+  const {
+    id,
+    inputRef,
+    rootRef,
+    draft,
+    setDraft,
+    open,
+    setOpen,
+    pickedField,
+    setPickedKey,
+    activeField,
+    setHighlighted,
+    highlightIndex,
+    suggestions,
+    optionsPending,
+    activeFieldSelected,
+    chips,
+    listboxId,
+    showClear,
+    apply,
+    removeFilter,
+    clearAll,
+    onKeyDown,
+  } = useQueryBar({ fields, filters, search, onChange });
 
   return (
     <div ref={rootRef} className={styles.root({ className })}>
@@ -614,154 +441,17 @@ export function QueryBar({
       </div>
 
       {open ? (
-        <div className={styles.popup()} data-side="bottom">
-          {activeField && activeField.variant === 'options' ? (
-            <div className={styles.groupLabel()}>{activeField.label}</div>
-          ) : null}
-          {!activeField && suggestions.some((s) => s.kind === 'field') ? (
-            <div className={styles.groupLabel()}>Filter by</div>
-          ) : null}
-
-          <div
-            role="listbox"
-            id={listboxId}
-            aria-label="Suggestions"
-            className={styles.list()}
-          >
-            {optionsPending
-              ? [0, 1, 2].map((line) => (
-                  <div
-                    key={line}
-                    aria-hidden="true"
-                    className={styles.skeleton()}
-                  />
-                ))
-              : null}
-
-            {suggestions.map((suggestion, index) => {
-              const highlightedRow = index === highlightIndex;
-              const shared = {
-                id: `${id}-option-${index}`,
-                'data-highlighted': highlightedRow,
-                className: styles.option(),
-                onMouseEnter: () => setHighlighted(index),
-                // Fires before the input's blur: the click must win.
-                onMouseDown: (event: ReactMouseEvent) => event.preventDefault(),
-                onClick: () => apply(suggestion),
-              };
-
-              if (suggestion.kind === 'field') {
-                const Icon = suggestion.field.icon ?? FacetsIcon;
-                return (
-                  <div
-                    key={`field-${suggestion.field.key}`}
-                    {...shared}
-                    role="option"
-                    // Steered from the input via aria-activedescendant.
-                    tabIndex={-1}
-                    aria-selected={false}
-                  >
-                    <Icon size="lg" className={styles.optionIcon()} />
-                    <span className={styles.optionLabel()}>
-                      {suggestion.field.label}
-                    </span>
-                    <span className={styles.optionHint()}>
-                      {suggestion.field.description ??
-                        `${suggestion.field.key}:`}
-                    </span>
-                  </div>
-                );
-              }
-
-              if (suggestion.kind === 'value') {
-                const ticked = selectedValues(suggestion.field.key).includes(
-                  suggestion.option.value,
-                );
-                return (
-                  <div
-                    key={`value-${suggestion.option.value}`}
-                    {...shared}
-                    role="option"
-                    tabIndex={-1}
-                    aria-selected={ticked}
-                  >
-                    <span
-                      aria-hidden="true"
-                      data-ticked={ticked}
-                      className={styles.optionBox()}
-                    >
-                      {ticked ? (
-                        <ResolveIcon size="sm" aria-hidden="true" />
-                      ) : null}
-                    </span>
-                    {suggestion.option.tone ? (
-                      <span
-                        aria-hidden="true"
-                        className={styles.optionDot({
-                          className: TONE_DOT[suggestion.option.tone],
-                        })}
-                      />
-                    ) : null}
-                    <span className={styles.optionLabel()}>
-                      {suggestion.option.label}
-                    </span>
-                    {suggestion.option.hint ? (
-                      <span className={styles.optionHint()}>
-                        {suggestion.option.hint}
-                      </span>
-                    ) : null}
-                    <Count>{suggestion.option.count}</Count>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key="search"
-                  {...shared}
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={false}
-                >
-                  <SearchIcon size="lg" className={styles.optionIcon()} />
-                  <span className={styles.optionLabel()}>
-                    Search “{suggestion.text}”
-                  </span>
-                  <Kbd>⏎</Kbd>
-                </div>
-              );
-            })}
-
-            {activeField && activeField.variant === 'range' ? (
-              <div className={styles.option()}>
-                <span className={styles.optionLabel()}>
-                  Type a range: {activeField.key}:100..500, then
-                </span>
-                <Kbd>⏎</Kbd>
-              </div>
-            ) : null}
-            {activeField && activeField.variant === 'text' ? (
-              <div className={styles.option()}>
-                <span className={styles.optionLabel()}>Type a value, then</span>
-                <Kbd>⏎</Kbd>
-              </div>
-            ) : null}
-
-            {!optionsPending &&
-            suggestions.length === 0 &&
-            activeField?.variant === 'options' ? (
-              <div className="px-2.5 py-3 text-center text-control text-fg-ghost">
-                Nothing matches
-              </div>
-            ) : null}
-          </div>
-
-          <span aria-hidden="true" className={styles.hints()}>
-            <span>↑↓ navigate</span>
-            <span>⏎ select</span>
-            <span>esc closes</span>
-          </span>
-        </div>
+        <SuggestionsPopup
+          id={id}
+          listboxId={listboxId}
+          activeField={activeField}
+          suggestions={suggestions}
+          optionsPending={optionsPending}
+          highlightIndex={highlightIndex}
+          activeFieldSelected={activeFieldSelected}
+          onHighlight={setHighlighted}
+          onSelect={apply}
+        />
       ) : null}
     </div>
   );

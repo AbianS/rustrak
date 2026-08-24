@@ -34,7 +34,8 @@
     "files": [
       "**/shared/ui/components/shadcn/**",
       "**/src/components/ui/**",
-      "content/**/_meta.js"
+      "content/**/_meta.js",
+      "**/*.stories.tsx"
     ],
     "overrides": [
       {
@@ -51,15 +52,6 @@
         ],
         "rules": [
           "react-doctor/dangerous-html-sink"
-        ]
-      },
-      {
-        "files": [
-          "**/*.stories.tsx"
-        ],
-        "rules": [
-          "react-doctor/no-children-prop",
-          "react-doctor/heading-has-content"
         ]
       }
     ]

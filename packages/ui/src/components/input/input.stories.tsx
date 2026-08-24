@@ -55,6 +55,16 @@ export const States: Story = {
         <Input numeric defaultValue="500" size="sm" />
         <FieldHint>Events per minute.</FieldHint>
       </Field>
+
+      <Field>
+        <FieldLabel>Resolution note</FieldLabel>
+        <Textarea
+          size="sm"
+          rows={4}
+          placeholder="What fixed it, for the next reader…"
+        />
+        <FieldHint>Kept with the issue's history.</FieldHint>
+      </Field>
     </div>
   ),
 };
@@ -92,18 +102,6 @@ export const Adorned: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Clear search' }));
     await expect(canvas.getByRole('textbox')).toHaveValue('');
   },
-};
-
-export const Multiline: Story = {
-  render: () => (
-    <div className="w-96">
-      <Field>
-        <FieldLabel>Resolution note</FieldLabel>
-        <Textarea rows={4} placeholder="What fixed it, for the next reader…" />
-        <FieldHint>Kept with the issue's history.</FieldHint>
-      </Field>
-    </div>
-  ),
 };
 
 /** The label reaches the control: clicking it is clicking the field. */

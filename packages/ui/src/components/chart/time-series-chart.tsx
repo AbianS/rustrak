@@ -1,4 +1,9 @@
 import { useId } from 'react';
+// Not loaded through next/dynamic, deliberately: this package has no
+// framework opinion, and recharts is already the only thing that pulls
+// these primitives in -- deferring the import buys nothing a consumer's own
+// code-splitting doesn't already give it.
+// react-doctor-disable-next-line react-doctor/prefer-dynamic-import
 import {
   Area,
   AreaChart,
@@ -8,14 +13,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import {
-  ChartLegend,
-  type ChartSeries,
-  ChartTooltip,
-  seriesColor,
-  XTick,
-  YTick,
-} from './chart-parts';
+import { ChartLegend, ChartTooltip, XTick, YTick } from './chart-parts';
+import { type ChartSeries, seriesColor } from './chart-series';
 
 /**
  * A time series: events over time, adoption of a release, latency.

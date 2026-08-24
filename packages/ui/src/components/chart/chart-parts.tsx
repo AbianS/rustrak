@@ -1,38 +1,11 @@
 import type { ReactNode } from 'react';
 import { tv } from '../../lib/tv';
+import { type ChartSeries, seriesColor } from './chart-series';
 
 /**
- * What every chart shares: the series contract, the palette order, the
- * tooltip card, the legend row and the axis ticks.
- *
- * Colours are CSS variables end to end -- `var(--chart-1)`, `var(--sev-error)`
- * -- which is what lets the same SVG follow the theme. The categorical order
- * is **fixed**: chart-1 to chart-5, assigned by position and never cycled or
- * re-dealt when a series is filtered away. Identity sticks to the entity;
- * the palette was validated (CVD, chroma, contrast) as a sequence, and a
- * sixth series is a design question, not a sixth colour.
+ * What every chart shares: the tooltip card, the legend row and the axis
+ * ticks. The series contract and the palette order live in `chart-series.ts`.
  */
-
-/** One drawn series: which field, what to call it, and -- rarely -- what
- *  colour, when the series *is* a status (severity) rather than an entity. */
-export interface ChartSeries {
-  key: string;
-  label: string;
-  /** A CSS colour, `var(--token)` only. Absent: the categorical order. */
-  color?: string;
-}
-
-const CATEGORICAL = [
-  'var(--chart-1)',
-  'var(--chart-2)',
-  'var(--chart-3)',
-  'var(--chart-4)',
-  'var(--chart-5)',
-];
-
-export function seriesColor(series: ChartSeries, index: number): string {
-  return series.color ?? CATEGORICAL[index % CATEGORICAL.length] ?? '';
-}
 
 /* --- Axis ticks ----------------------------------------------------------- */
 
@@ -129,7 +102,7 @@ export function ChartTooltip({
   if (!active || !payload?.length) return null;
 
   return (
-    <div className={tipStyles.card()}>
+    <div role="status" className={tipStyles.card()}>
       {label != null ? (
         <div className={tipStyles.label()}>
           {formatLabel ? formatLabel(label) : label}

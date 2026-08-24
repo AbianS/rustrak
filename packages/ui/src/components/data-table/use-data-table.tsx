@@ -84,6 +84,15 @@ export function useDataTable<TData extends RowData>({
   enableSelection = false,
   rowMenu,
 }: UseDataTableOptions<TData>): DataTableInstance<TData> {
+  if (process.env.NODE_ENV !== 'production' && enableSelection && !getRowId) {
+    // TanStack falls back to the row's index, which selection can't survive:
+    // a refetch or a page change reassigns "row 0" to a different row.
+    console.error(
+      'useDataTable: enableSelection is true without getRowId. Selection ' +
+        'will not survive a refetch or a page change -- pass getRowId.',
+    );
+  }
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({});
@@ -98,11 +107,15 @@ export function useDataTable<TData extends RowData>({
     slice: TSlice,
     updater: Updater<DataTableQuery[TSlice]>,
   ) {
-    onQueryChange((previous) => ({
-      ...previous,
-      [slice]: functionalUpdate(updater, previous[slice]),
-      pagination: { ...previous.pagination, pageIndex: 0 },
-    }));
+    onQueryChange((previous) => {
+      const next = functionalUpdate(updater, previous[slice]);
+      return {
+        ...previous,
+        // TanStack's global filter can be set to `undefined`; `search` never is.
+        [slice]: slice === 'search' && next == null ? '' : next,
+        pagination: { ...previous.pagination, pageIndex: 0 },
+      };
+    });
   }
 
   return useTable<DataTableFeatures, TData>({
