@@ -184,6 +184,34 @@ export const FreeText: Story = {
   },
 };
 
+/**
+ * A second Escape, once the popup is already closed, clears the committed
+ * search along with the draft -- an empty bar must not filter on hidden text.
+ */
+export const EscapeClearsACommittedSearch: Story = {
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    await userEvent.click(input);
+    await userEvent.keyboard('connection reset{Escape}{Enter}');
+    await waitFor(() =>
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search="connection reset"',
+      ),
+    );
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search=""',
+      );
+      expect(input).toHaveValue('');
+    });
+  },
+};
+
 /** Backspace on an empty input eats the last chip, like every tag input. */
 export const RemoveWithBackspace: Story = {
   render: () => (

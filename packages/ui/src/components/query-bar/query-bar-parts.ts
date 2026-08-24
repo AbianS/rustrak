@@ -27,7 +27,20 @@ export function queryFieldsFromColumns<TData extends RowData>(
   const fields: QueryField[] = [];
   for (const column of columns) {
     const meta = column.meta;
-    const id = column.id;
+    /*
+     * `column.id` is only set when the definition names it explicitly: the
+     * table derives an id from `accessorKey` itself, but only once these
+     * definitions reach `useTable` -- reading them here, first, sees none of
+     * that. Redo the same derivation TanStack does, so an accessor-only
+     * filterable column is not silently dropped from the bar.
+     */
+    const accessorKey =
+      'accessorKey' in column ? column.accessorKey : undefined;
+    const id =
+      column.id ??
+      (typeof accessorKey === 'string'
+        ? accessorKey.replaceAll('.', '_')
+        : undefined);
     if (!meta?.filter || !id) continue;
     const label =
       meta.label ?? (typeof column.header === 'string' ? column.header : id);

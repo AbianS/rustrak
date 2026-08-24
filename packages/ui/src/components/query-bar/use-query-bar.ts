@@ -338,7 +338,11 @@ export function useQueryBar({
         setOpen(false);
         setPickedKey(null);
       } else if (draft) {
+        // The popup is already closed, so this draft is exactly what is
+        // committed (nothing has been typed since). Clearing only the draft
+        // would leave the table filtered by search the bar no longer shows.
         setDraft('');
+        if (search) onChange({ filters, search: '' });
       }
       return;
     }
