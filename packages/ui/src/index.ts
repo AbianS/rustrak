@@ -199,18 +199,18 @@ export {
   DialogFooter,
   DialogHeader,
 } from './components/dialog/dialog';
+export type { DialogProviderProps } from './components/dialog/dialog-manager';
+export { DialogProvider } from './components/dialog/dialog-manager';
 export type {
   DialogComponent,
   DialogDefinition,
   DialogDefinitionOptions,
   DialogHostProps,
-  DialogProviderProps,
-} from './components/dialog/dialog-manager';
+} from './components/dialog/dialog-store';
 export {
   closeAllDialogs,
   createDialog,
-  DialogProvider,
-} from './components/dialog/dialog-manager';
+} from './components/dialog/dialog-store';
 export type {
   ToastActionSpec,
   ToastOptions,

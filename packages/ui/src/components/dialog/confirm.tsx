@@ -17,7 +17,7 @@ import {
   DialogHeader,
   type DialogTone,
 } from './dialog';
-import { createDialog } from './dialog-manager';
+import { createDialog } from './dialog-store';
 
 /**
  * The two eternal questions, pre-assembled.
@@ -92,7 +92,7 @@ function ConfirmContent({
 }: ConfirmOptions & { close: (result?: boolean) => void }) {
   const id = useId();
   const [typed, setTyped] = useState('');
-  const locked = phrase != null && typed.trim() !== phrase;
+  const locked = !!phrase && typed.trim() !== phrase;
   const remaining = phrase == null ? 0 : phrase.length - typed.trim().length;
 
   return (
