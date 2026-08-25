@@ -23,6 +23,7 @@ const PENDING_EVENT_ZSTD_VERSION: u8 = 2;
 const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
 const BASE64_WRITE_CHUNK_SIZE: usize = 48 * 1024;
 const PENDING_PUBLISH_LOCK_SUFFIX: &str = ".publish.lock";
+const PENDING_PUBLISH_REGISTRY_LOCK_NAME: &str = ".publish-lock-registry";
 
 static PENDING_PUBLISH_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
 
@@ -140,9 +141,45 @@ fn pending_publish_lock_path(path: &Path) -> AppResult<PathBuf> {
     Ok(path.with_file_name(format!(".{file_name}{PENDING_PUBLISH_LOCK_SUFFIX}")))
 }
 
+fn pending_publish_registry_lock_path(path: &Path) -> AppResult<PathBuf> {
+    path.parent()
+        .map(|parent| parent.join(PENDING_PUBLISH_REGISTRY_LOCK_NAME))
+        .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))
+}
+
+async fn acquire_pending_publish_registry_lock(path: &Path) -> AppResult<StdFile> {
+    let lock_path = pending_publish_registry_lock_path(path)?;
+    tokio::task::spawn_blocking(move || {
+        let lock = StdOpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|e| {
+                AppError::Internal(format!(
+                    "Failed to open ingest publish registry lock: {}",
+                    e
+                ))
+            })?;
+        lock.lock_exclusive().map_err(|e| {
+            AppError::Internal(format!("Failed to lock ingest publish registry: {}", e))
+        })?;
+        Ok(lock)
+    })
+    .await
+    .map_err(|e| {
+        AppError::Internal(format!(
+            "Failed to join ingest publish registry task: {}",
+            e
+        ))
+    })?
+}
+
 async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
     let lock_path = pending_publish_lock_path(path)?;
-    tokio::task::spawn_blocking(move || {
+    let registry_lock = acquire_pending_publish_registry_lock(path).await?;
+    let result = tokio::task::spawn_blocking(move || {
         let lock = StdOpenOptions::new()
             .create(true)
             .truncate(false)
@@ -158,12 +195,23 @@ async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
         Ok(lock)
     })
     .await
-    .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)))?
+    .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)));
+    drop(registry_lock);
+    result?
 }
 
 async fn remove_stale_pending_publish_lock(path: &Path) -> io::Result<bool> {
     let path = path.to_owned();
+    let registry_path = pending_publish_registry_lock_path(&path)
+        .map_err(|error| io::Error::other(error.to_string()))?;
     tokio::task::spawn_blocking(move || {
+        let registry_lock = StdOpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(registry_path)?;
+        registry_lock.lock_exclusive()?;
         let lock = match StdOpenOptions::new().read(true).write(true).open(&path) {
             Ok(lock) => lock,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
@@ -171,12 +219,12 @@ async fn remove_stale_pending_publish_lock(path: &Path) -> io::Result<bool> {
         };
         match lock.try_lock_exclusive() {
             Ok(()) => {
+                drop(lock);
                 let removed = match std::fs::remove_file(&path) {
                     Ok(()) => true,
                     Err(error) if error.kind() == io::ErrorKind::NotFound => false,
                     Err(error) => return Err(error),
                 };
-                let _ = lock.unlock();
                 Ok(removed)
             }
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(false),
@@ -1281,6 +1329,148 @@ mod tests {
             }
         }
         assert_eq!(quarantined, 1);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stale_cleanup_cannot_split_publish_lock_identity() {
+        const ROLE: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_ROLE";
+        const ROOT: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_ROOT";
+        const OPENED: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_OPENED";
+        const CLEANUP_READY: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_CLEANUP_READY";
+        const RELEASE: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_RELEASE";
+        const PUBLISHED: &str = "RUSTRAK_STORAGE_LOCK_INTERLEAVING_PUBLISHED";
+
+        if let Ok(role) = std::env::var(ROLE) {
+            let root = PathBuf::from(std::env::var(ROOT).unwrap());
+            let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+            let pending_path = get_project_pending_event_path(&root, 7, event_id).unwrap();
+
+            match role.as_str() {
+                "publisher" => {
+                    let registry = acquire_pending_publish_registry_lock(&pending_path)
+                        .await
+                        .unwrap();
+                    let lock_path = pending_publish_lock_path(&pending_path).unwrap();
+                    let lock = StdOpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .open(lock_path)
+                        .unwrap();
+                    fs::write(root.join(OPENED), b"ready").await.unwrap();
+                    tokio::time::timeout(Duration::from_secs(10), async {
+                        let release = root.join(RELEASE);
+                        while !fs::try_exists(&release).await.unwrap() {
+                            tokio::time::sleep(Duration::from_millis(5)).await;
+                        }
+                    })
+                    .await
+                    .expect("timed out waiting for stale cleanup interleaving release");
+                    let lock = tokio::task::spawn_blocking(move || {
+                        lock.lock_exclusive().unwrap();
+                        lock
+                    })
+                    .await
+                    .unwrap();
+                    let temporary_path =
+                        pending_path.with_file_name(".project-7-event.pending.json.tmp-interleave");
+                    let mut temporary_file = OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&temporary_path)
+                        .await
+                        .unwrap();
+                    write_pending_record(
+                        &mut temporary_file,
+                        &metadata(event_id, 7),
+                        br#"{"interleaving":true}"#,
+                    )
+                    .await
+                    .unwrap();
+                    drop(temporary_file);
+                    publish_pending_file_locked(&pending_path, &temporary_path, event_id, 7)
+                        .await
+                        .unwrap();
+                    fs::write(root.join(PUBLISHED), b"done").await.unwrap();
+                    drop(lock);
+                    drop(registry);
+                }
+                "cleanup" => {
+                    let lock_path = pending_publish_lock_path(&pending_path).unwrap();
+                    fs::write(root.join(CLEANUP_READY), b"ready").await.unwrap();
+                    remove_stale_pending_publish_lock(&lock_path).await.unwrap();
+                }
+                _ => panic!("unknown lock interleaving role: {role}"),
+            }
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        let lock_path = pending_publish_lock_path(&pending_path).unwrap();
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, b"malformed").await.unwrap();
+        fs::write(&lock_path, b"").await.unwrap();
+
+        let executable = std::env::current_exe().unwrap();
+        let test_module = module_path!()
+            .strip_prefix(concat!(env!("CARGO_PKG_NAME"), "::"))
+            .unwrap_or(module_path!());
+        let test_name = format!(
+            "{test_module}::{}",
+            stringify!(stale_cleanup_cannot_split_publish_lock_identity)
+        );
+        let mut publisher = std::process::Command::new(&executable)
+            .args(["--exact", &test_name, "--nocapture"])
+            .env(ROLE, "publisher")
+            .env(ROOT, dir.path())
+            .env(RELEASE, "release")
+            .spawn()
+            .unwrap();
+        let opened = dir.path().join(OPENED);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !fs::try_exists(&opened).await.unwrap() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        let mut cleanup = std::process::Command::new(&executable)
+            .args(["--exact", &test_name, "--nocapture"])
+            .env(ROLE, "cleanup")
+            .env(ROOT, dir.path())
+            .spawn()
+            .unwrap();
+        let cleanup_ready = dir.path().join(CLEANUP_READY);
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !fs::try_exists(&cleanup_ready).await.unwrap() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        fs::write(dir.path().join(RELEASE), b"go").await.unwrap();
+
+        let publisher_status = tokio::task::spawn_blocking(move || publisher.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        let cleanup_status = tokio::task::spawn_blocking(move || cleanup.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(publisher_status.success());
+        assert!(cleanup_status.success());
+        assert!(fs::try_exists(dir.path().join(PUBLISHED)).await.unwrap());
+        assert_eq!(
+            read_event_for_project(dir.path(), 7, event_id)
+                .await
+                .unwrap(),
+            br#"{"interleaving":true}"#
+        );
+        assert!(!fs::try_exists(lock_path).await.unwrap());
     }
 
     #[tokio::test]
