@@ -147,39 +147,58 @@ fn pending_publish_registry_lock_path(path: &Path) -> AppResult<PathBuf> {
         .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))
 }
 
-async fn acquire_pending_publish_registry_lock(path: &Path) -> AppResult<StdFile> {
-    let lock_path = pending_publish_registry_lock_path(path)?;
-    tokio::task::spawn_blocking(move || {
-        let lock = StdOpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(&lock_path)
-            .map_err(|e| {
-                AppError::Internal(format!(
-                    "Failed to open ingest publish registry lock: {}",
-                    e
-                ))
-            })?;
-        lock.lock_exclusive().map_err(|e| {
-            AppError::Internal(format!("Failed to lock ingest publish registry: {}", e))
-        })?;
-        Ok(lock)
-    })
-    .await
-    .map_err(|e| {
-        AppError::Internal(format!(
-            "Failed to join ingest publish registry task: {}",
-            e
-        ))
-    })?
+fn open_pending_publish_registry_lock(path: &Path) -> io::Result<StdFile> {
+    StdOpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)
+}
+
+fn pending_publish_lock_identity_matches(lock: &StdFile, path: &Path) -> io::Result<bool> {
+    let lock_metadata = lock.metadata()?;
+    let path_metadata = std::fs::metadata(path)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        Ok(
+            lock_metadata.dev() == path_metadata.dev()
+                && lock_metadata.ino() == path_metadata.ino(),
+        )
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        Ok(
+            lock_metadata.volume_serial_number() == path_metadata.volume_serial_number()
+                && lock_metadata.file_index() == path_metadata.file_index(),
+        )
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (lock_metadata, path_metadata);
+        Ok(true)
+    }
 }
 
 async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
     let lock_path = pending_publish_lock_path(path)?;
-    let registry_lock = acquire_pending_publish_registry_lock(path).await?;
-    let result = tokio::task::spawn_blocking(move || {
+    let registry_path = pending_publish_registry_lock_path(path)?;
+    tokio::task::spawn_blocking(move || loop {
+        let registry_lock = open_pending_publish_registry_lock(&registry_path).map_err(|e| {
+            AppError::Internal(format!(
+                "Failed to open ingest publish registry lock: {}",
+                e
+            ))
+        })?;
+        registry_lock.lock_exclusive().map_err(|e| {
+            AppError::Internal(format!("Failed to lock ingest publish registry: {}", e))
+        })?;
+
         let lock = StdOpenOptions::new()
             .create(true)
             .truncate(false)
@@ -189,15 +208,73 @@ async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
             .map_err(|e| {
                 AppError::Internal(format!("Failed to open ingest publish lock: {}", e))
             })?;
-        lock.lock_exclusive().map_err(|e| {
-            AppError::Internal(format!("Failed to lock ingest publish file: {}", e))
-        })?;
-        Ok(lock)
+        match lock.try_lock_exclusive() {
+            Ok(()) => {
+                drop(registry_lock);
+                return Ok(lock);
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                drop(registry_lock);
+                lock.lock_exclusive().map_err(|e| {
+                    AppError::Internal(format!("Failed to lock ingest publish file: {}", e))
+                })?;
+
+                let registry_lock =
+                    open_pending_publish_registry_lock(&registry_path).map_err(|e| {
+                        AppError::Internal(format!(
+                            "Failed to open ingest publish registry lock: {}",
+                            e
+                        ))
+                    })?;
+                registry_lock.lock_exclusive().map_err(|e| {
+                    AppError::Internal(format!("Failed to lock ingest publish registry: {}", e))
+                })?;
+                let identity_matches = pending_publish_lock_identity_matches(&lock, &lock_path)
+                    .map_err(|e| {
+                        AppError::Internal(format!(
+                            "Failed to validate ingest publish lock identity: {}",
+                            e
+                        ))
+                    })?;
+                drop(registry_lock);
+                if identity_matches {
+                    return Ok(lock);
+                }
+            }
+            Err(error) => {
+                return Err(AppError::Internal(format!(
+                    "Failed to try-lock ingest publish file: {}",
+                    error
+                )));
+            }
+        }
     })
     .await
-    .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)));
-    drop(registry_lock);
-    result?
+    .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)))?
+}
+
+fn remove_stale_pending_publish_lock_locked(
+    path: &Path,
+    _registry_lock: &StdFile,
+) -> io::Result<bool> {
+    let lock = match StdOpenOptions::new().read(true).write(true).open(path) {
+        Ok(lock) => lock,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    match lock.try_lock_exclusive() {
+        Ok(()) => {
+            drop(lock);
+            let removed = match std::fs::remove_file(path) {
+                Ok(()) => true,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+                Err(error) => return Err(error),
+            };
+            Ok(removed)
+        }
+        Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 async fn remove_stale_pending_publish_lock(path: &Path) -> io::Result<bool> {
@@ -205,31 +282,9 @@ async fn remove_stale_pending_publish_lock(path: &Path) -> io::Result<bool> {
     let registry_path = pending_publish_registry_lock_path(&path)
         .map_err(|error| io::Error::other(error.to_string()))?;
     tokio::task::spawn_blocking(move || {
-        let registry_lock = StdOpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .open(registry_path)?;
+        let registry_lock = open_pending_publish_registry_lock(&registry_path)?;
         registry_lock.lock_exclusive()?;
-        let lock = match StdOpenOptions::new().read(true).write(true).open(&path) {
-            Ok(lock) => lock,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
-            Err(error) => return Err(error),
-        };
-        match lock.try_lock_exclusive() {
-            Ok(()) => {
-                drop(lock);
-                let removed = match std::fs::remove_file(&path) {
-                    Ok(()) => true,
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-                    Err(error) => return Err(error),
-                };
-                Ok(removed)
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(false),
-            Err(error) => Err(error),
-        }
+        remove_stale_pending_publish_lock_locked(&path, &registry_lock)
     })
     .await
     .map_err(io::Error::other)?
@@ -1348,9 +1403,14 @@ mod tests {
 
             match role.as_str() {
                 "publisher" => {
-                    let registry = acquire_pending_publish_registry_lock(&pending_path)
-                        .await
-                        .unwrap();
+                    let registry_path = pending_publish_registry_lock_path(&pending_path).unwrap();
+                    let registry = tokio::task::spawn_blocking(move || {
+                        let registry = open_pending_publish_registry_lock(&registry_path).unwrap();
+                        registry.lock_exclusive().unwrap();
+                        registry
+                    })
+                    .await
+                    .unwrap();
                     let lock_path = pending_publish_lock_path(&pending_path).unwrap();
                     let lock = StdOpenOptions::new()
                         .read(true)
@@ -1397,8 +1457,15 @@ mod tests {
                 }
                 "cleanup" => {
                     let lock_path = pending_publish_lock_path(&pending_path).unwrap();
-                    fs::write(root.join(CLEANUP_READY), b"ready").await.unwrap();
-                    remove_stale_pending_publish_lock(&lock_path).await.unwrap();
+                    let registry_path = pending_publish_registry_lock_path(&lock_path).unwrap();
+                    let registry_lock = open_pending_publish_registry_lock(&registry_path).unwrap();
+                    assert!(matches!(
+                        registry_lock.try_lock_exclusive(),
+                        Err(error) if error.kind() == io::ErrorKind::WouldBlock
+                    ));
+                    std::fs::write(root.join(CLEANUP_READY), b"ready").unwrap();
+                    registry_lock.lock_exclusive().unwrap();
+                    remove_stale_pending_publish_lock_locked(&lock_path, &registry_lock).unwrap();
                 }
                 _ => panic!("unknown lock interleaving role: {role}"),
             }
