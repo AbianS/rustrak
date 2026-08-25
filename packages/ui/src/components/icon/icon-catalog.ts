@@ -77,57 +77,123 @@ import type { IconComponent } from './icon';
 
 /* --- Navigation · the sidebar's seven destinations ------------------------ */
 
-export const OverviewIcon = fromLucide('OverviewIcon', LayoutDashboard);
-export const IssuesIcon = fromLucide('IssuesIcon', CircleAlert);
-export const ReleasesIcon = fromLucide('ReleasesIcon', Rocket);
-export const PerformanceIcon = fromLucide('PerformanceIcon', Zap);
-export const AgentsIcon = fromLucide('AgentsIcon', Bot);
-export const LogsIcon = fromLucide('LogsIcon', ScrollText);
-export const SettingsIcon = fromLucide('SettingsIcon', Settings);
+export const OverviewIcon = /* @__PURE__ */ fromLucide(
+  'OverviewIcon',
+  LayoutDashboard,
+);
+export const IssuesIcon = /* @__PURE__ */ fromLucide('IssuesIcon', CircleAlert);
+export const ReleasesIcon = /* @__PURE__ */ fromLucide('ReleasesIcon', Rocket);
+export const PerformanceIcon = /* @__PURE__ */ fromLucide(
+  'PerformanceIcon',
+  Zap,
+);
+export const AgentsIcon = /* @__PURE__ */ fromLucide('AgentsIcon', Bot);
+export const LogsIcon = /* @__PURE__ */ fromLucide('LogsIcon', ScrollText);
+export const SettingsIcon = /* @__PURE__ */ fromLucide(
+  'SettingsIcon',
+  Settings,
+);
 
 /* --- Directions ----------------------------------------------------------- */
 
-export const ChevronRightIcon = fromLucide('ChevronRightIcon', ChevronRight);
-export const ChevronLeftIcon = fromLucide('ChevronLeftIcon', ChevronLeft);
-export const ChevronDownIcon = fromLucide('ChevronDownIcon', ChevronDown);
-export const ChevronUpIcon = fromLucide('ChevronUpIcon', ChevronUp);
+export const ChevronRightIcon = /* @__PURE__ */ fromLucide(
+  'ChevronRightIcon',
+  ChevronRight,
+);
+export const ChevronLeftIcon = /* @__PURE__ */ fromLucide(
+  'ChevronLeftIcon',
+  ChevronLeft,
+);
+export const ChevronDownIcon = /* @__PURE__ */ fromLucide(
+  'ChevronDownIcon',
+  ChevronDown,
+);
+export const ChevronUpIcon = /* @__PURE__ */ fromLucide(
+  'ChevronUpIcon',
+  ChevronUp,
+);
 /** The two-arrow chevron of a thing you can switch: the project card. */
-export const SelectorIcon = fromLucide('SelectorIcon', ChevronsUpDown);
-export const CollapsePanelIcon = fromLucide('CollapsePanelIcon', ChevronsLeft);
-export const ExpandPanelIcon = fromLucide('ExpandPanelIcon', ChevronsRight);
-export const PanelLeftIcon = fromLucide('PanelLeftIcon', PanelLeft);
-export const PanelRightIcon = fromLucide('PanelRightIcon', PanelRight);
-export const ArrowRightIcon = fromLucide('ArrowRightIcon', ArrowRight);
+export const SelectorIcon = /* @__PURE__ */ fromLucide(
+  'SelectorIcon',
+  ChevronsUpDown,
+);
+export const CollapsePanelIcon = /* @__PURE__ */ fromLucide(
+  'CollapsePanelIcon',
+  ChevronsLeft,
+);
+export const ExpandPanelIcon = /* @__PURE__ */ fromLucide(
+  'ExpandPanelIcon',
+  ChevronsRight,
+);
+export const PanelLeftIcon = /* @__PURE__ */ fromLucide(
+  'PanelLeftIcon',
+  PanelLeft,
+);
+export const PanelRightIcon = /* @__PURE__ */ fromLucide(
+  'PanelRightIcon',
+  PanelRight,
+);
+export const ArrowRightIcon = /* @__PURE__ */ fromLucide(
+  'ArrowRightIcon',
+  ArrowRight,
+);
 /** A figure that went up. In this product that is usually bad news. */
-export const TrendUpIcon = fromLucide('TrendUpIcon', ArrowUpRight);
-export const TrendDownIcon = fromLucide('TrendDownIcon', ArrowDownRight);
-export const CompareIcon = fromLucide('CompareIcon', ArrowLeftRight);
+export const TrendUpIcon = /* @__PURE__ */ fromLucide(
+  'TrendUpIcon',
+  ArrowUpRight,
+);
+export const TrendDownIcon = /* @__PURE__ */ fromLucide(
+  'TrendDownIcon',
+  ArrowDownRight,
+);
+export const CompareIcon = /* @__PURE__ */ fromLucide(
+  'CompareIcon',
+  ArrowLeftRight,
+);
 
 /* --- Actions -------------------------------------------------------------- */
 
-export const SearchIcon = fromLucide('SearchIcon', Search);
-export const FilterIcon = fromLucide('FilterIcon', ListFilter);
-export const FacetsIcon = fromLucide('FacetsIcon', SlidersHorizontal);
-export const ColumnsIcon = fromLucide('ColumnsIcon', Columns3);
-export const NewIcon = fromLucide('NewIcon', Plus);
-export const RemoveIcon = fromLucide('RemoveIcon', Minus);
-export const CloseIcon = fromLucide('CloseIcon', X);
-export const CopyIcon = fromLucide('CopyIcon', Copy);
-export const ExportIcon = fromLucide('ExportIcon', Download);
-export const RefreshIcon = fromLucide('RefreshIcon', RefreshCw);
-export const DeleteIcon = fromLucide('DeleteIcon', Trash2);
-export const OverflowIcon = fromLucide('OverflowIcon', EllipsisVertical);
+export const SearchIcon = /* @__PURE__ */ fromLucide('SearchIcon', Search);
+export const FilterIcon = /* @__PURE__ */ fromLucide('FilterIcon', ListFilter);
+export const FacetsIcon = /* @__PURE__ */ fromLucide(
+  'FacetsIcon',
+  SlidersHorizontal,
+);
+export const ColumnsIcon = /* @__PURE__ */ fromLucide('ColumnsIcon', Columns3);
+export const NewIcon = /* @__PURE__ */ fromLucide('NewIcon', Plus);
+export const RemoveIcon = /* @__PURE__ */ fromLucide('RemoveIcon', Minus);
+export const CloseIcon = /* @__PURE__ */ fromLucide('CloseIcon', X);
+export const CopyIcon = /* @__PURE__ */ fromLucide('CopyIcon', Copy);
+export const ExportIcon = /* @__PURE__ */ fromLucide('ExportIcon', Download);
+export const RefreshIcon = /* @__PURE__ */ fromLucide('RefreshIcon', RefreshCw);
+export const DeleteIcon = /* @__PURE__ */ fromLucide('DeleteIcon', Trash2);
+export const OverflowIcon = /* @__PURE__ */ fromLucide(
+  'OverflowIcon',
+  EllipsisVertical,
+);
 /** The horizontal ellipsis, for a row's inline menu. */
-export const MoreIcon = fromLucide('MoreIcon', Ellipsis);
-export const MenuIcon = fromLucide('MenuIcon', Menu);
-export const ExternalLinkIcon = fromLucide('ExternalLinkIcon', ExternalLink);
-export const LinkIcon = fromLucide('LinkIcon', Link);
-export const AssignIcon = fromLucide('AssignIcon', Users);
-export const SaveViewIcon = fromLucide('SaveViewIcon', Bookmark);
-export const StarIcon = fromLucide('StarIcon', Star);
-export const CommentIcon = fromLucide('CommentIcon', MessageSquare);
-export const AutofixIcon = fromLucide('AutofixIcon', Sparkles);
-export const ConfigureIcon = fromLucide('ConfigureIcon', Wrench);
+export const MoreIcon = /* @__PURE__ */ fromLucide('MoreIcon', Ellipsis);
+export const MenuIcon = /* @__PURE__ */ fromLucide('MenuIcon', Menu);
+export const ExternalLinkIcon = /* @__PURE__ */ fromLucide(
+  'ExternalLinkIcon',
+  ExternalLink,
+);
+export const LinkIcon = /* @__PURE__ */ fromLucide('LinkIcon', Link);
+export const AssignIcon = /* @__PURE__ */ fromLucide('AssignIcon', Users);
+export const SaveViewIcon = /* @__PURE__ */ fromLucide(
+  'SaveViewIcon',
+  Bookmark,
+);
+export const StarIcon = /* @__PURE__ */ fromLucide('StarIcon', Star);
+export const CommentIcon = /* @__PURE__ */ fromLucide(
+  'CommentIcon',
+  MessageSquare,
+);
+export const AutofixIcon = /* @__PURE__ */ fromLucide('AutofixIcon', Sparkles);
+export const ConfigureIcon = /* @__PURE__ */ fromLucide(
+  'ConfigureIcon',
+  Wrench,
+);
 
 /* --- Issue lifecycle ------------------------------------------------------
    The three verbs an issue understands. `resolve` is a plain check because it
@@ -135,36 +201,54 @@ export const ConfigureIcon = fromLucide('ConfigureIcon', Wrench);
    label; `mute` is the crossed speaker, which is what silencing looks like
    everywhere else. */
 
-export const ResolveIcon = fromLucide('ResolveIcon', Check);
-export const MuteIcon = fromLucide('MuteIcon', VolumeX);
-export const UnresolveIcon = fromLucide('UnresolveIcon', CircleX);
+export const ResolveIcon = /* @__PURE__ */ fromLucide('ResolveIcon', Check);
+export const MuteIcon = /* @__PURE__ */ fromLucide('MuteIcon', VolumeX);
+export const UnresolveIcon = /* @__PURE__ */ fromLucide(
+  'UnresolveIcon',
+  CircleX,
+);
 /** Take it back: the action an undo toast carries. */
-export const UndoIcon = fromLucide('UndoIcon', Undo2);
+export const UndoIcon = /* @__PURE__ */ fromLucide('UndoIcon', Undo2);
 
 /* --- Severity and status --------------------------------------------------
    `error` is the crossed circle, `warning` the triangle, `ok` the ticked
    circle. Shape, not only colour: severity has to survive being printed in
    grey. */
 
-export const ErrorIcon = fromLucide('ErrorIcon', CircleX);
-export const WarningIcon = fromLucide('WarningIcon', TriangleAlert);
-export const OkIcon = fromLucide('OkIcon', CircleCheck);
-export const InfoIcon = fromLucide('InfoIcon', CircleAlert);
-export const SpinnerIcon = fromLucide('SpinnerIcon', LoaderCircle);
-export const NotificationIcon = fromLucide('NotificationIcon', Bell);
-export const TimeIcon = fromLucide('TimeIcon', Clock);
-export const EmptyIcon = fromLucide('EmptyIcon', Inbox);
-export const WatchIcon = fromLucide('WatchIcon', Eye);
+export const ErrorIcon = /* @__PURE__ */ fromLucide('ErrorIcon', CircleX);
+export const WarningIcon = /* @__PURE__ */ fromLucide(
+  'WarningIcon',
+  TriangleAlert,
+);
+export const OkIcon = /* @__PURE__ */ fromLucide('OkIcon', CircleCheck);
+export const InfoIcon = /* @__PURE__ */ fromLucide('InfoIcon', CircleAlert);
+export const SpinnerIcon = /* @__PURE__ */ fromLucide(
+  'SpinnerIcon',
+  LoaderCircle,
+);
+export const NotificationIcon = /* @__PURE__ */ fromLucide(
+  'NotificationIcon',
+  Bell,
+);
+export const TimeIcon = /* @__PURE__ */ fromLucide('TimeIcon', Clock);
+export const EmptyIcon = /* @__PURE__ */ fromLucide('EmptyIcon', Inbox);
+export const WatchIcon = /* @__PURE__ */ fromLucide('WatchIcon', Eye);
 
 /* --- Entities -------------------------------------------------------------
    What the data is about, rather than which page shows it. */
 
-export const ReleaseIcon = fromLucide('ReleaseIcon', GitBranch);
-export const CommitIcon = fromLucide('CommitIcon', GitCommitHorizontal);
-export const MergeIcon = fromLucide('MergeIcon', GitMerge);
-export const EnvironmentIcon = fromLucide('EnvironmentIcon', Server);
-export const MemberIcon = fromLucide('MemberIcon', User);
-export const TeamIcon = fromLucide('TeamIcon', Users);
+export const ReleaseIcon = /* @__PURE__ */ fromLucide('ReleaseIcon', GitBranch);
+export const CommitIcon = /* @__PURE__ */ fromLucide(
+  'CommitIcon',
+  GitCommitHorizontal,
+);
+export const MergeIcon = /* @__PURE__ */ fromLucide('MergeIcon', GitMerge);
+export const EnvironmentIcon = /* @__PURE__ */ fromLucide(
+  'EnvironmentIcon',
+  Server,
+);
+export const MemberIcon = /* @__PURE__ */ fromLucide('MemberIcon', User);
+export const TeamIcon = /* @__PURE__ */ fromLucide('TeamIcon', Users);
 
 /**
  * The same icons reachable by name, for navigation and action bars that are

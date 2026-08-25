@@ -49,6 +49,35 @@ nobody consuming the package can see.
    the change lands in one frame. `lib/motion.test.ts` enforces it. Transitions
    do not inherit either: a child that moves needs its own.
 
+## The build ships one file per module
+
+`tsdown` runs in `unbundle` mode: `dist/` mirrors `src/`, one output file per
+source file. The exports map still publishes a single entry, so nothing about
+how the package is imported changes -- but `dist/index.js` is now a barrel of
+re-exports rather than a single 215 kB module.
+
+That distinction is the entire reason a consumer can drop what it does not use.
+A bundler can discard a *module* it never reaches; inside one module it has to
+prove each statement dead instead, and a design system defeats that -- top-level
+`tv()` recipes, an icon catalogue built by calling a factory sixty-one times, a
+dialog store. Before this, importing `Button` shipped 907 kB, recharts included,
+to a page with no charts. It ships 112 kB now.
+
+Two rules follow, and `src/tree-shaking.test.ts` fails if either is broken:
+
+1. **A top-level call that builds an export gets `/* @__PURE__ */`.** Every
+   `fromLucide()` in `icon-catalog.ts` carries one. Without them the sixty
+   icons an import did not ask for stay, because a bundler cannot know the
+   factory does nothing else. A new icon needs the annotation like the rest.
+2. **Nothing runs at import time.** No registration, no global patch, no
+   `Map` built at module scope. One such statement anywhere in a module keeps
+   the module and everything it imports.
+
+The test builds `dist` with a real bundler and asserts what comes out, so it
+needs the package built first -- hence `@rustrak/ui#test` depending on its own
+`build` in `turbo.json`. It also asserts the *control*: a page that does chart
+still gets recharts. A build that emitted nothing would otherwise pass.
+
 ## Adding a component
 
 Write the recipe, the component, the stories and the page in one change — the
