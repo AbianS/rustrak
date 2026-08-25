@@ -161,6 +161,32 @@ async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
     .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)))?
 }
 
+async fn remove_stale_pending_publish_lock(path: &Path) -> io::Result<bool> {
+    let path = path.to_owned();
+    tokio::task::spawn_blocking(move || {
+        let lock = match StdOpenOptions::new().read(true).write(true).open(&path) {
+            Ok(lock) => lock,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        match lock.try_lock_exclusive() {
+            Ok(()) => {
+                let removed = match std::fs::remove_file(&path) {
+                    Ok(()) => true,
+                    Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+                    Err(error) => return Err(error),
+                };
+                let _ = lock.unlock();
+                Ok(removed)
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => Ok(false),
+            Err(error) => Err(error),
+        }
+    })
+    .await
+    .map_err(io::Error::other)?
+}
+
 async fn write_pending_record(
     file: &mut fs::File,
     metadata: &EventMetadata,
@@ -624,6 +650,10 @@ fn is_orphaned_temporary_file(file_name: &str) -> bool {
     file_name.starts_with('.') && file_name.contains(".tmp-")
 }
 
+fn is_pending_publish_lock_file(file_name: &str) -> bool {
+    file_name.starts_with('.') && file_name.ends_with(PENDING_PUBLISH_LOCK_SUFFIX)
+}
+
 async fn cleanup_orphaned_temporary_files(base_dir: &Path) -> AppResult<()> {
     cleanup_orphaned_temporary_files_with_grace(base_dir, ORPHANED_TEMPORARY_FILE_GRACE).await
 }
@@ -648,17 +678,27 @@ async fn cleanup_orphaned_temporary_files_with_grace(
         .map_err(|e| AppError::Internal(format!("Failed to read ingest entry: {}", e)))?
     {
         let path = entry.path();
-        if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(is_orphaned_temporary_file)
+        let file_name = path.file_name().and_then(|name| name.to_str());
+        let is_temporary = file_name.is_some_and(is_orphaned_temporary_file);
+        let is_publish_lock = file_name.is_some_and(is_pending_publish_lock_file);
+        let is_expired = (is_temporary || is_publish_lock)
             && fs::metadata(&path)
                 .await
                 .ok()
                 .and_then(|metadata| metadata.modified().ok())
                 .and_then(|modified| modified.elapsed().ok())
-                .is_some_and(|age| age >= grace)
-        {
+                .is_some_and(|age| age >= grace);
+        if is_expired && is_publish_lock {
+            match remove_stale_pending_publish_lock(&path).await {
+                Ok(true) => log::debug!("Removed stale ingest publish lock {:?}", path),
+                Ok(false) => {}
+                Err(error) => log::warn!(
+                    "Failed to remove stale ingest publish lock {:?}: {}",
+                    path,
+                    error
+                ),
+            }
+        } else if is_expired {
             match fs::remove_file(&path).await {
                 Ok(()) => log::debug!("Removed orphaned ingest temp file {:?}", path),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -1121,9 +1161,13 @@ mod tests {
                 "hold" => {
                     let lock = acquire_pending_publish_lock(&pending_path).await.unwrap();
                     fs::write(root.join("lock-held"), b"ready").await.unwrap();
-                    while !fs::try_exists(&release).await.unwrap() {
-                        tokio::time::sleep(Duration::from_millis(5)).await;
-                    }
+                    tokio::time::timeout(Duration::from_secs(10), async {
+                        while !fs::try_exists(&release).await.unwrap() {
+                            tokio::time::sleep(Duration::from_millis(5)).await;
+                        }
+                    })
+                    .await
+                    .expect("timed out waiting for the parent to release the lock test");
                     drop(lock);
                     store_event_with_metadata(
                         &root,
@@ -1138,9 +1182,13 @@ mod tests {
                     fs::write(root.join("writer-ready"), b"ready")
                         .await
                         .unwrap();
-                    while !fs::try_exists(&start).await.unwrap() {
-                        tokio::time::sleep(Duration::from_millis(5)).await;
-                    }
+                    tokio::time::timeout(Duration::from_secs(10), async {
+                        while !fs::try_exists(&start).await.unwrap() {
+                            tokio::time::sleep(Duration::from_millis(5)).await;
+                        }
+                    })
+                    .await
+                    .expect("timed out waiting for the parent to start the writer");
                     store_event_with_metadata(
                         &root,
                         event_id,
@@ -1162,9 +1210,15 @@ mod tests {
         fs::write(&pending_path, b"malformed").await.unwrap();
 
         let executable = std::env::current_exe().unwrap();
-        let test_name = "ingest::storage::tests::cross_process_replacement_serializes_malformed_record_recovery";
+        let test_module = module_path!()
+            .strip_prefix(concat!(env!("CARGO_PKG_NAME"), "::"))
+            .unwrap_or(module_path!());
+        let test_name = format!(
+            "{test_module}::{}",
+            stringify!(cross_process_replacement_serializes_malformed_record_recovery)
+        );
         let mut holder = std::process::Command::new(&executable)
-            .args(["--exact", test_name, "--nocapture"])
+            .args(["--exact", &test_name, "--nocapture"])
             .env(ROLE, "hold")
             .env(ROOT, dir.path())
             .env(START, "writer-start")
@@ -1182,7 +1236,7 @@ mod tests {
         .unwrap();
 
         let mut writer = std::process::Command::new(&executable)
-            .args(["--exact", test_name, "--nocapture"])
+            .args(["--exact", &test_name, "--nocapture"])
             .env(ROLE, "writer")
             .env(ROOT, dir.path())
             .env(START, "writer-start")
@@ -1396,6 +1450,24 @@ mod tests {
         list_pending_event_metadata(dir.path()).await.unwrap();
 
         assert!(fs::try_exists(active).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn stale_publish_locks_are_cleaned_but_active_locks_are_retained() {
+        let dir = tempfile::tempdir().unwrap();
+        let stale = dir.path().join(".stale.pending.json.publish.lock");
+        let active_path = dir.path().join("active.pending.json");
+        let active_lock_path = pending_publish_lock_path(&active_path).unwrap();
+        fs::write(&stale, b"").await.unwrap();
+        let active_lock = acquire_pending_publish_lock(&active_path).await.unwrap();
+
+        cleanup_orphaned_temporary_files_with_grace(dir.path(), Duration::ZERO)
+            .await
+            .unwrap();
+
+        assert!(!fs::try_exists(stale).await.unwrap());
+        assert!(fs::try_exists(active_lock_path).await.unwrap());
+        drop(active_lock);
     }
 
     #[tokio::test]
