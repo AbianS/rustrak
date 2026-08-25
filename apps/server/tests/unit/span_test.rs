@@ -16,20 +16,20 @@ fn test_enum_dispatch_span_maps_to_span_kind() {
         length: None,
         content_type: None,
     };
-    let kind = EnvelopeItemKind::from((headers, b"{}".to_vec()));
+    let kind = EnvelopeItemKind::from((headers, bytes::Bytes::from(b"{}".to_vec())));
     assert!(matches!(kind, EnvelopeItemKind::Span(_)));
 }
 
 #[test]
 fn test_span_does_not_require_event_id() {
-    let kind = EnvelopeItemKind::Span(b"{}".to_vec());
+    let kind = EnvelopeItemKind::Span(bytes::Bytes::from(b"{}".to_vec()));
     assert!(!kind.requires_event());
 }
 
 #[test]
 fn test_span_item_routes_to_span_processor() {
     use rustrak::digest::processors::{route, Route};
-    assert_eq!(route(&EnvelopeItemKind::Span(vec![])), Route::Span);
+    assert_eq!(route(&EnvelopeItemKind::Span(vec![].into())), Route::Span);
 }
 
 // =============================================================================
@@ -83,8 +83,17 @@ mod level2 {
             }))
             .unwrap()
         };
-        let mut items = vec![valid("0000000000000000".to_string()), b"{}".to_vec()];
-        items.extend((1..65).map(|i| valid(format!("{i:016x}"))));
+        let malformed = serde_json::to_vec(&json!({
+            "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+            "start_timestamp": 1.0,
+            "timestamp": 2.0,
+        }))
+        .unwrap();
+        let mut items = vec![
+            bytes::Bytes::from(valid("0000000000000000".to_string())),
+            bytes::Bytes::from(malformed),
+        ];
+        items.extend((1..65).map(|i| bytes::Bytes::from(valid(format!("{i:016x}")))));
 
         SpanProcessor
             .process_batch(items, &ctx(&db.pool, project.id))
@@ -130,18 +139,20 @@ mod level2 {
             .unwrap();
 
         let span_json = |span_id: &str, trace_id: &str| {
-            serde_json::to_vec(&json!({
-                "op": "http.client",
-                "span_id": span_id,
-                "start_timestamp": 1234567890.0,
-                "timestamp": 1234567890.5,
-                "trace_id": trace_id,
-            }))
-            .unwrap()
+            bytes::Bytes::from(
+                serde_json::to_vec(&json!({
+                    "op": "http.client",
+                    "span_id": span_id,
+                    "start_timestamp": 1234567890.0,
+                    "timestamp": 1234567890.5,
+                    "trace_id": trace_id,
+                }))
+                .unwrap(),
+            )
         };
 
         let trace_id = "d3d20f000885466b8c8f947c9b92b8d3";
-        let mut items: Vec<Vec<u8>> = (0..64)
+        let mut items: Vec<bytes::Bytes> = (0..64)
             .map(|i| span_json(&format!("{i:016x}"), trace_id))
             .collect();
         // Same span_id under another trace bypasses the application dedup key
@@ -205,11 +216,14 @@ mod level2 {
         .unwrap();
 
         SpanProcessor
-            .process(payload.clone(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.clone()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
         SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await
             .unwrap();
 
@@ -275,7 +289,7 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await;
         assert!(res.is_err(), "span without span_id must be rejected");
 
@@ -313,7 +327,7 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await;
         assert!(res.is_err(), "span without trace_id must be rejected");
     }
@@ -341,7 +355,7 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await;
         assert!(
             res.is_err(),
@@ -383,7 +397,7 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await;
         assert!(res.is_err(), "span without timestamp must be rejected");
     }
@@ -412,7 +426,7 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await;
         assert!(
             res.is_err(),
@@ -435,7 +449,10 @@ mod level2 {
         .unwrap();
 
         let res = SpanProcessor
-            .process(vec![0xff, 0x00, b'n', b'o'], &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(vec![0xff, 0x00, b'n', b'o']),
+                &ctx(&db.pool, project.id),
+            )
             .await;
         assert!(res.is_err(), "malformed span JSON must be rejected");
     }
@@ -469,7 +486,7 @@ mod level2 {
         .unwrap();
 
         SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await
             .unwrap();
 
@@ -508,7 +525,7 @@ mod level2 {
         }))
         .unwrap();
         SpanProcessor
-            .process(payload, &ctx(pool, project_id))
+            .process(bytes::Bytes::from(payload), &ctx(pool, project_id))
             .await
             .unwrap();
     }
@@ -603,7 +620,7 @@ mod level2 {
         }))
         .unwrap();
         TransactionProcessor
-            .process(txn_payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(txn_payload), &ctx(&db.pool, project.id))
             .await
             .unwrap();
 
@@ -692,7 +709,7 @@ mod level2 {
         .unwrap();
 
         SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await
             .unwrap();
 
@@ -740,7 +757,7 @@ mod level2 {
         .unwrap();
 
         SpanProcessor
-            .process(payload, &ctx(&db.pool, project.id))
+            .process(bytes::Bytes::from(payload), &ctx(&db.pool, project.id))
             .await
             .unwrap();
 

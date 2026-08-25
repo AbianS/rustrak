@@ -1,4 +1,5 @@
 use crate::models::session::{SessionAggregates, SessionUpdate};
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -48,28 +49,31 @@ pub struct ItemHeaders {
 /// Selective typing: Session/Sessions carry typed structs (small, stable schemas).
 /// Event/Transaction carry raw bytes (large/evolving schemas — deserialized in the processor).
 /// Other is the forward-compatible catch-all that never panics.
+///
+/// Payloads are [`bytes::Bytes`] zero-copy slices of the envelope buffer, so a
+/// multi-item envelope is held once in memory, shared via reference counting.
 #[derive(Debug)]
 pub enum EnvelopeItemKind {
-    Event(Vec<u8>),
-    Transaction(Vec<u8>),
+    Event(Bytes),
+    Transaction(Bytes),
     Session(SessionUpdate),
     Sessions(SessionAggregates),
     /// Standalone logs (Sentry "log" item type). Carries the raw item-container
     /// body (`{"items":[OurLog, ...]}`) — expanded into individual logs in the
     /// processor, mirroring Relay's `LogsProcessor`.
-    Log(Vec<u8>),
+    Log(Bytes),
     /// Standalone spans (Sentry "span" item type, OTel-style — not attached to
     /// a parent transaction). Unlike `Log`, this is NOT a container: each
     /// envelope item holds exactly one flat span JSON object, mirroring
     /// Relay's legacy (default) `Span` schema.
-    Span(Vec<u8>),
+    Span(Bytes),
     /// Standalone spans, Spans Protocol v2 (`"type":"span"` +
     /// `content_type: application/vnd.sentry.items.span.v2+json`). Unlike
     /// [`Self::Span`], this IS a batched container — one envelope item can
     /// carry many spans. Modern Sentry SDKs (verified: `@sentry/node` 10.65 +
     /// Vercel AI SDK) send AI-instrumented spans this way, not as `Span`.
-    SpanV2Batch(Vec<u8>),
-    Other(String, Vec<u8>),
+    SpanV2Batch(Bytes),
+    Other(String, Bytes),
 }
 
 impl EnvelopeItemKind {
@@ -89,8 +93,8 @@ impl EnvelopeItemKind {
 /// but no (or a plain `application/json`) content type.
 pub const SPAN_V2_CONTENT_TYPE: &str = "application/vnd.sentry.items.span.v2+json";
 
-impl From<(ItemHeaders, Vec<u8>)> for EnvelopeItemKind {
-    fn from((headers, payload): (ItemHeaders, Vec<u8>)) -> Self {
+impl From<(ItemHeaders, Bytes)> for EnvelopeItemKind {
+    fn from((headers, payload): (ItemHeaders, Bytes)) -> Self {
         match headers.item_type.as_str() {
             "event" => Self::Event(payload),
             "transaction" => Self::Transaction(payload),

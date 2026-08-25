@@ -70,7 +70,10 @@ async fn store_sample_logs(pool: &rustrak::db::DbPool, project_id: i32) {
         ingested_at: Utc::now(),
         remote_addr: None,
     };
-    LogsProcessor.process(body, &ctx).await.unwrap();
+    LogsProcessor
+        .process(bytes::Bytes::from(body), &ctx)
+        .await
+        .unwrap();
 }
 
 #[actix_web::test]

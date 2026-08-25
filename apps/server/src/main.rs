@@ -61,6 +61,14 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("Starting Rustrak server on {}:{}", config.host, config.port);
 
+    let ingest_dir = rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref());
+    rustrak::ingest::prepare_ingest_dir(&ingest_dir)
+        .await
+        .map_err(|e| {
+            log::error!("Ingest directory error: {}", e);
+            std::io::Error::other(e.to_string())
+        })?;
+
     // Create database pool
     let db_pool = db::create_pool(&config.database).await.map_err(|e| {
         log::error!("Database pool error: {}", e);
@@ -144,7 +152,7 @@ async fn main() -> std::io::Result<()> {
     // Processor registry — single dispatch surface for the ingest pipeline.
     // Built once; each processor owns the deps it needs.
     let processors_data = web::Data::new(rustrak::digest::processors::Processors::new(
-        rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+        ingest_dir.clone(),
         config.rate_limit.clone(),
         Arc::clone(&sourcemap_provider),
         Some(session_aggregator.clone()),
@@ -155,7 +163,7 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(routes::ingest::recover_pending_events(
         db_pool.clone(),
         processors_data.clone(),
-        rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+        ingest_dir,
     ));
 
     let alert_pool = db_pool.clone();

@@ -11,7 +11,7 @@ use crate::digest::processors::{
 };
 use crate::error::{AppError, AppResult};
 use crate::ingest::{
-    decompress_body, get_content_encoding, get_ingest_dir, list_pending_event_metadata,
+    decompress_body, detach_payload_if_needed, get_content_encoding, list_pending_event_metadata,
     store_event_with_metadata, EnvelopeItemKind, EnvelopeParser, EventMetadata,
     MAX_COMPRESSED_SIZE,
 };
@@ -23,6 +23,16 @@ use crate::services::RateLimitService;
 pub struct IngestResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+}
+
+/// Validates an event payload is well-formed JSON without building a
+/// [`serde_json::Value`] tree: [`IgnoredAny`](serde::de::IgnoredAny) walks and
+/// discards every value. The digest re-parses the stored file anyway, so the
+/// tree here would be pure waste and can multiply memory use for large events.
+fn validate_event_json(payload: &[u8]) -> AppResult<()> {
+    serde_json::from_slice::<serde::de::IgnoredAny>(payload)
+        .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
+    Ok(())
 }
 
 /// POST /api/{project_id}/envelope/
@@ -53,8 +63,6 @@ pub async fn ingest_envelope(
     }
 
     let ingested_at = Utc::now();
-    let ingest_dir = get_ingest_dir(config.ingest_dir.as_deref());
-
     // 1. Get client IP
     let remote_addr = req
         .connection_info()
@@ -62,11 +70,11 @@ pub async fn ingest_envelope(
         .map(|s| s.to_string());
 
     // 2. Decompress if needed
-    let content_encoding = get_content_encoding(&req);
+    let content_encoding = get_content_encoding(&req)?;
     let decompressed = decompress_body(body, content_encoding.as_deref())?;
 
     // 3. Parse envelope
-    let mut parser = EnvelopeParser::new(&decompressed);
+    let mut parser = EnvelopeParser::new(decompressed);
     let envelope = parser.parse()?;
 
     // Relay parity for item payloads: a malformed item is dropped and its
@@ -91,12 +99,13 @@ pub async fn ingest_envelope(
     // 4. Typed dispatch — exhaustive, compiler-verified.
     //    event_id validation is deferred until after the loop — session-only envelopes never need
     //    one (Relay: Item::requires_event() returns false for Session/Sessions).
-    let mut event_item: Option<Vec<u8>> = None;
-    let mut transaction_item: Option<Vec<u8>> = None;
-    let mut span_items: Vec<Vec<u8>> = Vec::new();
-    let mut span_v2_items: Vec<Vec<u8>> = Vec::new();
+    let mut event_item: Option<Bytes> = None;
+    let mut transaction_item: Option<Bytes> = None;
+    let mut span_items: Vec<Bytes> = Vec::new();
+    let mut span_v2_items: Vec<Bytes> = Vec::new();
     let mut requires_event_id = false;
-    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), &decompressed);
+    let envelope_len = parser.data().len();
+    let delivery_id = stable_delivery_id(envelope.headers.event_id.as_deref(), parser.data());
     for item_kind in envelope.items {
         if item_kind.requires_event() {
             requires_event_id = true;
@@ -104,12 +113,12 @@ pub async fn ingest_envelope(
         match item_kind {
             EnvelopeItemKind::Event(p) => {
                 if event_item.is_none() {
-                    event_item = Some(p);
+                    event_item = Some(detach_payload_if_needed(p, envelope_len));
                 }
             }
             EnvelopeItemKind::Transaction(p) => {
                 if transaction_item.is_none() {
-                    transaction_item = Some(p);
+                    transaction_item = Some(detach_payload_if_needed(p, envelope_len));
                 }
             }
             EnvelopeItemKind::Session(s) => {
@@ -160,19 +169,20 @@ pub async fn ingest_envelope(
                 // Unlike Event/Transaction, an envelope may carry many standalone
                 // span items (Relay: one flat span object per item, no per-envelope
                 // count cap) — collect them all instead of first-wins.
-                span_items.push(payload);
+                span_items.push(detach_payload_if_needed(payload, envelope_len));
             }
             EnvelopeItemKind::SpanV2Batch(payload) => {
                 // Each item is already a batch (one container can hold many
                 // spans) — an envelope may still carry more than one such
                 // container item, so collect them all.
-                span_v2_items.push(payload);
+                span_v2_items.push(detach_payload_if_needed(payload, envelope_len));
             }
             EnvelopeItemKind::Other(t, _) => {
                 log::debug!("envelope item '{}' ignored", t);
             }
         }
     }
+    drop(parser);
 
     // 5. Resolve event_id — only required for event-bearing item types.
     //    If the SDK omitted it, derive it from the durable delivery identity.
@@ -215,6 +225,8 @@ pub async fn ingest_envelope(
             ingested_at,
             remote_addr: remote_addr.clone(),
         };
+        // One transaction for the whole span batch: per-item autocommit
+        // INSERTs would each be their own SQLite transaction.
         drop_malformed_item(
             processors.spans.process_batch(span_items, &ctx).await,
             "span",
@@ -249,8 +261,9 @@ pub async fn ingest_envelope(
 
     let event_id = event_id.expect("event_id is Some when event_item is Some");
 
-    let _: serde_json::Value = serde_json::from_slice(&event_item)
-        .map_err(|e| AppError::Validation(format!("Invalid event JSON: {}", e)))?;
+    // 6. Validate that the payload is valid JSON without building a Value tree;
+    //    the digest re-parses the stored file.
+    validate_event_json(&event_item)?;
 
     // Store metadata beside the raw event so a failed digest can be recovered.
     let metadata = EventMetadata {
@@ -259,29 +272,38 @@ pub async fn ingest_envelope(
         ingested_at,
         remote_addr,
     };
-    store_event_with_metadata(&ingest_dir, &event_id, &event_item, &metadata).await?;
+    store_event_with_metadata(
+        processors.errors.ingest_dir(),
+        &event_id,
+        &event_item,
+        &metadata,
+    )
+    .await?;
 
     // The digest worker owns grouping, issue creation, and its durable retry path.
     let processors = processors.clone();
     let pool_clone = pool.get_ref().clone();
     tokio::spawn(async move {
-        let event_id_log = metadata.event_id.clone();
+        // The permit gates the whole digest: the file read, JSON parse and
+        // grouping working set stay bounded to the concurrent cap, not the
+        // burst size.
+        let _permit = processors.processing_slot.acquire().await;
         let ctx = ProcessorCtx {
             pool: pool_clone,
             project_id: metadata.project_id,
             event_id: uuid::Uuid::parse_str(&metadata.event_id)
                 .unwrap_or_else(|_| uuid::Uuid::nil()),
             ingested_at: metadata.ingested_at,
-            remote_addr: metadata.remote_addr.clone(),
+            remote_addr: None,
         };
         for attempt in 0..4 {
-            match processors.errors.process(metadata.clone(), &ctx).await {
+            match processors.errors.process_ref(&metadata, &ctx).await {
                 Ok(()) => break,
                 Err(e) if is_retryable_write_contention(&e) && attempt < 3 => {
                     let delay = std::time::Duration::from_millis(250 << attempt);
                     log::warn!(
                         "Digest {} remains locked; retrying after {:?}: {:?}",
-                        event_id_log,
+                        metadata.event_id,
                         delay,
                         e
                     );
@@ -290,7 +312,7 @@ pub async fn ingest_envelope(
                 Err(e) => {
                     log::error!(
                         "Failed to digest event {}; it remains queued: {:?}",
-                        event_id_log,
+                        metadata.event_id,
                         e
                     );
                     break;
@@ -347,18 +369,21 @@ async fn recover_pending_events_once_with_status(
 
     let mut has_pending = false;
     for metadata in pending {
-        let event_id = metadata.event_id.clone();
         let ctx = ProcessorCtx {
             pool: pool.clone(),
             project_id: metadata.project_id,
             event_id: uuid::Uuid::parse_str(&metadata.event_id)
                 .unwrap_or_else(|_| uuid::Uuid::nil()),
             ingested_at: metadata.ingested_at,
-            remote_addr: metadata.remote_addr.clone(),
+            remote_addr: None,
         };
-        if let Err(e) = processors.errors.process(metadata, &ctx).await {
+        if let Err(e) = processors.errors.process_ref(&metadata, &ctx).await {
             has_pending = true;
-            log::warn!("Pending digest {} remains queued: {:?}", event_id, e);
+            log::warn!(
+                "Pending digest {} remains queued: {:?}",
+                metadata.event_id,
+                e
+            );
         }
     }
     has_pending
@@ -458,6 +483,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 #[cfg(test)]
 mod tests {
+    use super::validate_event_json;
     use super::{next_recovery_delay, resolve_event_id, stable_delivery_id};
     use std::time::Duration;
 
@@ -499,6 +525,21 @@ mod tests {
     }
 
     #[test]
+    fn invalid_event_id_uses_the_same_fallback_as_a_missing_header() {
+        let fallback = stable_delivery_id(None, b"same envelope");
+        assert_eq!(
+            stable_delivery_id(Some("not-a-uuid"), b"same envelope"),
+            fallback
+        );
+
+        let event_id = uuid::Uuid::new_v4();
+        assert_eq!(
+            stable_delivery_id(Some(&event_id.to_string()), b"different envelope"),
+            event_id
+        );
+    }
+
+    #[test]
     fn headerless_required_event_uses_delivery_id() {
         let delivery_id = uuid::Uuid::nil();
         assert_eq!(
@@ -514,5 +555,20 @@ mod tests {
             resolve_event_id(Some("session-id".to_string()), uuid::Uuid::nil(), false),
             Some("session-id".to_string())
         );
+    }
+
+    #[test]
+    fn valid_event_json_passes() {
+        let payload = br#"{"event_id":"abc","exception":{"values":[{"type":"Error"}]}}"#;
+        assert!(validate_event_json(payload).is_ok());
+    }
+
+    #[test]
+    fn invalid_event_json_is_rejected() {
+        assert!(validate_event_json(b"{not json").is_err());
+        assert!(validate_event_json(b"").is_err());
+        // Trailing garbage after the value must be rejected too, matching
+        // the previous full-parse semantics.
+        assert!(validate_event_json(br#"{"a":1} garbage"#).is_err());
     }
 }

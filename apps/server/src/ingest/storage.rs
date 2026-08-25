@@ -2,10 +2,11 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::fs;
-use tokio::io::AsyncWriteExt;
+use tokio::fs::{self, OpenOptions};
+use tokio::io::{AsyncWriteExt, BufWriter};
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
@@ -15,6 +16,7 @@ use crate::ingest::EventMetadata;
 const DEFAULT_INGEST_DIR: &str = "/tmp/rustrak/ingest";
 const PENDING_EVENT_VERSION: u8 = 1;
 const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
+const BASE64_WRITE_CHUNK_SIZE: usize = 48 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventStorageLocation {
@@ -93,15 +95,216 @@ async fn read_pending_record(
     validate_pending_record(record, event_id, project_id)
 }
 
-async fn write_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
+fn base64_chunk_ranges(data_len: usize) -> impl Iterator<Item = Range<usize>> {
+    let full_len = data_len - data_len % 3;
+    let mut offset = 0;
+    std::iter::from_fn(move || {
+        if offset < full_len {
+            let start = offset;
+            offset = (offset + BASE64_WRITE_CHUNK_SIZE).min(full_len);
+            Some(start..offset)
+        } else if offset == full_len && full_len < data_len {
+            offset = data_len;
+            Some(full_len..data_len)
+        } else {
+            None
+        }
+    })
+}
+
+fn encode_base64_chunk(input: &[u8], output: &mut String) {
+    output.clear();
+    STANDARD.encode_string(input, output);
+}
+
+async fn write_pending_record(
+    file: &mut fs::File,
+    metadata: &EventMetadata,
+    event_data: &[u8],
+) -> io::Result<()> {
+    let metadata_bytes = serde_json::to_vec(metadata).map_err(io::Error::other)?;
+    let mut writer = BufWriter::new(file);
+    let version = PENDING_EVENT_VERSION;
+    let payload = event_data;
+    writer
+        .write_all(format!(r#"{{"version":{version},"metadata":"#).as_bytes())
+        .await?;
+    writer.write_all(&metadata_bytes).await?;
+    writer.write_all(br#","event_data":""#).await?;
+    let initial_chunk_len = payload.len().min(BASE64_WRITE_CHUNK_SIZE);
+    let mut encoded = String::with_capacity(initial_chunk_len.div_ceil(3) * 4);
+    for range in base64_chunk_ranges(payload.len()) {
+        encode_base64_chunk(&payload[range], &mut encoded);
+        writer.write_all(encoded.as_bytes()).await?;
+    }
+    writer.write_all(br#""}"#).await?;
+    writer.flush().await?;
+    writer.get_mut().sync_all().await
+}
+
+async fn publish_pending_file(
+    path: &Path,
+    temporary_path: &Path,
+    event_id: &str,
+    project_id: i32,
+) -> AppResult<()> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))?;
+
+    match fs::hard_link(temporary_path, path).await {
+        Ok(()) => {
+            let _ = fs::remove_file(temporary_path).await;
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            let is_symlink = match fs::symlink_metadata(path).await {
+                Ok(metadata) => metadata.file_type().is_symlink(),
+                Err(metadata_error) => {
+                    let _ = fs::remove_file(temporary_path).await;
+                    return Err(AppError::Internal(format!(
+                        "Failed to inspect existing ingest file: {}",
+                        metadata_error
+                    )));
+                }
+            };
+            let is_complete = if is_symlink {
+                false
+            } else {
+                let existing = match fs::read(path).await {
+                    Ok(existing) => existing,
+                    Err(read_error) => {
+                        let _ = fs::remove_file(temporary_path).await;
+                        return Err(AppError::Internal(format!(
+                            "Failed to inspect existing ingest file: {}",
+                            read_error
+                        )));
+                    }
+                };
+                match serde_json::from_slice::<PendingEventRecord>(&existing) {
+                    Ok(existing) => {
+                        validate_pending_record(existing, event_id, Some(project_id)).is_ok()
+                    }
+                    Err(_) => false,
+                }
+            };
+            if is_complete {
+                // A duplicate event ID is idempotent: keep the first complete
+                // record instead of allowing a later payload to win a race.
+                let _ = fs::remove_file(temporary_path).await;
+                return Ok(());
+            }
+
+            let quarantine =
+                path.with_file_name(format!(".{file_name}.corrupt-{}", Uuid::new_v4()));
+            log::warn!(
+                "Quarantining malformed pending ingest file {:?} as {:?}",
+                path,
+                quarantine
+            );
+            // Preserve the malformed inode without removing the canonical
+            // name first.  The subsequent rename replaces that name
+            // atomically, so a crash cannot leave recovery with neither the
+            // old record nor the new durable record.
+            if let Err(link_error) = fs::hard_link(path, &quarantine).await {
+                let _ = fs::remove_file(temporary_path).await;
+                return Err(AppError::Internal(format!(
+                    "Failed to quarantine ingest file: {}",
+                    link_error
+                )));
+            }
+            if let Err(rename_error) = fs::rename(temporary_path, path).await {
+                let _ = fs::remove_file(temporary_path).await;
+                return Err(AppError::Internal(format!(
+                    "Failed to publish replacement ingest file: {}",
+                    rename_error
+                )));
+            }
+        }
+        Err(e) => {
+            let _ = fs::remove_file(temporary_path).await;
+            return Err(AppError::Internal(format!(
+                "Failed to publish ingest file: {}",
+                e
+            )));
+        }
+    }
+
+    sync_parent_directory(path).await?;
+
+    Ok(())
+}
+
+async fn write_pending_record_atomically(
+    path: &Path,
+    event_id: &str,
+    project_id: i32,
+    metadata: &EventMetadata,
+    event_data: &[u8],
+) -> AppResult<()> {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))?;
     let temporary_path = path.with_file_name(format!(".{file_name}.tmp-{}", Uuid::new_v4()));
-    let expected_record = serde_json::from_slice::<PendingEventRecord>(bytes).ok();
+    let mut temporary_file = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .await
+    {
+        Ok(file) => file,
+        Err(e) => {
+            let _ = fs::remove_file(&temporary_path).await;
+            return Err(AppError::Internal(format!(
+                "Failed to write temporary ingest file: {}",
+                e
+            )));
+        }
+    };
+    if let Err(e) = write_pending_record(&mut temporary_file, metadata, event_data).await {
+        let _ = fs::remove_file(&temporary_path).await;
+        return Err(AppError::Internal(format!(
+            "Failed to write temporary ingest file: {}",
+            e
+        )));
+    }
+    drop(temporary_file);
+    publish_pending_file(path, &temporary_path, event_id, project_id).await
+}
 
-    let mut temporary_file = match fs::File::create(&temporary_path).await {
+/// Creates the ingest directory once during server startup.
+pub async fn prepare_ingest_dir(base_dir: &Path) -> AppResult<()> {
+    fs::create_dir_all(base_dir)
+        .await
+        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))
+}
+
+async fn sync_parent_directory(path: &Path) -> AppResult<()> {
+    if let Some(parent) = path.parent() {
+        let directory = fs::File::open(parent)
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to open ingest directory: {}", e)))?;
+        directory
+            .sync_all()
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to sync ingest directory: {}", e)))?;
+    }
+    Ok(())
+}
+
+async fn write_legacy_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))?;
+    let temporary_path = path.with_file_name(format!(".{file_name}.tmp-{}", Uuid::new_v4()));
+    let mut temporary_file = match OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .await
+    {
         Ok(file) => file,
         Err(e) => {
             let _ = fs::remove_file(&temporary_path).await;
@@ -125,95 +328,21 @@ async fn write_atomically(path: &Path, bytes: &[u8]) -> AppResult<()> {
             e
         )));
     }
-
-    match fs::hard_link(&temporary_path, path).await {
-        Ok(()) => {
-            let _ = fs::remove_file(&temporary_path).await;
-        }
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            let existing = match fs::read(path).await {
-                Ok(existing) => existing,
-                Err(read_error) => {
-                    let _ = fs::remove_file(&temporary_path).await;
-                    return Err(AppError::Internal(format!(
-                        "Failed to inspect existing ingest file: {}",
-                        read_error
-                    )));
-                }
-            };
-            let is_complete = match (
-                serde_json::from_slice::<PendingEventRecord>(&existing),
-                expected_record.as_ref(),
-            ) {
-                (Ok(existing), Some(expected)) => validate_pending_record(
-                    existing,
-                    &expected.metadata.event_id,
-                    Some(expected.metadata.project_id),
-                )
-                .is_ok(),
-                _ => false,
-            };
-            if is_complete {
-                // A duplicate event ID is idempotent: keep the first complete
-                // record instead of allowing a later payload to win a race.
-                let _ = fs::remove_file(&temporary_path).await;
-                return Ok(());
-            }
-
-            let quarantine =
-                path.with_file_name(format!(".{file_name}.corrupt-{}", Uuid::new_v4()));
-            log::warn!(
-                "Quarantining malformed pending ingest file {:?} as {:?}",
-                path,
-                quarantine
-            );
-            if let Err(rename_error) = fs::rename(path, &quarantine).await {
-                let _ = fs::remove_file(&temporary_path).await;
-                return Err(AppError::Internal(format!(
-                    "Failed to quarantine ingest file: {}",
-                    rename_error
-                )));
-            }
-            if let Err(link_error) = fs::hard_link(&temporary_path, path).await {
-                let _ = fs::remove_file(&temporary_path).await;
-                return Err(AppError::Internal(format!(
-                    "Failed to publish replacement ingest file: {}",
-                    link_error
-                )));
-            }
-            let _ = fs::remove_file(&temporary_path).await;
-        }
-        Err(e) => {
-            let _ = fs::remove_file(&temporary_path).await;
-            return Err(AppError::Internal(format!(
-                "Failed to publish ingest file: {}",
-                e
-            )));
-        }
+    if let Err(e) = fs::rename(&temporary_path, path).await {
+        let _ = fs::remove_file(&temporary_path).await;
+        return Err(AppError::Internal(format!(
+            "Failed to publish ingest file: {}",
+            e
+        )));
     }
-
-    if let Some(parent) = path.parent() {
-        let directory = fs::File::open(parent)
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to open ingest directory: {}", e)))?;
-        directory
-            .sync_all()
-            .await
-            .map_err(|e| AppError::Internal(format!("Failed to sync ingest directory: {}", e)))?;
-    }
-
-    Ok(())
+    sync_parent_directory(path).await
 }
 
 /// Saves an event using the legacy, unscoped path.
 pub async fn store_event(base_dir: &Path, event_id: &str, event_data: &[u8]) -> AppResult<PathBuf> {
-    fs::create_dir_all(base_dir)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))?;
+    prepare_ingest_dir(base_dir).await?;
     let path = get_event_path(base_dir, event_id)?;
-    fs::write(&path, event_data)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to write event file: {}", e)))?;
+    write_legacy_atomically(&path, event_data).await?;
     Ok(path)
 }
 
@@ -230,19 +359,38 @@ pub async fn store_event_with_metadata(
         ));
     }
     let path = get_project_event_path(base_dir, metadata.project_id, event_id)?;
-    let pending_path = get_project_pending_event_path(base_dir, metadata.project_id, event_id)?;
-    let record = PendingEventRecord {
-        version: PENDING_EVENT_VERSION,
-        metadata: metadata.clone(),
-        event_data: STANDARD.encode(event_data),
-    };
-    let record_bytes = serde_json::to_vec(&record)
-        .map_err(|e| AppError::Internal(format!("Failed to serialize pending event: {}", e)))?;
-
-    fs::create_dir_all(base_dir)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to create ingest directory: {}", e)))?;
-    write_atomically(&pending_path, &record_bytes).await?;
+    let pending_path = path.with_extension("pending.json");
+    prepare_ingest_dir(base_dir).await?;
+    match write_pending_record_atomically(
+        &pending_path,
+        event_id,
+        metadata.project_id,
+        metadata,
+        event_data,
+    )
+    .await
+    {
+        Ok(()) => {}
+        Err(_error)
+            if matches!(
+                fs::metadata(base_dir).await,
+                Err(e) if e.kind() == io::ErrorKind::NotFound
+            ) =>
+        {
+            // Cleanup can remove the directory after preparation but before
+            // the temporary file is opened; recreate it once and retry.
+            prepare_ingest_dir(base_dir).await?;
+            write_pending_record_atomically(
+                &pending_path,
+                event_id,
+                metadata.project_id,
+                metadata,
+                event_data,
+            )
+            .await?
+        }
+        Err(error) => return Err(error),
+    }
     Ok(path)
 }
 
@@ -419,7 +567,7 @@ async fn cleanup_orphaned_temporary_files_with_grace(
         .map_err(|e| AppError::Internal(format!("Failed to read ingest entry: {}", e)))?
     {
         let path = entry.path();
-        if path
+        let is_expired = path
             .file_name()
             .and_then(|name| name.to_str())
             .is_some_and(is_orphaned_temporary_file)
@@ -428,8 +576,8 @@ async fn cleanup_orphaned_temporary_files_with_grace(
                 .ok()
                 .and_then(|metadata| metadata.modified().ok())
                 .and_then(|modified| modified.elapsed().ok())
-                .is_some_and(|age| age >= grace)
-        {
+                .is_some_and(|age| age >= grace);
+        if is_expired {
             match fs::remove_file(&path).await {
                 Ok(()) => log::debug!("Removed orphaned ingest temp file {:?}", path),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {}
@@ -554,6 +702,7 @@ pub fn get_ingest_dir(configured_dir: Option<&str>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     fn metadata(event_id: &str, project_id: i32) -> EventMetadata {
         EventMetadata {
@@ -590,6 +739,27 @@ mod tests {
     fn test_get_ingest_dir_custom() {
         let dir = get_ingest_dir(Some("/custom/path"));
         assert_eq!(dir, PathBuf::from("/custom/path"));
+    }
+
+    #[tokio::test]
+    async fn prepare_ingest_dir_creates_nested_directory_idempotently() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("nested/ingest");
+
+        prepare_ingest_dir(&dir).await.unwrap();
+        prepare_ingest_dir(&dir).await.unwrap();
+
+        assert!(dir.is_dir());
+    }
+
+    #[test]
+    fn base64_scratch_buffer_replaces_previous_chunk() {
+        let mut encoded = String::new();
+
+        encode_base64_chunk(b"abc", &mut encoded);
+        assert_eq!(encoded, "YWJj");
+        encode_base64_chunk(b"d", &mut encoded);
+        assert_eq!(encoded, "ZA==");
     }
 
     #[tokio::test]
@@ -656,6 +826,194 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streamed_pending_payload_round_trips_at_base64_boundaries() {
+        let dir = tempfile::tempdir().unwrap();
+        let sizes = [
+            0,
+            1,
+            2,
+            3,
+            4,
+            32 * 1024,
+            32 * 1024 + 1,
+            BASE64_WRITE_CHUNK_SIZE - 1,
+            BASE64_WRITE_CHUNK_SIZE,
+            BASE64_WRITE_CHUNK_SIZE + 1,
+            BASE64_WRITE_CHUNK_SIZE + 2,
+            BASE64_WRITE_CHUNK_SIZE + 3,
+            4 * 1024 * 1024,
+        ];
+
+        for (index, size) in sizes.into_iter().enumerate() {
+            let event_id = Uuid::from_u128((index + 1) as u128).to_string();
+            let metadata = metadata(&event_id, 7);
+            let payload: Vec<u8> = (0..size).map(|byte| (byte % 251) as u8).collect();
+
+            store_event_with_metadata(dir.path(), &event_id, &payload, &metadata)
+                .await
+                .unwrap();
+
+            let pending_path = get_project_pending_event_path(dir.path(), 7, &event_id).unwrap();
+            let record: PendingEventRecord =
+                serde_json::from_slice(&fs::read(&pending_path).await.unwrap()).unwrap();
+            assert_eq!(record.version, PENDING_EVENT_VERSION);
+            assert_eq!(record.metadata.event_id, event_id);
+            let stored_payload = STANDARD.decode(record.event_data).unwrap();
+            assert_eq!(stored_payload, payload);
+            assert_eq!(
+                read_event_for_project(dir.path(), 7, &event_id)
+                    .await
+                    .unwrap(),
+                payload
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn pending_records_with_an_unknown_version_are_neither_listed_nor_read() {
+        // Only version 1 has ever been written to disk. Anything else is a
+        // foreign or corrupted record and must not be recovered as an event.
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        let record = PendingEventRecord {
+            version: 2,
+            metadata: metadata(event_id, 7),
+            event_data: STANDARD.encode(b"{}"),
+        };
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, serde_json::to_vec(&record).unwrap())
+            .await
+            .unwrap();
+
+        assert!(list_pending_event_metadata(dir.path())
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .is_err());
+    }
+
+    #[tokio::test]
+    async fn metadata_store_recreates_directory_removed_after_startup() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("ingest");
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let event_metadata = metadata(event_id, 7);
+
+        prepare_ingest_dir(&dir).await.unwrap();
+        fs::remove_dir_all(&dir).await.unwrap();
+        store_event_with_metadata(&dir, event_id, br"{}", &event_metadata)
+            .await
+            .unwrap();
+        assert!(dir.is_dir());
+    }
+
+    proptest! {
+        #[test]
+        fn base64_chunk_ranges_cover_input_without_midstream_padding(
+            data in prop::collection::vec(
+                any::<u8>(),
+                0..(BASE64_WRITE_CHUNK_SIZE * 3 + 10)
+            )
+        ) {
+            let ranges: Vec<_> = base64_chunk_ranges(data.len()).collect();
+            let mut covered = 0;
+            let mut chunked_encoding = String::new();
+
+            for (index, range) in ranges.iter().enumerate() {
+                prop_assert_eq!(range.start, covered);
+                prop_assert!(range.end > range.start);
+                prop_assert!(range.end - range.start <= BASE64_WRITE_CHUNK_SIZE);
+                if index + 1 < ranges.len() {
+                    prop_assert_eq!((range.end - range.start) % 3, 0);
+                }
+                chunked_encoding.push_str(&STANDARD.encode(&data[range.clone()]));
+                covered = range.end;
+            }
+
+            prop_assert_eq!(covered, data.len());
+            prop_assert_eq!(chunked_encoding, STANDARD.encode(&data));
+        }
+    }
+
+    #[tokio::test]
+    async fn publishing_leaves_only_the_pending_record_in_the_ingest_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+
+        store_event_with_metadata(dir.path(), event_id, br#"{"a":1}"#, &metadata(event_id, 7))
+            .await
+            .unwrap();
+
+        let mut names = Vec::new();
+        let mut entries = fs::read_dir(dir.path()).await.unwrap();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            names.push(entry.file_name().to_string_lossy().into_owned());
+        }
+        let pending = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        assert_eq!(
+            names,
+            vec![pending.file_name().unwrap().to_string_lossy().into_owned()],
+            "no lock or scratch files may be left behind per event"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_duplicate_writes_keep_one_complete_record() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let metadata = metadata(event_id, 7);
+
+        let (first, second) = tokio::join!(
+            store_event_with_metadata(dir.path(), event_id, br#"{"first":true}"#, &metadata),
+            store_event_with_metadata(dir.path(), event_id, br#"{"second":true}"#, &metadata),
+        );
+        first.unwrap();
+        second.unwrap();
+
+        let stored = read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .unwrap();
+        assert!(stored == br#"{"first":true}"# || stored == br#"{"second":true}"#);
+        assert_eq!(
+            list_pending_event_metadata(dir.path()).await.unwrap().len(),
+            1
+        );
+
+        let mut entries = fs::read_dir(dir.path()).await.unwrap();
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            assert!(!is_orphaned_temporary_file(
+                &entry.file_name().to_string_lossy()
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_replacement_of_malformed_record_keeps_one_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let event_metadata = metadata(event_id, 7);
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, b"malformed").await.unwrap();
+
+        let (first, second) = tokio::join!(
+            store_event_with_metadata(dir.path(), event_id, br#"{"first":true}"#, &event_metadata),
+            store_event_with_metadata(dir.path(), event_id, br#"{"second":true}"#, &event_metadata),
+        );
+        first.unwrap();
+        second.unwrap();
+
+        let stored = read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .unwrap();
+        assert!(stored == br#"{"first":true}"# || stored == br#"{"second":true}"#);
+    }
+
+    #[tokio::test]
     async fn mismatched_metadata_is_rejected_without_writing() {
         let dir = tempfile::tempdir().unwrap();
         let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
@@ -698,6 +1056,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn legacy_event_write_is_atomic_and_does_not_follow_symlinks() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let path = get_event_path(dir.path(), event_id).unwrap();
+        let outside_path = outside.path().join("outside.json");
+        fs::write(&outside_path, b"keep").await.unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside_path, &path).unwrap();
+
+        #[cfg(unix)]
+        {
+            store_event(dir.path(), event_id, br#"{"updated":true}"#)
+                .await
+                .unwrap();
+            assert_eq!(fs::read(&outside_path).await.unwrap(), b"keep");
+            assert_eq!(fs::read(&path).await.unwrap(), br#"{"updated":true}"#);
+            assert!(!fs::symlink_metadata(&path)
+                .await
+                .unwrap()
+                .file_type()
+                .is_symlink());
+        }
+
+        #[cfg(not(unix))]
+        let _ = (outside_path, path);
+    }
+
+    #[tokio::test]
     async fn malformed_duplicate_record_is_quarantined_before_replacement() {
         let dir = tempfile::tempdir().unwrap();
         let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
@@ -728,6 +1115,48 @@ mod tests {
             }
         }
         assert!(quarantined);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pending_symlink_is_replaced_without_following_or_overwriting_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        let outside_path = outside.path().join("outside.pending.json");
+        let old_record = PendingEventRecord {
+            version: PENDING_EVENT_VERSION,
+            metadata: metadata(event_id, 7),
+            event_data: STANDARD.encode(br#"{"outside":true}"#),
+        };
+        let old_bytes = serde_json::to_vec(&old_record).unwrap();
+
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&outside_path, &old_bytes).await.unwrap();
+        std::os::unix::fs::symlink(&outside_path, &pending_path).unwrap();
+
+        store_event_with_metadata(
+            dir.path(),
+            event_id,
+            br#"{"replacement":true}"#,
+            &metadata(event_id, 7),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            read_event_for_project(dir.path(), 7, event_id)
+                .await
+                .unwrap(),
+            br#"{"replacement":true}"#
+        );
+        assert_eq!(fs::read(&outside_path).await.unwrap(), old_bytes);
+        assert!(!fs::symlink_metadata(&pending_path)
+            .await
+            .unwrap()
+            .file_type()
+            .is_symlink());
     }
 
     #[tokio::test]

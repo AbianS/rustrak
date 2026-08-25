@@ -79,7 +79,10 @@ async fn store_sample_spans(pool: &rustrak::db::DbPool, project_id: i32) {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        SpanProcessor.process(payload, &ctx).await.unwrap();
+        SpanProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
     }
 }
 
@@ -340,7 +343,10 @@ async fn store_v2_ai_span(pool: &rustrak::db::DbPool, project_id: i32) -> Uuid {
         remote_addr: None,
     };
     SpanV2Processor
-        .process(serde_json::to_vec(&container).unwrap(), &ctx)
+        .process(
+            bytes::Bytes::from(serde_json::to_vec(&container).unwrap()),
+            &ctx,
+        )
         .await
         .unwrap();
 
@@ -424,7 +430,10 @@ async fn store_legacy_ai_span(pool: &rustrak::db::DbPool, project_id: i32) -> Uu
         ingested_at: Utc::now(),
         remote_addr: None,
     };
-    SpanProcessor.process(payload, &ctx).await.unwrap();
+    SpanProcessor
+        .process(bytes::Bytes::from(payload), &ctx)
+        .await
+        .unwrap();
 
     sqlx::query_scalar::<_, Uuid>("SELECT id FROM spans WHERE span_id = $1")
         .bind("dddddddddddddddd")

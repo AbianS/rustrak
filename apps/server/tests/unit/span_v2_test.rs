@@ -21,7 +21,7 @@ fn test_enum_dispatch_span_with_v2_content_type_maps_to_span_v2_batch() {
         length: None,
         content_type: Some("application/vnd.sentry.items.span.v2+json".into()),
     };
-    let kind = EnvelopeItemKind::from((headers, b"{}".to_vec()));
+    let kind = EnvelopeItemKind::from((headers, bytes::Bytes::from(b"{}".to_vec())));
     assert!(matches!(kind, EnvelopeItemKind::SpanV2Batch(_)));
 }
 
@@ -32,20 +32,23 @@ fn test_enum_dispatch_span_without_v2_content_type_stays_legacy() {
         length: None,
         content_type: None,
     };
-    let kind = EnvelopeItemKind::from((headers, b"{}".to_vec()));
+    let kind = EnvelopeItemKind::from((headers, bytes::Bytes::from(b"{}".to_vec())));
     assert!(matches!(kind, EnvelopeItemKind::Span(_)));
 }
 
 #[test]
 fn test_span_v2_batch_does_not_require_event_id() {
-    let kind = EnvelopeItemKind::SpanV2Batch(b"{}".to_vec());
+    let kind = EnvelopeItemKind::SpanV2Batch(bytes::Bytes::from(b"{}".to_vec()));
     assert!(!kind.requires_event());
 }
 
 #[test]
 fn test_span_v2_batch_routes_to_span_v2_processor() {
     use rustrak::digest::processors::{route, Route};
-    assert_eq!(route(&EnvelopeItemKind::SpanV2Batch(vec![])), Route::SpanV2);
+    assert_eq!(
+        route(&EnvelopeItemKind::SpanV2Batch(vec![].into())),
+        Route::SpanV2
+    );
 }
 
 // =============================================================================
@@ -218,14 +221,14 @@ mod level2 {
 
         SpanV2Processor
             .process(
-                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                bytes::Bytes::from(REAL_WIRE_FIXTURE.as_bytes().to_vec()),
                 &ctx(&db.pool, project.id),
             )
             .await
             .unwrap();
         SpanV2Processor
             .process(
-                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                bytes::Bytes::from(REAL_WIRE_FIXTURE.as_bytes().to_vec()),
                 &ctx(&db.pool, project.id),
             )
             .await
@@ -264,7 +267,7 @@ mod level2 {
 
         SpanV2Processor
             .process(
-                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                bytes::Bytes::from(REAL_WIRE_FIXTURE.as_bytes().to_vec()),
                 &ctx(&db.pool, project.id),
             )
             .await
@@ -335,7 +338,7 @@ mod level2 {
 
         SpanV2Processor
             .process(
-                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                bytes::Bytes::from(REAL_WIRE_FIXTURE.as_bytes().to_vec()),
                 &ctx(&db.pool, project.id),
             )
             .await
@@ -392,7 +395,7 @@ mod level2 {
 
         SpanV2Processor
             .process(
-                REAL_WIRE_FIXTURE.as_bytes().to_vec(),
+                bytes::Bytes::from(REAL_WIRE_FIXTURE.as_bytes().to_vec()),
                 &ctx(&db.pool, project.id),
             )
             .await
@@ -452,7 +455,10 @@ mod level2 {
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -499,7 +505,10 @@ mod level2 {
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -552,7 +561,7 @@ mod level2 {
         });
         SpanProcessor
             .process(
-                serde_json::to_vec(&legacy_payload).unwrap(),
+                bytes::Bytes::from(serde_json::to_vec(&legacy_payload).unwrap()),
                 &ctx(&db.pool, project.id),
             )
             .await
@@ -571,7 +580,10 @@ mod level2 {
         })
         .to_string();
         SpanV2Processor
-            .process(v2_payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(v2_payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -605,7 +617,10 @@ mod level2 {
         .unwrap();
 
         let res = SpanV2Processor
-            .process(vec![0xff, 0x00, b'n', b'o'], &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(vec![0xff, 0x00, b'n', b'o']),
+                &ctx(&db.pool, project.id),
+            )
             .await;
         assert!(
             res.is_err(),
@@ -651,13 +666,37 @@ mod level2 {
                     "start_timestamp": 1.0,
                     "end_timestamp": 2.0,
                     "attributes": {}
+                },
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "dddddddddddddddd",
+                    "start_timestamp": -1.0,
+                    "end_timestamp": 1.0,
+                    "attributes": {}
+                },
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "eeeeeeeeeeeeeeee",
+                    "start_timestamp": 1.0,
+                    "end_timestamp": 1.7976931348623157e308,
+                    "attributes": {}
+                },
+                {
+                    "trace_id": "d3d20f000885466b8c8f947c9b92b8d3",
+                    "span_id": "ffffffffffffffff",
+                    "start_timestamp": 2.0,
+                    "end_timestamp": 1.0,
+                    "attributes": {}
                 }
             ]
         })
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -708,7 +747,10 @@ mod level2 {
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -766,7 +808,10 @@ mod level2 {
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 
@@ -831,7 +876,10 @@ mod level2 {
         .to_string();
 
         SpanV2Processor
-            .process(payload.into_bytes(), &ctx(&db.pool, project.id))
+            .process(
+                bytes::Bytes::from(payload.into_bytes()),
+                &ctx(&db.pool, project.id),
+            )
             .await
             .unwrap();
 

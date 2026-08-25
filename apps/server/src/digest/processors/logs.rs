@@ -1,6 +1,7 @@
 use super::{Processor, ProcessorCtx};
 use crate::error::AppResult;
 use crate::models::log::{LogContainer, LogItem};
+use bytes::Bytes;
 use chrono::{DateTime, TimeZone, Utc};
 use sha1::{Digest as _, Sha1};
 use uuid::Uuid;
@@ -14,9 +15,9 @@ use uuid::Uuid;
 pub struct LogsProcessor;
 
 impl Processor for LogsProcessor {
-    type Input = Vec<u8>;
+    type Input = Bytes;
 
-    async fn process(&self, work: Vec<u8>, ctx: &ProcessorCtx) -> AppResult<()> {
+    async fn process(&self, work: Bytes, ctx: &ProcessorCtx) -> AppResult<()> {
         // Reject a malformed container instead of silently dropping the batch.
         let logs = LogContainer::parse(&work)?;
 

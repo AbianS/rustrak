@@ -61,7 +61,7 @@ async fn create_test_project(pool: &rustrak::db::DbPool) -> i32 {
     let project = ProjectService::create(
         pool,
         rustrak::models::CreateProject {
-            name: format!("Test Project {}", chrono::Utc::now().timestamp_millis()),
+            name: format!("Test Project {}", Uuid::new_v4()),
             slug: None,
             platform: None,
         },

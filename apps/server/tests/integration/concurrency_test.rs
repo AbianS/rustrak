@@ -1466,3 +1466,54 @@ async fn test_quota_counter_failure_rolls_back_digest_and_counters() {
     assert_eq!(installation_count, initial_installation);
     assert_eq!(events, 0);
 }
+
+/// A post-commit quota refresh must not turn an already durable digest into a
+/// failed processor result.
+#[cfg(feature = "sqlite")]
+#[actix_web::test]
+async fn test_post_commit_quota_refresh_failure_does_not_fail_digest() {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let pool = Arc::new(production_pool(&temp_dir.path().join("rustrak_quota.db"), 5).await);
+    let project = create_test_project(&pool, "Post Commit Quota").await;
+    let ingest_dir = temp_dir.path().to_path_buf();
+
+    sqlx::query(
+        "CREATE TRIGGER reject_quota_refresh BEFORE UPDATE OF next_quota_check ON installation \
+         BEGIN SELECT RAISE(ABORT, 'injected: quota refresh unavailable'); END",
+    )
+    .execute(pool.as_ref())
+    .await
+    .expect("Failed to install the quota fault-injection trigger");
+
+    let (event_id, event_json) = create_unique_event_json("QuotaRefreshError", "Msg");
+    store_event(
+        &ingest_dir,
+        &event_id,
+        &serde_json::to_vec(&event_json).unwrap(),
+    )
+    .await
+    .expect("Failed to store event");
+    let metadata = EventMetadata {
+        event_id,
+        project_id: project.id,
+        ingested_at: Utc::now(),
+        remote_addr: None,
+    };
+
+    process_error_event(
+        &pool,
+        &metadata,
+        &ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("post-commit quota refresh failure must not fail the digest");
+
+    let events: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events WHERE project_id = $1")
+        .bind(project.id)
+        .fetch_one(pool.as_ref())
+        .await
+        .expect("Failed to count durable events");
+    assert_eq!(events, 1, "the digest must remain durable");
+}

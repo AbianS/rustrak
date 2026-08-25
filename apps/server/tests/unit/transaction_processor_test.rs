@@ -17,7 +17,7 @@ fn test_enum_dispatch_transaction_maps_to_transaction_kind() {
         length: None,
         content_type: None,
     };
-    let kind = EnvelopeItemKind::from((headers, b"{}".to_vec()));
+    let kind = EnvelopeItemKind::from((headers, bytes::Bytes::from(b"{}".to_vec())));
     assert!(matches!(kind, EnvelopeItemKind::Transaction(_)));
 }
 
@@ -28,7 +28,7 @@ fn test_enum_dispatch_event_maps_to_event_kind() {
         length: None,
         content_type: None,
     };
-    let kind = EnvelopeItemKind::from((headers, b"{}".to_vec()));
+    let kind = EnvelopeItemKind::from((headers, bytes::Bytes::from(b"{}".to_vec())));
     assert!(matches!(kind, EnvelopeItemKind::Event(_)));
 }
 
@@ -36,7 +36,7 @@ fn test_enum_dispatch_event_maps_to_event_kind() {
 fn test_transaction_never_becomes_event_item() {
     // Regression guard for fb52e1e: transaction items must NEVER land in Event variant
     let raw = b"{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\"}\n{\"type\":\"transaction\",\"length\":2}\n{}\n";
-    let mut parser = EnvelopeParser::new(raw);
+    let mut parser = EnvelopeParser::new(bytes::Bytes::copy_from_slice(raw));
     let items = parser.parse().unwrap().items;
     assert!(
         items
@@ -48,13 +48,13 @@ fn test_transaction_never_becomes_event_item() {
 
 #[test]
 fn test_requires_event_true_for_transaction() {
-    let kind = EnvelopeItemKind::Transaction(vec![]);
+    let kind = EnvelopeItemKind::Transaction(vec![].into());
     assert!(kind.requires_event());
 }
 
 #[test]
 fn test_requires_event_true_for_event() {
-    let kind = EnvelopeItemKind::Event(vec![]);
+    let kind = EnvelopeItemKind::Event(vec![].into());
     assert!(kind.requires_event());
 }
 
@@ -72,14 +72,14 @@ fn test_requires_event_false_for_session() {
 #[test]
 fn test_event_item_routes_to_error_processor() {
     use rustrak::digest::processors::{route, Route};
-    assert_eq!(route(&EnvelopeItemKind::Event(vec![])), Route::Error);
+    assert_eq!(route(&EnvelopeItemKind::Event(vec![].into())), Route::Error);
 }
 
 #[test]
 fn test_transaction_item_routes_to_transaction_processor() {
     use rustrak::digest::processors::{route, Route};
     assert_eq!(
-        route(&EnvelopeItemKind::Transaction(vec![])),
+        route(&EnvelopeItemKind::Transaction(vec![].into())),
         Route::Transaction
     );
 }
@@ -98,7 +98,7 @@ fn test_session_item_routes_to_session_processor() {
 fn test_unknown_item_routes_to_ignored() {
     use rustrak::digest::processors::{route, Route};
     assert_eq!(
-        route(&EnvelopeItemKind::Other("span".into(), vec![])),
+        route(&EnvelopeItemKind::Other("span".into(), vec![].into())),
         Route::Ignored
     );
 }
@@ -153,10 +153,13 @@ mod level2 {
         };
 
         TransactionProcessor
-            .process(payload.clone(), &ctx)
+            .process(bytes::Bytes::from(payload.clone()), &ctx)
             .await
             .unwrap();
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str =
@@ -229,7 +232,10 @@ mod level2 {
             remote_addr: None,
         };
 
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT op, status, span_id, parent_span_id, trace_id FROM transactions WHERE project_id = $1";
@@ -289,7 +295,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT source FROM transactions WHERE project_id = $1";
@@ -333,7 +342,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT source FROM transactions WHERE project_id = $1";
@@ -391,7 +403,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const COUNT_QUERY: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
@@ -462,7 +477,7 @@ mod level2 {
 
         // Binary garbage some misconfigured SDKs send — not valid JSON.
         let res = TransactionProcessor
-            .process(vec![0xff, 0x00, 0x01, b'n', b'o'], &ctx)
+            .process(bytes::Bytes::from(vec![0xff, 0x00, 0x01, b'n', b'o']), &ctx)
             .await;
 
         assert!(res.is_err(), "malformed transaction JSON must be rejected");
@@ -510,7 +525,10 @@ mod level2 {
                 "start_timestamp": 1.0, "timestamp": 2.0
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let filters = rustrak::services::TransactionFilters::default();
@@ -561,7 +579,10 @@ mod level2 {
             remote_addr: None,
         };
 
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str =
@@ -623,7 +644,10 @@ mod level2 {
         };
 
         // Drive the trait into existence: dispatch through the Processor contract.
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT transaction_name FROM transactions WHERE project_id = $1";
@@ -734,7 +758,10 @@ mod level2 {
                 "contexts": { "trace": { "op": op } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let filters = TransactionFilters {
@@ -783,7 +810,10 @@ mod level2 {
                 "contexts": { "trace": { "op": "http.server" } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let filters = TransactionFilters {
@@ -831,7 +861,10 @@ mod level2 {
             ]
         }))
         .unwrap();
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT id FROM transactions WHERE project_id = $1";
@@ -893,7 +926,10 @@ mod level2 {
                 "contexts": { "trace": { "op": op, "status": status } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let (stats, total) = TransactionService::stats(&db.pool, project.id, 1, 20)
@@ -946,7 +982,10 @@ mod level2 {
                 "contexts": { "trace": { "op": "http.server" } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let (page1, total) = TransactionService::stats(&db.pool, project.id, 1, 2)
@@ -1016,7 +1055,10 @@ mod level2 {
                 "contexts": { "trace": { "op": "http.server" } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let group =
@@ -1066,7 +1108,10 @@ mod level2 {
                 "contexts": { "trace": { "op": op } }
             }))
             .unwrap();
-            TransactionProcessor.process(payload, &ctx).await.unwrap();
+            TransactionProcessor
+                .process(bytes::Bytes::from(payload), &ctx)
+                .await
+                .unwrap();
         }
 
         let (first, _) = TransactionService::stats(&db.pool, project.id, 1, 20)
@@ -1112,7 +1157,10 @@ mod level2 {
             remote_addr: None,
         };
 
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM groupings")
             .fetch_one(&db.pool)
@@ -1173,7 +1221,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT gen_ai_operation_type, gen_ai_response_model, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1 AND span_id = $2";
@@ -1250,7 +1301,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str = "SELECT span_id, trace_id, op, description, status, is_segment, segment_id, transaction_id, start_timestamp, timestamp, gen_ai_operation_type, gen_ai_agent_name, gen_ai_usage_total_tokens FROM spans WHERE project_id = $1";
@@ -1345,7 +1399,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const COUNT: &str = "SELECT COUNT(*) FROM spans WHERE project_id = $1";
@@ -1405,7 +1462,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str =
@@ -1471,7 +1531,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         let points =
             SpanService::agent_runs_timeseries(&db.pool, project.id, &Default::default(), None, 1)
@@ -1518,7 +1581,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         #[cfg(feature = "postgres")]
         const QUERY: &str =
@@ -1589,7 +1655,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
             "SELECT environment, release, platform FROM spans
@@ -1655,7 +1724,10 @@ mod level2 {
             ingested_at: Utc::now(),
             remote_addr: None,
         };
-        TransactionProcessor.process(payload, &ctx).await.unwrap();
+        TransactionProcessor
+            .process(bytes::Bytes::from(payload), &ctx)
+            .await
+            .unwrap();
 
         let row: (Option<String>, Option<String>, Option<String>) = sqlx::query_as(
             "SELECT environment, release, platform FROM spans
