@@ -198,11 +198,6 @@ pub async fn ingest_envelope(
     // Persist direct items before the early return; otherwise 200 could suppress
     // an SDK retry for data that was never stored.
     if let Some(txn_payload) = transaction_item {
-        let _permit = processors
-            .processing_slot
-            .acquire()
-            .await
-            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let event_id_txn = event_id
             .clone()
             .unwrap_or_else(|| delivery_id.simple().to_string());
@@ -223,11 +218,6 @@ pub async fn ingest_envelope(
 
     // Persist standalone spans inline; they have no grouping or issue path.
     if !span_items.is_empty() {
-        let _permit = processors
-            .processing_slot
-            .acquire()
-            .await
-            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let ctx = ProcessorCtx {
             pool: pool.get_ref().clone(),
             project_id: auth.project.id,
@@ -245,11 +235,6 @@ pub async fn ingest_envelope(
 
     // Persist v2 span batches inline for the same reason.
     if !span_v2_items.is_empty() {
-        let _permit = processors
-            .processing_slot
-            .acquire()
-            .await
-            .map_err(|_| AppError::Internal("processing semaphore closed".to_string()))?;
         let ctx = ProcessorCtx {
             pool: pool.get_ref().clone(),
             project_id: auth.project.id,

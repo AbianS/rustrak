@@ -281,7 +281,7 @@ fn decompress_zstd(data: &Bytes) -> AppResult<Bytes> {
     Ok(Bytes::from(decompressed))
 }
 
-pub(crate) fn decompress_zstd_payload(data: &[u8]) -> AppResult<Vec<u8>> {
+fn decompress_zstd_payload(data: &[u8]) -> AppResult<Vec<u8>> {
     let mut decoder = zstd::stream::read::Decoder::new(data)
         .map_err(|e| AppError::Validation(format!("Invalid zstd data: {}", e)))?;
     decoder
@@ -306,41 +306,10 @@ fn reject_oversized_decompressed(data: &[u8]) -> AppResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-struct LimitedWriter {
-    data: Vec<u8>,
-    limit: usize,
-    exceeded: bool,
-}
-
-#[cfg(test)]
-impl LimitedWriter {
-    fn new(limit: usize) -> Self {
-        Self {
-            data: Vec::new(),
-            limit,
-            exceeded: false,
-        }
-    }
-}
-
-#[cfg(test)]
-impl std::io::Write for LimitedWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if buf.len() > self.limit.saturating_sub(self.data.len()) {
-            self.exceeded = true;
-            return Err(std::io::Error::other("decompressed payload limit exceeded"));
-        }
-        self.data.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Extracts Content-Encoding from the request headers
+/// Extracts Content-Encoding from the request headers.
+///
+/// Mirrors Relay's `should_ignore_encoding`: an empty value (sentry-ruby 5.x)
+/// and `UTF-8` (sentry.java.android 2.0.0) are treated as no encoding.
 pub fn get_content_encoding(req: &actix_web::HttpRequest) -> AppResult<Option<String>> {
     let values = req
         .headers()
@@ -351,23 +320,23 @@ pub fn get_content_encoding(req: &actix_web::HttpRequest) -> AppResult<Option<St
             })
         })
         .collect::<AppResult<Vec<_>>>()?;
-    let normalized = values.join(",");
-    if values.is_empty() {
-        return Ok(None);
-    }
-    if normalized.trim().is_empty() {
+    let tokens = values
+        .iter()
+        .flat_map(|value| value.split(','))
+        .map(str::trim)
+        .collect::<Vec<_>>();
+    // A blank header is ignored; a blank token inside a list is malformed.
+    if tokens.iter().any(|token| token.is_empty()) && tokens.iter().any(|token| !token.is_empty()) {
         return Err(AppError::Validation(
             "Malformed Content-Encoding header".to_string(),
         ));
     }
-    let codings = normalized.split(',').map(str::trim).collect::<Vec<_>>();
-    if codings.iter().any(|encoding| encoding.is_empty()) {
-        return Err(AppError::Validation(
-            "Malformed Content-Encoding header".to_string(),
-        ));
-    }
-    let codings = codings.join(",").to_ascii_lowercase();
-    Ok((!codings.is_empty()).then_some(codings))
+    let codings = tokens
+        .into_iter()
+        .filter(|coding| !coding.is_empty() && !coding.eq_ignore_ascii_case("utf-8"))
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>();
+    Ok((!codings.is_empty()).then(|| codings.join(",")))
 }
 
 #[cfg(test)]
@@ -385,15 +354,20 @@ mod tests {
     }
 
     #[test]
-    fn blank_content_encoding_is_rejected_instead_of_treated_as_absent() {
-        let request = actix_web::test::TestRequest::default()
-            .insert_header(("Content-Encoding", "   "))
-            .to_http_request();
+    fn empty_and_utf8_content_encodings_are_ignored_like_relay_does() {
+        // sentry-ruby 5.x sends an empty Content-Encoding and
+        // sentry.java.android 2.0.0 sends "UTF-8"; Relay ignores both
+        // (relay-server/src/middlewares/decompression.rs).
+        for value in ["", "   ", "UTF-8", "utf-8"] {
+            let request = actix_web::test::TestRequest::default()
+                .insert_header(("Content-Encoding", value))
+                .to_http_request();
 
-        assert!(matches!(
-            get_content_encoding(&request),
-            Err(AppError::Validation(_))
-        ));
+            assert!(
+                matches!(get_content_encoding(&request), Ok(None)),
+                "Content-Encoding {value:?} must be treated as absent"
+            );
+        }
     }
 
     #[test]
@@ -428,16 +402,6 @@ mod tests {
         let body = Bytes::from(vec![b'x'; MAX_COMPRESSED_SIZE + 1]);
         let result = decompress_body(body, None);
         assert!(matches!(result, Err(AppError::PayloadTooLarge(_))));
-    }
-
-    #[test]
-    fn limited_writer_rejects_output_past_its_limit() {
-        use std::io::Write;
-
-        let mut writer = LimitedWriter::new(2);
-        assert!(writer.write_all(b"abc").is_err());
-        assert!(writer.exceeded);
-        assert!(writer.data.is_empty());
     }
 
     #[test]

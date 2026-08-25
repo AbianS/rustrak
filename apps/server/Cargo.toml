@@ -76,7 +76,6 @@ zstd = "0.13.3"
 # Async utilities
 futures-util = "0.3.34"
 bytes = "1.12.1"
-fs2 = "0.4.3"
 
 # Feature-gated heap profiling; never enabled for the shipped binary.
 dhat = { version = "0.3.3", optional = true }

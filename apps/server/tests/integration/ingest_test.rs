@@ -450,6 +450,118 @@ async fn test_ingest_event_is_digested_by_the_spawned_task() {
 }
 
 #[actix_web::test]
+async fn test_transaction_ingest_is_not_blocked_by_a_saturated_digest_queue() {
+    // Transactions and spans are persisted inline during the request. The
+    // digest permit bounds the spawned error-digest tasks only: a burst of
+    // errors being grouped must never make an SDK wait on its transaction.
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "Saturated Digest").await;
+    let config = create_test_config();
+    let processors = web::Data::new(rustrak::digest::processors::Processors::new(
+        rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+        config.rate_limit.clone(),
+        crate::common::null_sourcemap_provider(),
+        None,
+    ));
+    // Consume every digest permit for the lifetime of the test.
+    let slots = processors.processing_slot.available_permits() as u32;
+    processors
+        .processing_slot
+        .try_acquire_many(slots)
+        .expect("all permits should be free")
+        .forget();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data(processors.clone())
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let transaction_json = json!({
+        "event_id": event_id,
+        "type": "transaction",
+        "transaction": "GET /checkout",
+        "start_timestamp": 1704801600.0,
+        "timestamp": 1704801600.5,
+        "contexts": {"trace": {"trace_id": "a".repeat(32), "span_id": "b".repeat(16), "op": "http.server"}}
+    })
+    .to_string();
+    let envelope = format!(
+        "{{\"event_id\":\"{event_id}\"}}\n{{\"type\":\"transaction\",\"length\":{}}}\n{transaction_json}",
+        transaction_json.len()
+    );
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .set_payload(envelope)
+        .to_request();
+    let resp = tokio::time::timeout(Duration::from_secs(2), test::call_service(&app, req))
+        .await
+        .expect("a transaction envelope must be accepted while the digest queue is saturated");
+    assert!(resp.status().is_success());
+
+    let stored: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions WHERE project_id = $1")
+        .bind(project_id)
+        .fetch_one(&db.pool)
+        .await
+        .unwrap();
+    assert_eq!(stored, 1);
+}
+
+#[actix_web::test]
+async fn test_ingest_accepts_utf8_content_encoding_from_old_sdks() {
+    // sentry.java.android 2.0.0 sends `Content-Encoding: UTF-8` on a plain
+    // body; Relay ignores it and so must we.
+    let db = TestDb::new().await;
+    let (project_id, sentry_key) = create_test_project(&db.pool, "UTF-8 Encoding").await;
+    let config = create_test_config();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config.clone()))
+            .app_data(web::Data::new(
+                rustrak::digest::processors::Processors::new(
+                    rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref()),
+                    config.rate_limit.clone(),
+                    crate::common::null_sourcemap_provider(),
+                    None,
+                ),
+            ))
+            .configure(routes::ingest::configure),
+    )
+    .await;
+
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let event_json = json!({"event_id": event_id, "message": "plain body"}).to_string();
+    let envelope = create_envelope(&event_id, &event_json);
+
+    let req = test::TestRequest::post()
+        .uri(&format!("/api/{}/envelope/", project_id))
+        .insert_header((
+            "X-Sentry-Auth",
+            format!("Sentry sentry_key={}, sentry_version=7", sentry_key),
+        ))
+        .insert_header(("Content-Type", "application/x-sentry-envelope"))
+        .insert_header(("Content-Encoding", "UTF-8"))
+        .set_payload(envelope)
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 200);
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["id"], event_id);
+}
+
+#[actix_web::test]
 async fn test_ingest_with_query_param_auth() {
     let db = TestDb::new().await;
     let (project_id, sentry_key) = create_test_project(&db.pool, "Query Auth Project").await;
