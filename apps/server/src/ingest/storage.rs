@@ -1,6 +1,8 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::fs::{File as StdFile, OpenOptions as StdOpenOptions};
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -20,6 +22,7 @@ const PENDING_EVENT_VERSION: u8 = 1;
 const PENDING_EVENT_ZSTD_VERSION: u8 = 2;
 const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
 const BASE64_WRITE_CHUNK_SIZE: usize = 48 * 1024;
+const PENDING_PUBLISH_LOCK_SUFFIX: &str = ".publish.lock";
 
 static PENDING_PUBLISH_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
 
@@ -129,6 +132,35 @@ fn encode_base64_chunk(input: &[u8], output: &mut String) {
     STANDARD.encode_string(input, output);
 }
 
+fn pending_publish_lock_path(path: &Path) -> AppResult<PathBuf> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::Internal("Invalid ingest file path".to_string()))?;
+    Ok(path.with_file_name(format!(".{file_name}{PENDING_PUBLISH_LOCK_SUFFIX}")))
+}
+
+async fn acquire_pending_publish_lock(path: &Path) -> AppResult<StdFile> {
+    let lock_path = pending_publish_lock_path(path)?;
+    tokio::task::spawn_blocking(move || {
+        let lock = StdOpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .map_err(|e| {
+                AppError::Internal(format!("Failed to open ingest publish lock: {}", e))
+            })?;
+        lock.lock_exclusive().map_err(|e| {
+            AppError::Internal(format!("Failed to lock ingest publish file: {}", e))
+        })?;
+        Ok(lock)
+    })
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to join ingest publish lock task: {}", e)))?
+}
+
 async fn write_pending_record(
     file: &mut fs::File,
     metadata: &EventMetadata,
@@ -170,7 +202,15 @@ async fn publish_pending_file(
         )
     };
     let guard = lock.lock().await;
-    let result = publish_pending_file_locked(path, temporary_path, event_id, project_id).await;
+    let result = match acquire_pending_publish_lock(path).await {
+        Ok(filesystem_lock) => {
+            let result =
+                publish_pending_file_locked(path, temporary_path, event_id, project_id).await;
+            drop(filesystem_lock);
+            result
+        }
+        Err(error) => Err(error),
+    };
     drop(guard);
 
     let mut locks = locks.lock().await;
@@ -1060,6 +1100,133 @@ mod tests {
             .await
             .unwrap();
         assert!(stored == br#"{"first":true}"# || stored == br#"{"second":true}"#);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cross_process_replacement_serializes_malformed_record_recovery() {
+        const ROLE: &str = "RUSTRAK_STORAGE_LOCK_TEST_ROLE";
+        const ROOT: &str = "RUSTRAK_STORAGE_LOCK_TEST_ROOT";
+        const START: &str = "RUSTRAK_STORAGE_LOCK_TEST_START";
+        const RELEASE: &str = "RUSTRAK_STORAGE_LOCK_TEST_RELEASE";
+
+        if let Ok(role) = std::env::var(ROLE) {
+            let root = PathBuf::from(std::env::var(ROOT).unwrap());
+            let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+            let pending_path = get_project_pending_event_path(&root, 7, event_id).unwrap();
+            let start = root.join(std::env::var(START).unwrap());
+            let release = root.join(std::env::var(RELEASE).unwrap());
+
+            match role.as_str() {
+                "hold" => {
+                    let lock = acquire_pending_publish_lock(&pending_path).await.unwrap();
+                    fs::write(root.join("lock-held"), b"ready").await.unwrap();
+                    while !fs::try_exists(&release).await.unwrap() {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
+                    drop(lock);
+                    store_event_with_metadata(
+                        &root,
+                        event_id,
+                        br#"{"first":true}"#,
+                        &metadata(event_id, 7),
+                    )
+                    .await
+                    .unwrap();
+                }
+                "writer" => {
+                    fs::write(root.join("writer-ready"), b"ready")
+                        .await
+                        .unwrap();
+                    while !fs::try_exists(&start).await.unwrap() {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
+                    store_event_with_metadata(
+                        &root,
+                        event_id,
+                        br#"{"second":true}"#,
+                        &metadata(event_id, 7),
+                    )
+                    .await
+                    .unwrap();
+                }
+                _ => panic!("unknown lock test role: {role}"),
+            }
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, b"malformed").await.unwrap();
+
+        let executable = std::env::current_exe().unwrap();
+        let test_name = "ingest::storage::tests::cross_process_replacement_serializes_malformed_record_recovery";
+        let mut holder = std::process::Command::new(&executable)
+            .args(["--exact", test_name, "--nocapture"])
+            .env(ROLE, "hold")
+            .env(ROOT, dir.path())
+            .env(START, "writer-start")
+            .env(RELEASE, "release")
+            .spawn()
+            .unwrap();
+
+        let held = dir.path().join("lock-held");
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !fs::try_exists(&held).await.unwrap() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+
+        let mut writer = std::process::Command::new(&executable)
+            .args(["--exact", test_name, "--nocapture"])
+            .env(ROLE, "writer")
+            .env(ROOT, dir.path())
+            .env(START, "writer-start")
+            .env(RELEASE, "release")
+            .spawn()
+            .unwrap();
+        let writer_ready = dir.path().join("writer-ready");
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !fs::try_exists(&writer_ready).await.unwrap() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .unwrap();
+        fs::write(dir.path().join("writer-start"), b"go")
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(writer.try_wait().unwrap().is_none());
+
+        fs::write(dir.path().join("release"), b"go").await.unwrap();
+        let holder_status = tokio::task::spawn_blocking(move || holder.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        let writer_status = tokio::task::spawn_blocking(move || writer.wait())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(holder_status.success());
+        assert!(writer_status.success());
+
+        let stored = read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .unwrap();
+        assert!(stored == br#"{"first":true}"# || stored == br#"{"second":true}"#);
+        let mut entries = fs::read_dir(dir.path()).await.unwrap();
+        let mut quarantined = 0;
+        while let Some(entry) = entries.next_entry().await.unwrap() {
+            if entry.file_name().to_string_lossy().contains(".corrupt-") {
+                quarantined += 1;
+            }
+        }
+        assert_eq!(quarantined, 1);
     }
 
     #[tokio::test]
