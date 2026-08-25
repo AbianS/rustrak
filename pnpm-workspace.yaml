@@ -4,5 +4,6 @@ packages:
 
 onlyBuiltDependencies:
   - esbuild
+  - lightningcss
   - msw
   - sharp

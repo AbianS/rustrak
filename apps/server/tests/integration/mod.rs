@@ -7,6 +7,7 @@ mod alerts_api_test;
 mod auth_test;
 mod bootstrap_test;
 mod concurrency_test;
+mod dashboard_test;
 mod digest_test;
 mod envelope_v2_test;
 mod events_api_test;

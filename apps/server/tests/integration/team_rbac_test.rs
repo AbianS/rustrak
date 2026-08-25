@@ -53,6 +53,7 @@ fn create_test_config() -> Config {
         max_chunk_size_bytes: 10 * 1024 * 1024,
         session_flush_interval_secs: 30,
         session_cardinality_cap: 10_000,
+        dashboard_dir: "./static".to_string(),
     }
 }
 

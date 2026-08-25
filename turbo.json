@@ -43,6 +43,30 @@
         "pnpm-lock.yaml"
       ]
     },
+    "@rustrak/server#build": {
+      "dependsOn": ["^build", "@rustrak/dashboard#build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [
+        "static/**",
+        "target/release/**",
+        "!target/release/.fingerprint/**",
+        "!target/release/deps/**",
+        "!target/release/build/**",
+        "!target/release/.cargo-lock"
+      ]
+    },
+    "@rustrak/server#build:dev": {
+      "dependsOn": ["^build:dev", "@rustrak/dashboard#build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [
+        "static/**",
+        "target/debug/**",
+        "!target/debug/.fingerprint/**",
+        "!target/debug/deps/**",
+        "!target/debug/build/**",
+        "!target/debug/.cargo-lock"
+      ]
+    },
     "check-types": {
       "dependsOn": ["^check-types", "^build"]
     },
@@ -54,6 +78,11 @@
       "inputs": ["$TURBO_DEFAULT$", ".env*"]
     },
     "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "@rustrak/dashboard#dev": {
+      "dependsOn": ["@rustrak/ui#build", "@rustrak/client#build"],
       "cache": false,
       "persistent": true
     },

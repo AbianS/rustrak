@@ -49,6 +49,7 @@ docker run -d -p 8080:8080 \
 | `RUST_LOG` | No | `info` | Log level |
 | `CREATE_SUPERUSER` | No | - | Create admin user `email:password` |
 | `SSL_PROXY` | No | `false` | Enable secure cookies (behind HTTPS) |
+| `RUSTRAK_DASHBOARD_DIR` | No | `./static` | Where the compiled dashboard lives. Mounted at `/` when it holds an `index.html`, ignored otherwise |
 
 ## API Endpoints
 

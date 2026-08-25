@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@import "@rustrak/ui/styles.css";
+
+/*
+ * Tailwind only emits the utilities it can see, and it never looks inside
+ * `node_modules`. The design system's classes live in another package, so the
+ * dashboard has to point at it by hand or every component arrives unstyled.
+ *
+ * The path goes to `packages/ui/src` and not to the symlink under
+ * `node_modules`: pnpm's store makes that a link into a content-addressed
+ * directory, and pointing a scanner at it is how a monorepo ends up rebuilding
+ * CSS from a path that changes on every install. Source and not `dist` for the
+ * same reason a watcher beats a rebuild -- editing a recipe in the design
+ * system shows up here without building the package first.
+ *
+ * Stories are excluded: they exist to exercise states in Storybook, and the
+ * classes they reach for are not the ones the product ships.
+ */
+@source "../../../packages/ui/src";
+@source not "../../../packages/ui/src/**/*.stories.tsx";
+@source not "../../../packages/ui/src/**/*.mdx";
+
+html,
+body,
+#app {
+  height: 100%;
+}

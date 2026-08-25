@@ -23,6 +23,29 @@ src/
 └── pagination/                     cursor and offset helpers
 ```
 
+## It also serves the dashboard
+
+`routes/dashboard.rs` mounts `apps/dashboard`'s compiled bundle at `/` when a
+build is present in `RUSTRAK_DASHBOARD_DIR` (default `./static`), so the
+browser and the API share one origin: the session cookie stays first-party and
+CORS never enters the dashboard's path.
+
+It stays optional. No `index.html` there means nothing is mounted and the
+server is exactly the API it was before -- which is the premise of the product,
+not a fallback.
+
+Two rules it exists to keep, both covered by
+`tests/integration/dashboard_test.rs`:
+
+- A path the API does not own falls back to the application shell, because
+  `/projects/42` is a real page only the router knows about.
+- A path the API *does* own never does. `API_PREFIXES` is that list, and an
+  unclaimed path under it stays a JSON 404 -- otherwise a mistyped endpoint
+  answers `200 text/html` and the client reports a failure against itself.
+
+`RequireAuth` reads the same list: with the dashboard mounted, everything
+outside it is public static files.
+
 ## Ingestion is two-phase
 
 1. **Ingest**, synchronous, target under 50ms: parse the envelope, validate,

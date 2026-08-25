@@ -1,25 +1,27 @@
 # Rustrak
 
 Self-hosted error tracking, compatible with Sentry SDKs. A Rust API server with
-a small memory footprint, and an optional Next.js dashboard that can be deployed
-separately or not at all.
+a small memory footprint, and an optional dashboard the same process serves as
+static files -- or does not serve at all.
 
 ```
 Sentry SDK  ──▶  Rustrak server  ──▶  PostgreSQL
 (any app)        (Rust/Actix-web)
-                       ▲
                        │
-                 Rustrak dashboard (optional)
+                       └─▶ serves the dashboard's static files (optional)
 ```
 
 The split is the point: deploy only the server and connect any Sentry SDK to it.
+The dashboard is a SPA the same process hands out when a build is present, so
+the browser and the API share one origin and there is nothing else to deploy.
 
 ## Layout
 
 | Path | What |
 |---|---|
 | `apps/server` | Rust API server. The product. |
-| `apps/webview-ui` | Next.js dashboard |
+| `apps/dashboard` | The dashboard: TanStack Router SPA, served by the server |
+| `apps/webview-ui` | Next.js dashboard, being replaced by `apps/dashboard` |
 | `apps/docs` | Public documentation site (Nextra) |
 | `packages/ui` | `@rustrak/ui`, the design system. Storybook only for now |
 | `packages/client` | `@rustrak/client`, the TypeScript API client |
@@ -33,9 +35,13 @@ Read that one before working inside it.
 ## Commands
 
 ```bash
-docker compose up -d postgres     # database
-cd apps/server && cargo run       # server on :8000
-pnpm dev                          # dashboard and docs
+docker compose up -d postgres      # database
+cd apps/server && cargo run --bin rustrak   # server on :8080
+pnpm dev                          # dashboard on :3000, proxying to the server
+
+# The dashboard as production serves it: one origin, no Node process.
+pnpm build --filter=@rustrak/server
+cd apps/server && cargo run --bin rustrak   # now also answers / with the SPA
 
 pnpm test                         # everything except the Rust side
 (cd apps/server && cargo test)    # unit, integration and e2e

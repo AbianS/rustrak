@@ -1,0 +1,42 @@
+{
+  "name": "@rustrak/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "vite build",
+    "preview": "vite preview",
+    "generate-routes": "tsr generate",
+    "check-types": "tsc --noEmit",
+    "lint": "biome check src",
+    "format": "biome format --write src",
+    "format:check": "biome format src",
+    "clean": "rm -rf dist .turbo .tanstack"
+  },
+  "dependencies": {
+    "@rustrak/client": "workspace:*",
+    "@rustrak/ui": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/react-devtools": "0.10.12",
+    "@tanstack/react-router": "1.170.32",
+    "@tanstack/react-router-devtools": "1.167.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@tanstack/devtools-vite": "0.8.5",
+    "@tanstack/router-cli": "1.167.33",
+    "@tanstack/router-plugin": "1.168.35",
+    "@types/node": "26.2.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "typescript": "6.0.3",
+    "vite": "8.2.1"
+  }
+}

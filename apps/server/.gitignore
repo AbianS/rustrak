@@ -52,3 +52,7 @@ doc/
 *.db
 *.db-shm
 *.db-wal
+
+# The compiled dashboard, copied here by scripts/bundle-dashboard.sh.
+# A build artifact of apps/dashboard, never a source file.
+static/
