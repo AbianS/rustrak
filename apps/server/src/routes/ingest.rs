@@ -118,7 +118,7 @@ pub async fn ingest_envelope(
             }
             EnvelopeItemKind::Transaction(p) => {
                 if transaction_item.is_none() {
-                    transaction_item = Some(p);
+                    transaction_item = Some(detach_payload_if_needed(p, envelope_len));
                 }
             }
             EnvelopeItemKind::Session(s) => {
@@ -169,13 +169,13 @@ pub async fn ingest_envelope(
                 // Unlike Event/Transaction, an envelope may carry many standalone
                 // span items (Relay: one flat span object per item, no per-envelope
                 // count cap) — collect them all instead of first-wins.
-                span_items.push(payload);
+                span_items.push(detach_payload_if_needed(payload, envelope_len));
             }
             EnvelopeItemKind::SpanV2Batch(payload) => {
                 // Each item is already a batch (one container can hold many
                 // spans) — an envelope may still carry more than one such
                 // container item, so collect them all.
-                span_v2_items.push(payload);
+                span_v2_items.push(detach_payload_if_needed(payload, envelope_len));
             }
             EnvelopeItemKind::Other(t, _) => {
                 log::debug!("envelope item '{}' ignored", t);

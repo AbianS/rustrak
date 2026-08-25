@@ -352,8 +352,13 @@ pub fn get_content_encoding(req: &actix_web::HttpRequest) -> AppResult<Option<St
         })
         .collect::<AppResult<Vec<_>>>()?;
     let normalized = values.join(",");
-    if normalized.trim().is_empty() {
+    if values.is_empty() {
         return Ok(None);
+    }
+    if normalized.trim().is_empty() {
+        return Err(AppError::Validation(
+            "Malformed Content-Encoding header".to_string(),
+        ));
     }
     let codings = normalized.split(',').map(str::trim).collect::<Vec<_>>();
     if codings.iter().any(|encoding| encoding.is_empty()) {
@@ -377,6 +382,18 @@ mod tests {
         // Zero-copy: the returned Bytes must share the input's allocation,
         // not a copy of it.
         assert_eq!(out.as_ptr(), body.as_ptr());
+    }
+
+    #[test]
+    fn blank_content_encoding_is_rejected_instead_of_treated_as_absent() {
+        let request = actix_web::test::TestRequest::default()
+            .insert_header(("Content-Encoding", "   "))
+            .to_http_request();
+
+        assert!(matches!(
+            get_content_encoding(&request),
+            Err(AppError::Validation(_))
+        ));
     }
 
     #[test]

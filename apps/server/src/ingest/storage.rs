@@ -1,12 +1,14 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::error::{AppError, AppResult};
@@ -18,6 +20,8 @@ const PENDING_EVENT_VERSION: u8 = 1;
 const PENDING_EVENT_ZSTD_VERSION: u8 = 2;
 const ORPHANED_TEMPORARY_FILE_GRACE: Duration = Duration::from_secs(300);
 const BASE64_WRITE_CHUNK_SIZE: usize = 48 * 1024;
+
+static PENDING_PUBLISH_LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventStorageLocation {
@@ -151,6 +155,35 @@ async fn write_pending_record(
 }
 
 async fn publish_pending_file(
+    path: &Path,
+    temporary_path: &Path,
+    event_id: &str,
+    project_id: i32,
+) -> AppResult<()> {
+    let locks = PENDING_PUBLISH_LOCKS.get_or_init(|| Mutex::new(HashMap::new()));
+    let lock = {
+        let mut locks = locks.lock().await;
+        Arc::clone(
+            locks
+                .entry(path.to_path_buf())
+                .or_insert_with(|| Arc::new(Mutex::new(()))),
+        )
+    };
+    let guard = lock.lock().await;
+    let result = publish_pending_file_locked(path, temporary_path, event_id, project_id).await;
+    drop(guard);
+
+    let mut locks = locks.lock().await;
+    if locks
+        .get(path)
+        .is_some_and(|candidate| Arc::ptr_eq(candidate, &lock) && Arc::strong_count(candidate) == 2)
+    {
+        locks.remove(path);
+    }
+    result
+}
+
+async fn publish_pending_file_locked(
     path: &Path,
     temporary_path: &Path,
     event_id: &str,
@@ -368,14 +401,37 @@ pub async fn store_event_with_metadata(
     }
     let path = get_project_event_path(base_dir, metadata.project_id, event_id)?;
     let pending_path = path.with_extension("pending.json");
-    write_pending_record_atomically(
+    prepare_ingest_dir(base_dir).await?;
+    match write_pending_record_atomically(
         &pending_path,
         event_id,
         metadata.project_id,
         metadata,
         event_data,
     )
-    .await?;
+    .await
+    {
+        Ok(()) => {}
+        Err(_error)
+            if matches!(
+                fs::metadata(base_dir).await,
+                Err(e) if e.kind() == io::ErrorKind::NotFound
+            ) =>
+        {
+            // Cleanup can remove the directory after preparation but before
+            // the temporary file is opened; recreate it once and retry.
+            prepare_ingest_dir(base_dir).await?;
+            write_pending_record_atomically(
+                &pending_path,
+                event_id,
+                metadata.project_id,
+                metadata,
+                event_data,
+            )
+            .await?
+        }
+        Err(error) => return Err(error),
+    }
     Ok(path)
 }
 
@@ -639,7 +695,12 @@ pub async fn list_pending_event_metadata(base_dir: &Path) -> AppResult<Vec<Event
         };
         if is_pending_record {
             match serde_json::from_slice::<PendingEventRecord>(&bytes) {
-                Ok(record) if record.version == PENDING_EVENT_VERSION => {
+                Ok(record)
+                    if matches!(
+                        record.version,
+                        PENDING_EVENT_VERSION | PENDING_EVENT_ZSTD_VERSION
+                    ) =>
+                {
                     match Uuid::parse_str(&record.metadata.event_id) {
                         Ok(metadata_id) => {
                             let filename_matches =
@@ -876,6 +937,50 @@ mod tests {
         assert!(fs::try_exists(pending_path).await.unwrap());
     }
 
+    #[tokio::test]
+    async fn compressed_pending_record_is_recovered_after_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+        let compressed = zstd::stream::encode_all(&b"{\"event\":true}"[..], 0).unwrap();
+        let record = PendingEventRecord {
+            version: PENDING_EVENT_ZSTD_VERSION,
+            metadata: metadata(event_id, 7),
+            event_data: STANDARD.encode(compressed),
+        };
+
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, serde_json::to_vec(&record).unwrap())
+            .await
+            .unwrap();
+
+        let pending = list_pending_event_metadata(dir.path()).await.unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].event_id, event_id);
+        assert_eq!(pending[0].project_id, 7);
+        assert_eq!(
+            read_event_for_project(dir.path(), 7, event_id)
+                .await
+                .unwrap(),
+            b"{\"event\":true}"
+        );
+    }
+
+    #[tokio::test]
+    async fn metadata_store_recreates_directory_removed_after_startup() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("ingest");
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let event_metadata = metadata(event_id, 7);
+
+        prepare_ingest_dir(&dir).await.unwrap();
+        fs::remove_dir_all(&dir).await.unwrap();
+        store_event_with_metadata(&dir, event_id, br"{}", &event_metadata)
+            .await
+            .unwrap();
+        assert!(dir.is_dir());
+    }
+
     proptest! {
         #[test]
         fn base64_chunk_ranges_cover_input_without_midstream_padding(
@@ -932,6 +1037,29 @@ mod tests {
                 &entry.file_name().to_string_lossy()
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn concurrent_replacement_of_malformed_record_keeps_one_payload() {
+        let dir = tempfile::tempdir().unwrap();
+        let event_id = "9ec79c33-ec99-42ab-8353-589fcb2e04dc";
+        let event_metadata = metadata(event_id, 7);
+        let pending_path = get_project_pending_event_path(dir.path(), 7, event_id).unwrap();
+
+        fs::create_dir_all(dir.path()).await.unwrap();
+        fs::write(&pending_path, b"malformed").await.unwrap();
+
+        let (first, second) = tokio::join!(
+            store_event_with_metadata(dir.path(), event_id, br#"{"first":true}"#, &event_metadata),
+            store_event_with_metadata(dir.path(), event_id, br#"{"second":true}"#, &event_metadata),
+        );
+        first.unwrap();
+        second.unwrap();
+
+        let stored = read_event_for_project(dir.path(), 7, event_id)
+            .await
+            .unwrap();
+        assert!(stored == br#"{"first":true}"# || stored == br#"{"second":true}"#);
     }
 
     #[tokio::test]

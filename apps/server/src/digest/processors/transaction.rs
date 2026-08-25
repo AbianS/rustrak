@@ -163,13 +163,13 @@ impl Processor for TransactionProcessor {
         // an ordinary, non-AI transaction's span count is unaffected —
         // verified live against a real captured trace, 2026-07-17.
         if let (Some(root_span_id), Some(root_trace_id)) = (&span_id, &trace_id) {
-            let mut trace_context = data
+            let trace_context = data
                 .get_mut("contexts")
                 .and_then(|contexts| contexts.get_mut("trace"));
-            let gen_ai = match trace_context
-                .as_deref_mut()
-                .and_then(serde_json::Value::as_object_mut)
-            {
+            let trace_context = trace_context.ok_or_else(|| {
+                AppError::Validation("transaction trace context is missing".to_string())
+            })?;
+            let gen_ai = match trace_context.as_object_mut() {
                 Some(trace) => {
                     let trace_data = trace.entry("data").or_insert_with(|| serde_json::json!({}));
                     extract_gen_ai_columns(trace_data, op.as_deref())
@@ -189,9 +189,7 @@ impl Processor for TransactionProcessor {
                     duration_ms,
                     id,
                     ctx.project_id,
-                    trace_context
-                        .as_deref()
-                        .expect("trace context exists when root span identifiers exist"),
+                    trace_context,
                     // `extract_str` yields "" for an absent field, but the
                     // spans table's nullable columns mean "not reported" —
                     // and an empty string would surface as a filter option.
