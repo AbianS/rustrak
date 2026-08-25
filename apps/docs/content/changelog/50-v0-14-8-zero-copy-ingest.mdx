@@ -1,0 +1,74 @@
+---
+version: v0.14.8
+title: Zero-Copy Ingest
+description: The envelope body is parsed in place instead of copied per item, digest memory is bounded under bursts, and zstd joins the accepted encodings
+date: 2026-08-25
+tags: [server, ingest, performance]
+---
+
+## The envelope is parsed in place
+
+Ingest copied the request body once per envelope item, then copied it again to
+validate it, then a third time inside the digest. A single 4MB event cost
+several times its own size in transient allocations, and the read path was
+loading the full event payload for list views that never render it
+([@reneleonhardt](https://github.com/reneleonhardt)).
+
+- The parser owns the body and hands out `Bytes` slices of the one allocation.
+  A selected payload is copied only when keeping it would pin an envelope at
+  least 16KB larger and four times its size, so a small item never holds a large
+  buffer alive and a large item is never copied for a small saving
+- Event JSON is validated by walking it with `IgnoredAny` instead of building a
+  `serde_json::Value` that is thrown away. Trailing garbage is still rejected,
+  matching the previous full-parse semantics
+- The digest drops the raw file contents once the tree is parsed and the size
+  check has run, so grouping and the database writes do not carry a second copy
+- The event list selects the columns it renders. `SELECT *` was loading and
+  JSON-parsing the whole `data` blob per row only to drop it, the largest
+  avoidable allocation in the read path
+
+## Bursts no longer spike memory
+
+A burst of events spawned an unbounded number of digest tasks, each holding a
+full payload plus its parsed working set
+([@reneleonhardt](https://github.com/reneleonhardt)).
+
+- Spawned digests pass through a gate of 16. Queued tasks wait holding only
+  their metadata, and the file read, the JSON parse and the grouping working set
+  all sit inside the permit. The gate lives on the app instance, not in a
+  static, so each test server gets its own budget
+- The HTTP request path never waits on it: transactions and spans are still
+  persisted inline regardless of the backlog
+- An envelope is capped at 1024 items, and log and span containers at 1024
+  entries each, bounding metadata amplification from many tiny items
+
+## zstd, and encodings that chain
+
+- `zstd` is accepted as a `Content-Encoding`, with the window log capped at
+  2^27, the smallest power of two that still covers the 100MB payload limit, so
+  a frame header cannot make the decoder reserve an oversized history buffer
+- A list like `gzip, zstd` is decoded in reverse application order. `identity`
+  is a no-op and coding names match case-insensitively
+- The header is rejected when it is not ASCII or carries a blank token inside a
+  list. A `utf-8` token, which some SDKs send, is ignored rather than treated as
+  a coding
+- gzip reads multi-member streams, and `deflate` tries the zlib wrapper first
+  and falls back to raw DEFLATE for older clients
+- Every codec enforces the 100MB decompressed ceiling while decoding instead of
+  after, so a decompression bomb is stopped at the limit rather than allocated
+  in full first
+
+## Improvements
+
+- Pending event records are written as a stream. Base64 is encoded in 48KB
+  chunks straight into a buffered writer, so storing an event no longer builds a
+  whole encoded copy of the payload in memory before writing it
+  ([@reneleonhardt](https://github.com/reneleonhardt))
+- A malformed pending record is preserved by hard link before the replacement is
+  renamed into place, so a crash mid-publish can no longer leave recovery with
+  neither the old record nor the new one. The temporary file is opened with
+  `create_new`, a symlink at the canonical name is never treated as a complete
+  record, and the parent directory is synced after publishing
+  ([@reneleonhardt](https://github.com/reneleonhardt))
+- The ingest directory is created once at startup and the path is shared, rather
+  than being resolved and recreated on the request path
