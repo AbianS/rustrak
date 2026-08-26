@@ -8,10 +8,12 @@ import {
   ExportIcon,
   ExternalLinkIcon,
   MuteIcon,
+  OkIcon,
   ResolveIcon,
   SaveViewIcon,
 } from '../icon/icon-catalog';
-import { Menu } from './menu';
+import { Text } from '../text/text';
+import { Menu, MenuGroup, MenuItem, MenuSeparator } from './menu';
 import type { MenuAction } from './menu-parts';
 
 const meta = {
@@ -157,5 +159,63 @@ export const EscapeReturnsFocus: Story = {
     // Base UI hands focus back once the popup has finished leaving, and it
     // leaves over `duration-fast`. Asserting straight away races the exit.
     await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
+
+/**
+ * A row written as JSX, for the shape `actions` cannot describe: a project with
+ * its slug under it and a tick beside it. The recipe is the same either way, so
+ * a custom row cannot drift from the height or the highlight of the rows above
+ * it.
+ *
+ * This is also the story that catches the trap `MenuGroup` was built to close:
+ * Base UI's group label throws unless it sits inside a group, so the heading is
+ * a prop on the block rather than a component anyone can write on its own.
+ */
+export const CustomRows: Story = {
+  args: { trigger: <Button variant="secondary">Checkout API</Button> },
+  render: (args) => (
+    <Menu {...args} popupClassName="w-64">
+      <MenuGroup label="Switch project">
+        {[
+          { id: 1, name: 'Checkout API', slug: 'checkout-api', current: true },
+          { id: 2, name: 'Web storefront', slug: 'storefront' },
+          { id: 3, name: 'Billing worker', slug: 'billing-worker' },
+        ].map((project) => (
+          <MenuItem key={project.id} className="h-project-card">
+            <span className="flex min-w-0 flex-1 flex-col">
+              <Text truncate variant="control">
+                {project.name}
+              </Text>
+              <Text tone="meta" truncate variant="hint">
+                {project.slug}
+              </Text>
+            </span>
+            {project.current ? (
+              <OkIcon className="shrink-0 text-fg-brand" size="md" />
+            ) : null}
+          </MenuItem>
+        ))}
+      </MenuGroup>
+
+      <MenuSeparator />
+
+      <MenuItem>All projects</MenuItem>
+    </Menu>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'Checkout API' }),
+    );
+
+    // The group is named by its heading, which is the whole reason the label
+    // lives inside it rather than beside it.
+    const group = await canvas.findByRole('group', { name: 'Switch project' });
+    await expect(within(group).getAllByRole('menuitem')).toHaveLength(3);
+    await expect(
+      canvas.getByRole('menuitem', { name: 'All projects' }),
+    ).toBeInTheDocument();
   },
 };

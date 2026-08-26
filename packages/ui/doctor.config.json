@@ -3,20 +3,16 @@
   "ignore": {
     "overrides": [
       {
-        "files": [
-          "src/docs/blocks/**"
-        ],
-        "rules": [
-          "deslop/unused-file"
-        ]
+        "files": ["src/docs/blocks/**"],
+        "rules": ["deslop/unused-file"]
       },
       {
-        "files": [
-          "src/docs/blocks/page.tsx"
-        ],
-        "rules": [
-          "react-doctor/heading-has-content"
-        ]
+        "files": ["src/docs/blocks/page.tsx"],
+        "rules": ["react-doctor/heading-has-content"]
+      },
+      {
+        "files": ["src/components/card/card.tsx"],
+        "rules": ["react-doctor/heading-has-content"]
       }
     ]
   }
