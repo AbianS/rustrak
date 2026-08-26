@@ -2,6 +2,7 @@ import type { Header, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import { useState } from 'react';
 import { focusRingInset } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { chevronFlip, interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import {
@@ -221,7 +222,7 @@ export function DataTableColumnHeader<TData extends RowData>({
                 className="shrink-0 text-fg-ghost"
               />
               <span className="min-w-0 flex-1 truncate text-start">
-                Clear filter
+                {uiLabel('clearFilter')}
               </span>
             </button>
           ) : null}
@@ -233,7 +234,7 @@ export function DataTableColumnHeader<TData extends RowData>({
             >
               <span className="w-3 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-start">
-                Hide column
+                {uiLabel('hideColumn')}
               </span>
             </button>
           ) : null}

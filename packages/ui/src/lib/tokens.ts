@@ -76,6 +76,7 @@ export const colorTokens = [
   'ring',
   'ring-subtle',
   'scrim',
+  'scrim-blurred',
 ] as const;
 
 export const textTokens = [

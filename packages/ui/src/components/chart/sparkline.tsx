@@ -22,6 +22,8 @@ const sparkline = tv({
     tone: {
       neutral: { bar: 'fill-border-control' },
       brand: { bar: 'fill-surface-brand/80' },
+      /* Rising, not yet broken: the shape a project makes on its way to red. */
+      warning: { bar: 'fill-sev-warning/75' },
       danger: { bar: 'fill-sev-error/75' },
     },
   },

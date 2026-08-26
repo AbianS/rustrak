@@ -1,6 +1,7 @@
 import type { Column, RowData } from '@tanstack/react-table';
 import { useEffect, useState } from 'react';
 import { focusRingWithin } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Count } from '../count/count';
@@ -149,8 +150,8 @@ export function OptionsFilterPanel<TData extends RowData>({
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Filter values…"
-            aria-label="Filter values"
+            placeholder={uiLabel('filterValuesPlaceholder')}
+            aria-label={uiLabel('filterValues')}
             className={styles.input()}
           />
         </div>
@@ -189,7 +190,7 @@ export function OptionsFilterPanel<TData extends RowData>({
       ))}
 
       {visible && visible.length === 0 ? (
-        <div className={styles.empty()}>Nothing matches</div>
+        <div className={styles.empty()}>{uiLabel('nothingMatches')}</div>
       ) : null}
     </div>
   );
@@ -280,7 +281,7 @@ export function RangeFilterPanel<TData extends RowData>({
             onChange={(event) => setMin(event.target.value)}
             onBlur={commit}
             onKeyDown={onKeyDown}
-            placeholder="Min"
+            placeholder={uiLabel('rangeMin')}
             aria-label={`Minimum${spec.unit ? ` (${spec.unit})` : ''}`}
             className={styles.input()}
           />
@@ -298,7 +299,7 @@ export function RangeFilterPanel<TData extends RowData>({
             onChange={(event) => setMax(event.target.value)}
             onBlur={commit}
             onKeyDown={onKeyDown}
-            placeholder="Max"
+            placeholder={uiLabel('rangeMax')}
             aria-label={`Maximum${spec.unit ? ` (${spec.unit})` : ''}`}
             className={styles.input()}
           />

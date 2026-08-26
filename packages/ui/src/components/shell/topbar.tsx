@@ -139,7 +139,7 @@ export interface TopbarSearchProps
  * it, which is a far clearer answer than any sink.
  */
 export function TopbarSearch({
-  placeholder = 'Search Rustrak…',
+  placeholder,
   shortcut = '⌘K',
   className,
   ...props

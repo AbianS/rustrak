@@ -3,6 +3,7 @@ import { useRender } from '@base-ui/react/use-render';
 import { Fragment, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 
@@ -71,10 +72,13 @@ export function Breadcrumbs({
   items,
   separator = '/',
   className,
-  label = 'Breadcrumb',
+  label,
 }: BreadcrumbsProps) {
   return (
-    <nav aria-label={label} className={cn(styles.root(), className)}>
+    <nav
+      aria-label={label ?? uiLabel('breadcrumb')}
+      className={cn(styles.root(), className)}
+    >
       {items.map((item, index) => {
         const last = index === items.length - 1;
 

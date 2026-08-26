@@ -89,3 +89,51 @@ export function emptyTranslator(locale: Locale = DEFAULT_LOCALE): Translator {
     has: () => false,
   };
 }
+
+/*
+ * The translator this process is using.
+ *
+ * A module singleton, which is the same shape `@lingui/core` itself ships:
+ * `activate` once at the top, then any module reads it. It exists so a
+ * *library* can translate without being handed anything -- `@rustrak/ui` says
+ * "Next page" on its own behalf, and neither a prop at every call site nor a
+ * React context is an acceptable price for that. A context would also rule the
+ * design system out of server components and of any framework that is not
+ * React, which is the opposite of what this package is for.
+ *
+ * One active locale per process. That is right in a browser and in a CLI; it
+ * is *not* right in a server rendering concurrently for many readers, which is
+ * why `createTranslator` still returns an instance and remains the way an
+ * application reads its own copy. This is only for libraries.
+ */
+let current: Translator | undefined;
+
+export function activate(translator: Translator): void {
+  current = translator;
+}
+
+export function active(): Translator | undefined {
+  return current;
+}
+
+/** For tests, and for a caller that wants the process to forget. */
+export function deactivate(): void {
+  current = undefined;
+}
+
+/**
+ * The active translation for `key`, or `undefined` when nothing is activated
+ * or the catalog has no such message.
+ *
+ * `undefined` rather than the key: a library asking for its own copy has a
+ * sensible English default to fall back to, and showing `ui.nextPage` on a
+ * button would be worse than showing "Next page".
+ */
+export function translate(
+  key: MessageKey,
+  values?: Values,
+): string | undefined {
+  if (!current) return undefined;
+  const text = current.t(key, values);
+  return text === key ? undefined : text;
+}

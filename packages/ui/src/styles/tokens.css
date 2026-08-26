@@ -262,6 +262,9 @@
   --ring-subtle: oklch(0.91 0.18 127 / 0.28);
 
   --scrim: oklch(0 0 0 / 0.66);
+  /* What sits behind a modal where the browser can blur: the blur does most
+     of the separating, so the tint only has to keep contrast up. */
+  --scrim-blurred: oklch(0 0 0 / 0.32);
 
   /* --- Elevation ----------------------------------------------------------
      Long and low, and darker than a light theme would need: on #121212 a
@@ -349,6 +352,7 @@
   --ring-subtle: oklch(0.65 0.18 127 / 0.28);
 
   --scrim: oklch(0.15 0 0 / 0.4);
+  --scrim-blurred: oklch(0.15 0 0 / 0.18);
 
   --elevation-raised: 0 1px 2px oklch(0.15 0 0 / 0.08);
   --elevation-tooltip: 0 8px 24px oklch(0.15 0 0 / 0.14);
@@ -467,6 +471,7 @@
   --color-ring: var(--ring);
   --color-ring-subtle: var(--ring-subtle);
   --color-scrim: var(--scrim);
+  --color-scrim-blurred: var(--scrim-blurred);
 
   /* Elevation · follows the theme */
   --shadow-raised: var(--elevation-raised);

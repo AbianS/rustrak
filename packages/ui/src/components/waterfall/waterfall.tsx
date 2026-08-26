@@ -9,6 +9,7 @@ import {
   useState,
 } from 'react';
 import { focusRingInset } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import {
@@ -533,9 +534,9 @@ export function Waterfall({
         <div className={styles.empty()}>
           <EmptyIcon size="2xl" aria-hidden="true" className="text-fg-ghost" />
           <div className="flex flex-col gap-1">
-            <Text variant="card-title">No spans</Text>
+            <Text variant="card-title">{uiLabel('waterfallEmptyTitle')}</Text>
             <Text variant="meta" tone="subtle">
-              This trace carries no timing to draw.
+              {uiLabel('waterfallEmptyDescription')}
             </Text>
           </div>
         </div>
@@ -636,7 +637,7 @@ export function Waterfall({
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize the name column"
+        aria-label={uiLabel('waterfallResize')}
         aria-valuenow={Math.round(split * 100)}
         aria-valuemin={MIN_SPLIT * 100}
         aria-valuemax={MAX_SPLIT * 100}

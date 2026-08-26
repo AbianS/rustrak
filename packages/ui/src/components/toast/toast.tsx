@@ -1,6 +1,7 @@
 import { Toast as BaseToast } from '@base-ui/react/toast';
 import { type CSSProperties, type ReactNode, useMemo } from 'react';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition, pressScaleSmall } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
@@ -501,7 +502,10 @@ function ToastRoot({ toast: item }: { toast: ToastItem }) {
             ) : null}
           </div>
 
-          <BaseToast.Close className={styles.close()} aria-label="Dismiss">
+          <BaseToast.Close
+            className={styles.close()}
+            aria-label={uiLabel('dismiss')}
+          >
             <CloseIcon size="sm" aria-hidden="true" />
           </BaseToast.Close>
         </div>

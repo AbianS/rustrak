@@ -1,6 +1,7 @@
 import type { ColumnFiltersState } from '@tanstack/react-table';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { focusRingWithin } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { dropIn, interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Count } from '../count/count';
@@ -247,7 +248,7 @@ function SuggestionsPopup({
         <div className={styles.groupLabel()}>{activeField.label}</div>
       ) : null}
       {!activeField && suggestions.some((s) => s.kind === 'field') ? (
-        <div className={styles.groupLabel()}>Filter by</div>
+        <div className={styles.groupLabel()}>{uiLabel('queryBarFilterBy')}</div>
       ) : null}
 
       <div className={styles.list()}>
@@ -262,7 +263,7 @@ function SuggestionsPopup({
         <div
           role="listbox"
           id={listboxId}
-          aria-label="Suggestions"
+          aria-label={uiLabel('queryBarSuggestions')}
           aria-busy={optionsPending || undefined}
         >
           {suggestions.map((suggestion, index) => (
@@ -291,7 +292,9 @@ function SuggestionsPopup({
         ) : null}
         {activeField && activeField.variant === 'text' ? (
           <div className={styles.option()}>
-            <span className={styles.optionLabel()}>Type a value, then</span>
+            <span className={styles.optionLabel()}>
+              {uiLabel('queryBarTypeValue')}
+            </span>
             <Kbd>⏎</Kbd>
           </div>
         ) : null}
@@ -300,15 +303,15 @@ function SuggestionsPopup({
         suggestions.length === 0 &&
         activeField?.variant === 'options' ? (
           <div className="px-2.5 py-3 text-center text-control text-fg-ghost">
-            Nothing matches
+            {uiLabel('nothingMatches')}
           </div>
         ) : null}
       </div>
 
       <span aria-hidden="true" className={styles.hints()}>
-        <span>↑↓ navigate</span>
-        <span>⏎ select</span>
-        <span>esc closes</span>
+        <span>↑↓ {uiLabel('hintNavigate')}</span>
+        <span>⏎ {uiLabel('hintSelect')}</span>
+        <span>esc {uiLabel('hintClose')}</span>
       </span>
     </div>
   );
@@ -332,8 +335,8 @@ export function QueryBar({
   filters,
   search,
   onChange,
-  placeholder = 'Filter by key:value, or search…',
-  label = 'Filter and search',
+  placeholder,
+  label,
   className,
 }: QueryBarProps) {
   const {
@@ -399,14 +402,14 @@ export function QueryBar({
               : undefined
           }
           aria-autocomplete="list"
-          aria-label={label}
+          aria-label={label ?? uiLabel('queryBarLabel')}
           value={draft}
           placeholder={
             pickedField
               ? `${pickedField.label}…`
               : chips.length
                 ? 'Add a filter…'
-                : placeholder
+                : (placeholder ?? uiLabel('queryBarPlaceholder'))
           }
           autoComplete="off"
           spellCheck={false}
@@ -431,7 +434,7 @@ export function QueryBar({
         {showClear ? (
           <button
             type="button"
-            aria-label="Clear filters and search"
+            aria-label={uiLabel('queryBarClear')}
             className={styles.clear()}
             onClick={clearAll}
           >
