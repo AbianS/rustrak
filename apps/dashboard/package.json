@@ -10,6 +10,7 @@
     "dev": "vite dev --port 3000",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "generate-routes": "tsr generate",
     "check-types": "tsc --noEmit",
     "lint": "biome check src",
@@ -22,11 +23,13 @@
     "@rustrak/ui": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-devtools": "0.10.12",
+    "@tanstack/react-form": "1.33.5",
     "@tanstack/react-router": "1.170.32",
     "@tanstack/react-router-devtools": "1.167.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwindcss": "4.3.3"
+    "tailwindcss": "4.3.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@tanstack/devtools-vite": "0.8.5",
@@ -37,6 +40,7 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
     "typescript": "6.0.3",
-    "vite": "8.2.1"
+    "vite": "8.2.1",
+    "vitest": "4.1.11"
   }
 }

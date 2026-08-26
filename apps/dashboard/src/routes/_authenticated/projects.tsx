@@ -1,8 +1,8 @@
 import { Page, PageHeader, Tag, Text } from '@rustrak/ui';
 import { createFileRoute } from '@tanstack/react-router';
-import { rustrak } from '../lib/rustrak';
+import { rustrak } from '../../lib/rustrak';
 
-export const Route = createFileRoute('/projects')({
+export const Route = createFileRoute('/_authenticated/projects')({
   loader: () => rustrak.projects.list({ per_page: 20 }),
   component: Projects,
 });

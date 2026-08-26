@@ -490,6 +490,14 @@
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
+  /* Display · 42 / 600 / -.04em · the brand panel on `/login`. Nothing inside
+     the product uses it: a tool people spend a day in tops out at
+     `page-title`. */
+  --text-display: 2.625rem;
+  --text-display--line-height: 1.08;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.04em;
+
   /* Page title · 20 / 600 / -.02em */
   --text-page-title: 1.25rem;
   --text-page-title--line-height: 1.2;
@@ -696,6 +704,11 @@
   /* They live in the spacing namespace, so they work for h-, w-, size-, p-  */
   /* and gap- alike: h-control-md, w-sidebar, size-icon-lg.                  */
   /* ---------------------------------------------------------------------- */
+  /* The base every numeric utility multiplies. Tailwind's own default, so
+     declaring it changes nothing today, but it makes `p-4` and `w-100` this
+     token times four and a hundred, and moves them from here. */
+  --spacing: 0.25rem;
+
   --spacing-control-xs: 26px; /* pagination, a chevron pair in a header */
   --spacing-control-sm: 30px; /* a control in the 48 px topbar          */
   --spacing-control-md: 32px; /* the default button                     */
@@ -703,6 +716,7 @@
   --spacing-chip: 23px; /* a token inside a filter field          */
   --spacing-topbar: 48px;
   --spacing-wordmark: 15px; /* the mark in the topbar, cap height    */
+  --spacing-wordmark-brand: 22px; /* the mark on a brand panel: /login     */
   --spacing-subheader: 42px; /* breadcrumb strip under the topbar      */
   --spacing-tab: 36px;
   --spacing-sidebar: 216px;
