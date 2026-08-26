@@ -203,7 +203,10 @@ function menuColumn<TData extends RowData>(
     id: 'actions',
     enableSorting: false,
     enableHiding: false,
-    header: () => <span className="sr-only">Actions</span>,
+    // Read out but never drawn: the column is a row of icon buttons and the
+    // heading above them would be noise on screen and nothing at all without
+    // it. `uiLabel`, not a literal, or it says "Actions" to every reader.
+    header: () => <span className="sr-only">{uiLabel('actionsColumn')}</span>,
     cell: ({ row }) => (
       <span className="flex items-center justify-end">
         <Menu

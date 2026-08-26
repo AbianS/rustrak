@@ -578,15 +578,17 @@ export const BarAndHeaderStayInSync: Story = {
     await userEvent.keyboard('{Escape}');
 
     // The panel's tick is the bar's chip.
-    await expect(canvas.getByText('level:')).toBeInTheDocument();
+    // The chip names the field the way the column does, not the way the
+    // wire does: `Level:` and not `level:`.
+    await expect(canvas.getByText('Level:')).toBeInTheDocument();
 
     // And removing the chip clears the column's filter.
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Remove Level filter' }),
+      canvas.getByRole('button', { name: 'Remove the Level filter' }),
     );
     await waitFor(() =>
       expect(
-        canvas.queryByRole('button', { name: 'Remove Level filter' }),
+        canvas.queryByRole('button', { name: 'Remove the Level filter' }),
       ).not.toBeInTheDocument(),
     );
     await expect(canvas.getAllByText(/PaymentDeclined/).length).toBeGreaterThan(

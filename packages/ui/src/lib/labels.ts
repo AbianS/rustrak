@@ -41,6 +41,10 @@ export interface UiLabels {
   queryBarSuggestions: string;
   queryBarFilterBy: string;
   queryBarTypeValue: string;
+  /** The placeholder once at least one chip is in the bar. */
+  queryBarAddFilter: string;
+  /** `{field}` is the filter being taken off. */
+  queryBarRemoveFilter: string;
 
   /* Shell */
   mainNavigation: string;
@@ -108,6 +112,8 @@ export const DEFAULT_UI_LABELS: UiLabels = {
   queryBarSuggestions: 'Suggestions',
   queryBarFilterBy: 'Filter by',
   queryBarTypeValue: 'Type a value, then',
+  queryBarAddFilter: 'Add a filter…',
+  queryBarRemoveFilter: 'Remove the {field} filter',
 
   mainNavigation: 'Main navigation',
   topbarSearch: 'Search Rustrak…',
