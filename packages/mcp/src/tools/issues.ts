@@ -29,11 +29,13 @@ export function registerIssueTools(
       },
     },
     async ({ project_id, page, per_page, filter, q }) => {
+      // The status is a filter in `q` now, like every other one. It stays a
+      // separate tool parameter because an agent picking from four named
+      // states is easier to get right than one composing a query string.
       const result = await client.issues.list(project_id, {
         page,
-        per_page,
-        filter,
-        q,
+        per: per_page,
+        q: [filter ? `is:${filter}` : '', q ?? ''].filter(Boolean).join(' '),
       });
       return mcpJson(result);
     },

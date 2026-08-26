@@ -252,11 +252,10 @@ export async function TopIssuesTile({ projectId }: TileProps) {
   // Labelled rather than left to look like it follows the filter, the same way
   // the latency tile is.
   const response = await listIssues(projectId, {
-    filter: 'open',
+    q: 'is:open',
     page: 1,
-    per_page: 5,
-    sort: 'event_count',
-    order: 'desc',
+    per: 5,
+    sort: '-events',
   });
 
   if (!response.success) {

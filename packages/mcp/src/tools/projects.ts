@@ -23,7 +23,7 @@ export function registerProjectTools(
       },
     },
     async ({ page, per_page }) => {
-      const result = await client.projects.list({ page, per_page });
+      const result = await client.projects.list({ page, per: per_page });
       return mcpJson(result);
     },
   );

@@ -315,7 +315,7 @@ async function CleanupPanel() {
   const t = await getTranslations('settings');
   // Fetch every project in one shot (the API applies no hard page-size cap) so
   // the scope selector never silently drops projects.
-  const result = await getProjects({ per_page: 10000 });
+  const result = await getProjects({ per: 10000 });
 
   if (!result.success) {
     return (

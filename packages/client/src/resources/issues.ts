@@ -28,7 +28,7 @@ import type {
   IssueStats,
   IssueStatsWindow,
   IssueTagValue,
-  ListIssuesOptions,
+  ListOptions,
   OffsetPaginatedResponse,
   UpdateIssueState,
   UserReport,
@@ -40,28 +40,26 @@ import { BaseResource } from './base.js';
  */
 export class IssuesResource extends BaseResource {
   /**
-   * List issues for a project with offset-based pagination
+   * One page of issues.
+   *
+   * The same four parameters every list endpoint takes. The status used to be
+   * its own `filter=`; it travels in `q` now, as `is:open`, `is:resolved`,
+   * `is:muted` or `is:all`, alongside `level:` and any free text.
    */
   async list(
     projectId: number,
-    options?: ListIssuesOptions,
+    options?: ListOptions,
   ): Promise<Result<OffsetPaginatedResponse<Issue>, RustrakError>> {
     const searchParams: Record<string, string> = {};
 
     if (options?.page !== undefined) {
       searchParams.page = options.page.toString();
     }
-    if (options?.per_page !== undefined) {
-      searchParams.per_page = options.per_page.toString();
+    if (options?.per !== undefined) {
+      searchParams.per = options.per.toString();
     }
     if (options?.sort) {
       searchParams.sort = options.sort;
-    }
-    if (options?.order) {
-      searchParams.order = options.order;
-    }
-    if (options?.filter) {
-      searchParams.filter = options.filter;
     }
     if (options?.q) {
       searchParams.q = options.q;

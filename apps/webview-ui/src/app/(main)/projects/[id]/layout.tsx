@@ -21,7 +21,7 @@ export default async function ProjectLayout({
 
   const [project, projectsResponse, cookieStore] = await Promise.all([
     getProject(projectId),
-    getProjects({ per_page: 100 }),
+    getProjects({ per: 100 }),
     cookies(),
   ]);
 

@@ -1,10 +1,5 @@
 import type { z } from 'zod';
-import type {
-  apiErrorSchema,
-  issueFilterSchema,
-  issueSortSchema,
-  sortOrderSchema,
-} from '../schemas/common.js';
+import type { apiErrorSchema, sortOrderSchema } from '../schemas/common.js';
 
 /**
  * Paginated response wrapper for list endpoints (cursor-based)
@@ -32,16 +27,6 @@ export interface OffsetPaginatedResponse<T> {
 export type SortOrder = z.infer<typeof sortOrderSchema>;
 
 /**
- * Sort field for issue queries
- */
-export type IssueSort = z.infer<typeof issueSortSchema>;
-
-/**
- * Filter for issue queries
- */
-export type IssueFilter = z.infer<typeof issueFilterSchema>;
-
-/**
  * The flat `{error, message?}` error body, as it appears **on the wire**.
  *
  * This is not the client's error type and no resource method returns it. A
@@ -56,19 +41,6 @@ export type IssueFilter = z.infer<typeof issueFilterSchema>;
  * which this type does not describe.
  */
 export type ApiError = z.infer<typeof apiErrorSchema>;
-
-/**
- * List options for issues endpoint (offset-based pagination)
- */
-export interface ListIssuesOptions {
-  page?: number;
-  per_page?: number;
-  sort?: IssueSort;
-  order?: SortOrder;
-  filter?: IssueFilter;
-  /** Free-text search across type, value, transaction, and culprit. */
-  q?: string;
-}
 
 /**
  * List options for events endpoint
@@ -100,10 +72,6 @@ export interface ListOptions {
  * List options for projects endpoint (offset-based pagination)
  */
 export interface ListProjectsOptions extends ListOptions {
-  /** @deprecated Use `per`. Kept while `webview-ui` and the MCP still send it. */
-  per_page?: number;
-  /** @deprecated Use `sort`. Sets the direction of the default sort only. */
-  order?: SortOrder;
   /**
    * Attach per-project stats to each row, over this window (e.g. '24h', '7d').
    *
