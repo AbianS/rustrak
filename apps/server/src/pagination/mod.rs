@@ -1,6 +1,8 @@
 pub mod cursor;
+pub mod list;
 
 pub use cursor::{EventCursor, IssueCursor, TransactionCursor};
+pub use list::{FilterTerm, ListParams, ListQuery, SortTerm, SortableField};
 
 use serde::{Deserialize, Serialize};
 
@@ -366,24 +368,15 @@ pub struct ListEventsQuery {
     pub cursor: Option<String>,
 }
 
-/// Query parameters for listing projects (offset-based)
+/// The extra parameter the projects list takes on top of [`ListQuery`].
+///
+/// Two structs rather than one with `#[serde(flatten)]`: `web::Query` runs on
+/// `serde_urlencoded`, which cannot flatten. The handler extracts the query
+/// string twice, which costs nothing and keeps `ListQuery` identical across
+/// every endpoint instead of copied into each one.
 #[derive(Debug, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
-pub struct ListProjectsQuery {
-    /// Page number (1-indexed, default: 1)
-    #[serde(default = "default_page")]
-    #[cfg_attr(feature = "openapi", param(minimum = 1))]
-    pub page: i64,
-
-    /// Items per page (default: 20, max: 100)
-    #[serde(default = "default_per_page")]
-    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
-    pub per_page: i64,
-
-    /// Sort order direction (default: desc = newest first)
-    #[serde(default)]
-    pub order: SortOrder,
-
+pub struct ProjectStatsQuery {
     /// Window for the per-project stats on each row (e.g. `24h`, `7d`).
     ///
     /// Omitted means the caller does not want stats at all, and the extra

@@ -147,6 +147,7 @@ proptest = "1.11.0"
 
 # Better assertion diffs
 pretty_assertions = "1.4.1"
+serde_urlencoded = "0.7.1"
 
 # tempfile moved to [dependencies] (needed at runtime for assembly)
 
