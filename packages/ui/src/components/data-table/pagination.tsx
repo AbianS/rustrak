@@ -1,4 +1,5 @@
 import type { RowData } from '@tanstack/react-table';
+import { useMemo } from 'react';
 import { uiLabel, uiLocale } from '../../lib/labels';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
@@ -40,7 +41,11 @@ export interface DataTablePaginationProps<TData extends RowData> {
 export function DataTablePagination<TData extends RowData>({
   table,
 }: DataTablePaginationProps<TData>) {
-  const number = new Intl.NumberFormat(uiLocale());
+  // Rebuilt only when the language changes: constructing an `Intl` formatter
+  // is the expensive half, and this footer redraws on every keystroke that
+  // filters the table.
+  const locale = uiLocale();
+  const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { pageIndex, pageSize } = table.state.pagination;
   const rowCount = table.options.rowCount ?? table.getRowCount();
   const pageCount = table.getPageCount();
