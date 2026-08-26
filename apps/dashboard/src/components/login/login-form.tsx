@@ -1,4 +1,5 @@
 import type { RustrakError } from '@rustrak/client';
+import type { Translator } from '@rustrak/i18n';
 import {
   ArrowRightIcon,
   Button,
@@ -15,35 +16,40 @@ import { useState } from 'react';
 import { z } from 'zod';
 
 // Shape only. Whether the pair opens an account is the server's answer.
-const credentials = z.object({
-  email: z.email('Enter a valid email address'),
-  password: z.string().min(1, 'Enter your password'),
-});
+const schemaFor = (t: Translator) =>
+  z.object({
+    email: z.email(t.t('auth.form.emailInvalid')),
+    password: z.string().min(1, t.t('auth.form.passwordRequired')),
+  });
 
 // `rate_limited` is called out because the generic copy ends "try again",
 // and retrying is what extends the block.
-function failureMessage(error: RustrakError): string {
+function failureMessage(error: RustrakError, t: Translator): string {
   switch (error.kind) {
     case 'network':
-      return 'Could not reach the server. Check that it is running and try again.';
+      return t.t('auth.form.failureNetwork');
     case 'rate_limited':
       return error.retryAfter && error.retryAfter > 0
-        ? `Too many attempts. Wait ${formatWait(error.retryAfter)} before trying again.`
-        : 'Too many attempts. Wait a little before trying again.';
+        ? t.t('auth.form.failureRateLimited', {
+            duration: formatWait(error.retryAfter, t),
+          })
+        : t.t('auth.form.failureRateLimitedGeneric');
     default:
-      return 'Something went wrong signing you in. Your credentials were not the problem.';
+      return t.t('auth.form.failureUnexpected');
   }
 }
 
-function formatWait(seconds: number): string {
-  if (seconds < 60) return `${seconds} seconds`;
+// The catalogs carry the plural rules for these, so a language with a `few`
+// category gets one.
+function formatWait(seconds: number, t: Translator): string {
+  if (seconds < 60) return t.t('auth.form.waitSeconds', { count: seconds });
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  const hours = Math.round(seconds / 3600);
-  return `${hours} hour${hours === 1 ? '' : 's'}`;
+  if (minutes < 60) return t.t('auth.form.waitMinutes', { count: minutes });
+  return t.t('auth.form.waitHours', { count: Math.round(seconds / 3600) });
 }
 
 export interface LoginFormProps {
+  t: Translator;
   /**
    * Runs the credentials. `rejected` is the server refusing the pair; `error`
    * is everything that is not a verdict on them.
@@ -54,7 +60,7 @@ export interface LoginFormProps {
   }) => Promise<{ rejected: boolean; error?: RustrakError }>;
 }
 
-export function LoginForm({ onSubmit }: LoginFormProps) {
+export function LoginForm({ onSubmit, t }: LoginFormProps) {
   const [revealed, setRevealed] = useState(false);
   // Held outside the form: neither is a schema error, so neither belongs in
   // the field error map.
@@ -65,7 +71,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
     defaultValues: { email: '', password: '' },
     // Not `onChange`: flagging an address while the `@` is still being typed
     // is what makes a form feel hostile.
-    validators: { onSubmit: credentials },
+    validators: { onSubmit: schemaFor(t) },
     onSubmit: async ({ value }) => {
       setRejected(false);
       setFailure(null);
@@ -77,7 +83,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
         return;
       }
       if (result.error) {
-        setFailure(failureMessage(result.error));
+        setFailure(failureMessage(result.error, t));
       }
     },
   });
@@ -93,9 +99,9 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
       }}
     >
       <div className="flex flex-col gap-2">
-        <h1 className="text-page-title text-fg">Sign in</h1>
+        <h1 className="text-page-title text-fg">{t.t('auth.form.title')}</h1>
         <Text tone="secondary" variant="body">
-          Access your organisation's projects.
+          {t.t('auth.form.subtitle')}
         </Text>
       </div>
 
@@ -111,7 +117,9 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
                * selector matches.
                */
               <Field invalid={invalid}>
-                <FieldLabel htmlFor={field.name}>Work email</FieldLabel>
+                <FieldLabel htmlFor={field.name}>
+                  {t.t('auth.form.emailLabel')}
+                </FieldLabel>
                 <Input
                   autoComplete="email"
                   autoFocus
@@ -120,7 +128,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
                   name={field.name}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder="you@company.com"
+                  placeholder={t.t('auth.form.emailPlaceholder')}
                   type="email"
                   value={field.state.value}
                 />
@@ -139,11 +147,17 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
             return (
               // A rejection is about the pair; see the note in the route.
               <Field invalid={invalid}>
-                <FieldLabel htmlFor={field.name}>Password</FieldLabel>
+                <FieldLabel htmlFor={field.name}>
+                  {t.t('auth.form.passwordLabel')}
+                </FieldLabel>
                 <Input
                   action={
                     <InputAction
-                      aria-label={revealed ? 'Hide password' : 'Show password'}
+                      aria-label={t.t(
+                        revealed
+                          ? 'auth.form.hidePassword'
+                          : 'auth.form.showPassword',
+                      )}
                       aria-pressed={revealed}
                       icon={WatchIcon}
                       onClick={() => setRevealed((shown) => !shown)}
@@ -162,7 +176,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
                 />
                 <FieldError match={invalid}>
                   {field.state.meta.errors[0]?.message ??
-                    'That email and password do not match an account.'}
+                    t.t('auth.form.invalidCredentials')}
                 </FieldError>
               </Field>
             );
@@ -193,7 +207,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
               type="submit"
               variant="primary"
             >
-              Sign in
+              {t.t('auth.form.login')}
             </Button>
           )}
         </form.Subscribe>
@@ -201,8 +215,7 @@ export function LoginForm({ onSubmit }: LoginFormProps) {
 
       <div className="border-t border-border-divider pt-5">
         <Text tone="muted" variant="hint">
-          No account? Rustrak is invitation only. Ask an administrator to create
-          yours from Settings, Members.
+          {t.t('auth.form.noAccount')}
         </Text>
       </div>
     </form>

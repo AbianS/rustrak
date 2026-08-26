@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@rustrak/client": "workspace:*",
+    "@rustrak/i18n": "workspace:*",
     "@rustrak/ui": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-devtools": "0.10.12",
