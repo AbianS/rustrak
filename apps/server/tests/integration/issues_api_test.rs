@@ -283,9 +283,9 @@ async fn test_list_issues_include_resolved() {
     .await;
 
     // `include_resolved=true` is the old boolean param; the current API uses
-    // `filter=all` (an `IssueFilter` enum: open/resolved/muted/all).
+    // `is:all` -- the status filter travels in `q` like every other one.
     let req = test::TestRequest::get()
-        .uri(&format!("/api/projects/{}/issues?filter=all", project.id))
+        .uri(&format!("/api/projects/{}/issues?q=is%3Aall", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
 
@@ -320,7 +320,7 @@ async fn test_list_issues_sort_by_last_seen() {
 
     let req = test::TestRequest::get()
         .uri(&format!(
-            "/api/projects/{}/issues?sort=last_seen&order=desc",
+            "/api/projects/{}/issues?sort=-last_seen",
             project.id
         ))
         .insert_header(("Authorization", format!("Bearer {}", token)))
@@ -367,10 +367,7 @@ async fn test_list_issues_sort_by_event_count() {
     .await;
 
     let req = test::TestRequest::get()
-        .uri(&format!(
-            "/api/projects/{}/issues?sort=event_count&order=desc",
-            project.id
-        ))
+        .uri(&format!("/api/projects/{}/issues?sort=-events", project.id))
         .insert_header(("Authorization", format!("Bearer {}", token)))
         .to_request();
 
@@ -1071,10 +1068,10 @@ async fn test_list_issues_invalid_page_param() {
 }
 
 #[actix_web::test]
-async fn test_list_issues_page_zero_rejected_not_negative_offset() {
-    // page=0 used to silently produce a negative SQL OFFSET instead of an
-    // error (SQLite tolerated it and returned zero rows; Postgres would
-    // likely 500). Must be a clean 400 now.
+async fn test_list_issues_page_zero_is_the_first_page() {
+    // `page=0` once produced a negative SQL OFFSET, which SQLite tolerated and
+    // Postgres would have 500'd on. The list contract clamps it to the first
+    // page: a stale link should show the list, not an error nobody can act on.
     let db = TestDb::new().await;
     let token = create_test_token(&db.pool).await;
     let project = create_test_project(&db.pool, "Page Zero Project").await;
@@ -1095,7 +1092,10 @@ async fn test_list_issues_page_zero_rejected_not_negative_offset() {
         .to_request();
 
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 400);
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    assert_eq!(body["page"], 1);
 }
 
 // =============================================================================
@@ -1312,4 +1312,256 @@ async fn test_get_issue_tag_values_returns_bare_list_not_wrapped() {
         body
     );
     assert_eq!(body.as_array().unwrap().len(), 0);
+}
+
+/// `level:` narrows to the severities named, and it takes several: an operator
+/// triaging a fire wants `error,fatal` and nothing else in the way.
+#[actix_web::test]
+async fn test_list_issues_filters_by_level() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Level Filter Project").await;
+    let config = create_test_config();
+
+    for (kind, level) in [
+        ("TypeError", "error"),
+        ("PanicUnwrap", "fatal"),
+        ("DeprecationWarning", "warning"),
+    ] {
+        let issue = create_test_issue(&db.pool, project.id, kind, kind).await;
+        sqlx::query("UPDATE issues SET level = $1 WHERE id = $2")
+            .bind(level)
+            .bind(issue.id)
+            .execute(&db.pool)
+            .await
+            .expect("failed to set the issue level");
+    }
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/issues?q=level%3Aerror%2Cfatal",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let titles: Vec<&str> = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|issue| issue["title"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(titles.len(), 2, "only the two severities named: {titles:?}");
+    assert!(titles.iter().any(|title| title.contains("TypeError")));
+    assert!(titles.iter().any(|title| title.contains("PanicUnwrap")));
+}
+
+/// `is:` takes several statuses at once, which is what a "resolved or muted"
+/// tab asks for. A value the resource does not know is not a narrowing to
+/// nothing: an empty list is a bad answer to a typo.
+#[actix_web::test]
+async fn test_list_issues_status_filter_takes_several_and_survives_a_typo() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Status Filter Project").await;
+    let config = create_test_config();
+
+    create_test_issue(&db.pool, project.id, "TypeError", "Still open").await;
+    let resolved = create_test_issue(&db.pool, project.id, "ValueError", "Done").await;
+    let muted = create_test_issue(&db.pool, project.id, "KeyError", "Quiet").await;
+
+    for (issue, status) in [(resolved.id, "resolved"), (muted.id, "ignored")] {
+        sqlx::query("UPDATE issues SET status = $1 WHERE id = $2")
+            .bind(status)
+            .bind(issue)
+            .execute(&db.pool)
+            .await
+            .expect("failed to set the issue status");
+    }
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    for (q, expected, why) in [
+        ("is%3Aresolved%2Cmuted", 2, "both statuses named"),
+        (
+            "is%3Anonsense",
+            1,
+            "a status nobody recognises falls back to open, not to nothing",
+        ),
+    ] {
+        let req = test::TestRequest::get()
+            .uri(&format!("/api/projects/{}/issues?q={}", project.id, q))
+            .insert_header(("Authorization", format!("Bearer {}", token)))
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(body["items"].as_array().unwrap().len(), expected, "{why}");
+    }
+}
+
+/// `events:` is a range with either end open, the same `a..b` the projects
+/// list already takes. It is the one column on this table whose figure is
+/// stored rather than computed per page, so it is the one that can be filtered.
+#[actix_web::test]
+async fn test_list_issues_filters_by_event_count_range() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Event Range Project").await;
+    let config = create_test_config();
+
+    for (kind, count) in [("Quiet", 3), ("Busy", 400), ("Loud", 9000)] {
+        let issue = create_test_issue(&db.pool, project.id, kind, kind).await;
+        sqlx::query("UPDATE issues SET digested_event_count = $1 WHERE id = $2")
+            .bind(count as i64)
+            .bind(issue.id)
+            .execute(&db.pool)
+            .await
+            .expect("failed to set the event count");
+    }
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    for (q, expected, why) in [
+        ("events%3A100..", 2, "at least a hundred"),
+        ("events%3A..500", 2, "at most five hundred"),
+        ("events%3A100..500", 1, "both ends"),
+    ] {
+        let req = test::TestRequest::get()
+            .uri(&format!("/api/projects/{}/issues?q={}", project.id, q))
+            .insert_header(("Authorization", format!("Bearer {}", token)))
+            .to_request();
+
+        let resp = test::call_service(&app, req).await;
+        assert!(resp.status().is_success());
+
+        let body: Value = test::read_body_json(resp).await;
+        assert_eq!(body["items"].as_array().unwrap().len(), expected, "{why}");
+    }
+}
+
+/// `seen:` is a window in days, the number the table's date filter serialises.
+/// The cutoff is computed here rather than in SQL, so the statement is the same
+/// one on SQLite and on PostgreSQL.
+#[actix_web::test]
+async fn test_list_issues_filters_by_last_seen_window() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Seen Window Project").await;
+    let config = create_test_config();
+
+    let recent = create_test_issue(&db.pool, project.id, "Recent", "Recent").await;
+    let stale = create_test_issue(&db.pool, project.id, "Stale", "Stale").await;
+
+    sqlx::query("UPDATE issues SET last_seen = $1 WHERE id = $2")
+        .bind(chrono::Utc::now() - chrono::Duration::days(30))
+        .bind(stale.id)
+        .execute(&db.pool)
+        .await
+        .expect("failed to backdate the stale issue");
+    assert_eq!(recent.project_id, project.id);
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!("/api/projects/{}/issues?q=seen%3A7", project.id))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "only what was seen in the last seven days");
+    assert!(items[0]["title"].as_str().unwrap().contains("Recent"));
+}
+
+/// Free text and a range in the same `q`.
+///
+/// They are built into the statement in one order and bound in another, so
+/// this is the combination that catches a placeholder pointing at the wrong
+/// value. On its own each filter looks fine.
+#[actix_web::test]
+async fn test_list_issues_combines_free_text_with_a_range() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Combined Filter Project").await;
+    let config = create_test_config();
+
+    for (kind, count) in [
+        ("TimeoutQuiet", 3),
+        ("TimeoutLoud", 900),
+        ("OtherLoud", 900),
+    ] {
+        let issue = create_test_issue(&db.pool, project.id, kind, kind).await;
+        sqlx::query("UPDATE issues SET digested_event_count = $1 WHERE id = $2")
+            .bind(count as i64)
+            .bind(issue.id)
+            .execute(&db.pool)
+            .await
+            .expect("failed to set the event count");
+    }
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/issues?q=timeout%20events%3A100..",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "loud, and named timeout");
+    assert!(items[0]["title"].as_str().unwrap().contains("TimeoutLoud"));
 }

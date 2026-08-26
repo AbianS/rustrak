@@ -1,7 +1,5 @@
 use serde::Deserialize;
 
-use super::SortOrder;
-
 /// Default page size when the caller does not ask for one.
 const DEFAULT_PER: i64 = 20;
 /// Ceiling on a page, so one request cannot ask for the whole table.
@@ -45,18 +43,6 @@ pub struct ListQuery {
     #[serde(default = "default_per")]
     #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
     pub per: i64,
-
-    /// What `per` was called before this contract existed.
-    ///
-    /// `webview-ui` and `@rustrak/mcp` still send it. Remove both fields'
-    /// compatibility when they do not.
-    #[serde(default)]
-    pub per_page: Option<i64>,
-
-    /// A bare direction for the default sort, from the same era as `per_page`.
-    /// Ignored when `sort` names anything.
-    #[serde(default)]
-    pub order: Option<SortOrder>,
 }
 
 fn default_page() -> i64 {
@@ -86,23 +72,15 @@ pub struct ListParams {
     pub search: String,
     pub filters: Vec<FilterTerm>,
     pub sort: Vec<SortTerm>,
-    fallback_order: Option<SortOrder>,
 }
 
 impl ListParams {
     pub fn from_query(query: ListQuery) -> Self {
         let page = query.page.max(1);
-        // An explicit `per` wins; `per_page` only speaks when `per` was left
-        // at its default.
-        let requested = if query.per == DEFAULT_PER {
-            query.per_page.unwrap_or(query.per)
-        } else {
-            query.per
-        };
-        let per = if requested < 1 {
+        let per = if query.per < 1 {
             DEFAULT_PER
         } else {
-            requested.min(MAX_PER)
+            query.per.min(MAX_PER)
         };
 
         let (filters, search) = parse_q(query.q.as_deref().unwrap_or_default());
@@ -114,7 +92,6 @@ impl ListParams {
             search,
             filters,
             sort: parse_sort(query.sort.as_deref().unwrap_or_default()),
-            fallback_order: query.order,
         }
     }
 
@@ -137,14 +114,11 @@ impl ListParams {
             })
             .collect();
 
-        if !clauses.is_empty() {
-            return clauses.join(", ");
+        if clauses.is_empty() {
+            return fallback.to_string();
         }
 
-        match self.fallback_order {
-            Some(SortOrder::Asc) => flip_to_asc(fallback),
-            _ => fallback.to_string(),
-        }
+        clauses.join(", ")
     }
 
     /// A `min..max` filter, with either end open. `None` when the filter was
@@ -278,17 +252,4 @@ fn parse_q(raw: &str) -> (Vec<FilterTerm>, String) {
     }
 
     (filters, words.join(" "))
-}
-
-/// Turns a default `ORDER BY` into its ascending form for a caller that sent
-/// the old bare `order=asc`.
-fn flip_to_asc(fallback: &str) -> String {
-    fallback
-        .split(", ")
-        .map(|clause| match clause.strip_suffix(" DESC") {
-            Some(column) => format!("{} ASC", column),
-            None => clause.to_string(),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }
