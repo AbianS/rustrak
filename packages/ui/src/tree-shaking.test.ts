@@ -81,7 +81,16 @@ function lucideIcons(code: string): string[] {
   );
 }
 
-describe('what one import costs', () => {
+/**
+ * Every test here runs at least one real Vite build, and the last one runs two.
+ * Vitest's 5 s default is a budget for a unit test, not for a bundler: on a
+ * cold CI runner a single build already takes ~3 s and the pair went over.
+ *
+ * This number is a hang guard, not a performance budget -- a build that got
+ * genuinely slow should be caught by looking at the run, not by a test that
+ * flakes near the line.
+ */
+describe('what one import costs', { timeout: 60_000 }, () => {
   it('does not ship the chart library to a page with no charts', async () => {
     const code = await bundle(importing('Button'));
 

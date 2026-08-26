@@ -8,9 +8,9 @@ It compiles to static files and **the Rust server hands them out**. There is no
 Node process in production, no second container, and no separate origin.
 
 ```bash
-pnpm dev     -w @rustrak/dashboard   # Vite on :3000, proxying to the server
-pnpm build   -w @rustrak/dashboard   # -> dist/
-pnpm check-types -w @rustrak/dashboard
+pnpm dev --filter=@rustrak/dashboard         # Vite on :3000, proxying to the server
+pnpm build --filter=@rustrak/dashboard       # -> dist/
+pnpm check-types --filter=@rustrak/dashboard
 ```
 
 ## The one idea: the browser only ever talks to its own origin
