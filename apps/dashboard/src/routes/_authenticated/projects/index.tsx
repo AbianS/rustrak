@@ -1,9 +1,5 @@
 import type { Project } from '@rustrak/client';
-import {
-  createTranslator,
-  type MessageKey,
-  type Translator,
-} from '@rustrak/i18n';
+import { createTranslator, type Translator } from '@rustrak/i18n';
 import {
   Button,
   confirm,
@@ -31,6 +27,13 @@ import {
 import { useMemo } from 'react';
 import { projectColumns } from '../../../components/projects/columns';
 import { localeFor } from '../../../lib/locale';
+import {
+  DEFAULT_PERIOD,
+  PERIOD_LABELS,
+  PERIODS,
+  type Period,
+  validPeriod,
+} from '../../../lib/period';
 import { rustrak } from '../../../lib/rustrak';
 import {
   fromTableQuery,
@@ -40,32 +43,6 @@ import {
 } from '../../../lib/table-search';
 
 const PAGE_SIZE = 20;
-
-/**
- * The windows the activity column can be read over.
- *
- * The server takes anything from an hour to ninety days and buckets the trend
- * across whatever it is given, so these are a choice of framing rather than a
- * limit. `24h` is the default because a list is usually opened to answer
- * "what is on fire now".
- */
-export const PERIODS = ['24h', '7d', '30d', '90d'] as const;
-export type Period = (typeof PERIODS)[number];
-
-const PERIOD_LABELS: Record<Period, MessageKey> = {
-  '24h': 'projectList.p24h',
-  '7d': 'projectList.p7d',
-  '30d': 'projectList.p30d',
-  '90d': 'projectList.p90d',
-};
-
-const DEFAULT_PERIOD: Period = '24h';
-
-/** `undefined` for the default, so it stays out of the address bar. */
-function validPeriod(value: unknown): Period | undefined {
-  if (value === DEFAULT_PERIOD) return undefined;
-  return PERIODS.includes(value as Period) ? (value as Period) : undefined;
-}
 
 interface ProjectsSearch extends TableSearch {
   period?: Period;
@@ -85,7 +62,7 @@ export const Route = createFileRoute('/_authenticated/projects/')({
     const [t, page] = await Promise.all([
       createTranslator({
         locale: localeFor(context.session),
-        namespaces: ['projectList'],
+        namespaces: ['projectList', 'periods'],
       }),
       rustrak.projects.list({
         q: deps.q,
