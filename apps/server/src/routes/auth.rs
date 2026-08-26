@@ -199,20 +199,17 @@ pub async fn login(
     session: Session,
     req: web::Json<LoginRequest>,
 ) -> AppResult<impl Responder> {
-    // Get user by email
-    let user = UsersService::get_by_email(pool.get_ref(), &req.email)
-        .await?
-        .ok_or_else(|| AppError::Unauthorized("Invalid credentials".to_string()))?;
+    // The lookup does not get to answer on its own: `authenticate` verifies a
+    // decoy hash when there is no account, so an unknown address cannot be
+    // told from a wrong password by timing the response.
+    let user = UsersService::get_by_email(pool.get_ref(), &req.email).await?;
 
-    // Check if user is active
-    if !user.is_active {
-        return Err(AppError::Unauthorized("Account is disabled".to_string()));
-    }
-
-    // Verify password
-    if !user.verify_password(&req.password)? {
+    if !auth::authenticate(user.as_ref(), &req.password)? {
         return Err(AppError::Unauthorized("Invalid credentials".to_string()));
     }
+
+    let user =
+        user.ok_or_else(|| AppError::Internal("authenticate accepted a missing user".to_string()))?;
 
     // Update last login
     UsersService::update_last_login(pool.get_ref(), user.id).await?;
