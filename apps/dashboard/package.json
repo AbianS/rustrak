@@ -27,6 +27,7 @@
     "@tanstack/react-form": "1.33.5",
     "@tanstack/react-router": "1.170.32",
     "@tanstack/react-router-devtools": "1.167.1",
+    "platformicons": "9.6.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwindcss": "4.3.3",

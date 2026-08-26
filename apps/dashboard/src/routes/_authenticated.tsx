@@ -1,15 +1,10 @@
+import { activate, createTranslator } from '@rustrak/i18n';
 import {
   AppShell,
   Button,
-  EnvironmentIcon,
-  OverviewIcon,
-  Sidebar,
-  SidebarCollapseButton,
-  SidebarItem,
   Text,
   Topbar,
   TopbarBrand,
-  TopbarMenuButton,
   TopbarUser,
 } from '@rustrak/ui';
 import {
@@ -18,11 +13,15 @@ import {
   Outlet,
   redirect,
   useRouter,
-  useRouterState,
 } from '@tanstack/react-router';
+import { localeFor } from '../lib/locale';
 
-// Pathless: files under `routes/_authenticated/` are guarded without any
-// route having to opt in.
+// Pathless: files under `routes/_authenticated/` are guarded without any route
+// having to opt in.
+//
+// No sidebar. These are the screens that are not scoped to one project, so
+// there is nothing to navigate within; the rail belongs to a project layout,
+// under `/projects/$id`.
 export const Route = createFileRoute('/_authenticated')({
   /**
    * Only `anonymous` redirects. `unreachable` means the server did not answer,
@@ -37,15 +36,26 @@ export const Route = createFileRoute('/_authenticated')({
 
     return { session };
   },
+  // The design system's own copy, loaded once for everything under here.
+  /*
+   * The design system's own copy. `activate` puts the translator where
+   * `@rustrak/ui` reads it from -- a module singleton, not a provider -- so
+   * nothing has to be wrapped and the components stay usable outside React.
+   */
+  loader: async ({ context }) => {
+    activate(
+      await createTranslator({
+        locale: localeFor(context.session),
+        namespaces: ['ui'],
+      }),
+    );
+  },
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
   const { auth, session } = Route.useRouteContext();
   const router = useRouter();
-  const pathname = useRouterState({
-    select: (state) => state.location.pathname,
-  });
 
   // Clear before navigating: `/login`'s guard would otherwise still see the
   // old session and send them straight back.
@@ -76,24 +86,7 @@ function AuthenticatedLayout() {
             ) : null
           }
           brand={<TopbarBrand render={<Link to="/" />} />}
-          menu={<TopbarMenuButton />}
         />
-      }
-      sidebar={
-        <Sidebar footer={<SidebarCollapseButton />}>
-          <SidebarItem
-            icon={OverviewIcon}
-            label="Overview"
-            active={pathname === '/'}
-            render={<Link to="/" />}
-          />
-          <SidebarItem
-            icon={EnvironmentIcon}
-            label="Projects"
-            active={pathname.startsWith('/projects')}
-            render={<Link to="/projects" />}
-          />
-        </Sidebar>
       }
     >
       {session.state === 'unreachable' ? (
