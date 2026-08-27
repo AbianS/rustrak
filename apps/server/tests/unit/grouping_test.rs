@@ -315,9 +315,44 @@ fn test_empty_fingerprint_array() {
     });
 
     let key = calculate_grouping_key(&event);
-    // Empty fingerprint = falls back to default
-    // Actually empty array is still truthy, so key will be empty
-    assert_eq!(key, "");
+    // Empty fingerprint = falls back to default. sentry-ruby always sends
+    // `"fingerprint": []` and Sentry treats it as "no custom fingerprint"
+    // (sentry/grouping/api.py: `event.data.get("fingerprint") or ["{{ default }}"]`).
+    assert_eq!(key, "Error: test ⋄ /api");
+}
+
+#[test]
+fn test_empty_fingerprint_does_not_collapse_distinct_errors() {
+    // Issue #290: two different exceptions with `fingerprint: []` must not
+    // land in the same issue.
+    let event1 = json!({
+        "exception": { "values": [{ "type": "BoundaryTooLongError", "value": "a" }] },
+        "transaction": "/upload",
+        "fingerprint": []
+    });
+    let event2 = json!({
+        "exception": { "values": [{ "type": "EmptyContentError", "value": "b" }] },
+        "transaction": "/upload",
+        "fingerprint": []
+    });
+
+    assert_ne!(
+        calculate_grouping_key(&event1),
+        calculate_grouping_key(&event2)
+    );
+}
+
+#[test]
+fn test_fingerprint_of_only_dropped_elements_falls_back_to_default() {
+    // Relay turns `[null]` into an empty fingerprint, which serializes as
+    // absent; Sentry then uses default grouping.
+    let event = json!({
+        "exception": { "values": [{ "type": "Error", "value": "test" }] },
+        "transaction": "/api",
+        "fingerprint": [null, [1, 2], {"k": "v"}]
+    });
+
+    assert_eq!(calculate_grouping_key(&event), "Error: test ⋄ /api");
 }
 
 // =============================================================================
