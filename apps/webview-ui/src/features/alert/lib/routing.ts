@@ -73,8 +73,23 @@ const stringFields = (
 const isBlank = (value: string | undefined): boolean =>
   value == null || value.trim() === '';
 
-const isHttpUrl = (url: string): boolean =>
-  url.startsWith('http://') || url.startsWith('https://');
+/**
+ * A URL a dispatcher could actually POST to.
+ *
+ * Parsed rather than prefix-matched: `https://` on its own, and anything with
+ * a space in the authority, start with the right characters and are still not
+ * addresses. A prefix test passes them through to the save, and the failure
+ * surfaces later as a delivery that never arrives.
+ */
+const isHttpUrl = (url: string): boolean => {
+  let protocol: string;
+  try {
+    protocol = new URL(url).protocol;
+  } catch {
+    return false;
+  }
+  return protocol === 'http:' || protocol === 'https:';
+};
 
 const storedUrl = (integration: AlertIntegration): string | undefined =>
   (integration.credentials as Record<string, unknown>).url as

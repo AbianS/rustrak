@@ -188,6 +188,24 @@ describe('validateRoutingForIntegration', () => {
     ).toBe('routing.invalidOverrideUrl');
   });
 
+  /**
+   * A prefix test passed these: they start with the right characters and are
+   * still not addresses, so the save succeeded and the failure only surfaced
+   * later as a notification that never arrived.
+   */
+  it.each(['https://', 'http://', 'https:// invalid', 'https://?'])(
+    'rejects the malformed override URL %j',
+    (url) => {
+      expect(
+        validateRoutingForIntegration(
+          integration('webhook', { url: 'https://a.test' }),
+          { url },
+          t,
+        ),
+      ).toBe('routing.invalidOverrideUrl');
+    },
+  );
+
   it('accepts an http override URL', () => {
     expect(
       validateRoutingForIntegration(

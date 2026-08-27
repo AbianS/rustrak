@@ -302,10 +302,15 @@ function SpanWaterfallRow({
   const select = () => onSelect(isSelected ? null : (span.span_id ?? null));
 
   const selectKey = (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      select();
-    }
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    // A key pressed inside the row's own collapse button belongs to that
+    // button. It stops click propagation but not keydown, and this handler
+    // calls `preventDefault`, which is what dispatches a native button's
+    // click: without this guard, Enter on the chevron selected the row and
+    // never expanded it.
+    if (e.target !== e.currentTarget) return;
+    e.preventDefault();
+    select();
   };
 
   return (

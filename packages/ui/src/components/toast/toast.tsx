@@ -423,7 +423,14 @@ function ToastProgress({
   value: number;
   styles: ToastStyles;
 }) {
-  const rounded = Math.round(value);
+  // Normalized once, then used for all three. The bar was already clamped
+  // while `aria-valuenow` and the caption were not, so a caller reporting 150
+  // drew a full bar and announced "150 %" against a declared maximum of 100.
+  // A non-finite value reads as no progress rather than as `NaN %`.
+  const clamped = Number.isFinite(value)
+    ? Math.min(Math.max(value, 0), 100)
+    : 0;
+  const rounded = Math.round(clamped);
 
   return (
     <div
@@ -437,7 +444,7 @@ function ToastProgress({
       <span className={styles.progressTrack()}>
         <span
           className={styles.progressBar()}
-          style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }}
+          style={{ width: `${clamped}%` }}
         />
       </span>
       <span className={styles.progressValue()}>{rounded} %</span>

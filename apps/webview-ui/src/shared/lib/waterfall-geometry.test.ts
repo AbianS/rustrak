@@ -52,6 +52,30 @@ describe('barGeometry', () => {
     });
   });
 
+  /**
+   * Skewed data, not a drawing problem: an SDK whose clock ran backwards
+   * between the start and the end it reported. It used to produce a negative
+   * width, which is not a bar at all.
+   */
+  it('draws nothing for a span that starts after the window ends', () => {
+    expect(barGeometry(350, 10, 100, 200)).toEqual({
+      offsetPct: 100,
+      widthPct: 0,
+    });
+  });
+
+  it('never returns a negative width', () => {
+    for (const startAt of [201, 300, 1000]) {
+      expect(barGeometry(startAt, 10, 0, 200).widthPct).toBeGreaterThanOrEqual(
+        0,
+      );
+    }
+  });
+
+  it('pins a span that starts before the window to the left edge', () => {
+    expect(barGeometry(50, 50, 100, 200).offsetPct).toBe(0);
+  });
+
   it('draws nothing at all in a window of zero width', () => {
     // Every span in a trace that started and ended in the same instant.
     expect(barGeometry(100, 50, 100, 0)).toEqual({

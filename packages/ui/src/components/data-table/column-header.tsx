@@ -2,7 +2,11 @@ import type { Column, Header, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import { type ReactNode, useState } from 'react';
 import { focusRingInset } from '../../lib/focus';
-import { chevronFlip, interactiveTransition } from '../../lib/motion';
+import {
+  chevronFlip,
+  interactiveTransition,
+  pressScaleTrigger,
+} from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import {
   ChevronDownIcon,
@@ -41,6 +45,10 @@ const columnHeader = tv({
       'font-mono text-column text-fg-meta uppercase',
       'select-none',
       interactiveTransition,
+      // Base UI swallows `:active` on anything that opens a popup: it opens on
+      // pointer-down and hands capture to the panel. Without this the header
+      // gives no feedback at all until the panel appears.
+      pressScaleTrigger,
       'hover:text-fg-subtle',
       'data-popup-open:text-fg-subtle',
       focusRingInset,

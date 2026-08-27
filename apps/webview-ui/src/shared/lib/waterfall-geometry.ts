@@ -30,13 +30,21 @@ export function barGeometry(
 ): BarGeometry {
   if (windowSize <= 0) return { offsetPct: 0, widthPct: 0 };
 
-  const offsetPct =
+  const rawOffsetPct =
     startAt == null ? 0 : ((startAt - windowStart) / windowSize) * 100;
 
-  const widthPct =
+  const rawWidthPct =
     duration == null
       ? 0
       : Math.max(MIN_VISIBLE_PCT, (duration / windowSize) * 100);
 
-  return { offsetPct, widthPct: Math.min(widthPct, 100 - offsetPct) };
+  // Both ends are clamped to the track, not just the right one. A span that
+  // starts after the window ends is not a drawing problem, it is skewed data
+  // -- an SDK whose clock ran backwards between the start and the end it
+  // reported -- and without this it produced a negative width, which is not a
+  // bar at all.
+  const offsetPct = Math.min(100, Math.max(0, rawOffsetPct));
+  const widthPct = Math.max(0, Math.min(rawWidthPct, 100 - offsetPct));
+
+  return { offsetPct, widthPct };
 }
