@@ -75,39 +75,26 @@ export async function AiSpanDetail({ span }: AiSpanDetailProps) {
   const model = span.gen_ai_response_model ?? span.gen_ai_request_model;
   const failed = span.status != null && span.status !== 'ok';
 
-  const highlights: { key: string; label: string; value: string }[] = [];
-  if (span.gen_ai_agent_name) {
-    highlights.push({
-      key: 'agent',
-      label: t('agentName'),
-      value: span.gen_ai_agent_name,
-    });
-  }
-  if (model) {
-    highlights.push({ key: 'model', label: t('model'), value: model });
-  }
-  if (span.gen_ai_tool_name) {
-    highlights.push({
-      key: 'tool',
-      label: t('toolName'),
-      value: span.gen_ai_tool_name,
-    });
-  }
-  const reasoningEffort = attributes['gen_ai.request.reasoning_effort'];
-  if (typeof reasoningEffort === 'string' && reasoningEffort !== '') {
-    highlights.push({
+  // Declarative rather than five conditional pushes: the order of these rows
+  // is a design decision, and in a list it is visible as one.
+  const highlights = [
+    { key: 'agent', label: t('agentName'), value: span.gen_ai_agent_name },
+    { key: 'model', label: t('model'), value: model },
+    { key: 'tool', label: t('toolName'), value: span.gen_ai_tool_name },
+    {
       key: 'reasoningEffort',
       label: t('reasoningEffort'),
-      value: reasoningEffort,
-    });
-  }
-  if (span.gen_ai_conversation_id) {
-    highlights.push({
+      value: attributes['gen_ai.request.reasoning_effort'],
+    },
+    {
       key: 'conversation',
       label: t('conversationId'),
       value: span.gen_ai_conversation_id,
-    });
-  }
+    },
+  ].flatMap((row) => {
+    const value = asText(row.value);
+    return value ? [{ ...row, value }] : [];
+  });
 
   return (
     <div className="space-y-4">
@@ -153,28 +140,7 @@ export async function AiSpanDetail({ span }: AiSpanDetailProps) {
               {t('tokenMismatch')}
             </p>
           )}
-          <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-xs">
-            <dt className="text-muted-foreground">{t('inputTokens')}</dt>
-            <dd className="font-mono tabular-nums">
-              {format.number(tokens.netNewInput)}
-            </dd>
-            {tokens.cached > 0 && (
-              <>
-                <dt className="text-muted-foreground">{t('cachedTokens')}</dt>
-                <dd className="font-mono tabular-nums">
-                  {format.number(tokens.cached)}
-                </dd>
-              </>
-            )}
-            <dt className="text-muted-foreground">{t('outputTokens')}</dt>
-            <dd className="font-mono tabular-nums">
-              {format.number(tokens.output)}
-            </dd>
-            <dt className="text-muted-foreground">{t('totalTokens')}</dt>
-            <dd className="font-mono font-semibold tabular-nums">
-              {format.number(tokens.total)}
-            </dd>
-          </dl>
+          <TokenBreakdownList tokens={tokens} />
         </Section>
       )}
 
@@ -204,44 +170,107 @@ export async function AiSpanDetail({ span }: AiSpanDetailProps) {
         </Section>
       )}
 
-      {output && (
-        <Section title={t('output')}>
-          {output.text && <Payload value={output.text} />}
-          {output.object && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {t('responseObject')}
-              </p>
-              <Payload value={output.object} />
-            </div>
-          )}
-          {output.toolCalls && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {t('requestedToolCalls')}
-              </p>
-              <Payload value={output.toolCalls} />
-            </div>
-          )}
-        </Section>
-      )}
+      {output && <OutputSection output={output} />}
 
       <Section title={t('allAttributes')}>
-        <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-3 gap-y-1 text-[11px]">
-          {Object.entries(attributes)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([key, value]) => (
-              <div key={key} className="contents">
-                <dt className="break-all font-mono text-muted-foreground">
-                  {key}
-                </dt>
-                <dd className="break-all font-mono">
-                  {typeof value === 'string' ? value : JSON.stringify(value)}
-                </dd>
-              </div>
-            ))}
-        </dl>
+        <AttributesTable attributes={attributes} />
       </Section>
     </div>
+  );
+}
+
+/** A value worth putting on a row, or `null` when there is nothing to say. */
+function asText(value: unknown): string | null {
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+/**
+ * The token counts, with cached input shown only when there was any.
+ *
+ * `netNewInput` rather than raw input: a cache read is not a prompt the model
+ * processed, and adding the two would report a number the bill does not match.
+ */
+async function TokenBreakdownList({
+  tokens,
+}: {
+  tokens: NonNullable<ReturnType<typeof tokenBreakdown>>;
+}) {
+  const t = await getTranslations('agents.spanDetail');
+  const format = await getFormatter();
+
+  return (
+    <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1 text-xs">
+      <dt className="text-muted-foreground">{t('inputTokens')}</dt>
+      <dd className="font-mono tabular-nums">
+        {format.number(tokens.netNewInput)}
+      </dd>
+      {tokens.cached > 0 && (
+        <>
+          <dt className="text-muted-foreground">{t('cachedTokens')}</dt>
+          <dd className="font-mono tabular-nums">
+            {format.number(tokens.cached)}
+          </dd>
+        </>
+      )}
+      <dt className="text-muted-foreground">{t('outputTokens')}</dt>
+      <dd className="font-mono tabular-nums">{format.number(tokens.output)}</dd>
+      <dt className="text-muted-foreground">{t('totalTokens')}</dt>
+      <dd className="font-mono font-semibold tabular-nums">
+        {format.number(tokens.total)}
+      </dd>
+    </dl>
+  );
+}
+
+/** What the model answered: free text, a structured object, tool calls. */
+async function OutputSection({
+  output,
+}: {
+  output: NonNullable<ReturnType<typeof aiOutput>>;
+}) {
+  const t = await getTranslations('agents.spanDetail');
+
+  return (
+    <Section title={t('output')}>
+      {output.text && <Payload value={output.text} />}
+      {output.object && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {t('responseObject')}
+          </p>
+          <Payload value={output.object} />
+        </div>
+      )}
+      {output.toolCalls && (
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {t('requestedToolCalls')}
+          </p>
+          <Payload value={output.toolCalls} />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** Every attribute as sent, sorted, as the escape hatch for the rest. */
+function AttributesTable({
+  attributes,
+}: {
+  attributes: Record<string, unknown>;
+}) {
+  return (
+    <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-x-3 gap-y-1 text-[11px]">
+      {Object.entries(attributes)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => (
+          <div key={key} className="contents">
+            <dt className="break-all font-mono text-muted-foreground">{key}</dt>
+            <dd className="break-all font-mono">
+              {typeof value === 'string' ? value : JSON.stringify(value)}
+            </dd>
+          </div>
+        ))}
+    </dl>
   );
 }

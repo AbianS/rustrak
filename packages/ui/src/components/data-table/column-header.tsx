@@ -1,6 +1,6 @@
-import type { Header, RowData } from '@tanstack/react-table';
+import type { Column, Header, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { focusRingInset } from '../../lib/focus';
 import { chevronFlip, interactiveTransition } from '../../lib/motion';
 import { tv } from '../../lib/tv';
@@ -11,7 +11,7 @@ import {
   ResolveIcon,
 } from '../icon/icon-catalog';
 import { Popover } from '../popover/popover';
-import type { DataTableFeatures } from './features';
+import type { ColumnFilterSpec, DataTableFeatures } from './features';
 import {
   OptionsFilterPanel,
   RangeFilterPanel,
@@ -102,10 +102,13 @@ export function DataTableColumnHeader<TData extends RowData>({
   const canHide = column.getCanHide();
   const filterSpec = meta?.filter;
   const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
 
   const title = flexRender(column.columnDef.header, header.getContext());
   const sorted = column.getIsSorted();
   const filtered = column.getIsFiltered();
+
+  const hasActions = filtered || canHide;
 
   if (!canSort && !filterSpec && !canHide) {
     return (
@@ -118,8 +121,6 @@ export function DataTableColumnHeader<TData extends RowData>({
     );
   }
 
-  const wording = sortWording(header);
-
   return (
     <Popover
       title={typeof title === 'string' ? title : (meta?.label ?? '')}
@@ -127,6 +128,10 @@ export function DataTableColumnHeader<TData extends RowData>({
       popupClassName="w-60"
       open={open}
       onOpenChange={setOpen}
+      /* Stays inline: `Popover` hands this to Base UI's `render` prop, which
+         merges the open handler, the ref and `data-popup-open` into whatever
+         element it is given. A component here would receive all of that as
+         props it does not forward, leaving a button that never opens. */
       trigger={
         <button
           type="button"
@@ -134,112 +139,184 @@ export function DataTableColumnHeader<TData extends RowData>({
           data-align={meta?.align}
           className={styles.trigger()}
         >
-          <span className={styles.label()}>{title}</span>
-          {sorted ? (
-            <span aria-hidden="true" className={styles.arrow()}>
-              {sorted === 'desc' ? '↓' : '↑'}
-            </span>
-          ) : null}
-          {filtered ? (
-            <FilterIcon
-              size="sm"
-              aria-hidden="true"
-              className={styles.funnel()}
-            />
-          ) : null}
-          <ChevronDownIcon
-            size="sm"
-            aria-hidden="true"
-            className={styles.chevron()}
-          />
+          <TriggerContent title={title} sorted={sorted} filtered={filtered} />
         </button>
       }
     >
       {canSort ? (
-        <div className={styles.section()}>
-          {(['asc', 'desc'] as const).map((direction) => (
-            <button
-              key={direction}
-              type="button"
-              aria-pressed={sorted === direction}
-              className={styles.item()}
-              onClick={() => {
-                // Choosing the standing sort again clears it: the header is a
-                // question, and asking the same question twice withdraws it.
-                if (sorted === direction) column.clearSorting();
-                else column.toggleSorting(direction === 'desc');
-                setOpen(false);
-              }}
-            >
-              <span aria-hidden="true" className="w-3 shrink-0 text-fg-ghost">
-                {direction === 'desc' ? '↓' : '↑'}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-start">
-                {wording[direction]}
-              </span>
-              {sorted === direction ? (
-                <ResolveIcon
-                  size="sm"
-                  aria-hidden="true"
-                  className={styles.check()}
-                />
-              ) : null}
-            </button>
-          ))}
-        </div>
+        <SortSection header={header} sorted={sorted} onDone={close} />
       ) : null}
 
-      {canSort && filterSpec ? (
-        <div aria-hidden="true" className={styles.separator()} />
-      ) : null}
+      {canSort && filterSpec ? <Separator /> : null}
 
-      {filterSpec?.variant === 'options' ? (
-        <OptionsFilterPanel column={column} />
-      ) : null}
-      {filterSpec?.variant === 'text' ? (
-        <TextFilterPanel column={column} />
-      ) : null}
-      {filterSpec?.variant === 'range' ? (
-        <RangeFilterPanel column={column} />
-      ) : null}
+      <FilterSection column={column} spec={filterSpec} />
 
-      {(filtered || canHide) && (canSort || filterSpec) ? (
-        <div aria-hidden="true" className={styles.separator()} />
-      ) : null}
+      {hasActions && (canSort || filterSpec) ? <Separator /> : null}
 
-      {filtered || canHide ? (
-        <div className={styles.section()}>
-          {filtered ? (
-            <button
-              type="button"
-              className={styles.item()}
-              onClick={() => column.setFilterValue(undefined)}
-            >
-              <CloseIcon
-                size="sm"
-                aria-hidden="true"
-                className="shrink-0 text-fg-ghost"
-              />
-              <span className="min-w-0 flex-1 truncate text-start">
-                Clear filter
-              </span>
-            </button>
-          ) : null}
-          {canHide ? (
-            <button
-              type="button"
-              className={styles.item()}
-              onClick={() => column.toggleVisibility(false)}
-            >
-              <span className="w-3 shrink-0" aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate text-start">
-                Hide column
-              </span>
-            </button>
-          ) : null}
-        </div>
+      {hasActions ? (
+        <ActionsSection
+          column={column}
+          canClearFilter={filtered}
+          canHide={canHide}
+        />
       ) : null}
     </Popover>
+  );
+}
+
+const Separator = () => (
+  <div aria-hidden="true" className={styles.separator()} />
+);
+
+/**
+ * What the header says about itself: its label, its sort, its filter.
+ *
+ * Only the children -- the `<button>` around them stays inline in the trigger,
+ * where Base UI's `render` prop needs a real element to merge into.
+ */
+function TriggerContent({
+  title,
+  sorted,
+  filtered,
+}: {
+  title: ReactNode;
+  sorted: false | 'asc' | 'desc';
+  filtered: boolean;
+}) {
+  return (
+    <>
+      <span className={styles.label()}>{title}</span>
+      {sorted ? (
+        <span aria-hidden="true" className={styles.arrow()}>
+          {sorted === 'desc' ? '↓' : '↑'}
+        </span>
+      ) : null}
+      {filtered ? (
+        <FilterIcon size="sm" aria-hidden="true" className={styles.funnel()} />
+      ) : null}
+      <ChevronDownIcon
+        size="sm"
+        aria-hidden="true"
+        className={styles.chevron()}
+      />
+    </>
+  );
+}
+
+/** The two directions, worded for what the column actually holds. */
+function SortSection<TData extends RowData>({
+  header,
+  sorted,
+  onDone,
+}: {
+  header: Header<DataTableFeatures, TData, unknown>;
+  sorted: false | 'asc' | 'desc';
+  onDone: () => void;
+}) {
+  const { column } = header;
+  const wording = sortWording(header);
+
+  return (
+    <div className={styles.section()}>
+      {(['asc', 'desc'] as const).map((direction) => (
+        <button
+          key={direction}
+          type="button"
+          aria-pressed={sorted === direction}
+          className={styles.item()}
+          onClick={() => {
+            // Choosing the standing sort again clears it: the header is a
+            // question, and asking the same question twice withdraws it.
+            if (sorted === direction) column.clearSorting();
+            else column.toggleSorting(direction === 'desc');
+            onDone();
+          }}
+        >
+          <span aria-hidden="true" className="w-3 shrink-0 text-fg-ghost">
+            {direction === 'desc' ? '↓' : '↑'}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-start">
+            {wording[direction]}
+          </span>
+          {sorted === direction ? (
+            <ResolveIcon
+              size="sm"
+              aria-hidden="true"
+              className={styles.check()}
+            />
+          ) : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The panel for a column's filter variant.
+ *
+ * Keyed rather than chained so a variant added to `ColumnFilterSpec` is a type
+ * error here until it has a panel, instead of a column whose filter silently
+ * renders nothing.
+ */
+const FILTER_PANELS = {
+  options: OptionsFilterPanel,
+  text: TextFilterPanel,
+  range: RangeFilterPanel,
+} satisfies Record<ColumnFilterSpec['variant'], unknown>;
+
+function FilterSection<TData extends RowData>({
+  column,
+  spec,
+}: {
+  column: Column<DataTableFeatures, TData, unknown>;
+  spec: ColumnFilterSpec | undefined;
+}) {
+  if (!spec) return null;
+  const Panel = FILTER_PANELS[spec.variant];
+  return <Panel column={column} />;
+}
+
+/** What can be undone from here: the filter, and the column itself. */
+function ActionsSection<TData extends RowData>({
+  column,
+  canClearFilter,
+  canHide,
+}: {
+  column: Column<DataTableFeatures, TData, unknown>;
+  canClearFilter: boolean;
+  canHide: boolean;
+}) {
+  return (
+    <div className={styles.section()}>
+      {canClearFilter ? (
+        <button
+          type="button"
+          className={styles.item()}
+          onClick={() => column.setFilterValue(undefined)}
+        >
+          <CloseIcon
+            size="sm"
+            aria-hidden="true"
+            className="shrink-0 text-fg-ghost"
+          />
+          <span className="min-w-0 flex-1 truncate text-start">
+            Clear filter
+          </span>
+        </button>
+      ) : null}
+      {canHide ? (
+        <button
+          type="button"
+          className={styles.item()}
+          onClick={() => column.toggleVisibility(false)}
+        >
+          <span className="w-3 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 flex-1 truncate text-start">
+            Hide column
+          </span>
+        </button>
+      ) : null}
+    </div>
   );
 }
 

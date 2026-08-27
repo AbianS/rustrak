@@ -13,6 +13,7 @@ import {
 import { alertProviders } from '@/features/alert/model/providers';
 import { IntegrationConfigDialog } from '@/features/alert/ui/components/integration-config-dialog/integration-config-dialog';
 import { ProviderIcon } from '@/features/alert/ui/components/provider-icon';
+import type { Translate } from '@/shared/lib/error-copy';
 import { cn } from '@/shared/lib/utils';
 import {
   AlertDialog,
@@ -174,96 +175,14 @@ export function IntegrationsList({
         </CollapsibleTrigger>
         <CollapsibleContent className="rounded-b-lg border border-t-0 bg-card/50 p-5">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {alertProviders.map((providerDef) => {
-              const instances = getIntegrationsByType(providerDef.type);
-              const count = instances.length;
-              const single = count === 1 ? instances[0] : null;
-              const isConnected = !!single && single.is_enabled;
-              const isDisabled = !!single && !single.is_enabled;
-
-              return (
-                /* Not a <button>: the card holds its own Manage button, and a
-                   button inside a button is invalid HTML. So it takes the role
-                   and the keyboard handling a button would have given it for
-                   free — without this the card was mouse-only and unreachable
-                   by Tab. */
-                // biome-ignore lint/a11y/useSemanticElements: see above
-                <div
-                  key={providerDef.type}
-                  className={cn(
-                    'group relative bg-card border rounded-lg p-5 flex flex-col justify-between h-48',
-                    'hover:border-primary/50 transition-all cursor-pointer',
-                    count === 0 && 'opacity-70 hover:opacity-100',
-                  )}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={t('integrations.configureAria', {
-                    name: providerDef.name,
-                  })}
-                  onClick={() => handleCardClick(providerDef.type)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleCardClick(providerDef.type);
-                    }
-                  }}
-                >
-                  <div className="flex justify-between items-start">
-                    <div
-                      className={cn(
-                        'size-10 rounded flex items-center justify-center text-white',
-                        providerDef.color,
-                      )}
-                    >
-                      <ProviderIcon
-                        type={providerDef.type}
-                        className="size-5"
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <Badge
-                        variant={isConnected ? 'default' : 'secondary'}
-                        className={cn(
-                          'text-[10px] font-bold uppercase tracking-wider',
-                          isConnected &&
-                            'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
-                          isDisabled && 'opacity-60',
-                        )}
-                      >
-                        {count === 0
-                          ? t('integrations.notConfigured')
-                          : count > 1
-                            ? t('integrations.configuredCount', { count })
-                            : isConnected
-                              ? t('integrations.connected')
-                              : t('integrations.disabled')}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="font-bold text-base">{providerDef.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-                      {single ? single.name : t(providerDef.descriptionKey)}
-                    </p>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full text-xs font-bold uppercase tracking-wide"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCardClick(providerDef.type);
-                    }}
-                  >
-                    {count === 0
-                      ? t('integrations.configure')
-                      : t('integrations.manage')}
-                  </Button>
-                </div>
-              );
-            })}
+            {alertProviders.map((providerDef) => (
+              <ProviderCard
+                key={providerDef.type}
+                providerDef={providerDef}
+                instances={getIntegrationsByType(providerDef.type)}
+                onOpen={handleCardClick}
+              />
+            ))}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -321,6 +240,126 @@ export function IntegrationsList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/** What a provider's tile has to say, from the integrations it holds. */
+interface ProviderStatus {
+  count: number;
+  /**
+   * The one integration this provider has, or `null`.
+   *
+   * A tile with several has room for a count and nothing else, so it cannot
+   * name one or report whether it is on.
+   */
+  single: AlertIntegration | null;
+  isConnected: boolean;
+  isDisabled: boolean;
+}
+
+function providerStatus(
+  instances: readonly AlertIntegration[],
+): ProviderStatus {
+  const count = instances.length;
+  const single = count === 1 ? (instances[0] ?? null) : null;
+
+  return {
+    count,
+    single,
+    isConnected: !!single && single.is_enabled,
+    isDisabled: !!single && !single.is_enabled,
+  };
+}
+
+function statusLabel(status: ProviderStatus, t: Translate): string {
+  if (status.count === 0) return t('integrations.notConfigured');
+  if (status.count > 1) {
+    return t('integrations.configuredCount', { count: status.count });
+  }
+  return status.isConnected
+    ? t('integrations.connected')
+    : t('integrations.disabled');
+}
+
+interface ProviderCardProps {
+  providerDef: (typeof alertProviders)[number];
+  instances: readonly AlertIntegration[];
+  onOpen: (type: ProviderType) => void;
+}
+
+/** One provider tile: its mark, its state, and the way into its dialog. */
+function ProviderCard({ providerDef, instances, onOpen }: ProviderCardProps) {
+  const t = useTranslations('alerts');
+  const status = providerStatus(instances);
+  const open = () => onOpen(providerDef.type);
+
+  return (
+    /* Not a <button>: the card holds its own Manage button, and a button
+       inside a button is invalid HTML. So it takes the role and the keyboard
+       handling a button would have given it for free — without this the card
+       was mouse-only and unreachable by Tab. */
+    // biome-ignore lint/a11y/useSemanticElements: see above
+    <div
+      className={cn(
+        'group relative bg-card border rounded-lg p-5 flex flex-col justify-between h-48',
+        'hover:border-primary/50 transition-all cursor-pointer',
+        status.count === 0 && 'opacity-70 hover:opacity-100',
+      )}
+      role="button"
+      tabIndex={0}
+      aria-label={t('integrations.configureAria', { name: providerDef.name })}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        open();
+      }}
+    >
+      <div className="flex justify-between items-start">
+        <div
+          className={cn(
+            'size-10 rounded flex items-center justify-center text-white',
+            providerDef.color,
+          )}
+        >
+          <ProviderIcon type={providerDef.type} className="size-5" />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Badge
+            variant={status.isConnected ? 'default' : 'secondary'}
+            className={cn(
+              'text-[10px] font-bold uppercase tracking-wider',
+              status.isConnected &&
+                'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20',
+              status.isDisabled && 'opacity-60',
+            )}
+          >
+            {statusLabel(status, t)}
+          </Badge>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-bold text-base">{providerDef.name}</h3>
+        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+          {status.single ? status.single.name : t(providerDef.descriptionKey)}
+        </p>
+      </div>
+
+      <Button
+        variant="outline"
+        className="w-full text-xs font-bold uppercase tracking-wide"
+        onClick={(e) => {
+          e.stopPropagation();
+          open();
+        }}
+      >
+        {status.count === 0
+          ? t('integrations.configure')
+          : t('integrations.manage')}
+      </Button>
     </div>
   );
 }

@@ -274,87 +274,118 @@ export function DataTable<TData extends RowData>({
         </TableHeader>
 
         <TableBody>
-          {rows.map((row) => {
-            const isExpanded = row.getIsExpanded();
-            const detail = isExpanded ? renderDetail?.(row) : null;
-
-            return (
-              <Fragment key={row.id}>
-                <TableRow
-                  data-state={row.getIsSelected() ? 'selected' : undefined}
-                  aria-expanded={renderDetail ? isExpanded : undefined}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  // The row is the control, so the row is the tab stop: this is
-                  // what the chevron in `expandColumn` is decorative *on the
-                  // basis of*. Without it `aria-expanded` announces a
-                  // disclosure that nothing can operate.
-                  tabIndex={onRowClick ? 0 : undefined}
-                  onKeyDown={
-                    onRowClick
-                      ? (event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ')
-                            return;
-                          // A key pressed inside a cell's own control -- a
-                          // checkbox, a link -- belongs to that control.
-                          if (event.target !== event.currentTarget) return;
-                          // Or Space scrolls the page out from under the row it
-                          // just expanded.
-                          event.preventDefault();
-                          onRowClick(row);
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    onRowClick &&
-                      'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
-                    isExpanded && 'bg-muted/40 hover:bg-muted/40',
-                    getRowClassName?.(row),
-                  )}
-                >
-                  {row.getAllCells().map((cell) => {
-                    const meta = cell.column.columnDef.meta;
-                    return (
-                      <TableCell
-                        key={cell.id}
-                        style={{ width: widthOf(cell.column.id) }}
-                        className={cn(
-                          // `max-w-0` is what lets `truncate` inside a cell
-                          // measure against the column instead of the content,
-                          // which is the difference between a growing column
-                          // that ellipsises and one that forces a scrollbar.
-                          'max-w-0',
-                          spacing.cell,
-                          meta?.align === 'end' && 'text-right',
-                          meta?.hideBelow && HIDE_BELOW_CLASS[meta.hideBelow],
-                          meta?.className,
-                        )}
-                      >
-                        <table.FlexRender cell={cell} />
-                      </TableCell>
-                    );
-                  })}
-                  {fillerWidth > 0 && <td />}
-                </TableRow>
-
-                {detail && (
-                  <TableRow className="hover:bg-transparent">
-                    <TableCell
-                      colSpan={
-                        row.getAllCells().length + (fillerWidth > 0 ? 1 : 0)
-                      }
-                      className="bg-muted/20 p-0"
-                    >
-                      {detail}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
-            );
-          })}
+          {rows.map((row) => (
+            <DataTableRow
+              key={row.id}
+              row={row}
+              table={table}
+              spacing={spacing}
+              fillerWidth={fillerWidth}
+              onRowClick={onRowClick}
+              getRowClassName={getRowClassName}
+              renderDetail={renderDetail}
+            />
+          ))}
         </TableBody>
       </Table>
 
       {rows.length === 0 && empty}
     </div>
+  );
+}
+
+interface DataTableRowProps<TData extends RowData> {
+  row: Row<DataTableFeatures, TData>;
+  /** Held only for `FlexRender`, which is a method on the instance. */
+  table: DataTableInstance<TData>;
+  spacing: (typeof DENSITY)[keyof typeof DENSITY];
+  /** Width of the trailing filler cell, or 0 when the columns fill the table. */
+  fillerWidth: number;
+  onRowClick?: (row: Row<DataTableFeatures, TData>) => void;
+  getRowClassName?: (row: Row<DataTableFeatures, TData>) => string | undefined;
+  renderDetail?: (row: Row<DataTableFeatures, TData>) => ReactNode;
+}
+
+/** One row, plus the full-width detail row underneath it when expanded. */
+function DataTableRow<TData extends RowData>({
+  row,
+  table,
+  spacing,
+  fillerWidth,
+  onRowClick,
+  getRowClassName,
+  renderDetail,
+}: DataTableRowProps<TData>) {
+  const isExpanded = row.getIsExpanded();
+  const detail = isExpanded ? renderDetail?.(row) : null;
+
+  const activate = onRowClick ? () => onRowClick(row) : undefined;
+
+  const onKeyDown = onRowClick
+    ? (event: React.KeyboardEvent<HTMLTableRowElement>) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        // A key pressed inside a cell's own control -- a checkbox, a link --
+        // belongs to that control.
+        if (event.target !== event.currentTarget) return;
+        // Or Space scrolls the page out from under the row it just expanded.
+        event.preventDefault();
+        onRowClick(row);
+      }
+    : undefined;
+
+  return (
+    <Fragment>
+      <TableRow
+        data-state={row.getIsSelected() ? 'selected' : undefined}
+        aria-expanded={renderDetail ? isExpanded : undefined}
+        onClick={activate}
+        // The row is the control, so the row is the tab stop: this is what the
+        // chevron in `expandColumn` is decorative *on the basis of*. Without it
+        // `aria-expanded` announces a disclosure that nothing can operate.
+        tabIndex={onRowClick ? 0 : undefined}
+        onKeyDown={onKeyDown}
+        className={cn(
+          onRowClick &&
+            'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
+          isExpanded && 'bg-muted/40 hover:bg-muted/40',
+          getRowClassName?.(row),
+        )}
+      >
+        {row.getAllCells().map((cell) => {
+          const meta = cell.column.columnDef.meta;
+          return (
+            <TableCell
+              key={cell.id}
+              style={{ width: widthOf(cell.column.id) }}
+              className={cn(
+                // `max-w-0` is what lets `truncate` inside a cell measure
+                // against the column instead of the content, which is the
+                // difference between a growing column that ellipsises and one
+                // that forces a scrollbar.
+                'max-w-0',
+                spacing.cell,
+                meta?.align === 'end' && 'text-right',
+                meta?.hideBelow && HIDE_BELOW_CLASS[meta.hideBelow],
+                meta?.className,
+              )}
+            >
+              <table.FlexRender cell={cell} />
+            </TableCell>
+          );
+        })}
+        {fillerWidth > 0 && <td />}
+      </TableRow>
+
+      {detail && (
+        <TableRow className="hover:bg-transparent">
+          <TableCell
+            colSpan={row.getAllCells().length + (fillerWidth > 0 ? 1 : 0)}
+            className="bg-muted/20 p-0"
+          >
+            {detail}
+          </TableCell>
+        </TableRow>
+      )}
+    </Fragment>
   );
 }

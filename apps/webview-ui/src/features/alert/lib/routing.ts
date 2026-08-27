@@ -1,4 +1,4 @@
-import type { AlertIntegration } from '@rustrak/client';
+import type { AlertIntegration, ProviderType } from '@rustrak/client';
 import type { Translate } from '@/shared/lib/error-copy';
 
 /**
@@ -10,6 +10,15 @@ import type { Translate } from '@/shared/lib/error-copy';
  */
 export type RoutingMap = Record<number, Record<string, string>>;
 
+/** Which routing inputs a channel shows, and which of them it insists on. */
+export interface RoutingNeeds {
+  needsChannel: boolean;
+  needsRecipients: boolean;
+  needsUrl: boolean;
+  /** Whether the channel shows a routing section at all. */
+  hasRoutingFields: boolean;
+}
+
 export function getSlackMethod(integration: AlertIntegration): string {
   return (
     ((integration.credentials as Record<string, unknown>).method as string) ??
@@ -18,35 +27,197 @@ export function getSlackMethod(integration: AlertIntegration): string {
 }
 
 /**
- * Which routing inputs a channel has to show, derived from the integration
- * rather than from the provider name alone.
+ * Everything one provider knows about routing, in one place.
  *
- * A webhook that already carries a URL in its credentials still offers the
- * override field, but does not require it; one that does not, requires it.
- * That distinction is the reason this is a function and not a lookup table.
+ * The three questions below used to be three `provider_type` chains in three
+ * functions, which meant a new provider was three edits in three places and
+ * nothing failed if only two of them happened. Keyed by `ProviderType`, a
+ * provider added to the client is a type error here until it answers all
+ * three.
  */
-export function routingNeedsOf(integration: AlertIntegration): {
-  needsChannel: boolean;
-  needsRecipients: boolean;
-  needsUrl: boolean;
-  hasRoutingFields: boolean;
-} {
-  const isSlackBot =
-    integration.provider_type === 'slack' &&
-    getSlackMethod(integration) === 'bot_token';
-  const needsRecipients = integration.provider_type === 'email';
-  const credUrl = (integration.credentials as Record<string, unknown>).url as
+interface RoutingBehaviour {
+  /** Which override inputs to render for this integration. */
+  needs: (integration: AlertIntegration) => RoutingNeeds;
+  /** Why this routing cannot be saved, as a message, or `null`. */
+  validate: (
+    integration: AlertIntegration,
+    routing: Record<string, string>,
+    t: Translate,
+  ) => string | null;
+  /** What the API should store, with anything blank left out. */
+  override: (
+    integration: AlertIntegration,
+    routing: Record<string, string>,
+  ) => Record<string, unknown>;
+  /** The inverse of `override`: a stored override, as the inputs hold it. */
+  read: (override: Record<string, unknown>) => Record<string, string>;
+}
+
+/**
+ * The default read: every override value an input could actually hold.
+ *
+ * Anything else stored under that channel is a field this build does not
+ * render, and putting a number or an object into a text input would only lose
+ * it on the next save.
+ */
+const stringFields = (
+  override: Record<string, unknown>,
+): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  for (const [key, value] of Object.entries(override)) {
+    if (typeof value === 'string') fields[key] = value;
+  }
+  return fields;
+};
+
+const isBlank = (value: string | undefined): boolean =>
+  value == null || value.trim() === '';
+
+const isHttpUrl = (url: string): boolean =>
+  url.startsWith('http://') || url.startsWith('https://');
+
+const storedUrl = (integration: AlertIntegration): string | undefined =>
+  (integration.credentials as Record<string, unknown>).url as
     | string
     | undefined;
-  const needsUrl = integration.provider_type === 'webhook' && !credUrl;
 
-  return {
-    needsChannel: isSlackBot,
-    needsRecipients,
-    needsUrl,
-    hasRoutingFields:
-      isSlackBot || needsRecipients || integration.provider_type === 'webhook',
-  };
+/** The comma-separated line the input holds, as the list the API wants. */
+const recipientList = (line: string): string[] =>
+  line
+    .split(',')
+    .map((address) => address.trim())
+    .filter(Boolean);
+
+/**
+ * An incoming webhook already names its channel in the URL; only a bot token
+ * can be pointed anywhere, so only a bot token has anything to route.
+ */
+const slackRouting: RoutingBehaviour = {
+  needs: (integration) => {
+    const isBot = getSlackMethod(integration) === 'bot_token';
+    return {
+      needsChannel: isBot,
+      needsRecipients: false,
+      needsUrl: false,
+      hasRoutingFields: isBot,
+    };
+  },
+
+  validate: (integration, routing, t) => {
+    if (getSlackMethod(integration) !== 'bot_token') return null;
+    if (isBlank(routing.channel)) {
+      return t('routing.slackChannelRequired', { name: integration.name });
+    }
+    return null;
+  },
+
+  override: (integration, routing) => {
+    if (getSlackMethod(integration) !== 'bot_token') return {};
+    if (!routing.channel) return {};
+    return { channel: routing.channel.trim() };
+  },
+
+  read: stringFields,
+};
+
+/** An SMTP account is a sender, never a destination: the rule supplies those. */
+const emailRouting: RoutingBehaviour = {
+  needs: () => ({
+    needsChannel: false,
+    needsRecipients: true,
+    needsUrl: false,
+    hasRoutingFields: true,
+  }),
+
+  validate: (integration, routing, t) => {
+    const name = integration.name;
+    if (isBlank(routing.recipients)) {
+      return t('routing.recipientsRequired', { name });
+    }
+
+    // A line of commas parses to nothing, and an entry with no `@` is a typo
+    // the server would only discover at send time.
+    const addresses = recipientList(routing.recipients);
+    if (addresses.length === 0 || addresses.some((a) => !a.includes('@'))) {
+      return t('routing.invalidRecipients', { name });
+    }
+    return null;
+  },
+
+  override: (_integration, routing) =>
+    routing.recipients ? { recipients: recipientList(routing.recipients) } : {},
+
+  // The one provider whose override is not a string on the wire: a list there,
+  // a comma-joined line in the input.
+  read: (override): Record<string, string> => {
+    const recipients = override.recipients;
+    if (!Array.isArray(recipients)) return {};
+    return { recipients: recipients.join(', ') };
+  },
+};
+
+/**
+ * A webhook that already carries a URL in its credentials still offers the
+ * override field, but does not require it; one that does not, requires it.
+ */
+const webhookRouting: RoutingBehaviour = {
+  needs: (integration) => ({
+    needsChannel: false,
+    needsRecipients: false,
+    needsUrl: !storedUrl(integration),
+    hasRoutingFields: true,
+  }),
+
+  validate: (integration, routing, t) => {
+    const name = integration.name;
+    const routeUrl = routing.url?.trim();
+
+    if (!storedUrl(integration) && !routeUrl) {
+      return t('routing.webhookUrlRequired', { name });
+    }
+    if (routeUrl && !isHttpUrl(routeUrl)) {
+      return t('routing.invalidOverrideUrl', { name });
+    }
+    return null;
+  },
+
+  override: (_integration, routing) =>
+    routing.url ? { url: routing.url.trim() } : {},
+
+  read: stringFields,
+};
+
+const ROUTING_BEHAVIOUR: Record<ProviderType, RoutingBehaviour> = {
+  slack: slackRouting,
+  email: emailRouting,
+  webhook: webhookRouting,
+};
+
+const behaviourOf = (integration: AlertIntegration): RoutingBehaviour =>
+  ROUTING_BEHAVIOUR[integration.provider_type];
+
+/**
+ * Which routing inputs a channel has to show, derived from the integration
+ * rather than from the provider name alone.
+ */
+export function routingNeedsOf(integration: AlertIntegration): RoutingNeeds {
+  return behaviourOf(integration).needs(integration);
+}
+
+/**
+ * A stored `routing_override`, in the one-string-per-field shape the inputs
+ * bind to.
+ *
+ * `integration` is optional because a rule can outlive the integration it
+ * points at: the channel is still in the rule, and its override still has to
+ * render rather than vanish while the user is looking at it.
+ */
+export function readRoutingOverride(
+  integration: AlertIntegration | undefined,
+  override: Record<string, unknown>,
+): Record<string, string> {
+  const read = integration ? behaviourOf(integration).read : stringFields;
+  return read(override);
 }
 
 export function validateRoutingForIntegration(
@@ -54,52 +225,7 @@ export function validateRoutingForIntegration(
   routing: Record<string, string>,
   t: Translate,
 ): string | null {
-  if (integration.provider_type === 'slack') {
-    if (getSlackMethod(integration) === 'bot_token') {
-      if (!routing.channel || routing.channel.trim() === '') {
-        return t('routing.slackChannelRequired', {
-          name: integration.name,
-        });
-      }
-    }
-  }
-  if (integration.provider_type === 'email') {
-    if (!routing.recipients || routing.recipients.trim() === '') {
-      return t('routing.recipientsRequired', {
-        name: integration.name,
-      });
-    }
-    const addrs = routing.recipients
-      .split(',')
-      .map((a) => a.trim())
-      .filter(Boolean);
-    if (addrs.length === 0 || addrs.some((a) => !a.includes('@'))) {
-      return t('routing.invalidRecipients', {
-        name: integration.name,
-      });
-    }
-  }
-  if (integration.provider_type === 'webhook') {
-    const credUrl = (integration.credentials as Record<string, unknown>).url as
-      | string
-      | undefined;
-    const routeUrl = routing.url?.trim();
-    if (!credUrl && !routeUrl) {
-      return t('routing.webhookUrlRequired', {
-        name: integration.name,
-      });
-    }
-    if (
-      routeUrl &&
-      !routeUrl.startsWith('http://') &&
-      !routeUrl.startsWith('https://')
-    ) {
-      return t('routing.invalidOverrideUrl', {
-        name: integration.name,
-      });
-    }
-  }
-  return null;
+  return behaviourOf(integration).validate(integration, routing, t);
 }
 
 /**
@@ -119,16 +245,19 @@ export function collectRoutingErrors(
   // configured integration, so the pair is quadratic without it.
   const byId = new Map(integrations.map((i) => [i.id, i]));
   const errors: Record<number, string> = {};
+
   for (const id of selectedIds) {
     const integration = byId.get(id);
     if (!integration) continue;
-    const err = validateRoutingForIntegration(
+
+    const error = validateRoutingForIntegration(
       integration,
       routingMap[id] ?? {},
       t,
     );
-    if (err) errors[id] = err;
+    if (error) errors[id] = error;
   }
+
   return errors;
 }
 
@@ -144,28 +273,20 @@ export function buildChannelsPayload(
   routingMap: RoutingMap,
   integrations: readonly AlertIntegration[],
 ): { integration_id: number; routing_override: Record<string, unknown> }[] {
+  const byId = new Map(integrations.map((i) => [i.id, i]));
+
   return selectedIds.flatMap((id) => {
-    const routing = routingMap[id] ?? {};
-    const integration = integrations.find((i) => i.id === id);
+    const integration = byId.get(id);
     if (!integration) return [];
-    const routingOverride: Record<string, unknown> = {};
 
-    if (
-      integration.provider_type === 'slack' &&
-      getSlackMethod(integration) === 'bot_token'
-    ) {
-      if (routing.channel) routingOverride.channel = routing.channel.trim();
-    }
-    if (integration.provider_type === 'email' && routing.recipients) {
-      routingOverride.recipients = routing.recipients
-        .split(',')
-        .map((a) => a.trim())
-        .filter(Boolean);
-    }
-    if (integration.provider_type === 'webhook' && routing.url) {
-      routingOverride.url = routing.url.trim();
-    }
-
-    return [{ integration_id: id, routing_override: routingOverride }];
+    return [
+      {
+        integration_id: id,
+        routing_override: behaviourOf(integration).override(
+          integration,
+          routingMap[id] ?? {},
+        ),
+      },
+    ];
   });
 }

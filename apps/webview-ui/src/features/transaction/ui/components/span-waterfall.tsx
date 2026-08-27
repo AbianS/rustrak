@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { type KeyboardEvent, useMemo, useState } from 'react';
 import type { Span, TraceContext } from '@/features/transaction/model/span';
 import { cn } from '@/shared/lib/utils';
+import { barGeometry } from '@/shared/lib/waterfall-geometry';
 
 interface SpanWaterfallProps {
   spans: Span[];
@@ -243,126 +244,144 @@ export function SpanWaterfall({
           </span>
         </div>
 
-        {rows.map(
-          ({ span, depth, hasChildren, collapsed: isCol, selfMs }, i) => {
-            const dur = spanDuration(span);
-            const start = span.start_timestamp;
-            const offsetPct =
-              start != null && total > 0
-                ? ((start - traceStart) / total) * 100
-                : 0;
-            const widthPct =
-              dur != null && total > 0
-                ? Math.max(0.5, (dur / 1000 / total) * 100)
-                : 0;
-            const clampedWidth = Math.min(widthPct, 100 - offsetPct);
-            const failed = span.status && span.status !== 'ok';
-            const isSelected =
-              span.span_id != null && selected === span.span_id;
-
-            const selectKey = (e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setSelected(isSelected ? null : (span.span_id ?? null));
-              }
-            };
-
-            return (
-              // `span_id` is the key wherever the span has one. The index is
-              // the fallback for a span the SDK sent without an id, which
-              // nothing else can distinguish.
-              // react-doctor-disable-next-line react-doctor/no-array-index-as-key
-              <div key={span.span_id ?? `span-${i}`}>
-                {/* biome-ignore lint/a11y/useSemanticElements: the row contains
-                    its own collapse <button>, and a <button> nested inside a
-                    <button> is invalid HTML. */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() =>
-                    setSelected(isSelected ? null : (span.span_id ?? null))
-                  }
-                  onKeyDown={selectKey}
-                  className={cn(
-                    'flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-muted/40',
-                    isSelected && 'bg-muted/50',
-                  )}
-                >
-                  <div
-                    className="flex w-[38%] min-w-0 items-center gap-1"
-                    style={{ paddingLeft: `${Math.min(depth, 8) * 12}px` }}
-                  >
-                    {hasChildren ? (
-                      // The row itself is the selectable control, and this is a
-                      // second control inside it. Nesting is unavoidable here:
-                      // the row cannot be a <button> without making this one
-                      // invalid HTML, which is why the row is a div with a
-                      // role and its own keyboard handling.
-                      // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
-                      <button
-                        type="button"
-                        aria-label={
-                          isCol
-                            ? t('waterfall.expand')
-                            : t('waterfall.collapse')
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggle(span.span_id);
-                        }}
-                        className="shrink-0 text-muted-foreground hover:text-foreground"
-                      >
-                        {isCol ? (
-                          <ChevronRight className="size-3" />
-                        ) : (
-                          <ChevronDown className="size-3" />
-                        )}
-                      </button>
-                    ) : (
-                      <span className="inline-block size-3 shrink-0" />
-                    )}
-                    <span
-                      className={cn(
-                        'shrink-0 rounded px-1 py-px text-[10px] font-medium text-white',
-                        opColor(span.op),
-                      )}
-                    >
-                      {span.op || t('waterfall.spanFallback')}
-                    </span>
-                    <span className="truncate text-muted-foreground">
-                      {span.description || '—'}
-                    </span>
-                    {failed && (
-                      <span className="shrink-0 rounded bg-destructive/15 px-1 text-[10px] text-destructive">
-                        {span.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative h-4 flex-1">
-                    <div
-                      className={cn(
-                        'absolute inset-y-0 rounded-sm',
-                        opColor(span.op),
-                      )}
-                      style={{
-                        left: `${offsetPct}%`,
-                        width: `${clampedWidth}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-16 text-right tabular-nums text-muted-foreground">
-                    {formatDuration(dur)}
-                  </span>
-                </div>
-
-                {isSelected && (
-                  <SpanDetail span={span} dur={dur} selfMs={selfMs} />
-                )}
-              </div>
-            );
-          },
-        )}
+        {rows.map((row, i) => (
+          // `span_id` is the key wherever the span has one. The index is the
+          // fallback for a span the SDK sent without an id, which nothing else
+          // can distinguish.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
+          <SpanWaterfallRow
+            key={row.span.span_id ?? `span-${i}`}
+            row={row}
+            traceStart={traceStart}
+            total={total}
+            isSelected={
+              row.span.span_id != null && selected === row.span.span_id
+            }
+            onSelect={setSelected}
+            onToggle={toggle}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+interface SpanWaterfallRowProps {
+  row: FlatRow;
+  /** Epoch seconds of the earliest span, the left edge of every bar's track. */
+  traceStart: number;
+  /** Span of the whole trace in seconds, the width of that track. */
+  total: number;
+  isSelected: boolean;
+  onSelect: (spanId: string | null) => void;
+  onToggle: (id?: string) => void;
+}
+
+/** One span on the shared clock, with its detail panel underneath when open. */
+function SpanWaterfallRow({
+  row,
+  traceStart,
+  total,
+  isSelected,
+  onSelect,
+  onToggle,
+}: SpanWaterfallRowProps) {
+  const t = useTranslations('transactions');
+  const { span, depth, hasChildren, collapsed: isCol, selfMs } = row;
+
+  const dur = spanDuration(span);
+  // The track counts seconds and `spanDuration` returns milliseconds.
+  const { offsetPct, widthPct } = barGeometry(
+    span.start_timestamp,
+    dur == null ? null : dur / 1000,
+    traceStart,
+    total,
+  );
+
+  const failed = span.status && span.status !== 'ok';
+  const select = () => onSelect(isSelected ? null : (span.span_id ?? null));
+
+  const selectKey = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      select();
+    }
+  };
+
+  return (
+    <div>
+      {/* biome-ignore lint/a11y/useSemanticElements: the row contains its own
+          collapse <button>, and a <button> nested inside a <button> is invalid
+          HTML. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={select}
+        onKeyDown={selectKey}
+        className={cn(
+          'flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-muted/40',
+          isSelected && 'bg-muted/50',
+        )}
+      >
+        <div
+          className="flex w-[38%] min-w-0 items-center gap-1"
+          style={{ paddingLeft: `${Math.min(depth, 8) * 12}px` }}
+        >
+          {hasChildren ? (
+            // The row itself is the selectable control, and this is a second
+            // control inside it. Nesting is unavoidable here: the row cannot be
+            // a <button> without making this one invalid HTML, which is why the
+            // row is a div with a role and its own keyboard handling.
+            // react-doctor-disable-next-line react-doctor/html-no-nested-interactive
+            <button
+              type="button"
+              aria-label={
+                isCol ? t('waterfall.expand') : t('waterfall.collapse')
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(span.span_id);
+              }}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              {isCol ? (
+                <ChevronRight className="size-3" />
+              ) : (
+                <ChevronDown className="size-3" />
+              )}
+            </button>
+          ) : (
+            <span className="inline-block size-3 shrink-0" />
+          )}
+          <span
+            className={cn(
+              'shrink-0 rounded px-1 py-px text-[10px] font-medium text-white',
+              opColor(span.op),
+            )}
+          >
+            {span.op || t('waterfall.spanFallback')}
+          </span>
+          <span className="truncate text-muted-foreground">
+            {span.description || '—'}
+          </span>
+          {failed && (
+            <span className="shrink-0 rounded bg-destructive/15 px-1 text-[10px] text-destructive">
+              {span.status}
+            </span>
+          )}
+        </div>
+        <div className="relative h-4 flex-1">
+          <div
+            className={cn('absolute inset-y-0 rounded-sm', opColor(span.op))}
+            style={{ left: `${offsetPct}%`, width: `${widthPct}%` }}
+          />
+        </div>
+        <span className="w-16 text-right tabular-nums text-muted-foreground">
+          {formatDuration(dur)}
+        </span>
+      </div>
+
+      {isSelected && <SpanDetail span={span} dur={dur} selfMs={selfMs} />}
     </div>
   );
 }
