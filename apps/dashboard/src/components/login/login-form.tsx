@@ -35,11 +35,13 @@ function failureMessage(error: RustrakError): string {
   }
 }
 
+// Rounds up, never down: telling someone to wait 1 minute for 61 seconds
+// invites the retry that extends the block.
 function formatWait(seconds: number): string {
   if (seconds < 60) return `${seconds} seconds`;
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.ceil(seconds / 60);
   if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-  const hours = Math.round(seconds / 3600);
+  const hours = Math.ceil(seconds / 3600);
   return `${hours} hour${hours === 1 ? '' : 's'}`;
 }
 
