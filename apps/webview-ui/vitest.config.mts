@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -19,6 +20,19 @@ import { defineConfig } from 'vitest/config';
  * arrive in the commit that needs it.
  */
 export default defineConfig({
+  /**
+   * The one thing Next resolves for us that this config has to resolve itself.
+   *
+   * Type-only `@/` imports vanish at compile time, so a module using nothing
+   * but those ran here without an alias. The first unit test whose subject
+   * imports a real *value* through `@/` fails to resolve instead, which reads
+   * as a missing package rather than as missing config.
+   */
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     /**
      * Sequential files, one shared module registry, and it is a **20x
