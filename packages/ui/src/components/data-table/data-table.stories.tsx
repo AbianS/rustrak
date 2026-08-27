@@ -102,67 +102,84 @@ const ISSUES: Issue[] = Array.from({ length: 60 }, (_, index) => {
   };
 });
 
-/** What the Rust server will do, done to the fixture: the story's backend. */
-function fakeServer(query: DataTableQuery): { rows: Issue[]; total: number } {
-  let rows = ISSUES.filter((issue) => {
-    for (const filter of query.filters) {
-      if (filter.id === 'level') {
-        if (!(filter.value as string[]).includes(issue.level)) return false;
-      }
-      if (filter.id === 'events') {
-        const [min, max] = filter.value as [number | null, number | null];
-        if (min !== null && issue.events < min) return false;
-        if (max !== null && issue.events > max) return false;
-      }
-      if (filter.id === 'culprit') {
-        const needle = (filter.value as string).toLowerCase();
-        if (!issue.culprit.toLowerCase().includes(needle)) return false;
-      }
-      if (filter.id === 'title') {
-        const needle = (filter.value as string).toLowerCase();
-        if (!issue.title.toLowerCase().includes(needle)) return false;
-      }
-      if (filter.id === 'users') {
-        const [min, max] = filter.value as [number | null, number | null];
-        if (min !== null && issue.users < min) return false;
-        if (max !== null && issue.users > max) return false;
-      }
-      if (filter.id === 'seen') {
-        const cutoff = Number((filter.value as string[])[0]);
-        if (issue.seenMinutesAgo > cutoff) return false;
-      }
-    }
-    if (query.search) {
-      const needle = query.search.toLowerCase();
-      if (!`${issue.title} ${issue.culprit}`.toLowerCase().includes(needle)) {
-        return false;
-      }
-    }
-    return true;
-  });
+const SEVERITY = { info: 0, warning: 1, error: 2, fatal: 3 } as const;
 
-  const SEVERITY = { info: 0, warning: 1, error: 2, fatal: 3 } as const;
+/** Whether `issue` passes one filter, keyed by the column the filter names. */
+const MATCHERS: Record<string, (issue: Issue, value: unknown) => boolean> = {
+  level: (issue, value) => (value as string[]).includes(issue.level),
+
+  events: (issue, value) => inRange(issue.events, value),
+  users: (issue, value) => inRange(issue.users, value),
+
+  culprit: (issue, value) => contains(issue.culprit, value as string),
+  title: (issue, value) => contains(issue.title, value as string),
+
+  // The one filter whose option value is not what it compares against: the
+  // rows carry an age and the options carry a cutoff.
+  seen: (issue, value) =>
+    issue.seenMinutesAgo <= Number((value as string[])[0]),
+};
+
+const inRange = (n: number, value: unknown): boolean => {
+  const [min, max] = value as [number | null, number | null];
+  return (min === null || n >= min) && (max === null || n <= max);
+};
+
+const contains = (haystack: string, needle: string): boolean =>
+  haystack.toLowerCase().includes(needle.toLowerCase());
+
+/** A filter naming a column with no matcher is ignored, not fatal. */
+function matchesFilters(issue: Issue, query: DataTableQuery): boolean {
+  return query.filters.every(
+    (filter) => MATCHERS[filter.id]?.(issue, filter.value) ?? true,
+  );
+}
+
+/** Free text searches the two columns a reader would expect it to. */
+function matchesSearch(issue: Issue, search: string): boolean {
+  if (!search) return true;
+  return contains(`${issue.title} ${issue.culprit}`, search);
+}
+
+/** Column ids are the URL's names, and two of them are not field names. */
+function sortValue(issue: Issue, id: string): number | string {
+  if (id === 'level') return SEVERITY[issue.level];
+  if (id === 'seen') return issue.seenMinutesAgo;
+  return issue[id as keyof Issue] as number | string;
+}
+
+function sortRows(rows: Issue[], query: DataTableQuery): Issue[] {
   const sort = query.sorting[0];
-  if (sort) {
-    // Column ids are the URL's names; two of them are not field names.
-    const key = (
-      sort.id === 'seen' ? 'seenMinutesAgo' : sort.id
-    ) as keyof Issue;
-    rows = [...rows].sort((a, b) => {
-      const left = key === 'level' ? SEVERITY[a.level] : a[key];
-      const right = key === 'level' ? SEVERITY[b.level] : b[key];
-      const order =
-        typeof left === 'number' && typeof right === 'number'
-          ? left - right
-          : String(left).localeCompare(String(right));
-      return sort.desc ? -order : order;
-    });
-  }
+  if (!sort) return rows;
+
+  return [...rows].sort((a, b) => {
+    const left = sortValue(a, sort.id);
+    const right = sortValue(b, sort.id);
+    const order =
+      typeof left === 'number' && typeof right === 'number'
+        ? left - right
+        : String(left).localeCompare(String(right));
+    return sort.desc ? -order : order;
+  });
+}
+
+/**
+ * What the Rust server will do, done to the fixture: the story's backend.
+ *
+ * Worth reading as documentation rather than as scaffolding -- this is the
+ * filter, sort and page behaviour the real endpoint is expected to match.
+ */
+function fakeServer(query: DataTableQuery): { rows: Issue[]; total: number } {
+  const matched = ISSUES.filter(
+    (issue) =>
+      matchesFilters(issue, query) && matchesSearch(issue, query.search),
+  );
+  const sorted = sortRows(matched, query);
 
   const { pageIndex, pageSize } = query.pagination;
   return {
-    rows: rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize),
-    total: rows.length,
+    rows: sorted.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize),
+    total: matched.length,
   };
 }
 

@@ -9,9 +9,12 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
     let (calculated_type, calculated_value) = get_type_and_value(event_data);
     let transaction = get_transaction(event_data);
 
-    // Check for custom fingerprint
+    // Check for custom fingerprint. An empty fingerprint (sent as `[]` by
+    // sentry-ruby, or left empty after Relay drops null/array/object parts)
+    // means "no custom fingerprint" and falls back to default grouping, as
+    // in Sentry (`event.data.get("fingerprint") or ["{{ default }}"]`).
     if let Some(fingerprint) = event_data.get("fingerprint").and_then(|f| f.as_array()) {
-        return fingerprint
+        let parts: Vec<String> = fingerprint
             .iter()
             .filter_map(|part| {
                 let coerced = coerce_fingerprint_element(part)?;
@@ -25,8 +28,10 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
                     Some(coerced)
                 }
             })
-            .collect::<Vec<_>>()
-            .join(GROUPING_SEPARATOR);
+            .collect();
+        if !parts.is_empty() {
+            return parts.join(GROUPING_SEPARATOR);
+        }
     }
 
     // Default grouping

@@ -72,6 +72,28 @@ describe('parseFilterQuery', () => {
     expect(filters).toEqual([{ id: 'release', value: 'say "hi" now' }]);
   });
 
+  it('drops an option list that names no option', () => {
+    const { filters, search } = parseFilterQuery('level:,, timeout', variants);
+
+    expect(filters).toEqual([]);
+    expect(search).toBe('timeout');
+  });
+
+  /**
+   * Not symmetric with the case above, and deliberately so: a malformed option
+   * list can only have been an attempt at a filter, while `events:oops` is a
+   * plausible start of a pasted line and is worth keeping as prose.
+   */
+  it('keeps a malformed range as free text rather than dropping it', () => {
+    const { filters, search } = parseFilterQuery(
+      'events:oops timeout',
+      variants,
+    );
+
+    expect(filters).toEqual([]);
+    expect(search).toBe('events:oops timeout');
+  });
+
   it('merges a key written twice instead of duplicating it', () => {
     const { filters } = parseFilterQuery('level:error level:fatal', variants);
 

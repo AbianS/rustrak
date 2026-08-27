@@ -325,46 +325,136 @@ function advance(frontier: number | null, ...ends: number[]): number {
  * `guides` says, per ancestor level, whether that ancestor still has
  * siblings below -- which is exactly where a vertical guide line belongs.
  */
+/** One sibling, or a run of them folded into an autogroup. */
+type SiblingUnit =
+  | { unit: 'node'; node: TreeNode }
+  | { unit: 'run'; nodes: TreeNode[] };
+
+/**
+ * Splits a sibling list into single nodes and autogroupable runs.
+ *
+ * A run is `AUTOGROUP_MIN`+ consecutive siblings that are all leaves and all
+ * share an op and description: the N+1 shape. A node with children never joins
+ * one, because folding it would hide the subtree underneath it.
+ */
+function partitionSiblings(list: TreeNode[]): SiblingUnit[] {
+  const units: SiblingUnit[] = [];
+  const keyOf = (node: TreeNode) => `${node.span.op} ${node.span.description}`;
+
+  let index = 0;
+  while (index < list.length) {
+    const node = list[index] as TreeNode;
+    const key = keyOf(node);
+
+    let end = index;
+    while (end + 1 < list.length) {
+      const next = list[end + 1] as TreeNode;
+      const breaksRun =
+        next.children.length > 0 ||
+        node.children.length > 0 ||
+        keyOf(next) !== key;
+      if (breaksRun) break;
+      end += 1;
+    }
+
+    if (end - index + 1 >= AUTOGROUP_MIN) {
+      units.push({ unit: 'run', nodes: list.slice(index, end + 1) });
+      index = end + 1;
+    } else {
+      units.push({ unit: 'node', node });
+      index += 1;
+    }
+  }
+
+  return units;
+}
+
+/** The span a unit starts at, whichever kind of unit it is. */
+function unitStart(entry: SiblingUnit): WaterfallSpan {
+  return entry.unit === 'node'
+    ? entry.node.span
+    : (entry.nodes[0] as TreeNode).span;
+}
+
 function flatten(nodes: TreeNode[], state: FlattenState): Row[] {
   const rows: Row[] = [];
 
-  const walk = (list: TreeNode[], depth: number, guides: boolean[]) => {
-    // First pass: partition the sibling list into single nodes and groups.
-    const units: Array<
-      { unit: 'node'; node: TreeNode } | { unit: 'run'; nodes: TreeNode[] }
-    > = [];
-    let index = 0;
-    while (index < list.length) {
-      const node = list[index] as TreeNode;
-      const key = `${node.span.op} ${node.span.description}`;
-      let end = index;
-      while (end + 1 < list.length) {
-        const next = list[end + 1] as TreeNode;
-        if (
-          next.children.length > 0 ||
-          node.children.length > 0 ||
-          `${next.span.op} ${next.span.description}` !== key
-        ) {
-          break;
-        }
-        end += 1;
+  /** Pushes one autogrouped run, open or folded. Returns the new frontier. */
+  const emitRun = (
+    entryNodes: TreeNode[],
+    depth: number,
+    guides: boolean[],
+    last: boolean,
+    frontier: number | null,
+  ): number => {
+    const spans = entryNodes.map((n) => n.span);
+    const head = spans[0] as WaterfallSpan;
+    const groupId = `group-${head.id}`;
+
+    if (state.openGroups.has(groupId)) {
+      for (const node of entryNodes) {
+        rows.push({
+          kind: 'span',
+          id: node.span.id,
+          span: node.span,
+          depth,
+          guides: [...guides, !last],
+          hasChildren: false,
+          collapsed: false,
+          count: 0,
+        });
       }
-      if (end - index + 1 >= AUTOGROUP_MIN) {
-        units.push({ unit: 'run', nodes: list.slice(index, end + 1) });
-        index = end + 1;
-      } else {
-        units.push({ unit: 'node', node });
-        index += 1;
-      }
+    } else {
+      rows.push({
+        kind: 'group',
+        id: groupId,
+        op: head.op ?? 'span',
+        description: head.description,
+        spans,
+        depth,
+        guides: [...guides, !last],
+        failed: spans.some((s) => s.status && s.status !== 'ok'),
+      });
     }
 
+    return advance(frontier, ...spans.map((s) => s.endMs));
+  };
+
+  /** Pushes one span and, when it is open, its children. Returns the frontier. */
+  const emitNode = (
+    node: TreeNode,
+    depth: number,
+    guides: boolean[],
+    last: boolean,
+    frontier: number | null,
+  ): number => {
+    const isCollapsed = state.collapsed.has(node.span.id);
+
+    rows.push({
+      kind: 'span',
+      id: node.span.id,
+      span: node.span,
+      depth,
+      guides: [...guides, !last],
+      hasChildren: node.children.length > 0,
+      collapsed: isCollapsed,
+      count: descendants(node),
+    });
+
+    if (node.children.length > 0 && !isCollapsed) {
+      walk(node.children, depth + 1, [...guides, !last]);
+    }
+
+    return advance(frontier, node.span.endMs);
+  };
+
+  const walk = (list: TreeNode[], depth: number, guides: boolean[]) => {
+    const units = partitionSiblings(list);
     let previousEnd: number | null = null;
+
     units.forEach((entry, unitIndex) => {
       const last = unitIndex === units.length - 1;
-      const first =
-        entry.unit === 'node'
-          ? entry.node.span
-          : (entry.nodes[0] as TreeNode).span;
+      const first = unitStart(entry);
 
       if (
         state.showGaps &&
@@ -381,55 +471,10 @@ function flatten(nodes: TreeNode[], state: FlattenState): Row[] {
         });
       }
 
-      if (entry.unit === 'run') {
-        const spans = entry.nodes.map((n) => n.span);
-        const head = spans[0] as WaterfallSpan;
-        const groupId = `group-${head.id}`;
-        if (state.openGroups.has(groupId)) {
-          for (const node of entry.nodes) {
-            rows.push({
-              kind: 'span',
-              id: node.span.id,
-              span: node.span,
-              depth,
-              guides: [...guides, !last],
-              hasChildren: false,
-              collapsed: false,
-              count: 0,
-            });
-          }
-        } else {
-          rows.push({
-            kind: 'group',
-            id: groupId,
-            op: head.op ?? 'span',
-            description: head.description,
-            spans,
-            depth,
-            guides: [...guides, !last],
-            failed: spans.some((s) => s.status && s.status !== 'ok'),
-          });
-        }
-        previousEnd = advance(previousEnd, ...spans.map((s) => s.endMs));
-        return;
-      }
-
-      const node = entry.node;
-      const isCollapsed = state.collapsed.has(node.span.id);
-      rows.push({
-        kind: 'span',
-        id: node.span.id,
-        span: node.span,
-        depth,
-        guides: [...guides, !last],
-        hasChildren: node.children.length > 0,
-        collapsed: isCollapsed,
-        count: descendants(node),
-      });
-      if (node.children.length > 0 && !isCollapsed) {
-        walk(node.children, depth + 1, [...guides, !last]);
-      }
-      previousEnd = advance(previousEnd, node.span.endMs);
+      previousEnd =
+        entry.unit === 'run'
+          ? emitRun(entry.nodes, depth, guides, last, previousEnd)
+          : emitNode(entry.node, depth, guides, last, previousEnd);
     });
   };
 
@@ -818,61 +863,47 @@ function RowBars({
 RowBars.displayName = 'RowBars';
 
 /** One span, or one autogrouped run of them, on the shared clock. */
-function SpanRow({
-  row,
-  start,
-  total,
-  tabStop,
-  selected,
-  onSelect,
-  renderDetail,
-  onToggle,
-  moveFocus,
-}: {
-  row: SpanRowData;
-  start: number;
-  total: number;
-  tabStop: boolean;
-  selected: boolean;
-  onSelect?: (span: WaterfallSpan | null) => void;
-  renderDetail?: (span: WaterfallSpan) => ReactNode;
-  onToggle: (id: string) => void;
+/**
+ * How a row reads: whether it failed, and which palette it draws in.
+ *
+ * A group takes the error look as soon as any span in it failed, because the
+ * one that did is the reason someone is looking at the group at all.
+ */
+function rowAppearance(row: SpanRowData): { failed: boolean; kind: SpanKind } {
+  if (row.kind === 'group') {
+    return {
+      failed: row.failed,
+      kind: row.failed ? 'error' : spanKind(row.spans[0] as WaterfallSpan),
+    };
+  }
+
+  const kind = spanKind(row.span);
+  return { failed: kind === 'error', kind };
+}
+
+interface RowKeyActions {
+  select: () => void;
+  toggle: () => void;
   moveFocus: (from: HTMLElement, delta: number | 'home' | 'end') => void;
-}) {
-  const spans = row.kind === 'group' ? row.spans : [row.span];
-  const rowStart = Math.min(...spans.map((s) => s.startMs));
-  const rowEnd = Math.max(...spans.map((s) => s.endMs));
-  const failed =
-    row.kind === 'group' ? row.failed : spanKind(row.span) === 'error';
-  const kind: SpanKind =
-    row.kind === 'group'
-      ? failed
-        ? 'error'
-        : spanKind(row.spans[0] as WaterfallSpan)
-      : spanKind(row.span);
+  expandable: boolean;
+  isOpen: boolean;
+}
 
-  const left = ((rowStart - start) / total) * 100;
-  // A 2 ms span in a 600 ms trace still has to be visible: it may be the
-  // one that threw.
-  const width = Math.min(
-    Math.max(((rowEnd - rowStart) / total) * 100, 0.6),
-    100 - left,
-  );
-
-  const expandable = row.kind === 'group' || row.hasChildren;
-  const isOpen = row.kind === 'span' && row.hasChildren && !row.collapsed;
-  const toggle = () => {
-    if (expandable) onToggle(row.id);
-  };
-  const select = () => {
-    if (row.kind !== 'span') {
-      toggle();
-      return;
-    }
-    onSelect?.(selected ? null : row.span);
-  };
-
-  const onRowKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+/**
+ * The treeitem keyboard contract, in one place.
+ *
+ * Arrow right opens and arrow left closes rather than toggling: that is what
+ * the ARIA tree pattern specifies, and it is why these two are the only keys
+ * here that do nothing when the row is already in the state they ask for.
+ */
+function rowKeyHandler({
+  select,
+  toggle,
+  moveFocus,
+  expandable,
+  isOpen,
+}: RowKeyActions) {
+  return (event: KeyboardEvent<HTMLElement>) => {
     switch (event.key) {
       case 'Enter':
       case ' ':
@@ -903,6 +934,62 @@ function SpanRow({
         break;
     }
   };
+}
+
+function SpanRow({
+  row,
+  start,
+  total,
+  tabStop,
+  selected,
+  onSelect,
+  renderDetail,
+  onToggle,
+  moveFocus,
+}: {
+  row: SpanRowData;
+  start: number;
+  total: number;
+  tabStop: boolean;
+  selected: boolean;
+  onSelect?: (span: WaterfallSpan | null) => void;
+  renderDetail?: (span: WaterfallSpan) => ReactNode;
+  onToggle: (id: string) => void;
+  moveFocus: (from: HTMLElement, delta: number | 'home' | 'end') => void;
+}) {
+  const spans = row.kind === 'group' ? row.spans : [row.span];
+  const rowStart = Math.min(...spans.map((s) => s.startMs));
+  const rowEnd = Math.max(...spans.map((s) => s.endMs));
+  const { failed, kind } = rowAppearance(row);
+
+  const left = ((rowStart - start) / total) * 100;
+  // A 2 ms span in a 600 ms trace still has to be visible: it may be the
+  // one that threw.
+  const width = Math.min(
+    Math.max(((rowEnd - rowStart) / total) * 100, 0.6),
+    100 - left,
+  );
+
+  const expandable = row.kind === 'group' || row.hasChildren;
+  const isOpen = row.kind === 'span' && row.hasChildren && !row.collapsed;
+  const toggle = () => {
+    if (expandable) onToggle(row.id);
+  };
+  const select = () => {
+    if (row.kind !== 'span') {
+      toggle();
+      return;
+    }
+    onSelect?.(selected ? null : row.span);
+  };
+
+  const onRowKeyDown = rowKeyHandler({
+    select,
+    toggle,
+    moveFocus,
+    expandable,
+    isOpen,
+  });
 
   const onRowClick = (event: MouseEvent) => {
     const target = event.target as HTMLElement;

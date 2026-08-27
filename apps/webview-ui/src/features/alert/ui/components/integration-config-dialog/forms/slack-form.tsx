@@ -2,15 +2,10 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Play } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import {
-  createIntegration,
-  updateIntegration,
-} from '@/features/alert/api/mutations';
+import { filledCredentials } from '@/features/alert/lib/credentials';
 import {
   SLACK_FIELD_MAP,
   type SlackFormData,
@@ -18,7 +13,7 @@ import {
   slackDefaults,
   slackFormSchema,
 } from '@/features/alert/model/integration-forms';
-import { applyServerFieldErrors } from '@/shared/lib/form-errors';
+import { useIntegrationSubmit } from '@/features/alert/ui/hooks/use-integration-submit';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   DialogDescription,
@@ -57,9 +52,6 @@ export function SlackForm({
   const t = useTranslations('alerts');
 
   const globalT = useTranslations();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const isLoading = isPending || parentPending;
   const [testChannel, setTestChannel] = useState('');
 
   const schema = useMemo(() => slackFormSchema(t), [t]);
@@ -70,56 +62,35 @@ export function SlackForm({
 
   const method = form.watch('method') as SlackMethod;
 
-  const onSubmit = (data: SlackFormData) => {
-    startTransition(async () => {
-      let credentials: Record<string, unknown>;
+  const { submit, isPending } = useIntegrationSubmit<SlackFormData>({
+    form,
+    existingIntegration,
+    providerType: 'slack',
+    // The two methods are alternatives, not a union of fields: an incoming
+    // webhook has no token and a bot has no webhook URL, and sending the
+    // unused one would leave the integration describing itself as both. A
+    // blank token on edit falls out of `filledCredentials`, which is what
+    // "leave the stored token alone" looks like on the wire.
+    credentials: (data) =>
+      data.method === 'webhook'
+        ? { method: 'webhook', webhook_url: data.webhook_url }
+        : filledCredentials({ method: 'bot_token', token: data.token }),
+    fieldMap: SLACK_FIELD_MAP,
+    labels: {
+      name: t('common.fieldName'),
+      webhook_url: t('slack.fieldWebhookUrl'),
+      token: t('slack.fieldToken'),
+    },
+    messages: {
+      saveFailed: t('slack.saveFailed'),
+      created: t('slack.created'),
+      updated: t('slack.updated'),
+    },
+    t: globalT,
+    onSaved: () => onOpenChange(false),
+  });
 
-      if (data.method === 'webhook') {
-        credentials = { method: 'webhook', webhook_url: data.webhook_url };
-      } else {
-        credentials = { method: 'bot_token' };
-        const tokenEmpty = !data.token || data.token.trim() === '';
-        if (!tokenEmpty) credentials.token = data.token;
-      }
-
-      const result = existingIntegration
-        ? await updateIntegration(existingIntegration.id, {
-            name: data.name,
-            credentials,
-            is_enabled: data.is_enabled,
-          })
-        : await createIntegration({
-            name: data.name,
-            provider_type: 'slack',
-            credentials,
-            is_enabled: data.is_enabled,
-          });
-
-      if (!result.success) {
-        const applied = applyServerFieldErrors(form, result.error, {
-          map: SLACK_FIELD_MAP,
-          labels: {
-            name: t('common.fieldName'),
-            webhook_url: t('slack.fieldWebhookUrl'),
-            token: t('slack.fieldToken'),
-          },
-          t: globalT,
-        });
-
-        if (applied.formLevel) {
-          toast.error(t('slack.saveFailed'), {
-            description: applied.formLevel,
-          });
-        }
-        return;
-      }
-
-      toast.success(t(existingIntegration ? 'slack.updated' : 'slack.created'));
-      onOpenChange(false);
-      router.refresh();
-    });
-  };
-
+  const isLoading = isPending || parentPending;
   const isBotToken = method === 'bot_token';
 
   return (
@@ -132,7 +103,7 @@ export function SlackForm({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
           <NameField<SlackFormData>
             placeholder={t('slack.namePlaceholder')}
             disabled={isLoading}
