@@ -133,6 +133,42 @@ export function CommandBarDialog({
     }
   };
 
+  /**
+   * Keys while the page column holds the selection.
+   *
+   * cmdk listens on its own root above this input, so anything claimed here
+   * has to stop bubbling or the list would move as well.
+   */
+  const handlePanelKey = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    current: number,
+    projectId: number,
+  ) => {
+    const step =
+      event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+
+    if (step !== 0) {
+      event.preventDefault();
+      event.stopPropagation();
+      movePanel(
+        (current + step + ALL_PROJECT_PAGES.length) % ALL_PROJECT_PAGES.length,
+      );
+      return;
+    }
+
+    if (event.key === 'Tab' && !event.shiftKey) {
+      event.preventDefault();
+      togglePanel();
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      go(`/projects/${projectId}${ALL_PROJECT_PAGES[current].segment}`);
+    }
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // `isMobile` as well as the selection: below `md` there is no column to
     // enter, and claiming Tab there would strand `panelIndexRef` non-null and
@@ -143,31 +179,10 @@ export function CommandBarDialog({
     // DOM focus reaches the column one render after `panelIndex` is set, so a
     // quick second keystroke still arrives here. Routing by intent rather than
     // by where focus happens to sit means entering the column never eats the
-    // key that follows it. cmdk listens on its own root above this input, so
-    // these have to stop bubbling or the list would move as well.
+    // key that follows it.
     const current = panelIndexRef.current;
-
     if (current !== null) {
-      const step =
-        event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
-
-      if (step !== 0) {
-        event.preventDefault();
-        event.stopPropagation();
-        movePanel(
-          (current + step + ALL_PROJECT_PAGES.length) %
-            ALL_PROJECT_PAGES.length,
-        );
-      } else if (event.key === 'Tab' && !event.shiftKey) {
-        event.preventDefault();
-        togglePanel();
-      } else if (event.key === 'Enter') {
-        event.preventDefault();
-        event.stopPropagation();
-        go(
-          `/projects/${selectedProject.id}${ALL_PROJECT_PAGES[current].segment}`,
-        );
-      }
+      handlePanelKey(event, current, selectedProject.id);
       return;
     }
 

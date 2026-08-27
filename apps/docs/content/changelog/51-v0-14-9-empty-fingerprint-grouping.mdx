@@ -1,0 +1,17 @@
+---
+version: v0.14.9
+title: Empty Fingerprint Grouping
+description: Fixes every error collapsing into one issue when an SDK sends an empty fingerprint.
+date: 2026-08-27
+tags: [server, grouping, sentry-compat, fix]
+---
+
+## Empty fingerprint falls back to default grouping
+
+An event carrying `"fingerprint": []` produced an empty grouping key, so every error in the project landed in the same issue. sentry-ruby sends that empty array on every event, and a fingerprint whose elements Relay drops (`null`, arrays, objects) ends up empty too.
+
+- An empty fingerprint now means "no custom fingerprint" and falls back to the default type, value and transaction key, the same as Sentry
+- A fingerprint that only contains droppable elements takes the same path
+- Non-empty custom fingerprints are unchanged
+
+Existing issues created while the bug was live keep their empty key; new events group correctly from this version on.

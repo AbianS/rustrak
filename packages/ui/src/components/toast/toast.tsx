@@ -412,6 +412,89 @@ export function useToast(): UseToastReturn {
   );
 }
 
+/** The tone-resolved class slots, which only `ToastRoot` can build. */
+type ToastStyles = ReturnType<typeof toast>;
+
+/** How far along the work is, clamped to the bar it is drawn in. */
+function ToastProgress({
+  value,
+  styles,
+}: {
+  value: number;
+  styles: ToastStyles;
+}) {
+  // Normalized once, then used for all three. The bar was already clamped
+  // while `aria-valuenow` and the caption were not, so a caller reporting 150
+  // drew a full bar and announced "150 %" against a declared maximum of 100.
+  // A non-finite value reads as no progress rather than as `NaN %`.
+  const clamped = Number.isFinite(value)
+    ? Math.min(Math.max(value, 0), 100)
+    : 0;
+  const rounded = Math.round(clamped);
+
+  return (
+    <div
+      className={styles.progress()}
+      role="progressbar"
+      aria-label="Progress"
+      aria-valuenow={rounded}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <span className={styles.progressTrack()}>
+        <span
+          className={styles.progressBar()}
+          style={{ width: `${clamped}%` }}
+        />
+      </span>
+      <span className={styles.progressValue()}>{rounded} %</span>
+    </div>
+  );
+}
+
+/**
+ * What can be done about the notice.
+ *
+ * The primary is a `BaseToast.Action` and the secondary is a plain button:
+ * only the first is the toast's own action, and marking both would give a
+ * screen reader two of them.
+ */
+function ToastActions({
+  action,
+  altAction,
+  onRun,
+  styles,
+}: {
+  action: ToastActionSpec | undefined;
+  altAction: ToastActionSpec | undefined;
+  onRun: (spec: ToastActionSpec) => () => void;
+  styles: ToastStyles;
+}) {
+  return (
+    <div className={styles.actions()}>
+      {action ? (
+        <BaseToast.Action
+          onClick={onRun(action)}
+          render={
+            <Button
+              variant={action.strong ? 'primary' : 'secondary'}
+              size="sm"
+              aria-label={action.label}
+            />
+          }
+        >
+          {action.label}
+        </BaseToast.Action>
+      ) : null}
+      {altAction ? (
+        <Button variant="ghost" size="sm" onClick={onRun(altAction)}>
+          {altAction.label}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function ToastRoot({ toast: item }: { toast: ToastItem }) {
   const { close } = BaseToast.useToastManager<ToastData>();
   const data = item.data;
@@ -450,54 +533,16 @@ function ToastRoot({ toast: item }: { toast: ToastItem }) {
             ) : null}
 
             {progress != null ? (
-              <div
-                className={styles.progress()}
-                role="progressbar"
-                aria-label="Progress"
-                aria-valuenow={Math.round(progress)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <span className={styles.progressTrack()}>
-                  <span
-                    className={styles.progressBar()}
-                    style={{
-                      width: `${Math.min(Math.max(progress, 0), 100)}%`,
-                    }}
-                  />
-                </span>
-                <span className={styles.progressValue()}>
-                  {Math.round(progress)} %
-                </span>
-              </div>
+              <ToastProgress value={progress} styles={styles} />
             ) : null}
 
             {action || altAction ? (
-              <div className={styles.actions()}>
-                {action ? (
-                  <BaseToast.Action
-                    onClick={runAndClose(action)}
-                    render={
-                      <Button
-                        variant={action.strong ? 'primary' : 'secondary'}
-                        size="sm"
-                        aria-label={action.label}
-                      />
-                    }
-                  >
-                    {action.label}
-                  </BaseToast.Action>
-                ) : null}
-                {altAction ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={runAndClose(altAction)}
-                  >
-                    {altAction.label}
-                  </Button>
-                ) : null}
-              </div>
+              <ToastActions
+                action={action}
+                altAction={altAction}
+                onRun={runAndClose}
+                styles={styles}
+              />
             ) : null}
           </div>
 

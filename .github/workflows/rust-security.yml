@@ -6,8 +6,9 @@ on:
     paths:
       - "apps/server/**"
       - "deny.toml"
+  # No `branches` filter: it matches the PR's base, and a PR onto a feature
+  # branch carries the same dependencies as one onto main.
   pull_request:
-    branches: ["main"]
     paths:
       - "apps/server/**"
       - "deny.toml"
