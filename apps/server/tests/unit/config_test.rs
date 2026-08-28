@@ -4,7 +4,7 @@
 //!
 //! Note: These tests modify global environment variables and must run serially.
 
-use rustrak::config::{Config, RateLimitConfig};
+use rustrak::config::{Config, OidcConfig, RateLimitConfig};
 use serial_test::serial;
 
 // =============================================================================
@@ -192,4 +192,89 @@ fn test_config_public_url_empty_string_treated_as_none() {
         Some(v) => std::env::set_var("PUBLIC_URL", v),
         None => std::env::remove_var("PUBLIC_URL"),
     }
+}
+
+// =============================================================================
+// OpenID Connect Config Tests
+// =============================================================================
+
+fn clear_oidc_env() {
+    for name in [
+        "OIDC_ISSUER_URL",
+        "OIDC_CLIENT_ID",
+        "OIDC_CLIENT_SECRET",
+        "OIDC_REDIRECT_URL",
+        "OIDC_PROVIDER_NAME",
+        "OIDC_SCOPES",
+        "OIDC_ALLOWED_DOMAINS",
+        "OIDC_AUTO_PROVISION",
+        "OIDC_REQUIRE_EMAIL_VERIFIED",
+    ] {
+        std::env::remove_var(name);
+    }
+}
+
+#[test]
+#[serial]
+fn test_oidc_is_disabled_without_issuer() {
+    clear_oidc_env();
+    assert!(OidcConfig::from_env().unwrap().is_none());
+}
+
+#[test]
+#[serial]
+fn test_oidc_config_defaults_and_domain_allowlist() {
+    clear_oidc_env();
+    std::env::set_var("OIDC_ISSUER_URL", "https://id.example.com");
+    std::env::set_var("OIDC_CLIENT_ID", "rustrak");
+    std::env::set_var("OIDC_CLIENT_SECRET", "secret");
+    std::env::set_var(
+        "OIDC_REDIRECT_URL",
+        "https://rustrak.example.com/auth/sso/callback",
+    );
+    std::env::set_var("OIDC_ALLOWED_DOMAINS", "Example.com, staff.example.org ");
+
+    let config = OidcConfig::from_env().unwrap().unwrap();
+    assert_eq!(config.provider_name, "SSO");
+    assert_eq!(config.scopes, ["openid", "email", "profile"]);
+    assert_eq!(config.allowed_domains, ["example.com", "staff.example.org"]);
+    assert!(config.auto_provision);
+    assert!(config.require_email_verified);
+    clear_oidc_env();
+}
+
+#[test]
+#[serial]
+fn test_oidc_rejects_partial_configuration() {
+    clear_oidc_env();
+    std::env::set_var("OIDC_ISSUER_URL", "https://id.example.com");
+    let error = OidcConfig::from_env().unwrap_err().to_string();
+    assert!(error.contains("OIDC_CLIENT_ID"));
+    clear_oidc_env();
+}
+
+#[test]
+#[serial]
+fn test_oidc_security_defaults_do_not_fail_open_on_invalid_booleans() {
+    clear_oidc_env();
+    std::env::set_var("OIDC_ISSUER_URL", "https://id.example.com");
+    std::env::set_var("OIDC_CLIENT_ID", "rustrak");
+    std::env::set_var("OIDC_CLIENT_SECRET", "secret");
+    std::env::set_var(
+        "OIDC_REDIRECT_URL",
+        "https://rustrak.example.com/auth/sso/callback",
+    );
+    std::env::set_var("OIDC_AUTO_PROVISION", "typo");
+    std::env::set_var("OIDC_REQUIRE_EMAIL_VERIFIED", "typo");
+
+    let config = OidcConfig::from_env().unwrap().unwrap();
+    assert!(config.auto_provision);
+    assert!(config.require_email_verified);
+
+    std::env::set_var("OIDC_AUTO_PROVISION", "false");
+    std::env::set_var("OIDC_REQUIRE_EMAIL_VERIFIED", "off");
+    let config = OidcConfig::from_env().unwrap().unwrap();
+    assert!(!config.auto_provision);
+    assert!(!config.require_email_verified);
+    clear_oidc_env();
 }
