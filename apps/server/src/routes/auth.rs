@@ -315,6 +315,7 @@ pub async fn sso_start(
         (status = 200, description = "SSO login completed", body = AuthResponse),
         (status = 401, description = "Invalid or expired callback", body = crate::error::ErrorResponse),
         (status = 403, description = "Identity is not permitted", body = crate::error::ErrorResponse),
+        (status = 404, description = "SSO is not configured", body = crate::error::ErrorResponse),
     ),
     security(()),
 ))]

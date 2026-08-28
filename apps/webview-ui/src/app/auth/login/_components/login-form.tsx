@@ -89,6 +89,8 @@ export function LoginForm({
   });
 
   const onSubmit = (data: LoginFormData) => {
+    if (isPending || isSsoPending) return;
+
     form.clearErrors();
 
     startTransition(async () => {
@@ -207,7 +209,7 @@ export function LoginForm({
                     type="email"
                     placeholder={t('form.emailPlaceholder')}
                     autoComplete="email"
-                    disabled={isPending}
+                    disabled={isPending || isSsoPending}
                     className="bg-background border-border px-4 py-3.5 text-sm placeholder:text-muted-foreground/30"
                     {...field}
                   />
@@ -233,14 +235,14 @@ export function LoginForm({
                       type={showPassword ? 'text' : 'password'}
                       placeholder={t('form.passwordPlaceholder')}
                       autoComplete="current-password"
-                      disabled={isPending}
+                      disabled={isPending || isSsoPending}
                       className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-4 py-3.5 pr-10 text-sm shadow-xs outline-none placeholder:text-muted-foreground/30 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
                       {...field}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      disabled={isPending}
+                      disabled={isPending || isSsoPending}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                       tabIndex={-1}
                       aria-label={
@@ -268,7 +270,7 @@ export function LoginForm({
           <Button
             type="submit"
             className="w-full font-extrabold uppercase tracking-widest text-xs py-6 mt-2"
-            disabled={isPending}
+            disabled={isPending || isSsoPending}
           >
             {isPending ? t('form.signingIn') : t('form.login')}
           </Button>

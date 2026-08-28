@@ -129,7 +129,9 @@ impl UsersService {
             user = Some(Self::create_user(&mut *tx, &request, role).await?);
         }
 
-        let user = user.expect("user is selected or created");
+        let user = user.ok_or_else(|| {
+            AppError::Internal("Failed to resolve or create SSO account".to_string())
+        })?;
         let inserted = sqlx::query(
             r#"
             INSERT INTO oidc_identities (user_id, issuer, subject, email_at_link)
