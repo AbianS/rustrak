@@ -186,15 +186,86 @@ export function Menu({
 
 Menu.displayName = 'Menu';
 
-/** The small-caps heading over a block of actions inside the menu. */
-export function MenuGroupLabel({ children }: { children: ReactNode }) {
+export interface MenuItemProps {
+  children: ReactNode;
+  /** Makes the row navigate: `render={<Link to="/projects/4" />}`. */
+  render?: ReactElement;
+  onClick?: () => void;
+  disabled?: boolean;
+  /** Red for what destroys or leaves. */
+  tone?: 'danger';
+  className?: string;
+}
+
+/**
+ * One row of a menu, written as JSX.
+ *
+ * `actions` covers the ordinary case and should stay the default: a list
+ * described as data is drawn identically wherever it is opened from. This is
+ * for the row that is not a label and an icon -- a project with its slug under
+ * it and a tick beside it, a member with an avatar -- where the shape is the
+ * point and describing it as data would mean inventing a field per shape.
+ *
+ * It carries the same recipe either way, so a custom row cannot drift from the
+ * height, the highlight or the destructive treatment of the rows above it.
+ */
+export function MenuItem({
+  children,
+  render,
+  onClick,
+  disabled,
+  tone,
+  className,
+}: MenuItemProps) {
   return (
-    <BaseMenu.GroupLabel className={styles.groupLabel()}>
+    <BaseMenu.Item
+      className={styles.item({ className })}
+      data-tone={tone}
+      disabled={disabled}
+      onClick={onClick}
+      render={render}
+    >
       {children}
-    </BaseMenu.GroupLabel>
+    </BaseMenu.Item>
   );
 }
 
-MenuGroupLabel.displayName = 'MenuGroupLabel';
+MenuItem.displayName = 'MenuItem';
 
-export const MenuGroup = BaseMenu.Group;
+/** The rule between two blocks of a menu. */
+export function MenuSeparator() {
+  return <div aria-hidden="true" className={styles.separator()} />;
+}
+
+MenuSeparator.displayName = 'MenuSeparator';
+
+export interface MenuGroupProps {
+  children: ReactNode;
+  /** The small-caps heading over the block. */
+  label?: ReactNode;
+}
+
+/**
+ * A block of rows under one heading.
+ *
+ * The heading is a prop rather than a component of its own, and that is the
+ * fix for a trap: Base UI's `GroupLabel` throws unless it sits inside a
+ * `Group`, and a label and a group written as two independent components is an
+ * invitation to write the label and forget the group. Here it cannot happen --
+ * the heading only exists as part of the block it names, which is also what
+ * makes the group labelled by it for a screen reader.
+ */
+export function MenuGroup({ children, label }: MenuGroupProps) {
+  return (
+    <BaseMenu.Group>
+      {label ? (
+        <BaseMenu.GroupLabel className={styles.groupLabel()}>
+          {label}
+        </BaseMenu.GroupLabel>
+      ) : null}
+      {children}
+    </BaseMenu.Group>
+  );
+}
+
+MenuGroup.displayName = 'MenuGroup';

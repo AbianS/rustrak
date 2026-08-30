@@ -110,6 +110,35 @@ The two have to agree: a header that offers a sort the server drops looks broken
 
 `/` redirects to `/projects` in `beforeLoad`, so nothing renders first.
 
+## Inside a project
+
+`routes/_authenticated/projects/$id.tsx` is a layout, not a page. It fetches
+the project and the switcher's list, mounts the sidebar and the breadcrumb
+strip, and renders `<Outlet />`; the seven screens under `$id/` are its
+children and read its data with
+`useLoaderData({ from: '/_authenticated/projects/$id' })`.
+
+The sidebar is mounted **there** rather than on the shell, and that is the
+whole reason `Workspace` exists in `@rustrak/ui`. `_authenticated` renders
+`AppShell` with a topbar and no sidebar, because the screens directly under it
+are not scoped to one project and have nothing to navigate within. This layout
+is the first route that knows which project it is for, so it renders the row
+itself, against the sidebar state the shell's provider already holds -- so
+collapsing, the drawer and Cmd-B keep working from one place.
+
+`Page` carries the `<main>` landmark, not the shell. It is the region that
+actually scrolls, and one screen renders one of them.
+
+Six of the seven screens are `PendingScreen`. They exist so the sidebar can be
+honest: seven routes is what a project has, and a column that lists seven and
+silently does nothing for six is worse than one that says which are not built.
+Replacing one means replacing its file, nothing else.
+
+`lib/period.ts` holds the four windows and their message keys. `/projects` and
+the overview both read it, so the segmented control says the same four things
+in both places and `bucketHours` decides one chart bucket width rather than
+each page inventing its own.
+
 ## Tests
 
 `pnpm test --filter=@rustrak/dashboard` runs Vitest in Node over

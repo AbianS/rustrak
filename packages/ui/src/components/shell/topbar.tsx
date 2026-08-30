@@ -14,18 +14,12 @@ import { tv } from '../../lib/tv';
 import { Avatar } from '../avatar/avatar';
 import { Wordmark } from '../brand/wordmark';
 import type { IconComponent } from '../icon/icon';
-import {
-  ChevronDownIcon,
-  CloseIcon,
-  MenuIcon,
-  SearchIcon,
-} from '../icon/icon-catalog';
+import { ChevronDownIcon, SearchIcon } from '../icon/icon-catalog';
 import { Kbd } from '../kbd/kbd';
 import { Menu, MenuActions } from '../menu/menu';
 import type { MenuAction } from '../menu/menu-parts';
 import { Separator } from '../separator/separator';
 import { Text } from '../text/text';
-import { useSidebar } from './sidebar-context';
 
 /**
  * The topbar: 48 px, full width, fixed. Identity on the left, everything global
@@ -342,33 +336,3 @@ export function TopbarUser({
 }
 
 TopbarUser.displayName = 'TopbarUser';
-
-/**
- * The button that opens the navigation on a phone.
- *
- * It only exists below `md`. Above that the sidebar is on screen already, and a
- * button that opens what you can see says nothing.
- */
-export function TopbarMenuButton() {
-  const { drawerOpen, toggleDrawer } = useSidebar();
-
-  return (
-    <button
-      type="button"
-      onClick={toggleDrawer}
-      aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-      aria-expanded={drawerOpen}
-      className={cn(
-        'flex size-control-sm shrink-0 items-center justify-center md:hidden',
-        'rounded-md text-fg-subtle hover:bg-surface-hover hover:text-fg',
-        interactiveTransition,
-        pressScaleSmall,
-        focusRing,
-      )}
-    >
-      {drawerOpen ? <CloseIcon size="xl" /> : <MenuIcon size="xl" />}
-    </button>
-  );
-}
-
-TopbarMenuButton.displayName = 'TopbarMenuButton';

@@ -1,4 +1,4 @@
-import { activate, createTranslator } from '@rustrak/i18n';
+import { activate, createTranslator, type Translator } from '@rustrak/i18n';
 import {
   AppShell,
   Button,
@@ -36,25 +36,27 @@ export const Route = createFileRoute('/_authenticated')({
 
     return { session };
   },
-  // The design system's own copy, loaded once for everything under here.
   /*
-   * The design system's own copy. `activate` puts the translator where
+   * The design system's own copy, loaded once for everything under here.
+   * `activate` puts the translator where
    * `@rustrak/ui` reads it from -- a module singleton, not a provider -- so
    * nothing has to be wrapped and the components stay usable outside React.
    */
   loader: async ({ context }) => {
-    activate(
-      await createTranslator({
-        locale: localeFor(context.session),
-        namespaces: ['ui'],
-      }),
-    );
+    const t = await createTranslator({
+      locale: localeFor(context.session),
+      namespaces: ['ui', 'shell'],
+    });
+
+    activate(t);
+    return { t };
   },
   component: AuthenticatedLayout,
 });
 
 function AuthenticatedLayout() {
   const { auth, session } = Route.useRouteContext();
+  const { t } = Route.useLoaderData();
   const router = useRouter();
 
   // Clear before navigating: `/login`'s guard would otherwise still see the
@@ -74,7 +76,7 @@ function AuthenticatedLayout() {
                 actions={[
                   {
                     id: 'sign-out',
-                    label: 'Sign out',
+                    label: t.t('shell.signOut'),
                     onSelect: signOut,
                     separated: true,
                     tone: 'danger',
@@ -90,7 +92,7 @@ function AuthenticatedLayout() {
       }
     >
       {session.state === 'unreachable' ? (
-        <Disconnected message={session.error.message} />
+        <Disconnected message={session.error.message} t={t} />
       ) : (
         <Outlet />
       )}
@@ -100,23 +102,24 @@ function AuthenticatedLayout() {
 
 // Names no user and no project: this is the one branch that renders without a
 // confirmed session.
-function Disconnected({ message }: { message: string }) {
+function Disconnected({ message, t }: { message: string; t: Translator }) {
   const router = useRouter();
 
   return (
     <div className="flex h-full items-center justify-center p-page-gutter">
       <div className="flex max-w-md flex-col gap-3 rounded-md border border-border bg-surface p-6">
-        <h2 className="text-card-title text-fg">The server did not answer</h2>
+        <h2 className="text-card-title text-fg">
+          {t.t('shell.disconnectedTitle')}
+        </h2>
         <Text variant="body" tone="secondary">
           {message}
         </Text>
         <Text variant="hint" tone="muted">
-          Your session has not been ended. Once the server is reachable again
-          this page picks up where it left off.
+          {t.t('shell.disconnectedHint')}
         </Text>
         <div className="mt-1 flex">
           <Button variant="secondary" onClick={() => router.invalidate()}>
-            Try again
+            {t.t('shell.tryAgain')}
           </Button>
         </div>
       </div>

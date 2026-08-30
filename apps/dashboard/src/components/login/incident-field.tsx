@@ -257,6 +257,10 @@ export function IncidentField() {
     const start = () => {
       if (running || !onScreen || document.hidden) return;
       running = true;
+      // The cleanup cancels this through `stop`, which the rule cannot see
+      // through: it looks for `cancelAnimationFrame` in the effect's own
+      // return, and this effect calls the function that calls it.
+      // react-doctor-disable-next-line react-doctor/effect-raf-loop-needs-cancel
       frame = requestAnimationFrame(draw);
     };
 

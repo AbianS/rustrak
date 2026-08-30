@@ -1,0 +1,208 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { ScatterChart } from './scatter-chart';
+import * as ScatterStories from './scatter-chart.stories';
+
+<Meta of={ScatterStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Charts"
+  title="ScatterChart"
+  lede="Two measurements against each other, one dot per thing. The chart for which of these matters."
+  note="Fixed dot size on purpose. The two axes carry everything worth reading."
+/>
+
+<Section
+  n="01"
+  title="What a ranked list cannot say"
+  intro="A list of the five slowest endpoints answers the wrong question. It puts a nightly batch job nobody waits on at the top and buries the checkout call underneath it, because ranking by latency alone treats a route called twice a day and one called twice a second as the same news."
+>
+
+<Stage label="the same seven routes, plotted">
+  <div className="w-full max-w-2xl">
+    <ScatterChart
+      points={[
+        { id: '1', name: 'POST /api/checkout', x: 491, y: 2010, tone: 'warning' },
+        { id: '2', name: 'POST /api/payments/authorize', x: 586, y: 3570, tone: 'danger' },
+        { id: '3', name: 'GET /api/cart', x: 4820, y: 96 },
+        { id: '4', name: 'GET /api/products/:id', x: 9140, y: 62 },
+        { id: '5', name: 'POST /api/orders', x: 523, y: 1230, tone: 'warning' },
+        { id: '6', name: 'GET /api/shipping/quote', x: 525, y: 796 },
+        { id: '7', name: 'checkout.reconcile', x: 12, y: 6650, tone: 'warning' },
+      ]}
+      height={280}
+      xCaption="Calls"
+      yCaption="p95"
+      formatY={(value) => (value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(1)} s`)}
+      label="Latency against volume"
+    />
+  </div>
+</Stage>
+
+<Rule>
+  Top right is the work. <code>checkout.reconcile</code> is the slowest thing
+  here and it sits alone on the left, called twelve times.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Points that know their own name"
+  intro="A general scatter takes an arbitrary datum and a pair of accessors. This one takes points that already carry a name, because the name is what the tooltip is for and a nameless dot is not worth drawing."
+>
+
+<P>
+  It follows that the tooltip is its own, not the shared <code>ChartTooltip</code>.
+  That one reads a payload as one row per series, which is right for a stack and
+  wrong here: every dot is its own thing, and the two numbers only mean
+  something once you know which endpoint they belong to.
+</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="The dot size is fixed"
+  intro="Encoding a third measurement in the area is the classic bubble chart, and it is a classic mistake: nobody reads area accurately, so the third number ends up decorative at best and misleading at worst."
+>
+
+<P>
+  Tone is the third channel instead, and it is categorical rather than
+  continuous: a dot is failing or it is not. Four tones, one meaning each,
+  named in the copy beside the chart.
+</P>
+
+</Section>
+
+<Section n="04" title="Guidelines">
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-80">
+        <ScatterChart
+          points={[
+            { id: '1', name: 'POST /api/checkout', x: 491, y: 2010, tone: 'danger' },
+            { id: '2', name: 'GET /api/cart', x: 4820, y: 96 },
+            { id: '3', name: 'GET /api/products/:id', x: 9140, y: 62 },
+          ]}
+          height={180}
+          xCaption="Calls"
+          yCaption="p95"
+          label="good"
+        />
+      </div>
+    }
+  >
+    Two things that are genuinely independent. The corners mean something.
+  </Do>
+  <Dont
+    example={
+      <div className="w-80">
+        <ScatterChart
+          points={[
+            { id: '1', name: 'a', x: 100, y: 200 },
+            { id: '2', name: 'b', x: 200, y: 400 },
+            { id: '3', name: 'c', x: 300, y: 600 },
+          ]}
+          height={180}
+          xCaption="Calls"
+          yCaption="Calls × 2"
+          label="bad"
+        />
+      </div>
+    }
+  >
+    Two views of one number. A straight line is not a finding.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-80">
+        <ScatterChart
+          points={[
+            { id: '1', name: 'POST /api/checkout', x: 491, y: 2010, tone: 'danger' },
+            { id: '2', name: 'GET /api/cart', x: 4820, y: 96 },
+          ]}
+          height={180}
+          xCaption="Calls"
+          yCaption="p95"
+          label="few"
+        />
+      </div>
+    }
+  >
+    A handful of dots you can pick apart by eye.
+  </Do>
+  <Dont
+    example={
+      <div className="w-80">
+        <ScatterChart
+          points={Array.from({ length: 120 }, (_, index) => ({
+            id: String(index),
+            name: `route ${index}`,
+            x: 100 + ((index * 37) % 900),
+            y: 100 + ((index * 71) % 900),
+          }))}
+          height={180}
+          xCaption="Calls"
+          yCaption="p95"
+          label="many"
+        />
+      </div>
+    }
+  >
+    A hundred overlapping dots. That is a density plot, and this is not one.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="05" title="Where it is used">
+
+<UsedIn>
+  <Place at="Project overview">Latency against call volume, in the transactions card.</Place>
+  <Place at="Performance">The same plot over the full transaction list.</Place>
+  <Place at="Agents">Tokens against latency, per model.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="06" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="ItNamesTheFigure">The figure carries a name for anyone who cannot see it.</Guarantee>
+  <Guarantee story="SinglePoint">One point still draws, and the axes still say what they measure.</Guarantee>
+  <Guarantee story="States">Every tone shares one geometry; only the fill changes.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="07" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

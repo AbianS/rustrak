@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { cn } from '../../lib/cn';
 import { ChartLegend, ChartTooltip, XTick, YTick } from './chart-parts';
 import { type ChartSeries, seriesColor } from './chart-series';
 
@@ -36,12 +37,29 @@ export interface TimeSeriesChartProps<TDatum extends Record<string, unknown>> {
   xKey: string;
   /** Fixed height in pixels; the width follows the container. */
   height: number;
+  /**
+   * Take the parent's height instead, with `height` as the floor.
+   *
+   * A card in a grid row is as tall as the tallest card beside it, and a chart
+   * with a pixel height leaves the difference as dead space at the bottom of
+   * its own card. Recharts needs a number to draw into, so this hands it a
+   * flex box to measure rather than a figure.
+   */
+  fill?: boolean;
   /** Sum the series instead of overlaying them. */
   stacked?: boolean;
   formatX?: (value: string | number) => string;
   formatY?: (value: number) => string;
   /** Pin the Y scale: `[0, 100]` for a share. Absent, it follows the data. */
   yDomain?: [number, number];
+  /**
+   * How much room the Y labels get, in pixels.
+   *
+   * 40 fits four digits, which is what a count needs. A percentage does not:
+   * `99,5 %` is six characters and comes back clipped to `5,0 %`, which is not
+   * a smaller number, it is a different one.
+   */
+  yAxisWidth?: number;
   /** Names the figure for screen readers; the drawing stays explorable. */
   label: string;
   className?: string;
@@ -52,10 +70,12 @@ export function TimeSeriesChart<TDatum extends Record<string, unknown>>({
   series,
   xKey,
   height,
+  fill,
   stacked = false,
   formatX,
   formatY,
   yDomain,
+  yAxisWidth = 40,
   label,
   className,
 }: TimeSeriesChartProps<TDatum>) {
@@ -64,103 +84,119 @@ export function TimeSeriesChart<TDatum extends Record<string, unknown>>({
   const id = useId();
 
   return (
-    <figure className={className} aria-label={label}>
-      <ResponsiveContainer width="100%" height={height}>
-        <AreaChart
-          data={data}
-          margin={{ top: 4, right: 20, bottom: 0, left: 0 }}
+    <figure
+      aria-label={label}
+      className={cn(fill && 'flex min-h-0 flex-1 flex-col', className)}
+    >
+      <div className={fill ? 'min-h-0 flex-1' : undefined}>
+        <ResponsiveContainer
+          height={fill ? '100%' : height}
+          minHeight={fill ? height : undefined}
+          width="100%"
         >
-          <defs>
-            {series.map((entry, index) => (
-              <linearGradient
-                key={entry.key}
-                id={`${id}-${entry.key}`}
-                x1="0"
-                y1="0"
-                x2="0"
-                y2="1"
-              >
-                <stop
-                  offset="0%"
-                  stopColor={seriesColor(entry, index)}
-                  stopOpacity={0.25}
-                />
-                <stop
-                  offset="100%"
-                  stopColor={seriesColor(entry, index)}
-                  stopOpacity={0}
-                />
-              </linearGradient>
-            ))}
-          </defs>
+          <AreaChart
+            data={data}
+            margin={{ top: 4, right: 20, bottom: 0, left: 0 }}
+          >
+            <defs>
+              {series.map((entry, index) => (
+                <linearGradient
+                  key={entry.key}
+                  id={`${id}-${entry.key}`}
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="0%"
+                    stopColor={seriesColor(entry, index)}
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor={seriesColor(entry, index)}
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              ))}
+            </defs>
 
-          <CartesianGrid
-            vertical={false}
-            stroke="var(--border-divider)"
-            strokeDasharray="3 3"
-          />
-          <XAxis
-            dataKey={xKey}
-            axisLine={false}
-            tickLine={false}
-            tick={<XTick format={formatX} />}
-            interval="preserveStartEnd"
-            minTickGap={32}
-          />
-          <YAxis
-            width={40}
-            axisLine={false}
-            tickLine={false}
-            tick={
-              <YTick
-                format={formatY ? (value) => formatY(Number(value)) : undefined}
-              />
-            }
-            tickCount={4}
-            domain={yDomain}
-          />
-          <Tooltip
-            cursor={{ stroke: 'var(--border-strong)', strokeDasharray: '3 3' }}
-            isAnimationActive={false}
-            content={
-              <ChartTooltip
-                series={series}
-                formatLabel={formatX}
-                formatValue={formatY}
-              />
-            }
-          />
-
-          {series.map((entry, index) => (
-            <Area
-              key={entry.key}
-              dataKey={entry.key}
-              stackId={stacked ? 'stack' : undefined}
-              type="monotone"
-              stroke={seriesColor(entry, index)}
-              strokeWidth={2}
-              fill={
-                stacked ? seriesColor(entry, index) : `url(#${id}-${entry.key})`
-              }
-              fillOpacity={stacked ? 0.28 : 1}
-              // The dot only exists under the pointer: fifty resting dots
-              // are texture, one active dot is an answer.
-              dot={false}
-              activeDot={{
-                r: 3.5,
-                strokeWidth: 2,
-                stroke: 'var(--surface)',
-              }}
-              /*
-               * No entry animation, by doctrine: a series growing out of the
-               * baseline explains nothing, and motion that explains nothing
-               * is not drawn. What moves in a chart is the crosshair.
-               */
-              isAnimationActive={false}
+            <CartesianGrid
+              vertical={false}
+              stroke="var(--border-divider)"
+              strokeDasharray="3 3"
             />
-          ))}
-        </AreaChart>
-      </ResponsiveContainer>
+            <XAxis
+              dataKey={xKey}
+              axisLine={false}
+              tickLine={false}
+              tick={<XTick format={formatX} />}
+              interval="preserveStartEnd"
+              minTickGap={32}
+            />
+            <YAxis
+              width={yAxisWidth}
+              axisLine={false}
+              tickLine={false}
+              tick={
+                <YTick
+                  format={
+                    formatY ? (value) => formatY(Number(value)) : undefined
+                  }
+                />
+              }
+              tickCount={4}
+              domain={yDomain}
+            />
+            <Tooltip
+              cursor={{
+                stroke: 'var(--border-strong)',
+                strokeDasharray: '3 3',
+              }}
+              isAnimationActive={false}
+              content={
+                <ChartTooltip
+                  series={series}
+                  formatLabel={formatX}
+                  formatValue={formatY}
+                />
+              }
+            />
+
+            {series.map((entry, index) => (
+              <Area
+                key={entry.key}
+                dataKey={entry.key}
+                stackId={stacked ? 'stack' : undefined}
+                type="monotone"
+                stroke={seriesColor(entry, index)}
+                strokeWidth={2}
+                fill={
+                  stacked
+                    ? seriesColor(entry, index)
+                    : `url(#${id}-${entry.key})`
+                }
+                fillOpacity={stacked ? 0.28 : 1}
+                // The dot only exists under the pointer: fifty resting dots
+                // are texture, one active dot is an answer.
+                dot={false}
+                activeDot={{
+                  r: 3.5,
+                  strokeWidth: 2,
+                  stroke: 'var(--surface)',
+                }}
+                /*
+                 * No entry animation, by doctrine: a series growing out of the
+                 * baseline explains nothing, and motion that explains nothing
+                 * is not drawn. What moves in a chart is the crosshair.
+                 */
+                isAnimationActive={false}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
 
       <ChartLegend series={series} />
     </figure>

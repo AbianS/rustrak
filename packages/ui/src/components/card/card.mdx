@@ -1,0 +1,199 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { Sparkline } from '../chart/sparkline';
+import { Tag } from '../tag/tag';
+import { Text } from '../text/text';
+import { Card as Tile, CardBody, CardEmpty, CardHeader } from './card';
+import * as CardStories from './card.stories';
+
+<Meta of={CardStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Card"
+  lede="A titled box holding one thing: one figure, one chart, one short list. The unit an overview is built out of."
+  note="Header, body, empty. No elevation, no size variants, and the title is a heading."
+/>
+
+<Section
+  n="01"
+  title="Anatomy"
+  intro="Three parts and none of them optional in the way that matters: the header says what it is, the body holds the one thing, and the empty state is what the body says when the query came back with nothing."
+>
+
+<Stage label="header, body" stack>
+  <div className="max-w-md">
+    <Tile>
+      <CardHeader
+        actions={<Tag tone="error">3 fatal</Tag>}
+        subtitle="14,203 events over the last 24 h, by severity"
+        title="Error volume"
+      />
+      <CardBody>
+        <Sparkline
+          height={90}
+          label="Events, last 14 buckets"
+          tone="danger"
+          values={[4, 9, 6, 12, 8, 14, 11, 19, 24, 17, 22, 31, 27, 35]}
+          width={380}
+        />
+      </CardBody>
+    </Tile>
+  </div>
+</Stage>
+
+<Rule>
+  <b>1</b> the title, in the column style, marked up as a heading.
+  <b>2</b> the subtitle: what the figure is measured over, and over how long.
+  <b>3</b> the actions, pushed to the end.
+  <b>4</b> the body.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="The title is a label, and still a heading"
+  intro="It is set small, mono, uppercase and meta grey, because a card title is a label for what is inside rather than a heading competing with the page's own. Everything loud on the screen should be data."
+>
+
+<P>
+  It is still an <code>h2</code>. Six of these on one screen are the page's
+  outline, and the outline is how anyone not reading by eye moves through a
+  dense page. Type size and document structure are two different questions and
+  this is the component that answers both.
+</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="Empty is a sentence, not a flat line"
+  intro="A chart drawn from an empty series is a line along the baseline, and a flat line at zero reads as nothing is breaking. That is the most dangerous thing an error tracker can say while it is actually saying I have no data."
+>
+
+<Stage label="a card with nothing in it">
+  <div className="max-w-sm">
+    <Tile>
+      <CardHeader subtitle="Crash-free per release" title="Release health" />
+      <CardBody>
+        <CardEmpty>No releases yet</CardEmpty>
+      </CardBody>
+    </Tile>
+  </div>
+</Stage>
+
+</Section>
+
+<Section n="04" title="Guidelines">
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-72">
+        <Tile>
+          <CardHeader title="Open issues" />
+          <CardBody>
+            <Text variant="numeric-lg">142</Text>
+          </CardBody>
+        </Tile>
+      </div>
+    }
+  >
+    One thing per card. The title says what it is, the body says it.
+  </Do>
+  <Dont
+    example={
+      <div className="w-72">
+        <Tile>
+          <CardHeader title="Issues, events, releases and latency" />
+          <CardBody>
+            <Text variant="body">Four figures, one box, no hierarchy.</Text>
+          </CardBody>
+        </Tile>
+      </div>
+    }
+  >
+    A card holding four unrelated things. That is a grid of four cards.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-72">
+        <Tile>
+          <CardHeader title="Top issues" />
+          <CardBody>
+            <CardEmpty>Nothing open</CardEmpty>
+          </CardBody>
+        </Tile>
+      </div>
+    }
+  >
+    Say what is not there.
+  </Do>
+  <Dont
+    example={
+      <div className="w-72">
+        <Tile>
+          <CardHeader title="Top issues" />
+          <CardBody>
+            <div />
+          </CardBody>
+        </Tile>
+      </div>
+    }
+  >
+    An empty list drawn as an empty list. It reads as a card that failed to
+    render.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="05" title="Where it is used">
+
+<UsedIn>
+  <Place at="Project overview">Every tile on the page: the volume chart, the two lists, the release table.</Place>
+  <Place at="Release detail">Adoption, crash-free rate, the new issues it introduced.</Place>
+  <Place at="Settings">A block of related fields under one label.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="06" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="TitleIsAHeading">The title is a real heading, whatever its type size says.</Guarantee>
+  <Guarantee story="InAGrid"><code>fill</code> makes two cards in one grid row the same height.</Guarantee>
+  <Guarantee story="States">The header wraps rather than squeezing the title toward zero when the actions no longer fit.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="07" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

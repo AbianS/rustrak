@@ -1,8 +1,6 @@
 {
   "$schema": "https://react.doctor/schema/config.json",
-  "projects": [
-    "*"
-  ],
+  "projects": ["*"],
   "noScore": true,
   "scope": "full",
   "lint": true,
@@ -27,32 +25,25 @@
   "buckets": {
     "compiler-cleanup": "error"
   },
-  "serverAuthFunctionNames": [
-    "createClient"
-  ],
+  "serverAuthFunctionNames": ["createClient"],
   "ignore": {
     "files": [
       "**/shared/ui/components/shadcn/**",
       "**/src/components/ui/**",
       "content/**/_meta.js",
-      "**/*.stories.tsx"
+      "**/*.stories.tsx",
+      "**/.next/**",
+      "**/out/**",
+      "**/dist/**"
     ],
     "overrides": [
       {
-        "files": [
-          "**/landing/sections/sponsors.tsx"
-        ],
-        "rules": [
-          "react-doctor/nextjs-no-img-element"
-        ]
+        "files": ["**/landing/sections/sponsors.tsx"],
+        "rules": ["react-doctor/nextjs-no-img-element"]
       },
       {
-        "files": [
-          "**/changelog/release-article.tsx"
-        ],
-        "rules": [
-          "react-doctor/dangerous-html-sink"
-        ]
+        "files": ["**/changelog/release-article.tsx"],
+        "rules": ["react-doctor/dangerous-html-sink"]
       }
     ]
   }

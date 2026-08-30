@@ -41,9 +41,10 @@ export interface DataTablePaginationProps<TData extends RowData> {
 export function DataTablePagination<TData extends RowData>({
   table,
 }: DataTablePaginationProps<TData>) {
+  // Rebuilt only when the language changes: constructing an `Intl` formatter
+  // is the expensive half, and this footer redraws on every keystroke that
+  // filters the table.
   const locale = uiLocale();
-  // Built once per locale: a formatter is expensive to construct and the
-  // footer renders on every page, sort and tick.
   const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { pageIndex, pageSize } = table.state.pagination;
   const rowCount = table.options.rowCount ?? table.getRowCount();

@@ -50,6 +50,11 @@ export interface UiLabels {
   /* Shell */
   mainNavigation: string;
   topbarSearch: string;
+  /** A verb, not a sentence: the row is 216 px less an icon and a shortcut. */
+  expandSidebar: string;
+  collapseSidebar: string;
+  openNavigation: string;
+  closeNavigation: string;
 
   /* Pagination */
   /** `{first}`, `{last}` and `{total}`, already formatted. */
@@ -114,6 +119,10 @@ export const DEFAULT_UI_LABELS: UiLabels = {
 
   mainNavigation: 'Main navigation',
   topbarSearch: 'Search Rustrak…',
+  expandSidebar: 'Expand',
+  collapseSidebar: 'Collapse',
+  openNavigation: 'Open navigation',
+  closeNavigation: 'Close navigation',
 
   pageRange: '{first}–{last} of {total}',
   rowsPerPageValue: 'Rows {count}',
