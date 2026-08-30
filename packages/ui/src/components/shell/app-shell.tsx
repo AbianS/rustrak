@@ -12,7 +12,12 @@ import {
 export interface AppShellProps
   extends Omit<SidebarProviderProps, 'children' | 'shortcutKey'> {
   topbar: ReactNode;
-  sidebar: ReactNode;
+  /**
+   * Left out for the screens that are not scoped to one project: the list of
+   * projects, settings. There is nothing to navigate *within* yet, and a rail
+   * of links to elsewhere is not navigation, it is decoration.
+   */
+  sidebar?: ReactNode;
   children: ReactNode;
   className?: string;
   /** The shortcut that collapses the sidebar. `false` turns it off. */
@@ -20,7 +25,8 @@ export interface AppShellProps
 }
 
 /**
- * The application frame: topbar across the top, sidebar and content below it.
+ * The application frame: topbar across the top, content below it, and a
+ * sidebar beside the content on the screens that have one.
  *
  * It occupies exactly the window and the only thing that scrolls is the
  * content. An error tracker is a place you spend the day jumping between a list
@@ -56,7 +62,7 @@ export function AppShell({
 
           <div className="relative flex min-h-0 flex-1">
             {sidebar}
-            <DrawerScrim />
+            {sidebar ? <DrawerScrim /> : null}
 
             <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
               {children}
@@ -105,6 +111,8 @@ function DrawerScrim() {
       data-open={drawerOpen || undefined}
       className={cn(
         'absolute inset-0 z-30 bg-scrim md:hidden',
+        'supports-backdrop-filter:bg-scrim-blurred',
+        'supports-backdrop-filter:backdrop-blur-sm',
         'transition-opacity duration-slow ease-standard',
         'not-data-open:pointer-events-none not-data-open:opacity-0',
       )}
@@ -158,7 +166,14 @@ export interface PageHeaderProps {
   className?: string;
 }
 
-/** A page's heading row: the title, what it is made of, and its actions. */
+/**
+ * A page's heading row: the title, what it is made of, and its actions.
+ *
+ * It wraps. On a phone the actions drop under the title and take the width,
+ * rather than squeezing the title block toward zero -- which is what happened
+ * before, and what turned a one-line summary into one word per line with the
+ * heading pushed out of sight entirely.
+ */
 export function PageHeader({
   title,
   meta,
@@ -167,14 +182,21 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div
-      className={cn('flex shrink-0 items-end justify-between gap-6', className)}
+      className={cn(
+        'flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-3',
+        className,
+      )}
     >
-      <div className="min-w-0">
+      {/* `basis-full sm:basis-auto`: the title owns its own line while the
+          actions are wrapped under it, and shares one once they fit beside. */}
+      <div className="min-w-0 basis-full sm:basis-auto">
         <h1 className="truncate text-page-title text-fg">{title}</h1>
         {meta ? <div className="mt-1.5 min-w-0">{meta}</div> : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
     </div>
   );

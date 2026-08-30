@@ -7,7 +7,7 @@ use crate::error::AppResult;
 #[cfg(feature = "openapi")]
 use crate::models::ProjectResponse;
 use crate::models::{CreateProject, ProjectRole, UpdateProject};
-use crate::pagination::{ListProjectsQuery, OffsetPaginatedResponse};
+use crate::pagination::{ListParams, ListQuery, OffsetPaginatedResponse, ProjectStatsQuery};
 use crate::routes::period::parse_period_hours;
 use crate::services::access::{self, Action};
 use crate::services::stats::StatsService;
@@ -20,7 +20,7 @@ use utoipa::OpenApi;
     get,
     path = "/api/projects",
     tag = "Projects",
-    params(ListProjectsQuery),
+    params(ListQuery, ProjectStatsQuery),
     responses(
         (status = 200, description = "List of projects", body = inline(crate::pagination::OffsetPaginatedResponse<ProjectResponse>)),
         (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
@@ -33,25 +33,25 @@ use utoipa::OpenApi;
 pub async fn list_projects(
     pool: web::Data<DbPool>,
     config: web::Data<Config>,
-    query: web::Query<ListProjectsQuery>,
+    query: web::Query<ListQuery>,
+    stats_query: web::Query<ProjectStatsQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
-    let (projects, total_count) = if actor.is_admin() {
-        ProjectService::list_offset(pool.get_ref(), query.order, query.page, query.per_page).await?
+    // Admins see every project; everyone else sees the ones they belong to.
+    // The restriction is a `WHERE` clause the shared query understands, not a
+    // second query.
+    let restrict_to = if actor.is_admin() {
+        None
     } else {
         let uid = actor
             .user_id()
             .ok_or_else(|| crate::error::AppError::Unauthorized("Not authenticated".to_string()))?;
-        let ids = ProjectMemberService::accessible_project_ids(pool.get_ref(), uid).await?;
-        ProjectService::list_offset_for_ids(
-            pool.get_ref(),
-            &ids,
-            query.order,
-            query.page,
-            query.per_page,
-        )
-        .await?
+        Some(ProjectMemberService::accessible_project_ids(pool.get_ref(), uid).await?)
     };
+
+    let params = ListParams::from_query(query.into_inner());
+    let (projects, total_count) =
+        ProjectService::list_page(pool.get_ref(), &params, restrict_to.as_deref()).await?;
 
     let base_url = build_base_url(&config);
     let mut responses: Vec<_> = projects.iter().map(|p| p.to_response(&base_url)).collect();
@@ -59,7 +59,7 @@ pub async fn list_projects(
     // Stats are attached to the page that was already fetched, so the extra
     // work scales with `per_page` (capped at 100) and not with the number of
     // projects on the instance.
-    if let Some(period_hours) = parse_period_hours(query.stats_period.as_deref()) {
+    if let Some(period_hours) = parse_period_hours(stats_query.stats_period.as_deref()) {
         let ids: Vec<i32> = responses.iter().map(|p| p.id).collect();
         let mut stats = StatsService::list_stats(pool.get_ref(), &ids, period_hours).await?;
         for response in &mut responses {
@@ -70,8 +70,8 @@ pub async fn list_projects(
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         responses,
         total_count,
-        query.page,
-        query.per_page,
+        params.page,
+        params.per,
     )))
 }
 

@@ -79,11 +79,30 @@ export interface ListEventsOptions {
 }
 
 /**
+ * What every table-backed list endpoint accepts.
+ *
+ * The names are the ones `@rustrak/ui`'s `serializeTableQuery` writes, so a
+ * table's URL is already a request: `q` carries filters and free text in one
+ * string, `sort` is a comma list with `-` for descending.
+ */
+export interface ListOptions {
+  /** Filters and free text together: `platform:rust,node checkout`. */
+  q?: string;
+  /** `-events,name`. Fields a resource does not know are ignored. */
+  sort?: string;
+  /** 1-indexed. */
+  page?: number;
+  /** Capped at 100 by the server. */
+  per?: number;
+}
+
+/**
  * List options for projects endpoint (offset-based pagination)
  */
-export interface ListProjectsOptions {
-  page?: number;
+export interface ListProjectsOptions extends ListOptions {
+  /** @deprecated Use `per`. Kept while `webview-ui` and the MCP still send it. */
   per_page?: number;
+  /** @deprecated Use `sort`. Sets the direction of the default sort only. */
   order?: SortOrder;
   /**
    * Attach per-project stats to each row, over this window (e.g. '24h', '7d').

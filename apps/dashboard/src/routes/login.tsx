@@ -1,4 +1,4 @@
-import { createTranslator, resolveLocale } from '@rustrak/i18n';
+import { activate, createTranslator, resolveLocale } from '@rustrak/i18n';
 import { Text, Wordmark } from '@rustrak/ui';
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { IncidentField } from '../components/login/incident-field';
@@ -22,11 +22,15 @@ export const Route = createFileRoute('/login')({
    * browser's list is all there is. `auth` is the only namespace this page
    * names, which is what keeps it from carrying the copy for project deletion.
    */
-  loader: () =>
-    createTranslator({
+  loader: async () => {
+    const t = await createTranslator({
       locale: resolveLocale({ preferred: navigator.languages }),
-      namespaces: ['auth'],
-    }),
+      namespaces: ['auth', 'ui'],
+    });
+    // The same translator answers this page's copy and the design system's.
+    activate(t);
+    return t;
+  },
   component: LoginPage,
 });
 

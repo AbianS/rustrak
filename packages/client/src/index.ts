@@ -91,6 +91,7 @@ export type {
   ListEventsOptions,
   ListIssuesOptions,
   ListLogsOptions,
+  ListOptions,
   ListProjectsOptions,
   ListSourceMapsResponse,
   ListSpansOptions,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createTranslator, emptyTranslator } from './translator';
+import {
+  activate,
+  active,
+  createTranslator,
+  deactivate,
+  emptyTranslator,
+  translate,
+} from './translator';
 
 describe('formatting the catalogs we actually ship', () => {
   it('interpolates', async () => {
@@ -68,5 +75,28 @@ describe('a translator with no catalog', () => {
     expect(t.locale).toBe('fr');
     expect(t.t('auth.form.title')).toBe('auth.form.title');
     expect(t.has('auth')).toBe(false);
+  });
+});
+
+describe('the active translator', () => {
+  it('is undefined until something activates one', () => {
+    deactivate();
+    expect(active()).toBeUndefined();
+    expect(translate('auth.form.title')).toBeUndefined();
+  });
+
+  it('answers from whatever was activated last', async () => {
+    activate(await createTranslator({ locale: 'es', namespaces: ['auth'] }));
+    expect(translate('auth.form.title')).toBe('Iniciar sesión');
+
+    activate(await createTranslator({ locale: 'fr', namespaces: ['auth'] }));
+    expect(translate('auth.form.title')).toBe('Connexion');
+  });
+
+  it('answers undefined for a message the active catalog does not carry', async () => {
+    // The library asking has an English default; a key on a button is worse
+    // than that default.
+    activate(await createTranslator({ locale: 'es', namespaces: ['auth'] }));
+    expect(translate('issues.actions.archive')).toBeUndefined();
   });
 });

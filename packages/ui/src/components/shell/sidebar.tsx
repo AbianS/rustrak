@@ -3,6 +3,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition, pressScaleSmall } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Avatar } from '../avatar/avatar';
@@ -98,7 +99,7 @@ export function Sidebar({
 
   return (
     <nav
-      aria-label="Main navigation"
+      aria-label={uiLabel('mainNavigation')}
       data-collapsed={collapsed || undefined}
       data-drawer-open={drawerOpen || undefined}
       data-switching={switching || undefined}

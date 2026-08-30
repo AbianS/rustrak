@@ -91,7 +91,7 @@ export function LoginForm({ onSubmit, t }: LoginFormProps) {
 
   return (
     <form
-      className="flex w-100 flex-col gap-6"
+      className="flex w-full max-w-100 flex-col gap-6"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();

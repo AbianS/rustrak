@@ -14,6 +14,8 @@ export {
   focusRingInset,
   focusRingWithin,
 } from './lib/focus';
+export type { UiLabels } from './lib/labels';
+export { DEFAULT_UI_LABELS, fill, uiLabel, uiLocale } from './lib/labels';
 export {
   chevronFlip,
   dropIn,

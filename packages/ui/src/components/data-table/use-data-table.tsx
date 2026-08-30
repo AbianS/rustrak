@@ -9,6 +9,7 @@ import {
   useTable,
 } from '@tanstack/react-table';
 import { useState } from 'react';
+import { uiLabel } from '../../lib/labels';
 import { Button } from '../button/button';
 import { Checkbox } from '../checkbox/checkbox';
 import { OverflowIcon } from '../icon/icon-catalog';
@@ -168,7 +169,7 @@ function selectionColumn<TData extends RowData>(): DataTableColumnDef<TData> {
       const all = table.getIsAllPageRowsSelected();
       return (
         <Checkbox
-          aria-label="Select all rows on this page"
+          aria-label={uiLabel('selectAllRows')}
           checked={all}
           indeterminate={table.getIsSomePageRowsSelected() && !all}
           onCheckedChange={() => table.toggleAllPageRowsSelected()}
@@ -177,7 +178,7 @@ function selectionColumn<TData extends RowData>(): DataTableColumnDef<TData> {
     },
     cell: ({ row }) => (
       <Checkbox
-        aria-label="Select row"
+        aria-label={uiLabel('selectRow')}
         checked={row.getIsSelected()}
         disabled={!row.getCanSelect()}
         onCheckedChange={(checked) => row.toggleSelected(checked)}
@@ -202,7 +203,7 @@ function menuColumn<TData extends RowData>(
     id: 'actions',
     enableSorting: false,
     enableHiding: false,
-    header: () => <span className="sr-only">Actions</span>,
+    header: () => <span className="sr-only">{uiLabel('actionsColumn')}</span>,
     cell: ({ row }) => (
       <span className="flex items-center justify-end">
         <Menu
@@ -213,7 +214,7 @@ function menuColumn<TData extends RowData>(
               variant="ghost"
               size="xs"
               icon={OverflowIcon}
-              aria-label="Row actions"
+              aria-label={uiLabel('rowActions')}
             />
           }
         />

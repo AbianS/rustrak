@@ -1,4 +1,5 @@
 import type { RowData } from '@tanstack/react-table';
+import { uiLabel } from '../../lib/labels';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
 import { ColumnsIcon, ResolveIcon } from '../icon/icon-catalog';
@@ -44,13 +45,13 @@ export function DataTableColumnsButton<TData extends RowData>({
 
   return (
     <Popover
-      title="Columns"
+      title={uiLabel('columns')}
       align="end"
       trigger={
         <Button
           variant="secondary"
           icon={ColumnsIcon}
-          aria-label="Choose columns"
+          aria-label={uiLabel('chooseColumns')}
         />
       }
     >

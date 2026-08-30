@@ -524,6 +524,34 @@ export const RowMenu: Story = {
   },
 };
 
+/**
+ * Choosing a row action does not also open the row.
+ *
+ * The menu is portalled out of the table, but React sends its events up the
+ * component tree, so the click arrives at the row's handler. Base UI renders a
+ * menu item as a `div`, so a guard that only knows tag names lets it through.
+ */
+const rowOpened = fn();
+
+export const ARowActionDoesNotOpenTheRow: Story = {
+  render: () => <IssuesTable onRowClick={rowOpened} />,
+  play: async ({ canvasElement }) => {
+    rowOpened.mockClear();
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    const trigger = canvas.getAllByRole('button', { name: 'Row actions' })[0];
+    await userEvent.click(trigger as HTMLElement);
+
+    const menu = await body.findByRole('menu');
+    await userEvent.click(
+      within(menu).getByRole('menuitem', { name: /Resolve/ }),
+    );
+
+    await expect(rowOpened).not.toHaveBeenCalled();
+  },
+};
+
 /** A row opens with Enter once focus reaches it -- the keyboard path for `onRowClick`. */
 const rowOpensFromKeyboardSpy = fn();
 

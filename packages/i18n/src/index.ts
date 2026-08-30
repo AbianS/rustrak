@@ -16,7 +16,11 @@ export type {
   Values,
 } from './translator.js';
 export {
+  activate,
+  active,
   createTranslator,
+  deactivate,
   emptyTranslator,
   NAMESPACES,
+  translate,
 } from './translator.js';

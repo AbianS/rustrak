@@ -30,6 +30,7 @@ export const Tones: Story = {
       {(
         [
           ['danger', 'getting worse', seed(14, 2, 14, 11)],
+          ['warning', 'on its way there', seed(14, 1, 11, 19)],
           ['brand', 'being watched', seed(14, 1, 9, 41)],
           ['neutral', 'everything else', seed(14, 1, 8, 27)],
         ] as const

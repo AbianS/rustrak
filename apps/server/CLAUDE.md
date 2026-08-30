@@ -71,6 +71,38 @@ Session auth is better UX for people; token auth is the standard for machines.
 
 DSN format: `http://<sentry_key>@<host>/<project_id>`.
 
+## One contract for every list
+
+Every table-backed endpoint takes the same four parameters, and they are not
+ours to invent: `@rustrak/ui`'s `serializeTableQuery` already writes them, so a
+table's URL *is* a request.
+
+| | |
+|---|---|
+| `q` | filters and free text in one string: `platform:rust,node checkout` |
+| `sort` | comma list, `-` for descending: `-created,name` |
+| `page` | 1-indexed |
+| `per` | capped at 100 |
+
+`pagination::ListParams::from_query` parses and clamps it once. `tokenize` in
+`list.rs` is a transcription of the one in `query.ts` and has to stay that way:
+the query bar writes the string and this reads it, so a value that survives one
+and not the other comes back changed to whoever typed it.
+
+**Sorting goes through a whitelist.** A resource implements `SortableField`,
+which maps a wire name to a `&'static str` column, and `order_by` builds the
+`ORDER BY` from that alone. A column name from a request can never reach SQL;
+an unknown field is dropped rather than rejected, so a stale link still renders
+the list in its default order.
+
+Adding a list endpoint is `web::Query<ListQuery>`, an impl of `SortableField`,
+and a `WHERE` clause. Anything the endpoint needs on top goes in its own query
+struct extracted alongside (`ProjectStatsQuery` is the first): `web::Query` runs
+on `serde_urlencoded`, which cannot flatten.
+
+`per_page` and a bare `order` are still accepted, because `webview-ui` and
+`@rustrak/mcp` send them. Both go when those callers do.
+
 ## Tests
 
 ```bash

@@ -88,6 +88,28 @@ in-flight promise: nested guards would otherwise each issue a `/auth/me`.
 stay that way: `/login` is unauthenticated, and the instance's real error
 volume would tell anyone who loads it when this team deploys and breaks.
 
+## Tables
+
+`/projects` is the pattern every list page follows.
+
+The URL is the state. `lib/table-search.ts` reads `q`, `sort`, `page` and `per`
+out of the address and back, and those four names are the design system's *and*
+the server's, so the address bar, the loader's request and Rust's parser are one
+shape instead of three translations of one. Share the address and the other
+person sees your list.
+
+The table is fully manual: the server filters, sorts and paginates, and
+`useDataTable` only ever *proposes* a change. The proposal becomes a
+`navigate({ search })`, the loader answers it, and the rows come back shaped.
+There is no path where the table second-guesses a page the server already made.
+
+A column is sortable only when the server can sort by it. `open` and `events`
+are aggregates `StatsService` computes for the page that was already fetched, so
+they carry `enableSorting: false` and `ProjectSort` on the server omits them.
+The two have to agree: a header that offers a sort the server drops looks broken.
+
+`/` redirects to `/projects` in `beforeLoad`, so nothing renders first.
+
 ## Tests
 
 `pnpm test --filter=@rustrak/dashboard` runs Vitest in Node over
