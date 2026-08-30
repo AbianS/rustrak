@@ -304,7 +304,10 @@ export function IncidentField() {
     start();
 
     return () => {
-      stop();
+      // `stop()`'s body, inlined: the cancel has to be visible in the cleanup
+      // itself, both to a reader and to `effect-raf-loop-needs-cancel`.
+      running = false;
+      cancelAnimationFrame(frame);
       observer.disconnect();
       visible.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
