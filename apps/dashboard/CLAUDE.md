@@ -48,9 +48,52 @@ server. It is an escape hatch and it gives up all three properties above.
 The failure this shape invites is a deep link. `/projects` is a page only the
 router knows about: type it in or reload on it and the request goes to the
 server, which has never heard of it. `tests/integration/dashboard_test.rs` on
-the server side is what pins that behaviour, along with its mirror image -- an
+the server side is what pins that behaviour, along with its mirror image: an
 API path must never come back as the shell, or `@rustrak/client` parses HTML
 and reports a schema failure against itself.
+
+## Who gets in
+
+Everything behind a session lives under `src/routes/_authenticated/`, a
+pathless layout route whose `beforeLoad` is the only guard in the application.
+Adding a page means putting the file in that folder. The check never goes in a
+component: one that redirects has already painted what it was protecting.
+
+`src/lib/auth-store.ts` reads the server's answer as **three** states:
+
+| | means | the guard |
+|---|---|---|
+| `authenticated` | `/auth/me` returned a user | renders the page |
+| `anonymous` | the server answered 401 | redirects to `/login` |
+| `unreachable` | network, timeout, 5xx, bad schema | renders "the server did not answer" |
+
+The third row matters: only `unauthenticated` means signed out. Collapsing a
+dropped connection into `anonymous` bounces to `/login`, where the login
+request fails for the same reason, on a loop.
+
+The store is a module singleton, so the router takes it at construction rather
+than through `RouterProvider`'s `context` prop. `ensure()` memoises the
+in-flight promise: nested guards would otherwise each issue a `/auth/me`.
+
+### Two rules the login page keeps
+
+- **The credential error never names which half was wrong.** It would confirm
+  whether an address has an account. The server matches that in wording *and*
+  in timing (`auth/credentials.rs`), and the form must not undo it. Anything
+  that is not a verdict on the credentials goes under the form instead.
+- **`redirect` is sanitised in `validateSearch`.** Only a path on this origin
+  survives; `//host` and `/\host` are absolute URLs wearing a path's clothes.
+
+`IncidentField` draws a closed-form function of its own coordinates and must
+stay that way: `/login` is unauthenticated, and the instance's real error
+volume would tell anyone who loads it when this team deploys and breaks.
+
+## Tests
+
+`pnpm test --filter=@rustrak/dashboard` runs Vitest in Node over
+`src/**/*.test.ts`. `auth-store.ts` takes its three endpoints as an `AuthApi`
+so it can be tested without `window`; components are covered by
+`@rustrak/ui`'s own Chromium suite instead of a jsdom that cannot see them.
 
 ## Getting the design system's CSS
 
@@ -68,7 +111,7 @@ without rebuilding the package first.
 - **Never write a loose value.** `bg-surface`, `text-card-title`,
   `p-page-gutter`. The design system resets Tailwind's colour, radius, shadow
   and text namespaces, so `bg-red-500` compiles to nothing. If it is not a
-  token it is not in the design -- see `packages/ui/CLAUDE.md`.
+  token it is not in the design: see `packages/ui/CLAUDE.md`.
 - **Never import from a deep path in `@rustrak/ui`.** The package exports one
   entry point on purpose.
 - **Navigation is the router's, drawing is the design system's.** Every

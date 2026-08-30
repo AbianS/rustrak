@@ -23,6 +23,7 @@ const text = tv({
   base: 'font-sans',
   variants: {
     variant: {
+      display: 'text-display',
       'page-title': 'text-page-title',
       title: 'text-title',
       section: 'text-section',

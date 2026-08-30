@@ -8,9 +8,9 @@ import {
   Text,
 } from '@rustrak/ui';
 import { createFileRoute, useRouter } from '@tanstack/react-router';
-import { rustrak } from '../lib/rustrak';
+import { rustrak } from '../../lib/rustrak';
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_authenticated/')({
   /**
    * The one request that proves the whole chain: bundle to origin, origin to
    * Actix, Actix back through `@rustrak/client`'s Zod schema into a typed

@@ -1,18 +1,22 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
+import { type AuthStore, auth } from './lib/auth';
 import { routeTree } from './routeTree.gen';
 
+/** What every route's `beforeLoad` and `loader` can reach. */
+export interface RouterContext {
+  auth: AuthStore;
+}
+
 /**
- * The router.
- *
- * `basepath` is left at the root deliberately. The server mounts the bundle at
- * `/` and keeps `/api`, `/auth` and `/health` for itself; moving the dashboard
- * under a sub-path means changing three things at once -- `base` in
- * `vite.config.ts`, `basepath` here, and the mount in `routes::dashboard` --
- * and any two of the three agreeing is a white page.
+ * `basepath` stays at the root: the server mounts the bundle at `/`, and
+ * moving it means changing `vite.config.ts`, this, and `routes::dashboard`
+ * together. `auth` goes in at construction: it is a module singleton, so
+ * there is no React state to re-inject through `RouterProvider`.
  */
 export function getRouter() {
   return createTanStackRouter({
     routeTree,
+    context: { auth },
     scrollRestoration: true,
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
