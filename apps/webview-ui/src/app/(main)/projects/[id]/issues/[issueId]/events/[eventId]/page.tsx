@@ -1,27 +1,31 @@
 import type { Metadata } from 'next';
-import { getFormatter, getTranslations } from 'next-intl/server';
+import { getTranslations } from 'next-intl/server';
 import {
   getEventDetail,
   getEventNavigation,
 } from '@/features/event/api/queries';
 import {
+  type EventJumpTarget,
+  eventJumpTargets,
+} from '@/features/event/lib/event-jumps';
+import {
   readEventPayload,
   splitIssueTitle,
 } from '@/features/event/lib/event-payload';
-import { EventNavigationBar } from '@/features/event/ui/components/event-navigation';
 import {
   getIssue,
   getIssueActivity,
   getIssueAggregates,
   getIssueStats,
 } from '@/features/issue/api/queries';
-import { IssueActivity } from '@/features/issue/ui/components/issue-activity';
 import { TagDistribution } from '@/features/issue/ui/components/tag-distribution';
 import { getProject } from '@/features/project/api/queries';
 import { CollapsibleRail } from '@/shared/ui/components/collapsible-rail';
 import { EventChart } from '@/shared/ui/components/event-chart';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
 import { EventHeader } from './_components/event-header';
+import { EventIdentityBar } from './_components/event-identity-bar';
+import { EventRail } from './_components/event-rail';
 import { EventSections } from './_components/event-sections';
 
 interface EventPageProps {
@@ -65,7 +69,6 @@ const compact = (n: number) =>
   }).format(n);
 
 export default async function EventPage({ params }: EventPageProps) {
-  const format = await getFormatter();
   const t = await getTranslations('projectPages');
   const { id, issueId, eventId } = await params;
   const projectId = parseInt(id, 10);
@@ -139,54 +142,28 @@ export default async function EventPage({ params }: EventPageProps) {
   const userCount = aggregates?.user_count ?? 0;
   const total30d = stats30d?.data.reduce((s, [, c]) => s + c, 0) ?? 0;
 
-  // "Jump to" anchors — only for sections that exist.
-  const jumps = [
-    { id: 'highlights', label: t('event.sectionHighlights') },
-    has.stackTrace && { id: 'stacktrace', label: t('event.sectionStackTrace') },
-    has.breadcrumbs && {
-      id: 'breadcrumbs',
-      label: t('event.sectionBreadcrumbs'),
-    },
-    has.tags && { id: 'tags', label: t('event.sectionTags') },
-    (has.contexts || has.modules || has.user) && {
-      id: 'context',
-      label: t('event.sectionContext'),
-    },
-  ].filter(Boolean) as { id: string; label: string }[];
+  // One entry per section the event actually has. Labelled here rather than
+  // in `eventJumpTargets` so every message key stays a literal the
+  // message-keys architecture rule can check.
+  const SECTION_LABELS: Record<EventJumpTarget, string> = {
+    highlights: t('event.sectionHighlights'),
+    stacktrace: t('event.sectionStackTrace'),
+    breadcrumbs: t('event.sectionBreadcrumbs'),
+    tags: t('event.sectionTags'),
+    context: t('event.sectionContext'),
+  };
+  const jumps = eventJumpTargets(has).map((id) => ({
+    id,
+    label: SECTION_LABELS[id],
+  }));
 
   const rail = (
-    <>
-      <div className="p-4 space-y-1.5 border-b">
-        <div className="flex items-baseline justify-between gap-2 text-sm">
-          <span className="text-muted-foreground">{t('event.lastSeen')}</span>
-          <span title={format.dateTime(new Date(issue.last_seen), 'precise')}>
-            {format.relativeTime(new Date(issue.last_seen))}
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between gap-2 text-sm">
-          <span className="text-muted-foreground">{t('event.firstSeen')}</span>
-          <span title={format.dateTime(new Date(issue.first_seen), 'precise')}>
-            {format.relativeTime(new Date(issue.first_seen))}
-          </span>
-        </div>
-        {issue.last_release && (
-          <p className="text-xs text-muted-foreground truncate pt-1">
-            {t.rich('event.inRelease', {
-              release: issue.last_release,
-              rel: (chunks) => <span className="font-mono">{chunks}</span>,
-            })}
-          </p>
-        )}
-      </div>
-
-      <div className="p-4">
-        <IssueActivity
-          projectId={projectId}
-          issueId={issueId}
-          activity={activity}
-        />
-      </div>
-    </>
+    <EventRail
+      projectId={projectId}
+      issueId={issueId}
+      issue={issue}
+      activity={activity}
+    />
   );
 
   return (
@@ -250,59 +227,13 @@ export default async function EventPage({ params }: EventPageProps) {
               </div>
             </div>
 
-            {/* Event nav + identity + jump-to (sticks to the top on scroll, sm+) */}
-            <div className="sm:sticky sm:top-0 sm:z-20 -mx-4 md:-mx-8 border-b bg-background px-4 md:px-8 pt-1 pb-3 space-y-3 sm:space-y-2">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm">
-                  <span className="font-semibold">{t('event.events')}</span>{' '}
-                  <span className="text-muted-foreground">
-                    {t('event.inThisIssue')}
-                  </span>
-                </p>
-                <EventNavigationBar
-                  projectId={projectId}
-                  issueId={issueId}
-                  navigation={navigation}
-                />
-              </div>
-
-              <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-2">
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <span>
-                    {t('event.idLabel')}{' '}
-                    <span className="font-mono text-foreground">
-                      {event.event_id.slice(0, 8)}
-                    </span>
-                  </span>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span>{format.relativeTime(new Date(event.timestamp))}</span>
-                  {event.platform && (
-                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
-                      {event.platform}
-                    </span>
-                  )}
-                  {event.environment && (
-                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-foreground/80">
-                      {event.environment}
-                    </span>
-                  )}
-                </div>
-                {jumps.length > 0 && (
-                  <div className="flex items-center gap-3 flex-wrap shrink-0">
-                    <span>{t('event.jumpTo')}</span>
-                    {jumps.map((j) => (
-                      <a
-                        key={j.id}
-                        href={`#${j.id}`}
-                        className="hover:text-foreground transition-colors"
-                      >
-                        {j.label}
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            <EventIdentityBar
+              projectId={projectId}
+              issueId={issueId}
+              event={event}
+              navigation={navigation}
+              jumps={jumps}
+            />
 
             <EventSections
               event={event}

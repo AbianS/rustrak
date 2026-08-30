@@ -8,8 +8,9 @@ on:
       - "apps/webview-ui/**"
       - "packages/**"
       - ".github/workflows/codeql.yml"
+  # No `branches` filter: it matches the PR's base, and a PR onto a feature
+  # branch carries the same code as one onto main. `paths` still applies.
   pull_request:
-    branches: ["main"]
     paths:
       - "apps/server/**"
       - "apps/webview-ui/**"

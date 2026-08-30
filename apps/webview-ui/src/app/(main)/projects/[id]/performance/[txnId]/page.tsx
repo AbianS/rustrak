@@ -1,15 +1,15 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getFormatter, getTranslations } from 'next-intl/server';
+import { getTranslations } from 'next-intl/server';
 import { getProject } from '@/features/project/api/queries';
 import { getTransaction } from '@/features/transaction/api/queries';
-import type { Span, TraceContext } from '@/features/transaction/model/span';
+import { readTransactionPayload } from '@/features/transaction/lib/transaction-payload';
 import { MeasurementsCard } from '@/features/transaction/ui/components/measurements-card';
 import { SpanWaterfall } from '@/features/transaction/ui/components/span-waterfall';
 import { loadAll } from '@/shared/lib/results';
 import { LoadFailure } from '@/shared/ui/components/load-failure';
-import { Badge } from '@/shared/ui/components/shadcn/badge';
+import { TransactionBadges } from './_components/transaction-badges';
 
 interface TransactionDetailPageProps {
   params: Promise<{ id: string; txnId: string }>;
@@ -26,24 +26,6 @@ export async function generateMetadata({
       ? t('transaction.meta.title', { name: txn.data.transaction_name })
       : t('transaction.meta.fallbackTitle'),
   };
-}
-
-function formatDuration(ms: number | null): string {
-  if (ms === null) return '—';
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
-}
-
-function asObject(value: unknown): Record<string, unknown> | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return null;
-}
-
-function epochSeconds(raw: unknown, fallbackIso: string): number {
-  if (typeof raw === 'number') return raw;
-  return Date.parse(fallbackIso) / 1000;
 }
 
 /** Renders the primitive entries of an object as a key/value list. */
@@ -83,7 +65,6 @@ export default async function TransactionDetailPage({
   params,
 }: TransactionDetailPageProps) {
   const t = await getTranslations('projectPages');
-  const format = await getFormatter();
   const { id, txnId } = await params;
   const projectId = parseInt(id, 10);
 
@@ -100,24 +81,18 @@ export default async function TransactionDetailPage({
 
   const [, txn] = loaded.data;
 
-  const data = txn.data ?? {};
-  const trace = asObject(data.contexts)?.trace as
-    | Record<string, unknown>
-    | undefined;
-  const spans = Array.isArray(data.spans) ? data.spans : [];
-  const measurements = asObject(data.measurements);
-  const tags = asObject(data.tags);
-  const request = asObject(data.request);
-  const user = asObject(data.user);
-
-  const transactionStart = epochSeconds(
-    data.start_timestamp,
-    txn.start_timestamp ?? txn.timestamp,
-  );
-  const transactionEnd = epochSeconds(data.timestamp, txn.timestamp);
-
-  const op = typeof trace?.op === 'string' ? trace.op : undefined;
-  const status = typeof trace?.status === 'string' ? trace.status : undefined;
+  const {
+    trace,
+    spans,
+    measurements,
+    tags,
+    request,
+    user,
+    transactionStart,
+    transactionEnd,
+    op,
+    status,
+  } = readTransactionPayload(txn);
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -133,29 +108,7 @@ export default async function TransactionDetailPage({
         <h1 className="font-mono text-lg font-semibold break-all">
           {txn.transaction_name || t('transaction.unnamed')}
         </h1>
-        <div className="mt-2 flex items-center gap-2 flex-wrap text-sm">
-          <span className="font-mono font-semibold">
-            {formatDuration(txn.duration_ms)}
-          </span>
-          {op && <Badge variant="secondary">{op}</Badge>}
-          {status && (
-            <Badge variant={status === 'ok' ? 'outline' : 'destructive'}>
-              {status}
-            </Badge>
-          )}
-          {txn.environment && (
-            <Badge variant="outline">{txn.environment}</Badge>
-          )}
-          {txn.platform && <Badge variant="outline">{txn.platform}</Badge>}
-          {txn.release && (
-            <span className="font-mono text-xs text-muted-foreground">
-              {txn.release}
-            </span>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {format.dateTime(new Date(txn.timestamp), 'precise')}
-          </span>
-        </div>
+        <TransactionBadges txn={txn} op={op} status={status} />
       </div>
 
       {/* Body */}
@@ -178,8 +131,8 @@ export default async function TransactionDetailPage({
               </p>
             ) : (
               <SpanWaterfall
-                spans={spans as Span[]}
-                trace={trace as TraceContext | undefined}
+                spans={spans}
+                trace={trace}
                 transactionStart={transactionStart}
                 transactionEnd={transactionEnd}
               />
