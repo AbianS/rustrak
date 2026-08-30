@@ -1,3 +1,4 @@
+import { createTranslator, resolveLocale } from '@rustrak/i18n';
 import { Text, Wordmark } from '@rustrak/ui';
 import { createFileRoute, redirect, useRouter } from '@tanstack/react-router';
 import { IncidentField } from '../components/login/incident-field';
@@ -16,11 +17,22 @@ export const Route = createFileRoute('/login')({
       throw redirect({ href: search.redirect });
     }
   },
+  /**
+   * Nobody is signed in here, so there is no stored preference to read: the
+   * browser's list is all there is. `auth` is the only namespace this page
+   * names, which is what keeps it from carrying the copy for project deletion.
+   */
+  loader: () =>
+    createTranslator({
+      locale: resolveLocale({ preferred: navigator.languages }),
+      namespaces: ['auth'],
+    }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const { auth } = Route.useRouteContext();
+  const t = Route.useLoaderData();
   const search = Route.useSearch();
   const router = useRouter();
 
@@ -37,8 +49,7 @@ function LoginPage() {
 
         <div className="flex shrink-0 flex-col gap-8">
           <h2 className="max-w-108 text-balance text-display text-fg">
-            Failures have a shape
-            <span className="text-fg-brand">.</span> We draw it for you.
+            {t.t('auth.panel.headline')}
           </h2>
 
           <IncidentField />
@@ -48,8 +59,7 @@ function LoginPage() {
             tone="tertiary"
             variant="body"
           >
-            Every incident leaves a mark. The pattern shows up long before the
-            support ticket does.
+            {t.t('auth.panel.caption')}
           </Text>
         </div>
 
@@ -60,6 +70,7 @@ function LoginPage() {
 
       <main className="flex flex-1 items-center justify-center p-page-gutter">
         <LoginForm
+          t={t}
           onSubmit={async (credentials) => {
             const session = await auth.signIn(credentials);
 

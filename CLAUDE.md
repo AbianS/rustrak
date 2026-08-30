@@ -24,6 +24,7 @@ the browser and the API share one origin and there is nothing else to deploy.
 | `apps/webview-ui` | Next.js dashboard, being replaced by `apps/dashboard` |
 | `apps/docs` | Public documentation site (Nextra) |
 | `packages/ui` | `@rustrak/ui`, the design system. Storybook only for now |
+| `packages/i18n` | `@rustrak/i18n`, translation for every surface |
 | `packages/client` | `@rustrak/client`, the TypeScript API client |
 | `packages/mcp` | `@rustrak/mcp`, MCP server over the client |
 | `packages/test-sentry` | CLI to send test events to a DSN |

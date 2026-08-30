@@ -70,11 +70,18 @@
     "check-types": {
       "dependsOn": ["^check-types", "^build"]
     },
+    "@rustrak/i18n#check-types": {
+      "dependsOn": ["^check-types", "^build", "build"]
+    },
     "webview-ui#check-types": {
       "dependsOn": ["^check-types", "^build", "build"]
     },
     "test": {
       "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"]
+    },
+    "@rustrak/i18n#test": {
+      "dependsOn": ["^build", "build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"]
     },
     "@rustrak/ui#test": {
