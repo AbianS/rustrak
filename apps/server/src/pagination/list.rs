@@ -6,6 +6,9 @@ use super::SortOrder;
 const DEFAULT_PER: i64 = 20;
 /// Ceiling on a page, so one request cannot ask for the whole table.
 const MAX_PER: i64 = 100;
+/// Ceiling on a `key:<days>` window: a century, which already reaches back
+/// past every row any of these tables holds.
+const MAX_DAYS: f64 = 36_525.0;
 
 /// One `field` / `-field` term out of `sort`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,10 +44,11 @@ pub struct ListQuery {
     #[cfg_attr(feature = "openapi", param(minimum = 1))]
     pub page: i64,
 
-    /// Items per page.
-    #[serde(default = "default_per")]
+    /// Items per page. Absent, not `20`, when the caller did not ask: what
+    /// decides against `per_page` is whether it was sent.
+    #[serde(default)]
     #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
-    pub per: i64,
+    pub per: Option<i64>,
 
     /// What `per` was called before this contract existed.
     ///
@@ -61,10 +65,6 @@ pub struct ListQuery {
 
 fn default_page() -> i64 {
     1
-}
-
-fn default_per() -> i64 {
-    DEFAULT_PER
 }
 
 /// Which wire names a resource will sort by, and the column each one means.
@@ -92,13 +92,9 @@ pub struct ListParams {
 impl ListParams {
     pub fn from_query(query: ListQuery) -> Self {
         let page = query.page.max(1);
-        // An explicit `per` wins; `per_page` only speaks when `per` was left
-        // at its default.
-        let requested = if query.per == DEFAULT_PER {
-            query.per_page.unwrap_or(query.per)
-        } else {
-            query.per
-        };
+        // An explicit `per` wins; `per_page` only speaks when `per` was not
+        // sent at all.
+        let requested = query.per.or(query.per_page).unwrap_or(DEFAULT_PER);
         let per = if requested < 1 {
             DEFAULT_PER
         } else {
@@ -110,7 +106,9 @@ impl ListParams {
         Self {
             page,
             per,
-            offset: (page - 1) * per,
+            // A page number no table can reach is an empty page, not an
+            // overflow: `page=i64::MAX` is a URL somebody can type.
+            offset: page.saturating_sub(1).saturating_mul(per),
             search,
             filters,
             sort: parse_sort(query.sort.as_deref().unwrap_or_default()),
@@ -172,6 +170,22 @@ impl ListParams {
     /// A filter carrying one number: a window in days, a threshold.
     pub fn number(&self, key: &str) -> Option<f64> {
         self.filter(key)?.first()?.parse().ok()
+    }
+
+    /// A `key:<days>` window as a duration, or nothing when it narrows
+    /// nothing.
+    ///
+    /// Bounded on the way through: `chrono::Duration::days` asserts rather
+    /// than returns, and `created:1e300` reaches it as `i64::MAX`. A window
+    /// wider than the ceiling means the same thing the ceiling does.
+    pub fn days(&self, key: &str) -> Option<chrono::Duration> {
+        let days = self.number(key)?;
+        // `"NaN"` parses, and comparing it decides nothing: it has to be
+        // turned away by name.
+        if days.is_nan() || days <= 0.0 {
+            return None;
+        }
+        Some(chrono::Duration::days(days.min(MAX_DAYS) as i64))
     }
 
     /// The values a filter carries, or nothing if it was not named.

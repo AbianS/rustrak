@@ -1,4 +1,5 @@
 import type { RowData } from '@tanstack/react-table';
+import { useMemo } from 'react';
 import { uiLabel, uiLocale } from '../../lib/labels';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
@@ -40,7 +41,10 @@ export interface DataTablePaginationProps<TData extends RowData> {
 export function DataTablePagination<TData extends RowData>({
   table,
 }: DataTablePaginationProps<TData>) {
-  const number = new Intl.NumberFormat(uiLocale());
+  const locale = uiLocale();
+  // Built once per locale: a formatter is expensive to construct and the
+  // footer renders on every page, sort and tick.
+  const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { pageIndex, pageSize } = table.state.pagination;
   const rowCount = table.options.rowCount ?? table.getRowCount();
   const pageCount = table.getPageCount();
@@ -84,7 +88,7 @@ export function DataTablePagination<TData extends RowData>({
         />
 
         <div className="flex items-center gap-1">
-          <Tooltip content="Previous page">
+          <Tooltip content={uiLabel('previousPage')}>
             <Button
               variant="secondary"
               size="xs"
@@ -97,7 +101,7 @@ export function DataTablePagination<TData extends RowData>({
           <span aria-hidden="true" className={styles.fraction()}>
             {pageCount === 0 ? 0 : pageIndex + 1} / {pageCount}
           </span>
-          <Tooltip content="Next page">
+          <Tooltip content={uiLabel('nextPage')}>
             <Button
               variant="secondary"
               size="xs"

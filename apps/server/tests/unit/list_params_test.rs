@@ -11,7 +11,7 @@ fn parse(q: Option<&str>, sort: Option<&str>, page: i64, per: i64) -> ListParams
         q: q.map(str::to_string),
         sort: sort.map(str::to_string),
         page,
-        per,
+        per: Some(per),
         per_page: None,
         order: None,
     })
@@ -137,6 +137,16 @@ fn offset_follows_from_the_page() {
 }
 
 #[test]
+fn a_page_number_no_table_can_reach_is_still_an_offset() {
+    // `page=9223372036854775807` is a URL somebody can type. The product of
+    // that and a page size is not an `i64`, and the answer to it is an empty
+    // page, not a panic in debug or a negative `OFFSET` in release.
+    let params = parse(None, None, i64::MAX, 20);
+
+    assert_eq!(params.offset, i64::MAX);
+}
+
+#[test]
 fn a_filter_with_no_values_is_dropped() {
     // `level:` on its own is somebody mid-type, not a request for nothing.
     let params = parse(Some("level:"), None, 1, 20);
@@ -160,6 +170,15 @@ fn per_wins_when_a_caller_sends_both() {
     let query: ListQuery = serde_urlencoded::from_str("per=10&per_page=35").expect("parsing");
 
     assert_eq!(ListParams::from_query(query).per, 10);
+}
+
+#[test]
+fn per_wins_even_when_it_asks_for_the_default_size() {
+    // What decides is whether `per` was sent, not what it says. Asking for 20
+    // out loud is not the same as not asking.
+    let query: ListQuery = serde_urlencoded::from_str("per=20&per_page=35").expect("parsing");
+
+    assert_eq!(ListParams::from_query(query).per, 20);
 }
 
 #[test]
@@ -224,4 +243,40 @@ fn a_number_filter_reads_a_single_value() {
         parse(Some("created:x"), None, 1, 20).number("created"),
         None
     );
+}
+
+#[test]
+fn a_day_window_is_a_duration() {
+    assert_eq!(
+        parse(Some("created:7"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(7))
+    );
+}
+
+#[test]
+fn a_day_window_nobody_could_live_through_is_bounded() {
+    // `chrono::Duration::days` asserts rather than returns, and `1e300` as an
+    // `i64` is `i64::MAX`. A century is already every project ever created.
+    assert_eq!(
+        parse(Some("created:1e300"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(36_525))
+    );
+}
+
+#[test]
+fn a_window_that_narrows_nothing_is_no_window() {
+    assert_eq!(parse(Some("created:0"), None, 1, 20).days("created"), None);
+    assert_eq!(parse(Some("created:-3"), None, 1, 20).days("created"), None);
+    assert_eq!(parse(Some("created:x"), None, 1, 20).days("created"), None);
+    // `"NaN"` and `"inf"` both parse as floats. One narrows nothing, the
+    // other is the ceiling.
+    assert_eq!(
+        parse(Some("created:NaN"), None, 1, 20).days("created"),
+        None
+    );
+    assert_eq!(
+        parse(Some("created:inf"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(36_525))
+    );
+    assert_eq!(parse(None, None, 1, 20).days("created"), None);
 }

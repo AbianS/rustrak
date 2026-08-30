@@ -965,9 +965,33 @@
         "operationId": "list_projects",
         "parameters": [
           {
+            "name": "q",
+            "in": "query",
+            "description": "Filters and free text in one string: `platform:rust,node timeout`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort fields, `-` for descending: `-events,name`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "page",
             "in": "query",
-            "description": "Page number (1-indexed, default: 1)",
+            "description": "Page number, 1-indexed.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -976,24 +1000,47 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "per",
             "in": "query",
-            "description": "Items per page (default: 20, max: 100)",
+            "description": "Items per page. Absent, not `20`, when the caller did not ask: what\ndecides against `per_page` is whether it was sent.",
             "required": false,
             "schema": {
-              "type": "integer",
+              "type": [
+                "integer",
+                "null"
+              ],
               "format": "int64",
               "maximum": 100,
               "minimum": 1
             }
           },
           {
-            "name": "order",
+            "name": "per_page",
             "in": "query",
-            "description": "Sort order direction (default: desc = newest first)",
+            "description": "What `per` was called before this contract existed.\n\n`webview-ui` and `@rustrak/mcp` still send it. Remove both fields'\ncompatibility when they do not.",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/SortOrder"
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "description": "A bare direction for the default sort, from the same era as `per_page`.\nIgnored when `sort` names anything.",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/components/schemas/SortOrder"
+                }
+              ]
             }
           },
           {
