@@ -116,6 +116,32 @@ const OTHER_LOCALES: readonly (readonly [string, Messages])[] = [
   ['ro', ro],
 ];
 
+/** A file whose translator calls this rule can judge. */
+function isJudgeable(path: string): boolean {
+  if (isTestFile(path)) return false;
+  // The dictionaries themselves hold the keys; they do not call them.
+  return !path.split('\\').join('/').includes('/messages/');
+}
+
+/**
+ * Every fully-qualified message key this file asks for.
+ *
+ * A generator so the two nested walks -- translators, then the calls on each
+ * -- stay one flat statement at the call site rather than a loop inside a
+ * loop inside a predicate.
+ */
+function* translatedKeys(content: string): Generator<string> {
+  for (const binding of content.matchAll(TRANSLATOR_BINDING)) {
+    const [, name, quoted, fromObject] = binding;
+    const namespace = quoted ?? fromObject ?? '';
+
+    for (const call of content.matchAll(callsOf(name))) {
+      const key = call[1];
+      yield namespace ? `${namespace}.${key}` : key;
+    }
+  }
+}
+
 describe('message dictionaries stay resolvable', () => {
   it('every locale exposes exactly the same keys as en', () => {
     const enKeys = leafKeys(en as Messages);
@@ -153,24 +179,14 @@ describe('message dictionaries stay resolvable', () => {
     const rule = projectFiles()
       .inFolder('src/**')
       .shouldNot()
-      .adhereTo((file) => {
-        if (isTestFile(file.path)) return false;
-        if (file.path.split('\\').join('/').includes('/messages/')) {
-          return false;
-        }
-
-        for (const binding of file.content.matchAll(TRANSLATOR_BINDING)) {
-          const [, name, quoted, fromObject] = binding;
-          const namespace = quoted ?? fromObject ?? '';
-
-          for (const call of file.content.matchAll(callsOf(name))) {
-            const key = call[1];
-            const full = namespace ? `${namespace}.${key}` : key;
-            if (!hasKey(en as Messages, full)) return true;
-          }
-        }
-        return false;
-      }, 'calls a translator with a message key that does not exist in en.json');
+      .adhereTo(
+        (file) =>
+          isJudgeable(file.path) &&
+          [...translatedKeys(file.content)].some(
+            (key) => !hasKey(en as Messages, key),
+          ),
+        'calls a translator with a message key that does not exist in en.json',
+      );
 
     await expect(rule).toPassAsync();
   });

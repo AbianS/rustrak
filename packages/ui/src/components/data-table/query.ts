@@ -110,12 +110,108 @@ function parseRange(raw: string): [number | null, number | null] | null {
   return [min, max];
 }
 
+/** A value that has to survive a round trip through the string is quoted. */
+function quoted(value: string): string {
+  return needsQuoting(value) ? quoteValue(value) : value;
+}
+
+/**
+ * What one token turned out to be.
+ *
+ * `drop` is the third answer the two obvious ones cannot express: a token that
+ * is neither a usable filter nor prose worth carrying. Naming it is what keeps
+ * the variants below able to disagree about which of the three a failed parse
+ * deserves, in one visible place rather than by omission.
+ */
+type ParsedValue =
+  | { kind: 'filter'; value: unknown }
+  | { kind: 'text' }
+  | { kind: 'drop' };
+
+/** A {@link ParsedValue} once the key it belongs to is known. */
+type ParsedToken =
+  | { kind: 'filter'; id: string; value: unknown }
+  | { kind: 'text' }
+  | { kind: 'drop' };
+
+/**
+ * How one variant crosses between the string and the filter state.
+ *
+ * Both directions live together because they are one format described twice,
+ * and when they sat in two `variant` chains in two functions they had already
+ * drifted: nothing made a value the formatter wrote parse back to itself.
+ */
+interface FilterCodec {
+  /** The state value for the text after the colon. */
+  parse: (raw: string) => ParsedValue;
+  /** The text after the colon for a state value, or `null` if it says nothing. */
+  format: (value: unknown) => string | null;
+}
+
+const optionsCodec: FilterCodec = {
+  parse: (raw) => {
+    const values = raw.split(',').filter(Boolean);
+    // `level:,,` names no option and is not prose either: the user reached for
+    // a filter and gave it nothing.
+    return values.length ? { kind: 'filter', value: values } : { kind: 'drop' };
+  },
+
+  format: (value) =>
+    Array.isArray(value) && value.length ? value.join(',') : null,
+};
+
+const rangeCodec: FilterCodec = {
+  parse: (raw) => {
+    const range = parseRange(raw);
+    // Unlike a malformed option list, `events:oops` may well be prose -- it is
+    // a plausible start of a pasted line -- so it is kept rather than dropped.
+    return range ? { kind: 'filter', value: range } : { kind: 'text' };
+  },
+
+  format: (value) => {
+    if (!Array.isArray(value)) return null;
+    const [min, max] = value as [number | null, number | null];
+    if (min === null && max === null) return null;
+    return `${min ?? ''}..${max ?? ''}`;
+  },
+};
+
+const textCodec: FilterCodec = {
+  parse: (raw) => ({ kind: 'filter', value: raw }),
+
+  format: (value) =>
+    typeof value === 'string' && value ? quoted(value) : null,
+};
+
+const CODECS: Record<ColumnFilterSpec['variant'], FilterCodec> = {
+  options: optionsCodec,
+  range: rangeCodec,
+  text: textCodec,
+};
+
+/** One token, resolved against the columns this table can actually filter. */
+function parseToken(token: string, variants: FilterVariants): ParsedToken {
+  const match = token.match(TOKEN);
+  const id = match?.[1];
+  const raw = match?.[2];
+  const variant = id ? variants[id] : undefined;
+
+  // A `key:` the table has no filterable column for stays free text rather
+  // than becoming a phantom filter: `error:` at the start of a pasted stack
+  // trace is prose, not a request.
+  if (id === undefined || raw === undefined || !variant)
+    return { kind: 'text' };
+
+  // A known key with nothing after the colon says nothing: `level:` is a
+  // question abandoned mid-sentence, not prose and not a filter.
+  if (raw === '') return { kind: 'drop' };
+
+  const parsed = CODECS[variant].parse(raw);
+  return parsed.kind === 'filter' ? { ...parsed, id } : parsed;
+}
+
 /**
  * Reads a query string into filters and free text.
- *
- * A `key:` the table has no filterable column for stays free text rather than
- * becoming a phantom filter: `error:` at the start of a pasted stack trace is
- * prose, not a request.
  */
 export function parseFilterQuery(
   input: string,
@@ -125,26 +221,11 @@ export function parseFilterQuery(
   const text: string[] = [];
 
   for (const token of tokenize(input)) {
-    const match = token.match(TOKEN);
-    const id = match?.[1];
-    const raw = match?.[2];
-    const variant = id ? variants[id] : undefined;
-    if (id === undefined || raw === undefined || !variant) {
-      text.push(token);
-      continue;
-    }
-    // A known key with nothing after the colon says nothing: `level:` is a
-    // question abandoned mid-sentence, not prose and not a filter.
-    if (raw === '') continue;
-    if (variant === 'options') {
-      const values = raw.split(',').filter(Boolean);
-      if (values.length) filters.push({ id, value: values });
-    } else if (variant === 'range') {
-      const range = parseRange(raw);
-      if (range) filters.push({ id, value: range });
-      else text.push(token);
-    } else {
-      filters.push({ id, value: raw });
+    const parsed = parseToken(token, variants);
+
+    if (parsed.kind === 'text') text.push(token);
+    else if (parsed.kind === 'filter') {
+      filters.push({ id: parsed.id, value: parsed.value });
     }
   }
 
@@ -181,19 +262,12 @@ export function formatFilterQuery(
 
   for (const { id, value } of filters) {
     const variant = variants[id];
-    if (variant === 'options' && Array.isArray(value) && value.length) {
-      tokens.push(`${id}:${value.join(',')}`);
-    } else if (variant === 'range' && Array.isArray(value)) {
-      const [min, max] = value as [number | null, number | null];
-      if (min !== null || max !== null) {
-        tokens.push(`${id}:${min ?? ''}..${max ?? ''}`);
-      }
-    } else if (variant === 'text' && typeof value === 'string' && value) {
-      tokens.push(`${id}:${needsQuoting(value) ? quoteValue(value) : value}`);
-    }
+    const formatted = variant ? CODECS[variant].format(value) : null;
+    if (formatted !== null) tokens.push(`${id}:${formatted}`);
   }
 
-  if (search) tokens.push(needsQuoting(search) ? quoteValue(search) : search);
+  if (search) tokens.push(quoted(search));
+
   return tokens.join(' ');
 }
 

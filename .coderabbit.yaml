@@ -9,6 +9,12 @@ reviews:
     labels:
       - "!skip-review"
 
+    # CodeRabbit reviews only PRs onto the default branch unless told otherwise,
+    # so a PR onto a feature branch got no review at all. `.*` is every base;
+    # the label and title guards below still decide what gets skipped.
+    base_branches:
+      - ".*"
+
     # Second guard for that same PR. The label can only be applied after the PR
     # exists, so a review can start before it lands; the title is set at
     # creation time and cannot race. release.yml pins the title literally.

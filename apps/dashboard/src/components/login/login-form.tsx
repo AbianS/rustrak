@@ -39,13 +39,14 @@ function failureMessage(error: RustrakError, t: Translator): string {
   }
 }
 
-// The catalogs carry the plural rules for these, so a language with a `few`
-// category gets one.
+// Rounds up, never down: telling someone to wait 1 minute for 61 seconds
+// invites the retry that extends the block. The catalogs carry the plural
+// rules, so a language with a `few` category gets one.
 function formatWait(seconds: number, t: Translator): string {
   if (seconds < 60) return t.t('auth.form.waitSeconds', { count: seconds });
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.ceil(seconds / 60);
   if (minutes < 60) return t.t('auth.form.waitMinutes', { count: minutes });
-  return t.t('auth.form.waitHours', { count: Math.round(seconds / 3600) });
+  return t.t('auth.form.waitHours', { count: Math.ceil(seconds / 3600) });
 }
 
 export interface LoginFormProps {

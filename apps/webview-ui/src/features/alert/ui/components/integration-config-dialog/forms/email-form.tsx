@@ -2,22 +2,17 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Play } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState, useTransition } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { toast } from 'sonner';
-import {
-  createIntegration,
-  updateIntegration,
-} from '@/features/alert/api/mutations';
+import { filledCredentials } from '@/features/alert/lib/credentials';
 import {
   EMAIL_FIELD_MAP,
   type EmailFormData,
   emailDefaults,
   emailFormSchema,
 } from '@/features/alert/model/integration-forms';
-import { applyServerFieldErrors } from '@/shared/lib/form-errors';
+import { useIntegrationSubmit } from '@/features/alert/ui/hooks/use-integration-submit';
 import { Button } from '@/shared/ui/components/shadcn/button';
 import {
   DialogDescription,
@@ -49,9 +44,6 @@ export function EmailForm({
   const t = useTranslations('alerts');
 
   const globalT = useTranslations();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const isLoading = isPending || parentPending;
   const [testRecipients, setTestRecipients] = useState('');
 
   // Parsed once so the button's enabled state and its payload can never
@@ -72,56 +64,37 @@ export function EmailForm({
     defaultValues: emailDefaults(existingIntegration),
   });
 
-  const onSubmit = (data: EmailFormData) => {
-    startTransition(async () => {
-      const credentials: Record<string, unknown> = {
+  const { submit, isPending } = useIntegrationSubmit<EmailFormData>({
+    form,
+    existingIntegration,
+    providerType: 'email',
+    credentials: (data) =>
+      filledCredentials({
         smtp_host: data.smtp_host,
         smtp_port: data.smtp_port,
         from_address: data.from_address,
-      };
-      if (data.smtp_username) credentials.smtp_username = data.smtp_username;
-      if (data.smtp_password) credentials.smtp_password = data.smtp_password;
+        smtp_username: data.smtp_username,
+        smtp_password: data.smtp_password,
+      }),
+    fieldMap: EMAIL_FIELD_MAP,
+    labels: {
+      name: t('common.fieldName'),
+      smtp_host: t('email.fieldHost'),
+      smtp_port: t('email.fieldPort'),
+      smtp_username: t('email.fieldUsername'),
+      smtp_password: t('email.fieldPassword'),
+      from_address: t('email.fieldFrom'),
+    },
+    messages: {
+      saveFailed: t('email.saveFailed'),
+      created: t('email.created'),
+      updated: t('email.updated'),
+    },
+    t: globalT,
+    onSaved: () => onOpenChange(false),
+  });
 
-      const result = existingIntegration
-        ? await updateIntegration(existingIntegration.id, {
-            name: data.name,
-            credentials,
-            is_enabled: data.is_enabled,
-          })
-        : await createIntegration({
-            name: data.name,
-            provider_type: 'email',
-            credentials,
-            is_enabled: data.is_enabled,
-          });
-
-      if (!result.success) {
-        const applied = applyServerFieldErrors(form, result.error, {
-          map: EMAIL_FIELD_MAP,
-          labels: {
-            name: t('common.fieldName'),
-            smtp_host: t('email.fieldHost'),
-            smtp_port: t('email.fieldPort'),
-            smtp_username: t('email.fieldUsername'),
-            smtp_password: t('email.fieldPassword'),
-            from_address: t('email.fieldFrom'),
-          },
-          t: globalT,
-        });
-
-        if (applied.formLevel) {
-          toast.error(t('email.saveFailed'), {
-            description: applied.formLevel,
-          });
-        }
-        return;
-      }
-
-      toast.success(t(existingIntegration ? 'email.updated' : 'email.created'));
-      onOpenChange(false);
-      router.refresh();
-    });
-  };
+  const isLoading = isPending || parentPending;
 
   return (
     <>
@@ -133,7 +106,7 @@ export function EmailForm({
       </DialogHeader>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
           <NameField<EmailFormData>
             placeholder={t('email.namePlaceholder')}
             disabled={isLoading}

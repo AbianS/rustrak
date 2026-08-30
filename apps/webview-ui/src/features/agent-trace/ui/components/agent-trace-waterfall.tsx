@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { cn } from '@/shared/lib/utils';
+import { barGeometry } from '@/shared/lib/waterfall-geometry';
 
 interface AgentTraceWaterfallProps {
   spans: Span[];
@@ -232,121 +233,143 @@ export function AgentTraceWaterfall({
       )}
 
       <div className="space-y-0.5 font-mono text-xs">
-        {rows.map(
-          ({ span, depth, hasChildren, collapsed: isCol, selfMs }, i) => {
-            const dur = span.duration_ms;
-            const start = epochMs(span.start_timestamp);
-            const offsetPct =
-              start != null && total > 0
-                ? ((start - traceStart) / total) * 100
-                : 0;
-            const widthPct =
-              dur != null && total > 0 ? Math.max(0.5, (dur / total) * 100) : 0;
-            const clampedWidth = Math.min(widthPct, 100 - offsetPct);
-            const failed = span.status && span.status !== 'ok';
-            const isSelected = selectedSpanId === span.id;
-            const label =
-              span.gen_ai_agent_name ||
-              span.gen_ai_tool_name ||
-              span.gen_ai_response_model ||
-              span.description;
+        {rows.map((row, i) => (
+          // `span_id` is the key wherever the span has one. The index is the
+          // fallback for a span the SDK sent without an id, which nothing else
+          // can distinguish.
+          // react-doctor-disable-next-line react-doctor/no-array-index-as-key
+          <AgentTraceRow
+            key={row.span.span_id ?? `span-${i}`}
+            row={row}
+            projectId={projectId}
+            traceId={traceId}
+            traceStart={traceStart}
+            total={total}
+            isSelected={selectedSpanId === row.span.id}
+            onToggle={toggle}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
-            // Selecting toggles: clicking the open row closes the panel.
-            const href = isSelected
-              ? `/projects/${projectId}/agents/${traceId}`
-              : `/projects/${projectId}/agents/${traceId}?span=${span.id}`;
+interface AgentTraceRowProps {
+  row: FlatRow;
+  projectId: number;
+  traceId: string;
+  /** Epoch ms of the earliest span, the left edge of every bar's track. */
+  traceStart: number;
+  /** Span of the whole trace in ms, the width of that track. */
+  total: number;
+  isSelected: boolean;
+  onToggle: (id?: string | null) => void;
+}
 
-            return (
-              // `span_id` is the key wherever the span has one. The index is
-              // the fallback for a span the SDK sent without an id, which
-              // nothing else can distinguish.
-              // react-doctor-disable-next-line react-doctor/no-array-index-as-key
-              <div
-                key={span.span_id ?? `span-${i}`}
-                className={cn(
-                  'flex w-full items-center gap-1 rounded-md pr-2 hover:bg-muted/40',
-                  isSelected && 'bg-muted/50',
-                )}
-              >
-                {/* The collapse control is a sibling of the row link, not a
-                    child of it. It used to be nested inside the selectable
-                    row, which meant one interactive element inside another and
-                    a stopPropagation to keep them apart; as siblings both are
-                    plain, valid, and independently reachable by keyboard. */}
-                <div
-                  className="flex shrink-0 items-center"
-                  style={{ paddingLeft: `${Math.min(depth, 8) * 12 + 8}px` }}
-                >
-                  {hasChildren ? (
-                    <button
-                      type="button"
-                      aria-label={
-                        isCol ? t('waterfall.expand') : t('waterfall.collapse')
-                      }
-                      onClick={() => toggle(span.span_id)}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      {isCol ? (
-                        <ChevronRight className="size-3" />
-                      ) : (
-                        <ChevronDown className="size-3" />
-                      )}
-                    </button>
-                  ) : (
-                    <span className="inline-block size-3" />
-                  )}
-                </div>
+/** One span on the shared clock, with its collapse control beside it. */
+function AgentTraceRow({
+  row,
+  projectId,
+  traceId,
+  traceStart,
+  total,
+  isSelected,
+  onToggle,
+}: AgentTraceRowProps) {
+  const t = useTranslations('agents');
+  const { span, depth, hasChildren, collapsed: isCol, selfMs } = row;
 
-                <Link
-                  href={href}
-                  scroll={false}
-                  aria-current={isSelected ? 'true' : undefined}
-                  className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
-                >
-                  <div className="flex w-[38%] min-w-0 items-center gap-1">
-                    <span
-                      className={cn(
-                        'shrink-0 rounded px-1 py-px text-[10px] font-medium text-white',
-                        opColor(span),
-                      )}
-                    >
-                      {span.gen_ai_operation_type ||
-                        span.op ||
-                        t('waterfall.spanFallback')}
-                    </span>
-                    <span className="truncate text-muted-foreground">
-                      {label || '—'}
-                    </span>
-                    {failed && (
-                      <span className="shrink-0 rounded bg-destructive/15 px-1 text-[10px] text-destructive">
-                        {span.status}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative h-4 flex-1">
-                    <div
-                      className={cn(
-                        'absolute inset-y-0 rounded-sm',
-                        opColor(span),
-                      )}
-                      style={{
-                        left: `${offsetPct}%`,
-                        width: `${clampedWidth}%`,
-                      }}
-                    />
-                  </div>
-                  <span
-                    className="w-16 text-right tabular-nums text-muted-foreground"
-                    title={selfMs != null ? formatDuration(selfMs) : undefined}
-                  >
-                    {formatDuration(dur)}
-                  </span>
-                </Link>
-              </div>
-            );
-          },
+  const dur = span.duration_ms;
+  const { offsetPct, widthPct } = barGeometry(
+    epochMs(span.start_timestamp),
+    dur,
+    traceStart,
+    total,
+  );
+
+  const failed = span.status && span.status !== 'ok';
+  const label =
+    span.gen_ai_agent_name ||
+    span.gen_ai_tool_name ||
+    span.gen_ai_response_model ||
+    span.description;
+
+  // Selecting toggles: clicking the open row closes the panel.
+  const href = isSelected
+    ? `/projects/${projectId}/agents/${traceId}`
+    : `/projects/${projectId}/agents/${traceId}?span=${span.id}`;
+
+  return (
+    <div
+      className={cn(
+        'flex w-full items-center gap-1 rounded-md pr-2 hover:bg-muted/40',
+        isSelected && 'bg-muted/50',
+      )}
+    >
+      {/* The collapse control is a sibling of the row link, not a child of it.
+          It used to be nested inside the selectable row, which meant one
+          interactive element inside another and a stopPropagation to keep them
+          apart; as siblings both are plain, valid, and independently reachable
+          by keyboard. */}
+      <div
+        className="flex shrink-0 items-center"
+        style={{ paddingLeft: `${Math.min(depth, 8) * 12 + 8}px` }}
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            aria-label={isCol ? t('waterfall.expand') : t('waterfall.collapse')}
+            onClick={() => onToggle(span.span_id)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isCol ? (
+              <ChevronRight className="size-3" />
+            ) : (
+              <ChevronDown className="size-3" />
+            )}
+          </button>
+        ) : (
+          <span className="inline-block size-3" />
         )}
       </div>
+
+      <Link
+        href={href}
+        scroll={false}
+        aria-current={isSelected ? 'true' : undefined}
+        className="flex min-w-0 flex-1 items-center gap-3 py-1 text-left"
+      >
+        <div className="flex w-[38%] min-w-0 items-center gap-1">
+          <span
+            className={cn(
+              'shrink-0 rounded px-1 py-px text-[10px] font-medium text-white',
+              opColor(span),
+            )}
+          >
+            {span.gen_ai_operation_type ||
+              span.op ||
+              t('waterfall.spanFallback')}
+          </span>
+          <span className="truncate text-muted-foreground">{label || '—'}</span>
+          {failed && (
+            <span className="shrink-0 rounded bg-destructive/15 px-1 text-[10px] text-destructive">
+              {span.status}
+            </span>
+          )}
+        </div>
+        <div className="relative h-4 flex-1">
+          <div
+            className={cn('absolute inset-y-0 rounded-sm', opColor(span))}
+            style={{ left: `${offsetPct}%`, width: `${widthPct}%` }}
+          />
+        </div>
+        <span
+          className="w-16 text-right tabular-nums text-muted-foreground"
+          title={selfMs != null ? formatDuration(selfMs) : undefined}
+        >
+          {formatDuration(dur)}
+        </span>
+      </Link>
     </div>
   );
 }

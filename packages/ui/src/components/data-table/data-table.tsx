@@ -1,4 +1,4 @@
-import type { Cell, Row, RowData } from '@tanstack/react-table';
+import type { Cell, Header, Row, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import type { MouseEvent, ReactNode } from 'react';
 import { interactiveTransition, swapAnimation } from '../../lib/motion';
@@ -204,40 +204,9 @@ export function DataTable<TData extends RowData>({
                     </th>
                   </>
                 ) : (
-                  headerGroup.headers.map((header) => {
-                    const sorted = header.column.getIsSorted();
-                    return (
-                      <th
-                        key={header.id}
-                        scope="col"
-                        colSpan={header.colSpan}
-                        aria-sort={
-                          sorted === 'asc'
-                            ? 'ascending'
-                            : sorted === 'desc'
-                              ? 'descending'
-                              : undefined
-                        }
-                        className={styles.th()}
-                      >
-                        {header.isPlaceholder ? null : header.column.id ===
-                          'select' ? (
-                          <span className="flex items-center">
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </span>
-                        ) : (
-                          /* Re-enters the same way the bulk strip arrived, so
-                             the swap reads as one exchange, not two events. */
-                          <div className={styles.headerSwap()}>
-                            <DataTableColumnHeader header={header} />
-                          </div>
-                        )}
-                      </th>
-                    );
-                  })
+                  headerGroup.headers.map((header) => (
+                    <HeaderCell key={header.id} header={header} />
+                  ))
                 )}
               </tr>
             ))}
@@ -334,3 +303,60 @@ export function DataTable<TData extends RowData>({
 }
 
 DataTable.displayName = 'DataTable';
+
+/**
+ * One column heading.
+ *
+ * `aria-sort` is on the `th` rather than on the button inside it because the
+ * sort state describes the column, and a screen reader reads it while moving
+ * between columns, not only when it lands on the control.
+ */
+function HeaderCell<TData extends RowData>({
+  header,
+}: {
+  header: Header<DataTableFeatures, TData, unknown>;
+}) {
+  const sorted = header.column.getIsSorted();
+  const ariaSort =
+    sorted === 'asc'
+      ? 'ascending'
+      : sorted === 'desc'
+        ? 'descending'
+        : undefined;
+
+  return (
+    <th
+      scope="col"
+      colSpan={header.colSpan}
+      aria-sort={ariaSort}
+      className={styles.th()}
+    >
+      <HeaderContent header={header} />
+    </th>
+  );
+}
+
+/** The heading itself: the select box renders bare, every other column swaps. */
+function HeaderContent<TData extends RowData>({
+  header,
+}: {
+  header: Header<DataTableFeatures, TData, unknown>;
+}) {
+  if (header.isPlaceholder) return null;
+
+  if (header.column.id === 'select') {
+    return (
+      <span className="flex items-center">
+        {flexRender(header.column.columnDef.header, header.getContext())}
+      </span>
+    );
+  }
+
+  return (
+    /* Re-enters the same way the bulk strip arrived, so the swap reads as one
+       exchange, not two events. */
+    <div className={styles.headerSwap()}>
+      <DataTableColumnHeader header={header} />
+    </div>
+  );
+}
