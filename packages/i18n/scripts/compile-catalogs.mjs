@@ -44,15 +44,44 @@ const locales = readdirSync(messagesDir)
 
 mkdirSync(outDir, { recursive: true });
 
+const flatByLocale = new Map(
+  locales.map((locale) => [
+    locale,
+    flatten(
+      JSON.parse(readFileSync(join(messagesDir, `${locale}.json`), 'utf8')),
+    ),
+  ]),
+);
+
+/*
+ * English is the source of `MessageKey`, so a key only it has type-checks
+ * everywhere and then shows the reader `issues.empty.title` in French. The
+ * build is the last place that can still see the difference.
+ */
+const englishKeys = new Set(Object.keys(flatByLocale.get('en') ?? {}));
+
+for (const [locale, flat] of flatByLocale) {
+  if (locale === 'en') continue;
+
+  const keys = new Set(Object.keys(flat));
+  const missing = [...englishKeys].filter((key) => !keys.has(key)).sort();
+  const extra = [...keys].filter((key) => !englishKeys.has(key)).sort();
+
+  if (missing.length || extra.length) {
+    throw new Error(
+      [
+        `${locale}.json does not match en.json`,
+        ...missing.map((key) => `  missing: ${key}`),
+        ...extra.map((key) => `  not in en: ${key}`),
+      ].join('\n'),
+    );
+  }
+}
+
 const namespaces = new Set();
 const keysByNamespace = new Map();
 
-for (const locale of locales) {
-  const source = JSON.parse(
-    readFileSync(join(messagesDir, `${locale}.json`), 'utf8'),
-  );
-  const flat = flatten(source);
-
+for (const [locale, flat] of flatByLocale) {
   const byNamespace = new Map();
   for (const [key, message] of Object.entries(flat)) {
     const ns = namespaceOf(key);

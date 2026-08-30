@@ -97,7 +97,8 @@
         "noStaticOnlyClass": "off",
         "noBannedTypes": "off",
         "noForEach": "off",
-        "useLiteralKeys": "off"
+        "useLiteralKeys": "off",
+        "noExcessiveCognitiveComplexity": "error"
       },
       "a11y": {
         "useButtonType": "off",

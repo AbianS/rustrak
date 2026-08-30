@@ -3,6 +3,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import {
   chevronFlip,
   interactiveTransition,
@@ -138,12 +139,16 @@ export function TopbarSearch({
   className,
   ...props
 }: TopbarSearchProps) {
+  // The product names it; with nobody naming it the system still has to, or
+  // the button reaches a screen reader with no accessible name at all.
+  const label = placeholder ?? uiLabel('topbarSearch');
+
   return (
     <button
       type="button"
       /* On a phone the label is hidden, and hidden text is read by nobody:
          the accessible name lives on the element itself, always. */
-      aria-label={placeholder}
+      aria-label={label}
       className={cn(
         'flex h-control-sm w-search max-w-full items-center justify-between',
         'gap-2 rounded-md border border-border bg-canvas px-2.25',
@@ -166,7 +171,7 @@ export function TopbarSearch({
       <span className="flex min-w-0 items-center gap-2">
         <SearchIcon size="md" className="max-md:size-icon-xl" />
         <span className="min-w-0 truncate text-start max-md:hidden">
-          {placeholder}
+          {label}
         </span>
       </span>
       <Kbd className="max-md:hidden">{shortcut}</Kbd>

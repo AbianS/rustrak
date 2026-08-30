@@ -282,7 +282,9 @@ export function RangeFilterPanel<TData extends RowData>({
             onBlur={commit}
             onKeyDown={onKeyDown}
             placeholder={uiLabel('rangeMin')}
-            aria-label={`Minimum${spec.unit ? ` (${spec.unit})` : ''}`}
+            aria-label={`${uiLabel('rangeMinimum')}${
+              spec.unit ? ` (${spec.unit})` : ''
+            }`}
             className={styles.input()}
           />
         </div>
@@ -300,7 +302,9 @@ export function RangeFilterPanel<TData extends RowData>({
             onBlur={commit}
             onKeyDown={onKeyDown}
             placeholder={uiLabel('rangeMax')}
-            aria-label={`Maximum${spec.unit ? ` (${spec.unit})` : ''}`}
+            aria-label={`${uiLabel('rangeMaximum')}${
+              spec.unit ? ` (${spec.unit})` : ''
+            }`}
             className={styles.input()}
           />
         </div>

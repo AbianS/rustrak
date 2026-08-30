@@ -6,35 +6,32 @@ import { useState } from 'react';
 import {
   collectRoutingErrors,
   type RoutingMap,
+  readRoutingOverride,
 } from '@/features/alert/lib/routing';
 
 /**
  * The routing overrides an existing rule already carries, flattened into the
- * one-string-per-field shape the inputs bind to. Email is special-cased
- * because its `recipients` is a list on the wire and a comma-joined line in
- * the UI.
+ * one-string-per-field shape the inputs bind to.
+ *
+ * How to flatten one override is the provider's own business, so it is asked
+ * rather than decided here: see `readRoutingOverride`.
  */
 function initialRoutingMap(
   existingRule: AlertRule | null,
   integrations: readonly AlertIntegration[],
 ): RoutingMap {
   if (!existingRule) return {};
+
   const byId = new Map(integrations.map((i) => [i.id, i]));
   const map: RoutingMap = {};
-  for (const ch of existingRule.channels) {
-    const override = ch.routing_override ?? {};
-    const integration = byId.get(ch.integration_id);
-    const normalized: Record<string, string> = {};
-    if (integration?.provider_type === 'email') {
-      const r = override.recipients;
-      if (Array.isArray(r)) normalized.recipients = r.join(', ');
-    } else {
-      for (const [k, v] of Object.entries(override)) {
-        if (typeof v === 'string') normalized[k] = v;
-      }
-    }
-    map[ch.integration_id] = normalized;
+
+  for (const channel of existingRule.channels) {
+    map[channel.integration_id] = readRoutingOverride(
+      byId.get(channel.integration_id),
+      channel.routing_override ?? {},
+    );
   }
+
   return map;
 }
 

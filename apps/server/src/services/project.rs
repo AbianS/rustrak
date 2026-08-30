@@ -137,12 +137,10 @@ impl ProjectService {
         // computed here rather than in SQL, so the statement is the same one on
         // SQLite and on PostgreSQL.
         let mut cutoff: Option<chrono::DateTime<chrono::Utc>> = None;
-        if let Some(days) = params.number("created") {
-            if days > 0.0 {
-                cutoff = Some(chrono::Utc::now() - chrono::Duration::days(days as i64));
-                wheres.push(format!("created_at >= ${}", next));
-                next += 1;
-            }
+        if let Some(window) = params.days("created") {
+            cutoff = Some(chrono::Utc::now() - window);
+            wheres.push(format!("created_at >= ${}", next));
+            next += 1;
         }
 
         let where_clause = if wheres.is_empty() {

@@ -9,6 +9,36 @@ const INTRO = 900;
 /** How far the cursor reaches, as a multiple of the cell pitch. */
 const CURSOR_REACH = 5.5;
 
+/** Read from tokens once per mount, so the art cannot drift from the palette. */
+interface Colors {
+  brand: string;
+  grid: string;
+}
+
+/** Where the pointer is, in CSS pixels from the canvas corner. */
+interface Cursor {
+  x: number;
+  y: number;
+  strength: number;
+  target: number;
+}
+
+/** The grid in CSS pixels, recomputed per frame because the panel resizes. */
+interface Layout {
+  pitchX: number;
+  pitchY: number;
+  cellW: number;
+  cellH: number;
+  reach: number;
+}
+
+/** What every cell of one frame shares. */
+interface Tick {
+  seconds: number;
+  intro: number;
+  still: boolean;
+}
+
 /**
  * Resting heat, 0 to 1. Sines rather than value noise because incidents
  * cluster: a bad deploy is a smear across a week, not one cell. The 2.4
@@ -32,6 +62,114 @@ function spike(row: number, column: number, seconds: number): number {
 
   if (cycle > 0.06) return 0;
   return cycle < 0.012 ? cycle / 0.012 : 1 - (cycle - 0.012) / 0.048;
+}
+
+function layoutOf(width: number, height: number): Layout {
+  const pitchX = (width + CELL_GAP) / COLUMNS;
+  const pitchY = (height + CELL_GAP) / ROWS;
+
+  return {
+    pitchX,
+    pitchY,
+    cellW: pitchX - CELL_GAP,
+    cellH: pitchY - CELL_GAP,
+    reach: CURSOR_REACH * pitchX,
+  };
+}
+
+/** Diagonal sweep: drawn the way it is read, oldest week first. */
+function cellEntered(row: number, column: number, tick: Tick): number {
+  if (tick.still) return 1;
+
+  const arrival = (column / COLUMNS) * 0.7 + (row / ROWS) * 0.3;
+  return Math.min(1, Math.max(0, (tick.intro - arrival * 0.6) * 3));
+}
+
+/**
+ * Heat before the cursor touches it. The breathing is slow enough that you
+ * never catch it moving: faster reads as a loading state.
+ */
+function cellHeat(row: number, column: number, tick: Tick): number {
+  const base = restingHeat(row, column);
+  if (tick.still) return base;
+
+  const wave =
+    0.55 + 0.45 * Math.sin(tick.seconds * 0.7 - column * 0.19 - row * 0.1);
+
+  return Math.min(
+    1,
+    base * wave + base * spike(row, column, tick.seconds) * 0.9,
+  );
+}
+
+/** The cursor as a lens; squared falloff so the pool has no edge. */
+function cursorLift(
+  x: number,
+  y: number,
+  layout: Layout,
+  cursor: Cursor,
+): number {
+  if (cursor.strength <= 0.01) return 0;
+
+  const dx = x + layout.cellW / 2 - cursor.x;
+  const dy = y + layout.cellH / 2 - cursor.y;
+  const near = Math.max(0, 1 - Math.hypot(dx, dy) / layout.reach);
+
+  return near * near * cursor.strength;
+}
+
+/** Grid square first, brand square over it: the second one carries the heat. */
+function paintCell(
+  context: CanvasRenderingContext2D,
+  colors: Colors,
+  layout: Layout,
+  cell: { x: number; y: number; entered: number; heat: number; lift: number },
+): void {
+  const grow = cell.lift * 1.8;
+  const w = layout.cellW + grow;
+  const h = layout.cellH + grow;
+  const px = cell.x - grow / 2;
+  const py = cell.y - grow / 2;
+
+  context.globalAlpha = cell.entered;
+  context.fillStyle = colors.grid;
+  context.beginPath();
+  context.roundRect(px, py, w, h, CELL_RADIUS);
+  context.fill();
+
+  context.globalAlpha = cell.entered * (0.06 + cell.heat * 0.72);
+  context.fillStyle = colors.brand;
+  context.beginPath();
+  context.roundRect(px, py, w, h, CELL_RADIUS);
+  context.fill();
+}
+
+/** One frame of the whole grid. Lives out here so `draw` stays a loop body. */
+function paintField(
+  context: CanvasRenderingContext2D,
+  colors: Colors,
+  size: { width: number; height: number },
+  tick: Tick,
+  cursor: Cursor,
+): void {
+  const layout = layoutOf(size.width, size.height);
+  context.clearRect(0, 0, size.width, size.height);
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let column = 0; column < COLUMNS; column++) {
+      const entered = cellEntered(row, column, tick);
+      if (entered <= 0) continue;
+
+      const x = column * layout.pitchX;
+      const y = row * layout.pitchY;
+      const lift = cursorLift(x, y, layout, cursor);
+      const heat = Math.min(1, cellHeat(row, column, tick) + lift * 0.75);
+
+      paintCell(context, colors, layout, { x, y, entered, heat, lift });
+    }
+  }
+
+  context.globalAlpha = 1;
 }
 
 /** Colours come from tokens, so the art cannot drift from the palette. */
@@ -63,8 +201,10 @@ export function IncidentField() {
     const context = canvas.getContext('2d');
     if (!context) return;
 
-    const brand = token(canvas, '--color-fg-brand', '#c5f11e');
-    const grid = token(canvas, '--color-border-subtle', '#242424');
+    const colors: Colors = {
+      brand: token(canvas, '--color-fg-brand', '#c5f11e'),
+      grid: token(canvas, '--color-border-subtle', '#242424'),
+    };
     const quiet = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     // The whole panel, not just the cells: the field should light up as you
@@ -76,9 +216,11 @@ export function IncidentField() {
     let frame = 0;
     let started = 0;
     let running = false;
+    // Assumed on screen until the observer says otherwise, so the first paint
+    // is not deferred a frame on the viewports where the panel is visible.
+    let onScreen = true;
 
-    /** Where the pointer is, in CSS pixels from the canvas corner. */
-    const cursor = { x: 0, y: 0, strength: 0, target: 0 };
+    const cursor: Cursor = { x: 0, y: 0, strength: 0, target: 0 };
 
     const resize = () => {
       const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -92,86 +234,28 @@ export function IncidentField() {
 
     const draw = (now: number) => {
       if (!started) started = now;
-      const seconds = (now - started) / 1000;
-      const intro = Math.min(1, (now - started) / INTRO);
-      const still = quiet.matches;
+
+      const tick: Tick = {
+        seconds: (now - started) / 1000,
+        intro: Math.min(1, (now - started) / INTRO),
+        still: quiet.matches,
+      };
 
       cursor.strength += (cursor.target - cursor.strength) * 0.12;
-
-      const pitchX = (width + CELL_GAP) / COLUMNS;
-      const pitchY = (height + CELL_GAP) / ROWS;
-      const cellW = pitchX - CELL_GAP;
-      const cellH = pitchY - CELL_GAP;
-      const reach = CURSOR_REACH * pitchX;
-
-      context.clearRect(0, 0, width, height);
-
-      for (let row = 0; row < ROWS; row++) {
-        for (let column = 0; column < COLUMNS; column++) {
-          // Diagonal sweep: drawn the way it is read, oldest week first.
-          const arrival = (column / COLUMNS) * 0.7 + (row / ROWS) * 0.3;
-          const entered = still
-            ? 1
-            : Math.min(1, Math.max(0, (intro - arrival * 0.6) * 3));
-          if (entered <= 0) continue;
-
-          const x = column * pitchX;
-          const y = row * pitchY;
-          const base = restingHeat(row, column);
-
-          // Slow enough that you never catch it moving. Faster reads as a
-          // loading state.
-          const wave = still
-            ? 1
-            : 0.55 + 0.45 * Math.sin(seconds * 0.7 - column * 0.19 - row * 0.1);
-
-          let heat = base * wave;
-          if (!still) {
-            heat = Math.min(1, heat + base * spike(row, column, seconds) * 0.9);
-          }
-
-          // The cursor as a lens; squared falloff so the pool has no edge.
-          let lift = 0;
-          if (cursor.strength > 0.01) {
-            const dx = x + cellW / 2 - cursor.x;
-            const dy = y + cellH / 2 - cursor.y;
-            const near = Math.max(0, 1 - Math.hypot(dx, dy) / reach);
-            lift = near * near * cursor.strength;
-            heat = Math.min(1, heat + lift * 0.75);
-          }
-
-          const grow = lift * 1.8;
-          const w = cellW + grow;
-          const h = cellH + grow;
-          const px = x - grow / 2;
-          const py = y - grow / 2;
-
-          context.globalAlpha = entered;
-          context.fillStyle = grid;
-          context.beginPath();
-          context.roundRect(px, py, w, h, CELL_RADIUS);
-          context.fill();
-
-          context.globalAlpha = entered * (0.06 + heat * 0.72);
-          context.fillStyle = brand;
-          context.beginPath();
-          context.roundRect(px, py, w, h, CELL_RADIUS);
-          context.fill();
-        }
-      }
-
-      context.globalAlpha = 1;
+      paintField(context, colors, { width, height }, tick, cursor);
 
       // Reduced motion: nothing left to move once the pointer has gone.
-      if (still && cursor.strength < 0.01 && cursor.target === 0) {
+      if (tick.still && cursor.strength < 0.01 && cursor.target === 0) {
         running = false;
         return;
       }
       frame = requestAnimationFrame(draw);
     };
 
+    // The single gate: nothing starts the loop for a canvas nobody can see,
+    // whichever of the three callers asked.
     const start = () => {
-      if (running) return;
+      if (running || !onScreen || document.hidden) return;
       running = true;
       // The cleanup cancels this through `stop`, which the rule cannot see
       // through: it looks for `cancelAnimationFrame` in the effect's own
@@ -205,7 +289,8 @@ export function IncidentField() {
     observer.observe(canvas);
 
     const visible = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting && !document.hidden) start();
+      onScreen = entry?.isIntersecting ?? false;
+      if (onScreen) start();
       else stop();
     });
     visible.observe(canvas);
@@ -223,7 +308,10 @@ export function IncidentField() {
     start();
 
     return () => {
-      stop();
+      // `stop()`'s body, inlined: the cancel has to be visible in the cleanup
+      // itself, both to a reader and to `effect-raf-loop-needs-cancel`.
+      running = false;
+      cancelAnimationFrame(frame);
       observer.disconnect();
       visible.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);

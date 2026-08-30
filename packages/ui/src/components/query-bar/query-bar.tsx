@@ -408,7 +408,7 @@ export function QueryBar({
             pickedField
               ? `${pickedField.label}…`
               : chips.length
-                ? 'Add a filter…'
+                ? uiLabel('queryBarAddFilter')
                 : (placeholder ?? uiLabel('queryBarPlaceholder'))
           }
           autoComplete="off"

@@ -203,7 +203,7 @@ function menuColumn<TData extends RowData>(
     id: 'actions',
     enableSorting: false,
     enableHiding: false,
-    header: () => <span className="sr-only">Actions</span>,
+    header: () => <span className="sr-only">{uiLabel('actionsColumn')}</span>,
     cell: ({ row }) => (
       <span className="flex items-center justify-end">
         <Menu

@@ -70,3 +70,82 @@ export function queryFieldsFromColumns<TData extends RowData>(
 export function variantsFromFields(fields: QueryField[]): FilterVariants {
   return Object.fromEntries(fields.map((field) => [field.key, field.variant]));
 }
+
+/**
+ * What the bar is currently being asked, read off the draft alone.
+ *
+ * The bar has three phases and they are not exclusive to one another's
+ * syntax: no field yet (completing a field name), a field picked from the
+ * list (`pickedKey`, which never appears in the input), and a field typed as
+ * a `key:` token. This resolves all three into one answer so the hook and the
+ * suggestion list cannot disagree about which one is running.
+ */
+export interface QueryPhase {
+  /** The field named by a `key:` token under the caret, if any. */
+  typedField: QueryField | undefined;
+  /** The field taken from the list, whose values the popup is offering. */
+  pickedField: QueryField | undefined;
+  /** Whichever of the two is in force; a pick wins over a typed token. */
+  activeField: QueryField | undefined;
+  /** What is being typed as a value, once a field is in force. */
+  valueFragment: string;
+  /** What is being typed as a field name, while none is in force. */
+  fieldNeedle: string;
+  /** The part of the draft a completion keeps, verbatim. */
+  prefix: string;
+}
+
+export function detectPhase(
+  draft: string,
+  fields: QueryField[],
+  pickedKey: string | null,
+): QueryPhase {
+  const tokenMatch = draft.match(/(^|\s)([A-Za-z0-9_.-]+):(\S*)$/);
+  const typedField = tokenMatch
+    ? fields.find((field) => field.key === tokenMatch[2])
+    : undefined;
+  const pickedField = pickedKey
+    ? fields.find((field) => field.key === pickedKey)
+    : undefined;
+  const activeField = pickedField ?? typedField;
+
+  /*
+   * Only the word under the caret is being completed; whatever stands before
+   * it is already said and survives the completion. So `timeout lev` offers
+   * Level, and taking it keeps `timeout` -- the fragment is replaced, never
+   * appended to.
+   */
+  const fragmentMatch = draft.match(/(^|\s)(\S*)$/);
+  const fragment = fragmentMatch?.[2] ?? '';
+  const fragmentPrefix = draft.slice(
+    0,
+    (fragmentMatch?.index ?? 0) + (fragmentMatch?.[1]?.length ?? 0),
+  );
+
+  // With a picked field, whatever is being typed narrows its values. With a
+  // typed one, the value is the text after its colon.
+  const valueFragment = pickedField
+    ? fragment
+    : typedField
+      ? (tokenMatch?.[3] ?? '')
+      : '';
+
+  // A typed token is replaced whole, `key:` included; anything else replaces
+  // only the fragment.
+  const prefix =
+    !pickedField && typedField
+      ? draft.slice(
+          0,
+          (tokenMatch?.index ?? 0) + (tokenMatch?.[1]?.length ?? 0),
+        )
+      : fragmentPrefix;
+
+  return {
+    typedField,
+    pickedField,
+    activeField,
+    valueFragment,
+    fieldNeedle: activeField ? '' : fragment.toLowerCase(),
+    prefix,
+  };
+}

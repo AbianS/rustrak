@@ -66,6 +66,41 @@ describe('who the server says is reading', () => {
 
     expect(api.getCurrentUser).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the answer once it has one', async () => {
+    const api = stub();
+    const store = createAuthStore(api);
+
+    await store.ensure();
+    await store.ensure();
+
+    expect(api.getCurrentUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks again after the server did not answer', async () => {
+    // What "Try again" on the disconnected panel calls. Holding the settled
+    // `unreachable` would leave that panel up until a full page reload.
+    let reachable = false;
+    const api = stub({
+      getCurrentUser: vi.fn(async () =>
+        reachable ? ok(USER) : err(OFFLINE),
+      ) as AuthApi['getCurrentUser'],
+    });
+    const store = createAuthStore(api);
+
+    expect(await store.ensure()).toEqual({
+      state: 'unreachable',
+      error: OFFLINE,
+    });
+
+    reachable = true;
+
+    expect(await store.ensure()).toEqual({
+      state: 'authenticated',
+      user: USER,
+    });
+    expect(api.getCurrentUser).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('signing in', () => {

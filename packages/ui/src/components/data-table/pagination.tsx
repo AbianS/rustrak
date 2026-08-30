@@ -89,7 +89,7 @@ export function DataTablePagination<TData extends RowData>({
         />
 
         <div className="flex items-center gap-1">
-          <Tooltip content="Previous page">
+          <Tooltip content={uiLabel('previousPage')}>
             <Button
               variant="secondary"
               size="xs"
@@ -102,7 +102,7 @@ export function DataTablePagination<TData extends RowData>({
           <span aria-hidden="true" className={styles.fraction()}>
             {pageCount === 0 ? 0 : pageIndex + 1} / {pageCount}
           </span>
-          <Tooltip content="Next page">
+          <Tooltip content={uiLabel('nextPage')}>
             <Button
               variant="secondary"
               size="xs"
