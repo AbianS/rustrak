@@ -26,9 +26,14 @@ export interface WebhookPreset {
  * The textarea's placeholder: a minimal body, not copy. Held here rather
  * than in the message dictionaries for the same reason as the presets —
  * braces are configuration, and ICU would read them as argument markers.
+ *
+ * The example interpolates through `| tojson` so it renders valid JSON even
+ * for a title containing quotes — the same discipline the presets use and the
+ * docs teach, so the placeholder never models a template the server would
+ * reject.
  */
 export const templatePlaceholder =
-  '{"msgtype":"text","text":{"content":"{{ issue.title }}"}}';
+  '{"msgtype":"text","text":{"content":{{ ("Rustrak: " ~ issue.title) | tojson }}}}';
 
 export const webhookPresets: readonly WebhookPreset[] = [
   {

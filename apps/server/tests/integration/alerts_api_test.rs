@@ -466,6 +466,150 @@ async fn test_custom_webhook_channel_crud_and_validation() {
     assert_eq!(updated.credentials["template"], json!("{\"a\": 1}"));
 }
 
+/// The SQLite provider_type rebuild must not let SQLx's default foreign-key
+/// enforcement cascade away the children of the integrations it is not
+/// touching. Covers both child relations and both migration directions.
+#[cfg(feature = "sqlite")]
+#[tokio::test]
+async fn test_custom_webhook_sqlite_migration_preserves_child_references() {
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(
+            SqliteConnectOptions::new()
+                .filename(dir.path().join("fk-migration.sqlite"))
+                .create_if_missing(true),
+        )
+        .await
+        .expect("open sqlite");
+
+    let enforced: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
+        .fetch_one(&pool)
+        .await
+        .expect("pragma read");
+    assert_eq!(
+        enforced, 1,
+        "SQLx enables foreign-key enforcement by default; this test is only \
+         meaningful with it on"
+    );
+
+    // The state the migration receives: the pre-existing three-value CHECK
+    // plus both children with their real ON DELETE actions. Columns the
+    // migration does not touch are trimmed; the ones it moves are exact.
+    sqlx::raw_sql(
+        r#"
+        CREATE TABLE alert_rules (id INTEGER PRIMARY KEY);
+        CREATE TABLE alert_integrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            provider_type TEXT NOT NULL CHECK (provider_type IN ('slack','email','webhook')),
+            credentials TEXT NOT NULL DEFAULT '{}',
+            is_enabled INTEGER NOT NULL DEFAULT 1,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            last_failure_at TEXT,
+            last_failure_message TEXT,
+            last_success_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE alert_rule_channels (
+            alert_rule_id INTEGER NOT NULL REFERENCES alert_rules(id) ON DELETE CASCADE,
+            integration_id INTEGER NOT NULL REFERENCES alert_integrations(id) ON DELETE CASCADE,
+            routing_override TEXT NOT NULL DEFAULT '{}',
+            PRIMARY KEY (alert_rule_id, integration_id)
+        );
+        CREATE TABLE alert_history (
+            id INTEGER PRIMARY KEY,
+            integration_id INTEGER REFERENCES alert_integrations(id) ON DELETE SET NULL
+        );
+        INSERT INTO alert_rules VALUES (1);
+        INSERT INTO alert_integrations (id, name, provider_type) VALUES (7, 'chan', 'webhook');
+        INSERT INTO alert_rule_channels VALUES (1, 7, '{"url":"keep-me"}');
+        INSERT INTO alert_history VALUES (1, 7);
+        INSERT INTO alert_history VALUES (2, NULL);
+        "#,
+    )
+    .execute(&pool)
+    .await
+    .expect("prior-state schema");
+
+    sqlx::raw_sql(include_str!(
+        "../../migrations/sqlite/20260831000000_custom_webhook_provider.up.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("up migration");
+
+    let channels: Vec<(i64, i64, String)> = sqlx::query_as(
+        "SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        channels,
+        vec![(1, 7, r#"{"url":"keep-me"}"#.to_string())],
+        "the junction row must survive the parent rebuild with its override"
+    );
+    let hist_ref: Option<i64> =
+        sqlx::query_scalar("SELECT integration_id FROM alert_history WHERE id = 1")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(hist_ref, Some(7), "history reference must survive");
+
+    sqlx::query("INSERT INTO alert_integrations (id, name, provider_type) VALUES (8, 'cw', 'custom_webhook')")
+        .execute(&pool)
+        .await
+        .expect("CHECK widened: custom_webhook rows are accepted");
+    sqlx::query("INSERT INTO alert_rule_channels VALUES (1, 8, '{}')")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO alert_history VALUES (3, 8)")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    sqlx::raw_sql(include_str!(
+        "../../migrations/sqlite/20260831000000_custom_webhook_provider.down.sql"
+    ))
+    .execute(&pool)
+    .await
+    .expect("down migration");
+
+    let survivors: Vec<(i64, i64)> =
+        sqlx::query_as("SELECT alert_rule_id, integration_id FROM alert_rule_channels")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        survivors,
+        vec![(1, 7)],
+        "down removes the custom_webhook integration's channel row and nothing else"
+    );
+    let history: Vec<(i64, Option<i64>)> =
+        sqlx::query_as("SELECT id, integration_id FROM alert_history ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        history,
+        vec![(1, Some(7)), (2, None), (3, None)],
+        "down nulls only the removed integration's history reference (SET NULL semantics)"
+    );
+
+    let rejected = sqlx::query("INSERT INTO alert_integrations (id, name, provider_type) VALUES (9, 'cw2', 'custom_webhook')")
+        .execute(&pool)
+        .await;
+    assert!(
+        rejected.is_err(),
+        "CHECK is restored to three values after down"
+    );
+}
+
 #[tokio::test]
 async fn test_rule_crud_service_level() {
     let db = TestDb::new().await;

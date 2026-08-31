@@ -87,6 +87,38 @@ impl CustomWebhookNotifier {
     }
 }
 
+/// Whether an HTTP status counts as a delivered response (mirrors
+/// `StatusCode::is_success`, evaluated from the integer the dispatcher kept).
+fn response_status_is_success(status: u16) -> bool {
+    (200..=299).contains(&status)
+}
+
+/// A rejection hidden inside a bot's 2xx response body, or `None`.
+///
+/// Only the fields these three platforms use are consulted:
+/// WeCom and DingTalk signal with `errcode`, Feishu with `StatusCode`. A
+/// missing field, a non-JSON body, or a zero code all mean "no rejection
+/// detected", which the caller treats as success.
+fn bot_error_in_body(body: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(body).ok()?;
+    for field in ["errcode", "StatusCode"] {
+        if let Some(code) = value.get(field).and_then(|v| v.as_i64()) {
+            if code != 0 {
+                let reason = value
+                    .get(if field == "errcode" {
+                        "errmsg"
+                    } else {
+                        "StatusMessage"
+                    })
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("rejected");
+                return Some(format!("bot returned {field}={code}: {reason}"));
+            }
+        }
+    }
+    None
+}
+
 impl Default for CustomWebhookNotifier {
     fn default() -> Self {
         Self::new()
@@ -172,17 +204,28 @@ impl NotificationDispatcher for CustomWebhookNotifier {
         match request.body(body).send().await {
             Ok(response) => {
                 let status = response.status().as_u16();
-                if response.status().is_success() {
-                    NotificationResult::success(Some(status))
-                } else {
-                    let error_body = response.text().await.unwrap_or_default();
+                let error_body = response.text().await.unwrap_or_default();
+                if !response_status_is_success(status) {
                     let error_msg = if error_body.is_empty() {
                         format!("HTTP {}", status)
                     } else {
                         format!("HTTP {}: {}", status, error_body)
                     };
-                    NotificationResult::failure(error_msg, Some(status))
+                    return NotificationResult::failure(error_msg, Some(status));
                 }
+                // WeCom, DingTalk and Feishu group bots answer 200 even for a
+                // rejected message, carrying the real result in the body. A
+                // delivery that only checked the status would look sent. The
+                // field names below are specific to those platforms' bot APIs,
+                // so an arbitrary endpoint that ignores the payload and returns
+                // `200` with an unrelated body is still treated as success.
+                if let Some(rejection) = bot_error_in_body(&error_body) {
+                    return NotificationResult::failure(
+                        format!("HTTP {}: {}", status, rejection),
+                        Some(status),
+                    );
+                }
+                NotificationResult::success(Some(status))
             }
             Err(e) => {
                 let error_msg = if e.is_timeout() {
@@ -346,10 +389,51 @@ mod tests {
     fn test_undefined_variable_renders_empty_and_fails_json_when_bare() {
         // Lenient undefined behaviour: {{ nope }} becomes "". Bare in a JSON
         // value position that is invalid — which is exactly the safety net.
-        let template = r#"{"a": {{ nope }}}""#;
+        let template = r#"{"a": {{ nope }}}"#;
         let err = CustomWebhookNotifier::render_body(template, &create_test_payload())
             .expect_err("bare undefined interpolation is not valid JSON");
         assert!(err.contains("not valid JSON"), "got: {err}");
+    }
+
+    // -------------------------------------------------------------------------
+    // Bot rejection hidden in a 2xx body
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_status_is_success_matches_2xx() {
+        assert!(response_status_is_success(200));
+        assert!(response_status_is_success(204));
+        assert!(!response_status_is_success(301));
+        assert!(!response_status_is_success(500));
+    }
+
+    #[test]
+    fn test_wecom_dingtalk_errcode_detected() {
+        assert!(bot_error_in_body(r#"{"errcode":0,"errmsg":"ok"}"#).is_none());
+        assert!(
+            bot_error_in_body(r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#)
+                .unwrap()
+                .contains("93000")
+        );
+    }
+
+    #[test]
+    fn test_feishu_statuscode_detected() {
+        assert!(bot_error_in_body(r#"{"StatusCode":0,"StatusMessage":"success"}"#).is_none());
+        let msg = bot_error_in_body(r#"{"StatusCode":9499,"StatusMessage":"Bad Request"}"#)
+            .expect("non-zero StatusCode is a rejection");
+        assert!(msg.contains("StatusCode=9499"), "got: {msg}");
+        assert!(msg.contains("Bad Request"), "got: {msg}");
+    }
+
+    #[test]
+    fn test_non_bot_bodies_are_not_misread_as_rejection() {
+        // A generic endpoint returning 200 with unrelated content stays success:
+        // not JSON, or JSON without the platform-specific codes.
+        assert!(bot_error_in_body("").is_none());
+        assert!(bot_error_in_body("ok").is_none());
+        assert!(bot_error_in_body(r#"{"status":"queued"}"#).is_none());
+        assert!(bot_error_in_body(r#"{"errcode":0,"code":42}"#).is_none());
     }
 
     // -------------------------------------------------------------------------
@@ -370,6 +454,22 @@ mod tests {
     const PRESET_DINGTALK_TEXT: &str = PRESET_WECOM_TEXT;
 
     const PRESET_FEISHU_TEXT: &str = r#"{"msg_type":"text","content":{"text":{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}"#;
+
+    // The dashboard's textarea placeholder
+    // (webhook-presets.ts `templatePlaceholder`); mirrored so a copy that
+    // would teach users an invalid template fails this test instead.
+    const PLACEHOLDER_EXAMPLE: &str =
+        r#"{"msgtype":"text","text":{"content":{{ ("Rustrak: " ~ issue.title) | tojson }}}}"#;
+
+    #[test]
+    fn test_placeholder_example_renders_valid_json() {
+        let parsed: serde_json::Value = serde_json::from_slice(
+            &CustomWebhookNotifier::render_body(PLACEHOLDER_EXAMPLE, &create_test_payload())
+                .expect("placeholder example must render to valid JSON"),
+        )
+        .unwrap();
+        assert_eq!(parsed["text"]["content"], "Rustrak: Test error");
+    }
 
     #[test]
     fn test_preset_wecom_text_renders_valid_schema() {
@@ -642,6 +742,47 @@ mod tests {
         assert!(
             lower.contains("x-rustrak-request-id: test-123"),
             "got: {raw}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_200_with_errcode_body_is_a_failure() {
+        // The core of the greptile P1: a WeCom/DingTalk rejection rides on a
+        // 200 response. The dispatcher must not record it as sent.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind rejection listener");
+        let addr = listener.local_addr().expect("listener addr");
+        tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            let mut sink = [0u8; 1024];
+            let _ = socket.read(&mut sink).await;
+            let body = r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            let _ = socket.write_all(resp.as_bytes()).await;
+        });
+
+        let notifier = CustomWebhookNotifier::new();
+        let credentials = json!({
+            "url": format!("http://{addr}/hook"),
+            "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
+        });
+        let integration = make_integration(credentials, true);
+        let result = notifier
+            .send(&integration, &json!({}), &create_test_payload())
+            .await;
+        assert!(!result.success, "a 200 that hides errcode!=0 is a failure");
+        assert_eq!(result.http_status, Some(200));
+        assert!(
+            result
+                .error_message
+                .unwrap_or_default()
+                .contains("errcode=93000"),
+            "message should carry the bot code"
         );
     }
 }

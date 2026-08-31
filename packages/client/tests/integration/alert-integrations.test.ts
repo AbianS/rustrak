@@ -2,6 +2,7 @@ import { HttpResponse, http } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { RustrakClient } from '../../src/client.js';
 import { expectErr, expectOk } from '../helpers/result.js';
+import { appErrorResponse } from '../mocks/handlers.js';
 import { server } from '../setup.js';
 
 describe('AlertIntegrationsResource Integration', () => {
@@ -169,6 +170,31 @@ describe('AlertIntegrationsResource Integration', () => {
       );
 
       expect(integration.provider_type).toBe('custom_webhook');
+    });
+
+    it('should surface a rejected custom webhook create as an error', async () => {
+      // The server owns credentials validation: an integration saved without
+      // a template comes back 400, and the create promise resolves to the
+      // error half of the Result rather than throwing.
+      server.use(
+        http.post('http://localhost:8080/api/integrations', () =>
+          appErrorResponse(
+            'ValidationError',
+            'Validation error: Invalid custom webhook config: missing field `template`',
+          ),
+        ),
+      );
+
+      const result = await client.alertIntegrations.create({
+        name: 'Broken Bridge',
+        provider_type: 'custom_webhook',
+        credentials: { url: 'https://oapi.dingtalk.com/robot/send' },
+      });
+
+      expect(result.success).toBe(false);
+      const error = expectErr(result);
+      expect(error.kind).toBe('validation');
+      expect(error.message).toContain('template');
     });
 
     it('should create integration with disabled state', async () => {

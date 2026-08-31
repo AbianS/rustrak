@@ -1,9 +1,17 @@
 -- SQLite migration: Custom Webhook provider type
 -- Equivalent of the Postgres migration. SQLite cannot alter a CHECK
--- constraint in place, so the table is recreated (same pattern as
--- 20260522200000_alert_integrations). IDs are preserved; child FKs
--- (alert_rule_channels, alert_history) reference the table by name and
--- resolve again once the rename restores it.
+-- constraint in place, so the table is recreated (column set and IDs are
+-- preserved exactly as 20260522200000 did for its tables).
+--
+-- The parent must not simply be dropped while children reference it: SQLx
+-- enables PRAGMA foreign_keys by default (sqlx-sqlite options), and DROP
+-- TABLE performs an implicit DELETE that would fire the children's
+-- ON DELETE CASCADE (alert_rule_channels) and ON DELETE SET NULL
+-- (alert_history) against every integration, not just this feature's rows.
+-- So the child references are parked first, the drop then cascades over
+-- nothing, and the references are restored — all inside the migration's
+-- transaction, so an abort leaves the database untouched and the pragma is
+-- never touched either.
 
 CREATE TABLE alert_integrations_new (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,8 +38,30 @@ SELECT
     created_at, updated_at
 FROM alert_integrations;
 
+-- Park child references (tables without FK clauses, so they keep whatever
+-- they held regardless of enforcement).
+CREATE TABLE arc_references_backup AS
+    SELECT alert_rule_id, integration_id, routing_override FROM alert_rule_channels;
+CREATE TABLE ah_references_backup AS
+    SELECT id, integration_id FROM alert_history;
+
+DELETE FROM alert_rule_channels;
+UPDATE alert_history SET integration_id = NULL;
+
+-- Safe now: nothing references the parent being dropped.
 DROP TABLE alert_integrations;
 ALTER TABLE alert_integrations_new RENAME TO alert_integrations;
 
--- Restore index dropped with the old table
+-- Restore index dropped with the old table.
 CREATE INDEX idx_alert_integrations_enabled ON alert_integrations (is_enabled) WHERE is_enabled = 1;
+
+-- Put the references back against the rebuilt parent.
+INSERT INTO alert_rule_channels (alert_rule_id, integration_id, routing_override)
+    SELECT alert_rule_id, integration_id, routing_override FROM arc_references_backup;
+UPDATE alert_history
+SET integration_id = (
+    SELECT b.integration_id FROM ah_references_backup b WHERE b.id = alert_history.id
+);
+
+DROP TABLE arc_references_backup;
+DROP TABLE ah_references_backup;

@@ -135,11 +135,13 @@ The preset buttons insert bodies in these shapes:
 | DingTalk | `{"msgtype":"text","text":{"content":…}}` |
 | Feishu | `{"msg_type":"text","content":{"text":…}}` |
 
-DingTalk and WeCom bots configured with a **custom keyword** (自定义关键词) or
-an IP allowlist reject messages that do not contain the keyword — put it in
-the template's static text. DingTalk bots also require the `access_token` (and
-optionally `timestamp`/`sign`) as URL query parameters; put the full URL from
-the bot settings in **URL**.
+DingTalk and WeCom bots configured with a **custom keyword** (自定义关键词)
+reject any message whose text does not contain that keyword — put the keyword
+in the template's static text. A bot restricted by **IP allowlist** instead
+rejects requests based on the source address of the Rustrak server, not the
+message content; no template change helps there. DingTalk bots also require
+the `access_token` (and optionally `timestamp`/`sign`) as URL query
+parameters; put the full URL from the bot settings in **URL**.
 
 ### Slack
 
