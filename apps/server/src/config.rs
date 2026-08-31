@@ -1,3 +1,4 @@
+use actix_web::cookie::Key;
 use std::env;
 use std::time::Duration;
 
@@ -40,13 +41,27 @@ pub struct DatabaseConfig {
 }
 
 /// Security configuration for production deployments
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SecurityConfig {
     /// True if server is behind a proxy that terminates SSL (nginx, Cloudflare, etc.)
     /// When true: cookie_secure=true is enabled
     pub ssl_proxy: bool,
     /// Session encryption key (64 hex chars). Required when ssl_proxy=true
     pub session_secret_key: Option<String>,
+}
+
+impl std::fmt::Debug for SecurityConfig {
+    /// Hand-written so the secret cannot reach a log line through the derived
+    /// `Debug` on `Config`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecurityConfig")
+            .field("ssl_proxy", &self.ssl_proxy)
+            .field(
+                "session_secret_key",
+                &self.session_secret_key.as_ref().map(|_| "[redacted]"),
+            )
+            .finish()
+    }
 }
 
 /// Rate limiting configuration
@@ -175,6 +190,7 @@ pub enum ConfigError {
     InvalidPort,
     MissingDatabaseUrl,
     MissingSessionSecret,
+    SessionSecretTooShort { len: usize },
 }
 
 impl std::fmt::Display for ConfigError {
@@ -190,6 +206,14 @@ impl std::fmt::Display for ConfigError {
                     "SESSION_SECRET_KEY is required when SSL_PROXY is enabled"
                 )
             }
+            ConfigError::SessionSecretTooShort { len } => {
+                write!(
+                    f,
+                    "SESSION_SECRET_KEY is {len} bytes, but at least {min} are required. \
+                     Generate one with: openssl rand -hex 32",
+                    min = SecurityConfig::MIN_SECRET_LEN
+                )
+            }
         }
     }
 }
@@ -197,6 +221,10 @@ impl std::fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {}
 
 impl SecurityConfig {
+    /// Required length of `SESSION_SECRET_KEY`, in bytes: the cookie master key
+    /// is a 256-bit signing key followed by a 256-bit encryption key.
+    pub const MIN_SECRET_LEN: usize = 64;
+
     /// Load security configuration from environment variables
     pub fn from_env() -> Result<Self, ConfigError> {
         let session_secret_key = env::var("SESSION_SECRET_KEY").ok();
@@ -210,9 +238,33 @@ impl SecurityConfig {
             return Err(ConfigError::MissingSessionSecret);
         }
 
+        // Build the key here so an unusable secret stops the process before it
+        // opens the database, runs migrations and starts the workers.
+        if let Some(secret) = &session_secret_key {
+            Self::key_from_secret(secret)?;
+        }
+
         Ok(Self {
             ssl_proxy,
             session_secret_key,
         })
+    }
+
+    /// Builds the master key used to sign and encrypt session cookies.
+    pub fn session_key(&self) -> Result<Key, ConfigError> {
+        match &self.session_secret_key {
+            Some(secret) => Self::key_from_secret(secret),
+            None => Ok(Key::generate()),
+        }
+    }
+
+    fn key_from_secret(secret: &str) -> Result<Key, ConfigError> {
+        let bytes = secret.as_bytes();
+
+        if bytes.len() < Self::MIN_SECRET_LEN {
+            return Err(ConfigError::SessionSecretTooShort { len: bytes.len() });
+        }
+
+        Ok(Key::from(bytes))
     }
 }
