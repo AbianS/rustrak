@@ -3,8 +3,17 @@ import { dateTimeSchema } from './common.js';
 
 /**
  * Provider type enum (replaces channel_type)
+ *
+ * `custom_webhook` POSTs a body rendered from a user-supplied Minijinja
+ * template, which is how the fixed bot schemas (WeCom, DingTalk, Feishu)
+ * get fed without a per-platform integration.
  */
-export const providerTypeSchema = z.enum(['webhook', 'email', 'slack']);
+export const providerTypeSchema = z.enum([
+  'webhook',
+  'email',
+  'slack',
+  'custom_webhook',
+]);
 
 /** @deprecated Use providerTypeSchema */
 export const channelTypeSchema = providerTypeSchema;

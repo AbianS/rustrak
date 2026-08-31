@@ -174,6 +174,10 @@ const emailRouting: RoutingBehaviour = {
 /**
  * A webhook that already carries a URL in its credentials still offers the
  * override field, but does not require it; one that does not, requires it.
+ *
+ * Custom webhook shares this behaviour outright: its credentials carry the
+ * same `url`, and its template is not a routing field — a rule reroutes
+ * where a payload goes, never what the integration renders.
  */
 const webhookRouting: RoutingBehaviour = {
   needs: (integration) => ({
@@ -206,7 +210,20 @@ const ROUTING_BEHAVIOUR: Record<ProviderType, RoutingBehaviour> = {
   slack: slackRouting,
   email: emailRouting,
   webhook: webhookRouting,
+  custom_webhook: webhookRouting,
 };
+
+/**
+ * Providers whose rules can reroute the POST target: the override field is a
+ * URL row rather than a channel or recipient list. Lives beside the behaviour
+ * table because provider knowledge belongs here, not in the picker.
+ */
+export function routesByUrlOverride(integration: AlertIntegration): boolean {
+  return (
+    integration.provider_type === 'webhook' ||
+    integration.provider_type === 'custom_webhook'
+  );
+}
 
 const behaviourOf = (integration: AlertIntegration): RoutingBehaviour =>
   ROUTING_BEHAVIOUR[integration.provider_type];

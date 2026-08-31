@@ -389,6 +389,84 @@ async fn test_slack_channel_config_validation() {
 }
 
 #[tokio::test]
+async fn test_custom_webhook_channel_crud_and_validation() {
+    let db = TestDb::new().await;
+    let template = r#"{"msgtype":"text","text":{"content":"{{ issue.title }}"}}"#;
+
+    // Missing template: rejected before any row is written.
+    let result = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Custom No Template".to_string(),
+            provider_type: ChannelType::CustomWebhook,
+            credentials: json!({ "url": "https://example.com/hook" }),
+            is_enabled: true,
+        },
+    )
+    .await;
+    assert!(result.is_err());
+
+    // Broken template syntax: rejected at save time, not delivery time.
+    let result = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "Custom Bad Syntax".to_string(),
+            provider_type: ChannelType::CustomWebhook,
+            credentials: json!({ "url": "https://example.com/hook", "template": "{% if %}" }),
+            is_enabled: true,
+        },
+    )
+    .await;
+    assert!(result.is_err());
+
+    // Valid: also proves the widened provider_type CHECK took effect in both
+    // dialects, since the INSERT below would fail the old three-value CHECK.
+    let channel = AlertService::create_channel(
+        &db.pool,
+        CreateNotificationChannel {
+            name: "DingTalk Bridge".to_string(),
+            provider_type: ChannelType::CustomWebhook,
+            credentials: json!({ "url": "https://oapi.dingtalk.com/robot/send", "template": template }),
+            is_enabled: true,
+        },
+    )
+    .await
+    .expect("Valid custom webhook channel should succeed");
+    assert_eq!(channel.provider_type, ChannelType::CustomWebhook);
+
+    // Update with a broken template is rejected; the row keeps the old credentials.
+    let result = AlertService::update_channel(
+        &db.pool,
+        channel.id,
+        UpdateNotificationChannel {
+            name: None,
+            credentials: Some(json!({ "template": "{% endif %}" })),
+            is_enabled: None,
+        },
+    )
+    .await;
+    assert!(result.is_err());
+    let fetched = AlertService::get_channel(&db.pool, channel.id)
+        .await
+        .expect("channel must survive the failed update");
+    assert_eq!(fetched.credentials["template"], json!(template));
+
+    // Update with a valid template round-trips.
+    let updated = AlertService::update_channel(
+        &db.pool,
+        channel.id,
+        UpdateNotificationChannel {
+            name: None,
+            credentials: Some(json!({ "template": "{\"a\": 1}" })),
+            is_enabled: None,
+        },
+    )
+    .await
+    .expect("valid template update must succeed");
+    assert_eq!(updated.credentials["template"], json!("{\"a\": 1}"));
+}
+
+#[tokio::test]
 async fn test_rule_crud_service_level() {
     let db = TestDb::new().await;
 

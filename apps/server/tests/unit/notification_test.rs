@@ -95,6 +95,64 @@ fn test_webhook_validate_config_invalid_scheme() {
 }
 
 // =============================================================================
+// Custom Webhook Config Validation Tests
+// =============================================================================
+
+/// A template body the dispatcher can render for every test here.
+const VALID_TEMPLATE: &str = r#"{"msgtype":"text","text":{"content":"{{ issue.title }}"}}"#;
+
+#[test]
+fn test_custom_webhook_factory_returns_dispatcher() {
+    // create_dispatcher must know the variant or this panics on None behavior
+    let dispatcher = create_dispatcher(ChannelType::CustomWebhook);
+    assert!(dispatcher
+        .validate_config(&json!({"url": "https://example.com/hook", "template": VALID_TEMPLATE}))
+        .is_ok());
+}
+
+#[test]
+fn test_custom_webhook_validate_config_requires_template() {
+    let dispatcher = create_dispatcher(ChannelType::CustomWebhook);
+    assert!(dispatcher
+        .validate_config(&json!({"url": "https://example.com/hook"}))
+        .is_err());
+    assert!(dispatcher
+        .validate_config(&json!({"url": "https://example.com/hook", "template": "  "}))
+        .is_err());
+}
+
+#[test]
+fn test_custom_webhook_validate_config_rejects_bad_template_syntax() {
+    let dispatcher = create_dispatcher(ChannelType::CustomWebhook);
+    let result = dispatcher.validate_config(&json!({"template": "{% if %}"}));
+    assert!(result.is_err());
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid template syntax"));
+}
+
+#[test]
+fn test_custom_webhook_validate_config_rejects_bad_url() {
+    let dispatcher = create_dispatcher(ChannelType::CustomWebhook);
+    assert!(dispatcher
+        .validate_config(&json!({"url": "ftp://example.com/hook", "template": VALID_TEMPLATE}))
+        .is_err());
+    assert!(dispatcher
+        .validate_config(&json!({"url": "not-a-url", "template": VALID_TEMPLATE}))
+        .is_err());
+}
+
+#[test]
+fn test_custom_webhook_validate_config_url_optional_but_template_not() {
+    // URL may be absent (routing_override supplies it) but the template is required.
+    let dispatcher = create_dispatcher(ChannelType::CustomWebhook);
+    assert!(dispatcher
+        .validate_config(&json!({"template": VALID_TEMPLATE}))
+        .is_ok());
+}
+
+// =============================================================================
 // Slack Config Validation Tests
 // =============================================================================
 

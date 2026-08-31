@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Translate } from '@/shared/lib/error-copy';
-import { slackFormSchema } from './integration-forms';
+import { customWebhookFormSchema, slackFormSchema } from './integration-forms';
 
 /** The key, so a test asserts which reason was given rather than its copy. */
 const t: Translate = (key) => key;
@@ -121,5 +121,48 @@ describe('slackFormSchema, shared fields', () => {
         name: '',
       }),
     ).toEqual(['name', 'validation.nameRequired']);
+  });
+});
+
+const cwSchema = customWebhookFormSchema(t);
+
+/** `[path, message]` for the first issue of the custom-webhook schema. */
+function firstCwIssue(input: Record<string, unknown>): [string, string] | null {
+  const result = cwSchema.safeParse(input);
+  if (result.success) return null;
+  const issue = result.error.issues[0];
+  return [issue.path.join('.'), issue.message];
+}
+
+const customWebhook = (over: Record<string, unknown>) => ({
+  name: 'DingTalk Bridge',
+  url: 'https://oapi.dingtalk.com/robot/send',
+  secret: '',
+  template: '{"msgtype":"text"}',
+  is_enabled: true,
+  ...over,
+});
+
+describe('customWebhookFormSchema', () => {
+  it('accepts a filled form', () => {
+    expect(firstCwIssue(customWebhook({}))).toBeNull();
+  });
+
+  it('requires a template', () => {
+    expect(firstCwIssue(customWebhook({ template: '' }))).toEqual([
+      'template',
+      'validation.templateRequired',
+    ]);
+  });
+
+  it('allows the URL to be blank for a routing override', () => {
+    expect(firstCwIssue(customWebhook({ url: '' }))).toBeNull();
+  });
+
+  it('rejects a non-http URL', () => {
+    expect(firstCwIssue(customWebhook({ url: 'ftp://example.test' }))).toEqual([
+      'url',
+      'validation.validHttpUrl',
+    ]);
   });
 });

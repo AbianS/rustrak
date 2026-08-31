@@ -1,8 +1,10 @@
 //! Notification dispatcher system using the Strategy pattern.
 //!
 //! This module provides a pluggable notification system that supports
-//! multiple delivery integrations (Webhook, Email, Slack) through a common trait.
+//! multiple delivery integrations (Webhook, Custom Webhook, Email, Slack)
+//! through a common trait.
 
+pub mod custom_webhook;
 pub mod email;
 pub mod slack;
 pub mod webhook;
@@ -12,6 +14,7 @@ use async_trait::async_trait;
 use crate::error::AppResult;
 use crate::models::{AlertIntegration, AlertPayload, ProviderType};
 
+pub use custom_webhook::CustomWebhookNotifier;
 pub use email::EmailNotifier;
 pub use slack::SlackNotifier;
 pub use webhook::WebhookNotifier;
@@ -57,8 +60,8 @@ impl NotificationResult {
 
 /// Trait for notification dispatchers (Strategy pattern)
 ///
-/// Each provider type (Webhook, Email, Slack) implements this trait
-/// to provide provider-specific delivery logic.
+/// Each provider type (Webhook, Custom Webhook, Email, Slack) implements this
+/// trait to provide provider-specific delivery logic.
 #[async_trait]
 pub trait NotificationDispatcher: Send + Sync {
     /// Send a notification to the integration.
@@ -91,6 +94,7 @@ pub trait NotificationDispatcher: Send + Sync {
 pub fn create_dispatcher(provider_type: ProviderType) -> Box<dyn NotificationDispatcher> {
     match provider_type {
         ProviderType::Webhook => Box::new(WebhookNotifier::new()),
+        ProviderType::CustomWebhook => Box::new(CustomWebhookNotifier::new()),
         ProviderType::Email => Box::new(EmailNotifier::new()),
         ProviderType::Slack => Box::new(SlackNotifier::new()),
     }

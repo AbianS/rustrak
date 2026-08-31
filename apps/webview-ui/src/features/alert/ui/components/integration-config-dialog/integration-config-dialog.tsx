@@ -2,6 +2,7 @@
 
 import type { AlertIntegration, ProviderType } from '@rustrak/client';
 import { Dialog, DialogContent } from '@/shared/ui/components/shadcn/dialog';
+import { CustomWebhookForm } from './forms/custom-webhook-form';
 import { EmailForm } from './forms/email-form';
 import { SlackForm } from './forms/slack-form';
 import { WebhookForm } from './forms/webhook-form';
@@ -37,15 +38,16 @@ export function IntegrationConfigDialog({
   provider: ProviderType | null;
   onOpenChange: (open: boolean) => void;
 } & Omit<ConfigFormProps, 'onOpenChange'>) {
-  // Email is the tall one: SMTP host, port, credentials and a from-address do
-  // not fit the others' height, so it alone scrolls inside the viewport.
-  const isEmail = provider === 'email';
+  // Email and Custom Webhook are the tall ones: SMTP host, port, credentials
+  // and a from-address — or a template textarea with preset chips — do not
+  // fit the others' height, so they alone scroll inside the viewport.
+  const isTall = provider === 'email' || provider === 'custom_webhook';
 
   return (
     <Dialog open={provider !== null} onOpenChange={onOpenChange}>
       <DialogContent
         className={
-          isEmail ? 'sm:max-w-lg max-h-[90vh] overflow-y-auto' : 'sm:max-w-lg'
+          isTall ? 'sm:max-w-lg max-h-[90vh] overflow-y-auto' : 'sm:max-w-lg'
         }
       >
         <ConfigForm
@@ -72,6 +74,8 @@ function ConfigForm({
       return <EmailForm {...props} />;
     case 'webhook':
       return <WebhookForm {...props} />;
+    case 'custom_webhook':
+      return <CustomWebhookForm {...props} />;
     default:
       // Closed, or a provider this build cannot configure. Rendering nothing
       // keeps the shell mounted so Base UI can play its close animation.

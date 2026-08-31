@@ -78,6 +78,7 @@ pub use alert::{
     CreateAlertIntegration,
     CreateAlertRule,
     CreateNotificationChannel,
+    CustomWebhookConfig,
     EmailConfig,
     EmailRoutingOverride,
     IssueInfo,

@@ -552,7 +552,8 @@
       "botTokenRequired": "Token-ul de bot este obligatoriu",
       "botTokenPrefix": "Token-ul de bot trebuie să înceapă cu xoxb-",
       "smtpHostRequired": "Gazda SMTP este obligatorie",
-      "validEmail": "Introdu un e-mail valid"
+      "validEmail": "Introdu un e-mail valid",
+      "templateRequired": "Șablonul este obligatoriu"
     },
     "routing": {
       "slackChannelRequired": "Canalul Slack este obligatoriu pentru „{name}”",
@@ -621,6 +622,26 @@
       "saveFailed": "Salvarea webhook-ului a eșuat",
       "updated": "Webhook actualizat",
       "created": "Webhook creat"
+    },
+    "customWebhook": {
+      "titleNew": "Configurare webhook personalizat",
+      "titleEdit": "Editare webhook personalizat",
+      "description": "Corpul cererii este randat dintr-un șablon Minijinja peste payload-ul alertei, apoi POST-at ca JSON. Folosește un preset mai jos pentru schema exactă așteptată de un bot WeCom, DingTalk sau Feishu.",
+      "namePlaceholder": "Ex.: Grup WeCom operațiuni",
+      "templateLabel": "Șablon de corp",
+      "templateDescription": "Variabile: alert_id, alert_type, triggered_at, project (id, name, slug), issue (id, short_id, title, level, first_seen, last_seen, event_count), issue_url, actor. Trece textele dinamice prin filtrul tojson ca ghilimelele să nu strice JSON-ul.",
+      "presets": {
+        "wecomText": "WeCom text",
+        "wecomMarkdown": "WeCom markdown",
+        "dingtalkText": "DingTalk text",
+        "feishuText": "Feishu text"
+      },
+      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "create": "Creează webhook personalizat",
+      "fieldTemplate": "Acel șablon",
+      "saveFailed": "Salvarea webhook-ului personalizat a eșuat",
+      "updated": "Webhook personalizat actualizat",
+      "created": "Webhook personalizat creat"
     },
     "slack": {
       "titleNew": "Adaugă integrare Slack",
@@ -735,6 +756,9 @@
       },
       "webhook": {
         "description": "Trimite payload-uri JSON către orice endpoint HTTP."
+      },
+      "customWebhook": {
+        "description": "POSTează un corp JSON randat din propriul șablon. Vine cu șabloane pentru boții WeCom, DingTalk și Feishu."
       }
     },
     "newIssue": {

@@ -552,7 +552,8 @@
       "botTokenRequired": "Bot token is required",
       "botTokenPrefix": "Bot token must start with xoxb-",
       "smtpHostRequired": "SMTP host is required",
-      "validEmail": "Please enter a valid email"
+      "validEmail": "Please enter a valid email",
+      "templateRequired": "Template is required"
     },
     "routing": {
       "slackChannelRequired": "Slack channel is required for \"{name}\"",
@@ -621,6 +622,26 @@
       "saveFailed": "Failed to save webhook",
       "updated": "Webhook updated",
       "created": "Webhook created"
+    },
+    "customWebhook": {
+      "titleNew": "Configure Custom Webhook",
+      "titleEdit": "Edit Custom Webhook",
+      "description": "Render the request body from a Minijinja template over the alert payload, then POST it as JSON. Use a preset below to start from the exact schema a WeCom, DingTalk or Feishu bot expects.",
+      "namePlaceholder": "e.g., WeCom Ops Group",
+      "templateLabel": "Body template",
+      "templateDescription": "Variables: alert_id, alert_type, triggered_at, project (id, name, slug), issue (id, short_id, title, level, first_seen, last_seen, event_count), issue_url, actor. Pipe dynamic strings through the tojson filter so quotes cannot break the JSON.",
+      "presets": {
+        "wecomText": "WeCom text",
+        "wecomMarkdown": "WeCom markdown",
+        "dingtalkText": "DingTalk text",
+        "feishuText": "Feishu text"
+      },
+      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "create": "Create Custom Webhook",
+      "fieldTemplate": "That template",
+      "saveFailed": "Failed to save custom webhook",
+      "updated": "Custom webhook updated",
+      "created": "Custom webhook created"
     },
     "slack": {
       "titleNew": "Add Slack Integration",
@@ -735,6 +756,9 @@
       },
       "webhook": {
         "description": "POST JSON payloads to any HTTP endpoint."
+      },
+      "customWebhook": {
+        "description": "POST a JSON body rendered from your own template. Ships presets for WeCom, DingTalk and Feishu bots."
       }
     },
     "newIssue": {

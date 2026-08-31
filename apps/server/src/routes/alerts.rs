@@ -119,7 +119,9 @@ pub fn validate_routing_override(
                 }
             }
         }
-        ProviderType::Webhook => {
+        // Custom webhook routes exactly like the plain one: same flat
+        // `url`/`extra_headers` override shape, same precedence.
+        ProviderType::Webhook | ProviderType::CustomWebhook => {
             let cred_url = credentials.get("url").and_then(|v| v.as_str());
             let r: WebhookRoutingOverride =
                 serde_json::from_value(routing.clone()).map_err(|e| {
@@ -926,5 +928,36 @@ mod tests {
         let creds = serde_json::json!({});
         let routing = serde_json::json!({"url": "http://internal.example.com/hook"});
         assert!(validate_routing_override(ProviderType::Webhook, &creds, &routing).is_ok());
+    }
+
+    // Custom Webhook routes exactly like Webhook: same flat override shape.
+
+    #[test]
+    fn test_validate_routing_custom_webhook_cred_url_only_ok() {
+        let creds =
+            serde_json::json!({"url": "https://oapi.dingtalk.com/robot/send", "template": "{}"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_custom_webhook_routing_url_only_ok() {
+        let creds = serde_json::json!({"template": "{}"});
+        let routing = serde_json::json!({"url": "https://open.feishu.cn/hook"});
+        assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_ok());
+    }
+
+    #[test]
+    fn test_validate_routing_custom_webhook_no_url_anywhere_fails() {
+        let creds = serde_json::json!({"template": "{}"});
+        let routing = serde_json::json!({});
+        assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_err());
+    }
+
+    #[test]
+    fn test_validate_routing_custom_webhook_invalid_scheme_fails() {
+        let creds = serde_json::json!({"template": "{}"});
+        let routing = serde_json::json!({"url": "ftp://bad.example.com"});
+        assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_err());
     }
 }

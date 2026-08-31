@@ -552,7 +552,8 @@
       "botTokenRequired": "Le token de bot est obligatoire",
       "botTokenPrefix": "Le token de bot doit commencer par xoxb-",
       "smtpHostRequired": "L’hôte SMTP est obligatoire",
-      "validEmail": "Veuillez saisir une adresse e-mail valide"
+      "validEmail": "Veuillez saisir une adresse e-mail valide",
+      "templateRequired": "Le modèle est requis"
     },
     "routing": {
       "slackChannelRequired": "Un canal Slack est requis pour « {name} »",
@@ -621,6 +622,26 @@
       "saveFailed": "Échec de l’enregistrement du webhook",
       "updated": "Webhook mis à jour",
       "created": "Webhook créé"
+    },
+    "customWebhook": {
+      "titleNew": "Configurer le webhook personnalisé",
+      "titleEdit": "Modifier le webhook personnalisé",
+      "description": "Le corps de la requête est rendu depuis un modèle Minijinja sur la charge de l'alerte, puis POSTé en JSON. Utilisez un preset ci-dessous pour partir du schéma exact attendu par un bot WeCom, DingTalk ou Feishu.",
+      "namePlaceholder": "Ex. : Groupe d'exploitation WeCom",
+      "templateLabel": "Modèle de corps",
+      "templateDescription": "Variables : alert_id, alert_type, triggered_at, project (id, name, slug), issue (id, short_id, title, level, first_seen, last_seen, event_count), issue_url, actor. Passez les textes dynamiques par le filtre tojson pour que les guillemets ne cassent pas le JSON.",
+      "presets": {
+        "wecomText": "WeCom texte",
+        "wecomMarkdown": "WeCom markdown",
+        "dingtalkText": "DingTalk texte",
+        "feishuText": "Feishu texte"
+      },
+      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "create": "Créer le webhook personnalisé",
+      "fieldTemplate": "Ce modèle",
+      "saveFailed": "Échec de l'enregistrement du webhook personnalisé",
+      "updated": "Webhook personnalisé mis à jour",
+      "created": "Webhook personnalisé créé"
     },
     "slack": {
       "titleNew": "Ajouter l’intégration Slack",
@@ -735,6 +756,9 @@
       },
       "webhook": {
         "description": "Envoie des charges utiles JSON vers n’importe quel endpoint HTTP."
+      },
+      "customWebhook": {
+        "description": "POSTez un corps JSON rendu depuis votre propre modèle. Presets fournis pour les bots WeCom, DingTalk et Feishu."
       }
     },
     "newIssue": {

@@ -3,7 +3,10 @@
 import type { AlertIntegration } from '@rustrak/client';
 import { useTranslations } from 'next-intl';
 import { useId } from 'react';
-import { routingNeedsOf } from '@/features/alert/lib/routing';
+import {
+  routesByUrlOverride,
+  routingNeedsOf,
+} from '@/features/alert/lib/routing';
 import { Input } from '@/shared/ui/components/shadcn/input';
 import { Textarea } from '@/shared/ui/components/shadcn/textarea';
 
@@ -124,7 +127,7 @@ export function ChannelRoutingFields({
         </Row>
       )}
 
-      {integration.provider_type === 'webhook' && (
+      {routesByUrlOverride(integration) && (
         <Row
           label={t('routing.overrideUrlLabel')}
           required={needsUrl}

@@ -155,6 +155,22 @@ describe('AlertIntegrationsResource Integration', () => {
       expect(integration.provider_type).toBe('email');
     });
 
+    it('should create custom webhook integration', async () => {
+      const integration = expectOk(
+        await client.alertIntegrations.create({
+          name: 'DingTalk Bridge',
+          provider_type: 'custom_webhook',
+          credentials: {
+            url: 'https://oapi.dingtalk.com/robot/send?access_token=x',
+            template:
+              '{"msgtype":"text","text":{"content":"{{ issue.title }}"}}',
+          },
+        }),
+      );
+
+      expect(integration.provider_type).toBe('custom_webhook');
+    });
+
     it('should create integration with disabled state', async () => {
       const integration = expectOk(
         await client.alertIntegrations.create({

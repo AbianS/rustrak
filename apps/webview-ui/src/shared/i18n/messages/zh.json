@@ -552,7 +552,8 @@
       "botTokenRequired": "必须填写 Bot token",
       "botTokenPrefix": "Bot token 必须以 xoxb- 开头",
       "smtpHostRequired": "必须填写 SMTP 主机",
-      "validEmail": "请输入有效的邮箱地址"
+      "validEmail": "请输入有效的邮箱地址",
+      "templateRequired": "模板不能为空"
     },
     "routing": {
       "slackChannelRequired": "必须为 “{name}” 指定 Slack 频道",
@@ -621,6 +622,26 @@
       "saveFailed": "保存 Webhook 失败",
       "updated": "Webhook 已更新",
       "created": "Webhook 已创建"
+    },
+    "customWebhook": {
+      "titleNew": "配置自定义 Webhook",
+      "titleEdit": "编辑自定义 Webhook",
+      "description": "用 Minijinja 模板基于告警内容渲染请求体，再以 JSON POST 出去。下方预设可直接生成企业微信/钉钉/飞书机器人要求的消息格式。",
+      "namePlaceholder": "例如：企微运维群",
+      "templateLabel": "请求体模板",
+      "templateDescription": "可用变量：alert_id、alert_type、triggered_at，project（id、name、slug），issue（id、short_id、title、level、first_seen、last_seen、event_count），issue_url、actor。动态文本请经 tojson 过滤器转义，避免引号破坏 JSON。",
+      "presets": {
+        "wecomText": "企业微信 text",
+        "wecomMarkdown": "企业微信 markdown",
+        "dingtalkText": "钉钉 text",
+        "feishuText": "飞书 text"
+      },
+      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "create": "创建自定义 Webhook",
+      "fieldTemplate": "该模板",
+      "saveFailed": "保存自定义 Webhook 失败",
+      "updated": "自定义 Webhook 已更新",
+      "created": "自定义 Webhook 已创建"
     },
     "slack": {
       "titleNew": "添加 Slack 集成",
@@ -735,6 +756,9 @@
       },
       "webhook": {
         "description": "将 JSON 负载 POST 到任意 HTTP 端点。"
+      },
+      "customWebhook": {
+        "description": "按自定义模板渲染 JSON 请求体并 POST。内置企业微信、钉钉、飞书机器人预设。"
       }
     },
     "newIssue": {

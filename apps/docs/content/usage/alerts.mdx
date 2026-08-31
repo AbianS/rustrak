@@ -6,7 +6,7 @@ Get notified when errors happen in your applications. Rustrak supports multiple 
 
 Alerts have two components:
 
-1. **Notification Channels** (Global): Where to send alerts (Slack, Email, Webhooks)
+1. **Notification Channels** (Global): Where to send alerts (Slack, Email, Webhooks, Custom Webhooks)
 2. **Alert Rules** (Per-Project): When to trigger alerts and which channels to use
 
 ## Setting up notification channels
@@ -78,6 +78,68 @@ function verifySignature(payload, signature, secret) {
   );
 }
 ```
+
+### Custom Webhook
+
+POST a request body that you compose yourself. The body is rendered from a
+[Minijinja](https://docs.rs/minijinja) template over the alert payload, so one
+integration can feed the fixed message schemas that group bots expect — WeCom,
+DingTalk and Feishu among them — without a per-platform integration. The plain
+Webhook integration is unchanged; Custom Webhook is its own provider.
+
+1. Go to **Settings** → **Global Alerts**
+2. Click **Configure** on Custom Webhook
+3. Enter:
+   - **Name**: e.g., "WeCom Ops Group"
+   - **Body template**: your JSON template, or start from a preset button
+     (WeCom text/markdown, DingTalk text, Feishu text)
+   - **URL**: your bot endpoint (optional — a per-rule override can supply it)
+   - **Secret** (optional): for the same HMAC header the plain Webhook sends
+4. Click **Create Custom Webhook**
+
+The rendered result must be valid JSON; if it is not, the delivery is recorded
+as a failure with the parse error, and nothing is sent. Template syntax errors
+are rejected when the integration is saved, not at alert time.
+
+#### Template variables
+
+The context is exactly the [Webhook payload](#webhook-payload) above:
+
+```jinja
+{{ alert_id }} {{ alert_type }} {{ triggered_at }}
+{{ project.name }} {{ project.slug }} {{ project.id }}
+{{ issue.short_id }} {{ issue.title }} {{ issue.level }} {{ issue.event_count }}
+{{ issue_url }} {{ actor }}
+```
+
+Anything dynamic that may contain quotes goes through `| tojson`, which emits
+a properly quoted JSON string — a title like `He said "boom"` would otherwise
+break your body:
+
+```json
+{
+  "msgtype": "text",
+  "text": {
+    "content": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+  }
+}
+```
+
+#### Platform presets
+
+The preset buttons insert bodies in these shapes:
+
+| Platform | Body shape |
+|----------|-----------|
+| WeCom | `{"msgtype":"text","text":{"content":…}}` or `markdown` |
+| DingTalk | `{"msgtype":"text","text":{"content":…}}` |
+| Feishu | `{"msg_type":"text","content":{"text":…}}` |
+
+DingTalk and WeCom bots configured with a **custom keyword** (自定义关键词) or
+an IP allowlist reject messages that do not contain the keyword — put it in
+the template's static text. DingTalk bots also require the `access_token` (and
+optionally `timestamp`/`sign`) as URL query parameters; put the full URL from
+the bot settings in **URL**.
 
 ### Slack
 
@@ -167,6 +229,7 @@ Click the delete icon and confirm to remove a rule.
 ### Channel organization
 
 - **Webhook**: For custom integrations, PagerDuty, Opsgenie
+- **Custom Webhook**: For message schemas the server must shape — WeCom, DingTalk, Feishu bots
 - **Slack**: For team awareness
 - **Email**: For on-call or compliance
 

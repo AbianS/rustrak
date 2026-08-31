@@ -190,7 +190,7 @@ export const SETTINGS_COMMANDS: CommandLink[] = [
     href: '/settings/integrations',
     descriptionKey: 'commands.integrationsDescription',
     icon: PlugIcon,
-    keywords: ['slack', 'webhook', 'email'],
+    keywords: ['slack', 'webhook', 'custom webhook', 'email'],
   },
   {
     labelKey: 'commands.team',
