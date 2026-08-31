@@ -60,7 +60,7 @@ impl<T> OffsetPaginatedResponse<T> {
 #[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
-pub enum IssueSort {
+pub enum CursorSort {
     /// Sort by digest_order (stable, unique per project)
     #[default]
     DigestOrder,
@@ -70,17 +70,17 @@ pub enum IssueSort {
     EventCount,
 }
 
-impl IssueSort {
+impl CursorSort {
     pub fn as_str(&self) -> &'static str {
         match self {
-            IssueSort::DigestOrder => "digest_order",
-            IssueSort::LastSeen => "last_seen",
-            IssueSort::EventCount => "event_count",
+            CursorSort::DigestOrder => "digest_order",
+            CursorSort::LastSeen => "last_seen",
+            CursorSort::EventCount => "event_count",
         }
     }
 }
 
-impl std::fmt::Display for IssueSort {
+impl std::fmt::Display for CursorSort {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
@@ -116,59 +116,12 @@ impl std::fmt::Display for SortOrder {
     }
 }
 
-/// Query parameters for listing issues (offset-based)
-#[derive(Debug, Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::IntoParams))]
-pub struct ListIssuesQuery {
-    /// Page number (1-indexed, default: 1)
-    #[serde(default = "default_page")]
-    #[cfg_attr(feature = "openapi", param(minimum = 1))]
-    pub page: i64,
-
-    /// Items per page (default: 20, max: 100)
-    #[serde(default = "default_per_page")]
-    #[cfg_attr(feature = "openapi", param(minimum = 1, maximum = 100))]
-    pub per_page: i64,
-
-    /// Sort mode (default: last_seen)
-    #[serde(default)]
-    pub sort: IssueSort,
-
-    /// Sort order direction (default: desc)
-    #[serde(default)]
-    pub order: SortOrder,
-
-    /// Filter: open (not resolved, not muted), resolved, muted, all
-    #[serde(default)]
-    pub filter: IssueFilter,
-
-    /// Free-text search across type, value, transaction, and culprit.
-    #[serde(default)]
-    pub q: Option<String>,
-}
-
 fn default_page() -> i64 {
     1
 }
 
 fn default_per_page() -> i64 {
     PAGE_SIZE
-}
-
-/// Filter for issues listing
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[serde(rename_all = "snake_case")]
-pub enum IssueFilter {
-    /// Only open issues (not resolved and not muted)
-    #[default]
-    Open,
-    /// Only resolved issues
-    Resolved,
-    /// Only muted issues
-    Muted,
-    /// All issues
-    All,
 }
 
 /// Query parameters for listing transactions (offset-based)

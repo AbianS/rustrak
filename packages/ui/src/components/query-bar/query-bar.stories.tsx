@@ -155,8 +155,16 @@ export const CompleteAFilter: Story = {
         '{"id":"level","value":["warning"]}',
       ),
     );
-    await expect(canvas.getByText('level:')).toBeInTheDocument();
-    await expect(canvas.getByText('warning')).toBeInTheDocument();
+    // The chip names the field the way the column does, not the way the
+    // wire does: `Level:` and not `level:`.
+    await expect(canvas.getByText('Level:')).toBeInTheDocument();
+    // The chip reads back the words the menu offered, not the wire value.
+    // Scoped to the chip: the popup is still open behind it, offering the
+    // same word as an option.
+    await expect(
+      canvas.getByRole('button', { name: 'Remove the Level filter' })
+        .parentElement,
+    ).toHaveTextContent('Warning');
   },
 };
 
@@ -179,6 +187,40 @@ export const FreeText: Story = {
     await waitFor(() =>
       expect(canvas.getByTestId('committed').textContent).toContain(
         'search="connection reset"',
+      ),
+    );
+  },
+};
+
+/**
+ * Deleting the text clears the search, without waiting for Enter.
+ *
+ * Typing waits, because committing per character would put a request on the
+ * wire for every letter. Emptying the field does not: there is nothing left to
+ * confirm, and Enter cannot do it either -- on an empty draft the popup is
+ * offering fields, so Enter picks one instead of clearing anything. The list
+ * would stay filtered behind an input that looks empty.
+ */
+export const EmptyingTheInputClearsTheSearch: Story = {
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('combobox');
+
+    await userEvent.click(input);
+    await userEvent.keyboard('timeout');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search="timeout"',
+      ),
+    );
+
+    await userEvent.clear(input);
+    await waitFor(() =>
+      expect(canvas.getByTestId('committed').textContent).toContain(
+        'search=""',
       ),
     );
   },
@@ -253,7 +295,7 @@ export const Narrow: Story = {
     // Nothing is clipped: all three filters keep their remove control.
     for (const name of ['Level', 'Release', 'Events']) {
       const remove = canvas.getByRole('button', {
-        name: `Remove ${name} filter`,
+        name: `Remove the ${name} filter`,
       });
       await expect(remove).toBeInTheDocument();
       const box = remove.getBoundingClientRect();

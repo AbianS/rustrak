@@ -68,11 +68,10 @@ export const Route = createFileRoute('/_authenticated/projects/$id/')({
       rustrak.sessions.summary(projectId, period),
       rustrak.sessions.timeseries(projectId, period, interval),
       rustrak.issues.list(projectId, {
-        filter: 'open',
+        q: 'is:open',
         page: 1,
-        per_page: TOP,
-        sort: 'event_count',
-        order: 'desc',
+        per: TOP,
+        sort: '-events',
       }),
       rustrak.transactions.getStats(projectId, {
         page: 1,

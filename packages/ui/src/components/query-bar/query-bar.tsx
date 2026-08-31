@@ -359,6 +359,7 @@ export function QueryBar({
     listboxId,
     showClear,
     apply,
+    changeDraft,
     removeFilter,
     clearAll,
     onKeyDown,
@@ -375,11 +376,13 @@ export function QueryBar({
           <span className={styles.chips()}>
             {chips.map((chip) => (
               <span key={`${chip.key}:${chip.value}`} className={styles.chip()}>
-                <span className={styles.chipKey()}>{chip.key}:</span>
+                <span className={styles.chipKey()}>{chip.label}:</span>
                 <span className={styles.chipValue()}>{chip.value}</span>
                 <button
                   type="button"
-                  aria-label={`Remove ${chip.label} filter`}
+                  aria-label={uiLabel('queryBarRemoveFilter', {
+                    field: chip.label,
+                  })}
                   className={styles.chipRemove()}
                   onClick={() => removeFilter(chip.key)}
                 >
@@ -415,9 +418,7 @@ export function QueryBar({
           spellCheck={false}
           className={styles.input()}
           onChange={(event) => {
-            setDraft(event.target.value);
-            setHighlighted(0);
-            setOpen(true);
+            changeDraft(event.target.value);
           }}
           onFocus={() => setOpen(true)}
           onBlur={(event) => {

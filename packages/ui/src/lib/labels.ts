@@ -46,6 +46,8 @@ export interface UiLabels {
   queryBarSuggestions: string;
   queryBarFilterBy: string;
   queryBarTypeValue: string;
+  /** `{field}` is the filter being taken off. */
+  queryBarRemoveFilter: string;
 
   /* Shell */
   mainNavigation: string;
@@ -116,6 +118,7 @@ export const DEFAULT_UI_LABELS: UiLabels = {
   queryBarSuggestions: 'Suggestions',
   queryBarFilterBy: 'Filter by',
   queryBarTypeValue: 'Type a value, then',
+  queryBarRemoveFilter: 'Remove the {field} filter',
 
   mainNavigation: 'Main navigation',
   topbarSearch: 'Search Rustrak…',

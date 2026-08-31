@@ -35,12 +35,6 @@ export class ProjectsResource extends BaseResource {
     if (options?.per !== undefined) {
       searchParams.set('per', options.per.toString());
     }
-    if (options?.per_page !== undefined) {
-      searchParams.set('per_page', options.per_page.toString());
-    }
-    if (options?.order) {
-      searchParams.set('order', options.order);
-    }
     if (options?.stats_period) {
       searchParams.set('stats_period', options.stats_period);
     }

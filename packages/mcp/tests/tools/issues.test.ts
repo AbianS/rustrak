@@ -72,10 +72,12 @@ describe('issue tools', () => {
       expect(result.content[0]?.type).toBe('text');
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.items).toHaveLength(1);
+      // The status and the free text are one `q` now, the same string every
+      // other list endpoint takes. With neither given it is empty.
       expect(mockClient.issues.list).toHaveBeenCalledWith(1, {
         page: undefined,
-        per_page: undefined,
-        filter: undefined,
+        per: undefined,
+        q: '',
       });
     });
   });

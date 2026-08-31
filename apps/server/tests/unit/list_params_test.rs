@@ -11,9 +11,7 @@ fn parse(q: Option<&str>, sort: Option<&str>, page: i64, per: i64) -> ListParams
         q: q.map(str::to_string),
         sort: sort.map(str::to_string),
         page,
-        per: Some(per),
-        per_page: None,
-        order: None,
+        per,
     })
 }
 
@@ -154,52 +152,6 @@ fn a_filter_with_no_values_is_dropped() {
     assert!(params.filters.is_empty());
 }
 
-// Compatibility with the callers that predate this contract. `webview-ui` and
-// `@rustrak/mcp` both send `per_page`, and the old projects list took a bare
-// `order` direction. Both keep working until those callers are gone.
-
-#[test]
-fn per_page_is_accepted_as_a_name_for_per() {
-    let query: ListQuery = serde_urlencoded::from_str("per_page=35").expect("parsing");
-
-    assert_eq!(ListParams::from_query(query).per, 35);
-}
-
-#[test]
-fn per_wins_when_a_caller_sends_both() {
-    let query: ListQuery = serde_urlencoded::from_str("per=10&per_page=35").expect("parsing");
-
-    assert_eq!(ListParams::from_query(query).per, 10);
-}
-
-#[test]
-fn per_wins_even_when_it_asks_for_the_default_size() {
-    // What decides is whether `per` was sent, not what it says. Asking for 20
-    // out loud is not the same as not asking.
-    let query: ListQuery = serde_urlencoded::from_str("per=20&per_page=35").expect("parsing");
-
-    assert_eq!(ListParams::from_query(query).per, 20);
-}
-
-#[test]
-fn a_bare_order_sets_the_direction_of_the_default_sort() {
-    let query: ListQuery = serde_urlencoded::from_str("order=asc").expect("parsing");
-    let params = ListParams::from_query(query);
-
-    assert_eq!(
-        params.order_by::<TestSort>("created_at DESC"),
-        "created_at ASC"
-    );
-}
-
-#[test]
-fn an_explicit_sort_beats_a_bare_order() {
-    let query: ListQuery = serde_urlencoded::from_str("order=asc&sort=-name").expect("parsing");
-    let params = ListParams::from_query(query);
-
-    assert_eq!(params.order_by::<TestSort>("created_at DESC"), "name DESC");
-}
-
 // Ranges and windows. `@rustrak/ui` serialises a range filter as `a..b` with
 // either end open, and a date filter as a single number of days.
 
@@ -242,6 +194,23 @@ fn a_number_filter_reads_a_single_value() {
     assert_eq!(
         parse(Some("created:x"), None, 1, 20).number("created"),
         None
+    );
+}
+
+/// There is one name for a page size and one way to say a direction.
+///
+/// `per_page` and a bare `order` were the previous contract's, and carrying
+/// them meant every reader of this file had to know both. A caller that sends
+/// them now gets the defaults, which is what any unrecognised parameter gets.
+#[test]
+fn the_previous_contracts_parameter_names_are_not_read() {
+    let query: ListQuery = serde_urlencoded::from_str("per_page=35&order=asc").expect("parsing");
+    let params = ListParams::from_query(query);
+
+    assert_eq!(params.per, 20);
+    assert_eq!(
+        params.order_by::<TestSort>("created_at DESC"),
+        "created_at DESC"
     );
 }
 

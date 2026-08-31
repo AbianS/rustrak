@@ -30,7 +30,7 @@ export const Route = createFileRoute('/_authenticated/projects/$id')({
     const [t, project, projects] = await Promise.all([
       createTranslator({
         locale: localeFor(context.session),
-        namespaces: ['projectOverview', 'periods', 'charts'],
+        namespaces: ['projectOverview', 'issueList', 'periods', 'charts'],
       }),
       rustrak.projects.get(Number(params.id)),
       // The switcher's list. A page is plenty: past that the answer is

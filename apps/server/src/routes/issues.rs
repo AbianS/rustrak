@@ -7,7 +7,7 @@ use crate::error::{AppError, AppResult};
 #[cfg(feature = "openapi")]
 use crate::models::IssueResponse;
 use crate::models::{BulkDeleteIssues, BulkUpdateIssues, UpdateIssueState};
-use crate::pagination::{ListIssuesQuery, OffsetPaginatedResponse};
+use crate::pagination::{ListParams, ListQuery, OffsetPaginatedResponse};
 use crate::services::access::{self, Action};
 use crate::services::{EventService, IssueService, IssueSocialService, ProjectService};
 use serde::Deserialize;
@@ -51,7 +51,7 @@ use utoipa::OpenApi;
     tag = "Issues",
     params(
         ("project_id" = i32, Path, description = "Project ID"),
-        ListIssuesQuery,
+        ListQuery,
     ),
     responses(
         (status = 200, description = "List of issues", body = inline(crate::pagination::OffsetPaginatedResponse<IssueResponse>)),
@@ -65,10 +65,11 @@ use utoipa::OpenApi;
 pub async fn list_issues(
     pool: web::Data<DbPool>,
     path: web::Path<i32>,
-    query: web::Query<ListIssuesQuery>,
+    query: web::Query<ListQuery>,
     actor: ApiActor,
 ) -> AppResult<HttpResponse> {
     let project_id = path.into_inner();
+    let params = ListParams::from_query(query.into_inner());
 
     access::require(
         pool.get_ref(),
@@ -82,18 +83,8 @@ pub async fn list_issues(
     // Verify project exists and get slug for response
     let project = ProjectService::get_by_id(pool.get_ref(), project_id).await?;
 
-    // Execute paginated query with offset
-    let (issues, total_count) = IssueService::list_offset(
-        pool.get_ref(),
-        project_id,
-        query.sort,
-        query.order,
-        query.filter,
-        query.page,
-        query.per_page,
-        query.q.as_deref(),
-    )
-    .await?;
+    let (issues, total_count) =
+        IssueService::list_page(pool.get_ref(), project_id, &params).await?;
 
     // Bulk-compute per-issue user_count/trend for this page in one request
     // (avoids the list UI firing one aggregates/stats call per visible row).
@@ -116,8 +107,8 @@ pub async fn list_issues(
     Ok(HttpResponse::Ok().json(OffsetPaginatedResponse::new(
         responses,
         total_count,
-        query.page,
-        query.per_page,
+        params.page,
+        params.per,
     )))
 }
 

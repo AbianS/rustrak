@@ -43,11 +43,10 @@ export default async function IssuesPage({
   const loaded = await loadAll([
     getProject(projectId),
     listIssues(projectId, {
-      filter: filter as 'open' | 'resolved' | 'muted' | 'all',
+      q: `is:${filter}`,
       page: currentPage,
-      per_page: 20,
-      sort: 'last_seen',
-      order: 'desc',
+      per: 20,
+      sort: '-last_seen',
     }),
   ]);
 

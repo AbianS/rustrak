@@ -65,6 +65,16 @@ fn create_event_json(event_id: &str) -> serde_json::Value {
 // Basic Digest Tests
 // =============================================================================
 
+/// A list request, the way the route builds one from a query string.
+fn list_params(q: &str, sort: &str, page: i64, per: i64) -> rustrak::pagination::ListParams {
+    rustrak::pagination::ListParams::from_query(rustrak::pagination::ListQuery {
+        q: Some(q.to_string()),
+        sort: Some(sort.to_string()),
+        page,
+        per,
+    })
+}
+
 #[actix_web::test]
 async fn test_digest_creates_issue_and_event() {
     let db = TestDb::new().await;
@@ -104,7 +114,7 @@ async fn test_digest_creates_issue_and_event() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -173,7 +183,7 @@ async fn test_error_processor_impl_creates_issue_and_event() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -249,7 +259,7 @@ async fn test_digest_groups_similar_events() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -319,7 +329,7 @@ async fn test_digest_creates_separate_issues_for_different_errors() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -383,7 +393,7 @@ async fn test_digest_handles_custom_fingerprint() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -449,7 +459,7 @@ async fn test_digest_empty_fingerprint_does_not_collapse_issues() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -521,7 +531,7 @@ async fn test_digest_handles_default_fingerprint_placeholder() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -577,7 +587,7 @@ async fn test_digest_ignores_duplicate_event_id() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -690,7 +700,7 @@ async fn test_new_event_after_retention_purge_does_not_collide() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -744,7 +754,7 @@ async fn test_new_event_after_retention_purge_does_not_collide() {
     let (issues_after, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -883,7 +893,7 @@ async fn test_digest_groups_log_messages() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -949,7 +959,7 @@ async fn test_digest_updates_issue_last_seen() {
     let (issues_before, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -1004,7 +1014,7 @@ async fn test_digest_updates_issue_last_seen() {
     let (issues_after, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -1376,7 +1386,7 @@ async fn test_digest_handles_missing_exception() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -1435,7 +1445,7 @@ async fn test_digest_handles_multiline_error_value() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -2088,7 +2098,6 @@ async fn test_list_stats_counts_by_email_when_id_is_absent() {
 
 #[actix_web::test]
 async fn test_list_offset_search_filters_by_text() {
-    use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
     use rustrak::services::grouping::get_denormalized_fields;
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Search Project").await;
@@ -2121,15 +2130,10 @@ async fn test_list_offset_search_filters_by_text() {
     .unwrap();
 
     // Case-insensitive match on type.
-    let (hits, total) = IssueService::list_offset(
+    let (hits, total) = IssueService::list_page(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
-        SortOrder::Desc,
-        IssueFilter::All,
-        1,
-        50,
-        Some("databaseerror"),
+        &list_params("is:all databaseerror", "-digest_order", 1, 50),
     )
     .await
     .unwrap();
@@ -2137,15 +2141,10 @@ async fn test_list_offset_search_filters_by_text() {
     assert_eq!(hits[0].calculated_type, "DatabaseError");
 
     // Match on value substring.
-    let (hits, _) = IssueService::list_offset(
+    let (hits, _) = IssueService::list_page(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
-        SortOrder::Desc,
-        IssueFilter::All,
-        1,
-        50,
-        Some("undefined"),
+        &list_params("is:all undefined", "-digest_order", 1, 50),
     )
     .await
     .unwrap();
@@ -2153,15 +2152,10 @@ async fn test_list_offset_search_filters_by_text() {
     assert_eq!(hits[0].calculated_type, "TypeError");
 
     // No match.
-    let (_, total) = IssueService::list_offset(
+    let (_, total) = IssueService::list_page(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
-        SortOrder::Desc,
-        IssueFilter::All,
-        1,
-        50,
-        Some("nonexistent"),
+        &list_params("is:all nonexistent", "-digest_order", 1, 50),
     )
     .await
     .unwrap();
@@ -2174,7 +2168,6 @@ async fn test_list_offset_search_escapes_like_wildcards() {
     // underscore would also match any other single character in that
     // position. Two issues differing only by "_" vs "x" in that spot must
     // NOT both match a search for the literal underscore.
-    use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
     use rustrak::services::grouping::get_denormalized_fields;
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Search Escape Project").await;
@@ -2206,15 +2199,10 @@ async fn test_list_offset_search_escapes_like_wildcards() {
     .await
     .unwrap();
 
-    let (hits, total) = IssueService::list_offset(
+    let (hits, total) = IssueService::list_page(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
-        SortOrder::Desc,
-        IssueFilter::All,
-        1,
-        50,
-        Some("database_error"),
+        &list_params("is:all database_error", "-digest_order", 1, 50),
     )
     .await
     .unwrap();
@@ -2225,72 +2213,55 @@ async fn test_list_offset_search_escapes_like_wildcards() {
     assert_eq!(hits[0].calculated_value, "database_error");
 }
 
+/// The old contract rejected a page below one and a page size outside its
+/// range. The list contract clamps them instead, and that is the better
+/// answer: a stale link with `page=0` should show the first page, not a 400
+/// nobody can act on.
 #[actix_web::test]
-async fn test_list_offset_rejects_page_below_one() {
+async fn a_page_below_one_is_clamped_rather_than_rejected() {
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Page Clamp Project").await;
 
-    let err = IssueService::list_offset(
-        &db.pool,
-        project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
-        rustrak::pagination::SortOrder::Desc,
-        rustrak::pagination::IssueFilter::All,
-        0,
-        20,
-        None,
-    )
-    .await
-    .expect_err("page=0 must be rejected, not produce a negative SQL OFFSET");
-    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
-
-    let err = IssueService::list_offset(
-        &db.pool,
-        project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
-        rustrak::pagination::SortOrder::Desc,
-        rustrak::pagination::IssueFilter::All,
-        -5,
-        20,
-        None,
-    )
-    .await
-    .expect_err("negative page must be rejected");
-    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+    for page in [0, -5] {
+        let (_, total) = IssueService::list_page(
+            &db.pool,
+            project.id,
+            &list_params("is:all", "-digest_order", page, 20),
+        )
+        .await
+        .expect("a page below one is the first page");
+        assert_eq!(total, 0);
+    }
 }
 
+/// A page size of nought is the default, and one over the ceiling is the
+/// ceiling. Neither can ask for the whole table and neither is an error.
 #[actix_web::test]
-async fn test_list_offset_rejects_per_page_out_of_range() {
+async fn a_page_size_outside_the_range_is_clamped() {
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Per Page Clamp Project").await;
 
-    let err = IssueService::list_offset(
-        &db.pool,
-        project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
-        rustrak::pagination::SortOrder::Desc,
-        rustrak::pagination::IssueFilter::All,
-        1,
-        0,
-        None,
-    )
-    .await
-    .expect_err("per_page=0 must be rejected");
-    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+    for issue in 0..3 {
+        seed_issue_direct(&db.pool, project.id, &format!("TypeError{issue}")).await;
+    }
 
-    let err = IssueService::list_offset(
+    let (rows, _) = IssueService::list_page(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
-        rustrak::pagination::SortOrder::Desc,
-        rustrak::pagination::IssueFilter::All,
-        1,
-        101,
-        None,
+        &list_params("is:all", "-digest_order", 1, 0),
     )
     .await
-    .expect_err("per_page over the documented max of 100 must be rejected");
-    assert!(matches!(err, rustrak::error::AppError::Validation(_)));
+    .expect("nought is the default page size");
+    assert_eq!(rows.len(), 3);
+
+    let (rows, _) = IssueService::list_page(
+        &db.pool,
+        project.id,
+        &list_params("is:all", "-digest_order", 1, 5_000),
+    )
+    .await
+    .expect("a page size over the ceiling is the ceiling");
+    assert_eq!(rows.len(), 3);
 }
 
 // =============================================================================

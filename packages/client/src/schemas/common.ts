@@ -32,20 +32,6 @@ export const offsetPaginatedResponseSchema = <T extends z.ZodTypeAny>(
 export const sortOrderSchema = z.enum(['asc', 'desc']);
 
 /**
- * Issue sort field enum
- */
-export const issueSortSchema = z.enum([
-  'digest_order',
-  'last_seen',
-  'event_count',
-]);
-
-/**
- * Issue filter enum
- */
-export const issueFilterSchema = z.enum(['open', 'resolved', 'muted', 'all']);
-
-/**
  * ISO 8601 datetime string
  */
 export const dateTimeSchema = z.string().datetime();

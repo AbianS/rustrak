@@ -1002,45 +1002,13 @@
           {
             "name": "per",
             "in": "query",
-            "description": "Items per page. Absent, not `20`, when the caller did not ask: what\ndecides against `per_page` is whether it was sent.",
+            "description": "Items per page.",
             "required": false,
             "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
+              "type": "integer",
               "format": "int64",
               "maximum": 100,
               "minimum": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "What `per` was called before this contract existed.\n\n`webview-ui` and `@rustrak/mcp` still send it. Remove both fields'\ncompatibility when they do not.",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          },
-          {
-            "name": "order",
-            "in": "query",
-            "description": "A bare direction for the default sort, from the same era as `per_page`.\nIgnored when `sort` names anything.",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "null"
-                },
-                {
-                  "$ref": "#/components/schemas/SortOrder"
-                }
-              ]
             }
           },
           {
@@ -2899,65 +2867,50 @@
             }
           },
           {
-            "name": "page",
-            "in": "query",
-            "description": "Page number (1-indexed, default: 1)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Items per page (default: 20, max: 100)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "maximum": 100,
-              "minimum": 1
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "description": "Sort mode (default: last_seen)",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/IssueSort"
-            }
-          },
-          {
-            "name": "order",
-            "in": "query",
-            "description": "Sort order direction (default: desc)",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SortOrder"
-            }
-          },
-          {
-            "name": "filter",
-            "in": "query",
-            "description": "Filter: open (not resolved, not muted), resolved, muted, all",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/IssueFilter"
-            }
-          },
-          {
             "name": "q",
             "in": "query",
-            "description": "Free-text search across type, value, transaction, and culprit.",
+            "description": "Filters and free text in one string: `platform:rust,node timeout`.",
             "required": false,
             "schema": {
               "type": [
                 "string",
                 "null"
               ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort fields, `-` for descending: `-events,name`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, 1-indexed.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],

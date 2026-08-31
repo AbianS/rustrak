@@ -30,7 +30,7 @@ export default async function NewProjectPage() {
   // project creation: this is one of the few places where discarding the
   // failure is the right answer, and it is written out rather than swallowed by
   // a `catch`.
-  const existing = await getProjects({ page: 1, per_page: 100 });
+  const existing = await getProjects({ page: 1, per: 100 });
   const existingNames = existing.success
     ? existing.data.items.map((p) => p.name)
     : [];
