@@ -6,14 +6,15 @@ import 'server-only';
  * `stats` lives here rather than in a slice of its own: the aggregates are
  * *of a project*, not a concept a user manipulates.
  */
-import type {
-  EventTimeseries,
-  ListProjectsOptions,
-  OffsetPaginatedResponse,
-  Project,
-  ProjectStatsSummary,
-  Result,
-  RustrakError,
+import {
+  type EventTimeseries,
+  type ListProjectsOptions,
+  type OffsetPaginatedResponse,
+  Ok,
+  type Project,
+  type ProjectStatsSummary,
+  type Result,
+  type RustrakError,
 } from '@rustrak/client';
 import { createClient } from '@/shared/api/rustrak';
 
@@ -28,6 +29,37 @@ export async function getProjects(
 ): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
   const client = await createClient();
   return client.projects.list(options);
+}
+
+/** The largest page `/api/projects` will hand out, whatever `per` asks for. */
+const MAX_PER = 100;
+
+/**
+ * Every project there is, walked a page at a time.
+ *
+ * A screen that lists projects to choose between needs all of them, and one
+ * request cannot ask for all of them: the list contract clamps `per` to 100,
+ * silently, so `per: 10000` is a first page wearing a whole set's clothes.
+ * The walk stops at the first failure rather than returning a short list
+ * nobody can tell is short.
+ */
+export async function getEveryProject(): Promise<
+  Result<Project[], RustrakError>
+> {
+  const projects: Project[] = [];
+
+  for (let page = 1; ; page += 1) {
+    const result = await getProjects({ page, per: MAX_PER });
+    if (!result.success) return result;
+
+    projects.push(...result.data.items);
+
+    // `total_pages` is what says when to stop; the empty page guards the
+    // walk against a count that disagrees with what it hands out.
+    if (page >= result.data.total_pages || result.data.items.length === 0) {
+      return Ok(projects);
+    }
+  }
 }
 
 /**

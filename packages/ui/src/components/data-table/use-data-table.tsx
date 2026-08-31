@@ -94,6 +94,14 @@ export function useDataTable<TData extends RowData>({
     );
   }
 
+  /*
+   * A selection lasts as long as the rows it was made on are on screen. The
+   * strip counts every ticked row and the screen acts on the page it was
+   * handed, so a tick that outlived its page would be counted by one and
+   * skipped by the other. Every query change empties it, which is the same
+   * rule the header checkbox already follows: it ticks the page, never the
+   * result.
+   */
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({});
@@ -108,6 +116,7 @@ export function useDataTable<TData extends RowData>({
     slice: TSlice,
     updater: Updater<DataTableQuery[TSlice]>,
   ) {
+    setRowSelection({});
     onQueryChange((previous) => {
       const next = functionalUpdate(updater, previous[slice]);
       return {
@@ -140,11 +149,13 @@ export function useDataTable<TData extends RowData>({
     onSortingChange: (updater) => applyQuery('sorting', updater),
     onColumnFiltersChange: (updater) => applyQuery('filters', updater),
     onGlobalFilterChange: (updater) => applyQuery('search', updater),
-    onPaginationChange: (updater) =>
+    onPaginationChange: (updater) => {
+      setRowSelection({});
       onQueryChange((previous) => ({
         ...previous,
         pagination: functionalUpdate(updater, previous.pagination),
-      })),
+      }));
+    },
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
   });

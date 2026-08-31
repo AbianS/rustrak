@@ -1514,6 +1514,45 @@ async fn test_list_issues_filters_by_last_seen_window() {
     assert!(items[0]["title"].as_str().unwrap().contains("Recent"));
 }
 
+/// A `seen:` window nobody could live through is still a request.
+///
+/// `chrono::Duration::days` panics rather than returns, and `1e300` reaches it
+/// as `i64::MAX`. The window goes through `ListParams::days`, which has the
+/// ceiling, so a query string somebody typed is a page rather than a 500.
+#[actix_web::test]
+async fn test_list_issues_survives_a_seen_window_nobody_could_live_through() {
+    let db = TestDb::new().await;
+    let token = create_test_token(&db.pool).await;
+    let project = create_test_project(&db.pool, "Absurd Window Project").await;
+    let config = create_test_config();
+
+    create_test_issue(&db.pool, project.id, "Recent", "Recent").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(db.pool.clone()))
+            .app_data(web::Data::new(config))
+            .configure(routes::issues::configure)
+            .configure(routes::projects::configure),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri(&format!(
+            "/api/projects/{}/issues?q=seen%3A1e300",
+            project.id
+        ))
+        .insert_header(("Authorization", format!("Bearer {}", token)))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    let body: Value = test::read_body_json(resp).await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "a century back is every issue there is");
+}
+
 /// Free text and a range in the same `q`.
 ///
 /// They are built into the statement in one order and bound in another, so

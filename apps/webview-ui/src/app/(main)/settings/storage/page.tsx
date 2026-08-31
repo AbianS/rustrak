@@ -10,7 +10,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getFormatter, getTranslations } from 'next-intl/server';
 import { Suspense } from 'react';
-import { getProjects } from '@/features/project/api/queries';
+import { getEveryProject } from '@/features/project/api/queries';
 import {
   getStorageProjects,
   getStorageSummary,
@@ -313,9 +313,9 @@ async function ProjectsTable() {
  */
 async function CleanupPanel() {
   const t = await getTranslations('settings');
-  // Fetch every project in one shot (the API applies no hard page-size cap) so
-  // the scope selector never silently drops projects.
-  const result = await getProjects({ per: 10000 });
+  // Walked a page at a time: the list contract clamps a page to 100 whatever
+  // `per` asks for, so one big request is a first page, not every project.
+  const result = await getEveryProject();
 
   if (!result.success) {
     return (
@@ -329,7 +329,7 @@ async function CleanupPanel() {
 
   return (
     <StorageCleanup
-      projects={result.data.items.map((p) => ({ id: p.id, name: p.name }))}
+      projects={result.data.map((p) => ({ id: p.id, name: p.name }))}
     />
   );
 }

@@ -658,14 +658,14 @@ impl IssueService {
 
         // `seen:7`, still firing in the last seven days. The cutoff is computed
         // here rather than in SQL, so the statement is the same one on SQLite
-        // and on PostgreSQL.
+        // and on PostgreSQL. `days` rather than `number`: it is the one that
+        // turns away a window nobody could live through, and
+        // `chrono::Duration::days` panics rather than returns on overflow.
         let mut cutoff: Option<DateTime<Utc>> = None;
-        if let Some(days) = params.number("seen") {
-            if days > 0.0 {
-                cutoff = Some(Utc::now() - chrono::Duration::days(days as i64));
-                wheres.push(format!("last_seen >= ${}", next));
-                next += 1;
-            }
+        if let Some(window) = params.days("seen") {
+            cutoff = Some(Utc::now() - window);
+            wheres.push(format!("last_seen >= ${}", next));
+            next += 1;
         }
 
         let where_clause = wheres.join(" AND ");

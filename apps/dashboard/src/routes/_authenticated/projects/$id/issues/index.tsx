@@ -26,6 +26,7 @@ import {
 import { useMemo } from 'react';
 import { issueColumns } from '../../../../../components/issues/columns';
 import {
+  narrows,
   statusField,
   withDefaultStatus,
   withoutDefaultStatus,
@@ -85,10 +86,7 @@ function Issues() {
 
   const query = withDefaultStatus(toTableQuery(search, variants, PAGE_SIZE));
   const page = result.success ? result.data : null;
-  // The default state is not a narrowing: a list showing open issues and
-  // nothing else is the list, not a filtered version of it.
-  const narrowed =
-    withoutDefaultStatus(query).filters.length > 0 || query.search !== '';
+  const narrowed = narrows(query);
 
   const go = (next: typeof query) =>
     navigate({

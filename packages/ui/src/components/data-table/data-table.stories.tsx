@@ -465,6 +465,35 @@ export const SortFromHeader: Story = {
 };
 
 /**
+ * A selection does not follow you off the page it was made on.
+ *
+ * The strip counts every ticked row and the screen acts on the rows it can
+ * see, so a tick that survived a page turn would be counted by one and
+ * skipped by the other. Turning the page empties it.
+ */
+export const SelectionEndsWithThePage: Story = {
+  render: () => <IssuesTable />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: 'Select all rows on this page' }),
+    );
+    await expect(
+      within(
+        canvas.getByRole('toolbar', { name: 'Actions for the selected rows' }),
+      ).getByText('10 selected'),
+    ).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
+
+    await waitFor(() =>
+      expect(canvas.queryByRole('toolbar')).not.toBeInTheDocument(),
+    );
+  },
+};
+
+/**
  * Ticking rows turns the header into the bulk strip: count, actions, Clear.
  * Emptying the selection hands the column titles back.
  */
