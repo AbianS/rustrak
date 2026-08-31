@@ -1654,12 +1654,16 @@
     "nothingMatches": "Aucun résultat",
     "rangeMin": "Min",
     "rangeMax": "Max",
+    "rangeMinimum": "Minimum",
+    "rangeMaximum": "Maximum",
     "queryBarPlaceholder": "Filtrez par clé:valeur, ou cherchez…",
+    "queryBarAddFilter": "Ajouter un filtre…",
     "queryBarLabel": "Filtrer et rechercher",
     "queryBarClear": "Effacer les filtres et la recherche",
     "queryBarSuggestions": "Suggestions",
     "queryBarFilterBy": "Filtrer par",
     "queryBarTypeValue": "Tapez une valeur, puis",
+    "queryBarRemoveFilter": "Retirer le filtre {field}",
     "mainNavigation": "Navigation principale",
     "topbarSearch": "Rechercher dans Rustrak…",
     "loading": "Chargement",
@@ -1677,9 +1681,7 @@
     "expandSidebar": "Déplier",
     "collapseSidebar": "Replier",
     "openNavigation": "Ouvrir la navigation",
-    "closeNavigation": "Fermer la navigation",
-    "queryBarAddFilter": "Ajouter un filtre…",
-    "queryBarRemoveFilter": "Retirer le filtre {field}"
+    "closeNavigation": "Fermer la navigation"
   },
   "projectOverview": {
     "activeReleasesCaption": "Envoyant des sessions sur cette période",

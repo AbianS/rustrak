@@ -135,16 +135,22 @@ fn offset_follows_from_the_page() {
 }
 
 #[test]
+fn a_page_number_no_table_can_reach_is_still_an_offset() {
+    // `page=9223372036854775807` is a URL somebody can type. The product of
+    // that and a page size is not an `i64`, and the answer to it is an empty
+    // page, not a panic in debug or a negative `OFFSET` in release.
+    let params = parse(None, None, i64::MAX, 20);
+
+    assert_eq!(params.offset, i64::MAX);
+}
+
+#[test]
 fn a_filter_with_no_values_is_dropped() {
     // `level:` on its own is somebody mid-type, not a request for nothing.
     let params = parse(Some("level:"), None, 1, 20);
 
     assert!(params.filters.is_empty());
 }
-
-// Compatibility with the callers that predate this contract. `webview-ui` and
-// `@rustrak/mcp` both send `per_page`, and the old projects list took a bare
-// `order` direction. Both keep working until those callers are gone.
 
 // Ranges and windows. `@rustrak/ui` serialises a range filter as `a..b` with
 // either end open, and a date filter as a single number of days.
@@ -206,4 +212,40 @@ fn the_previous_contracts_parameter_names_are_not_read() {
         params.order_by::<TestSort>("created_at DESC"),
         "created_at DESC"
     );
+}
+
+#[test]
+fn a_day_window_is_a_duration() {
+    assert_eq!(
+        parse(Some("created:7"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(7))
+    );
+}
+
+#[test]
+fn a_day_window_nobody_could_live_through_is_bounded() {
+    // `chrono::Duration::days` asserts rather than returns, and `1e300` as an
+    // `i64` is `i64::MAX`. A century is already every project ever created.
+    assert_eq!(
+        parse(Some("created:1e300"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(36_525))
+    );
+}
+
+#[test]
+fn a_window_that_narrows_nothing_is_no_window() {
+    assert_eq!(parse(Some("created:0"), None, 1, 20).days("created"), None);
+    assert_eq!(parse(Some("created:-3"), None, 1, 20).days("created"), None);
+    assert_eq!(parse(Some("created:x"), None, 1, 20).days("created"), None);
+    // `"NaN"` and `"inf"` both parse as floats. One narrows nothing, the
+    // other is the ceiling.
+    assert_eq!(
+        parse(Some("created:NaN"), None, 1, 20).days("created"),
+        None
+    );
+    assert_eq!(
+        parse(Some("created:inf"), None, 1, 20).days("created"),
+        Some(chrono::Duration::days(36_525))
+    );
+    assert_eq!(parse(None, None, 1, 20).days("created"), None);
 }

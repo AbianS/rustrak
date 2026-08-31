@@ -1,0 +1,75 @@
+import type { TransactionDetail } from '@rustrak/client';
+import type { Span, TraceContext } from '@/features/transaction/model/span';
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  // `typeof [] === 'object'`, and a list is never one of the key/value panels
+  // this reads, so an array is not an object here.
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+/**
+ * A moment on the waterfall's clock, which counts seconds.
+ *
+ * The SDK sends epoch seconds inside the payload; the row stores ISO strings.
+ * The fallback has to be converted rather than passed through, or every bar
+ * would be placed a thousand times too far along.
+ */
+function epochSeconds(raw: unknown, fallbackIso: string): number {
+  if (typeof raw === 'number') return raw;
+  return Date.parse(fallbackIso) / 1000;
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/** Everything the transaction detail page reads out of the stored payload. */
+export interface TransactionPayload {
+  trace: TraceContext | undefined;
+  spans: Span[];
+  measurements: Record<string, unknown> | null;
+  tags: Record<string, unknown> | null;
+  request: Record<string, unknown> | null;
+  user: Record<string, unknown> | null;
+  /** Epoch seconds, the left edge of the waterfall. */
+  transactionStart: number;
+  /** Epoch seconds, its right edge. */
+  transactionEnd: number;
+  op: string | undefined;
+  status: string | undefined;
+}
+
+/**
+ * The stored event payload, narrowed into the shapes the page renders.
+ *
+ * `data` is whatever the SDK sent, so every read here is a question about an
+ * `unknown`. Doing it once, in one place, is what keeps those questions out of
+ * the page and provable on their own.
+ */
+export function readTransactionPayload(
+  txn: TransactionDetail,
+): TransactionPayload {
+  const data = (txn.data ?? {}) as Record<string, unknown>;
+  const trace = asObject(asObject(data.contexts)?.trace) ?? undefined;
+
+  return {
+    trace: trace as TraceContext | undefined,
+    spans: Array.isArray(data.spans) ? (data.spans as Span[]) : [],
+    measurements: asObject(data.measurements),
+    tags: asObject(data.tags),
+    request: asObject(data.request),
+    user: asObject(data.user),
+
+    transactionStart: epochSeconds(
+      data.start_timestamp,
+      txn.start_timestamp ?? txn.timestamp,
+    ),
+    transactionEnd: epochSeconds(data.timestamp, txn.timestamp),
+
+    op: asString(trace?.op),
+    status: asString(trace?.status),
+  };
+}

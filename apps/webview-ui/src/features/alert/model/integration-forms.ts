@@ -58,66 +58,88 @@ export function webhookFormSchema(t: Translate) {
   });
 }
 
+/**
+ * Why this incoming-webhook URL cannot be used, or `null`.
+ *
+ * The host check is not pedantry: a well-formed URL pointing anywhere else
+ * accepts the POST and drops it, so the integration would look configured and
+ * silently deliver nothing.
+ */
+function slackWebhookUrlProblem(
+  url: string | undefined,
+  t: Translate,
+): string | null {
+  if (!url || url.trim() === '') return t('validation.webhookUrlRequired');
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return t('validation.validUrl');
+  }
+
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'hooks.slack.com') {
+    return t('validation.slackWebhookUrl');
+  }
+
+  return null;
+}
+
+/**
+ * Why this bot token cannot be used, or `null`.
+ *
+ * Blank while editing is the one case that is not an answer at all: the server
+ * never returns the stored token, so an untouched field means "leave it alone".
+ */
+function slackTokenProblem(
+  token: string | undefined,
+  isEdit: boolean,
+  t: Translate,
+): string | null {
+  if (!token || token.trim() === '') {
+    return isEdit ? null : t('validation.botTokenRequired');
+  }
+
+  if (!token.startsWith('xoxb-')) return t('validation.botTokenPrefix');
+
+  return null;
+}
+
 export function slackFormSchema(t: Translate) {
-  return z
-    .object({
-      name: z.string().min(1, t('validation.nameRequired')).max(255),
-      method: z.enum(['webhook', 'bot_token']),
-      is_edit: z.boolean(),
-      webhook_url: z.string().optional(),
-      token: z.string().optional(),
-      is_enabled: z.boolean(),
-    })
-    .superRefine((data, ctx) => {
-      if (data.method === 'webhook') {
-        if (!data.webhook_url || data.webhook_url.trim() === '') {
+  return (
+    z
+      .object({
+        name: z.string().min(1, t('validation.nameRequired')).max(255),
+        method: z.enum(['webhook', 'bot_token']),
+        is_edit: z.boolean(),
+        webhook_url: z.string().optional(),
+        token: z.string().optional(),
+        is_enabled: z.boolean(),
+      })
+      // The two methods are alternatives, so exactly one field is judged and at
+      // most one issue is raised: marking the input the chosen method does not
+      // use would be an error the user cannot see, let alone fix.
+      .superRefine((data, ctx) => {
+        const [path, problem] =
+          data.method === 'webhook'
+            ? ([
+                'webhook_url',
+                slackWebhookUrlProblem(data.webhook_url, t),
+              ] as const)
+            : ([
+                'token',
+                slackTokenProblem(data.token, data.is_edit, t),
+              ] as const);
+
+        if (problem) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: t('validation.webhookUrlRequired'),
-            path: ['webhook_url'],
-          });
-        } else {
-          try {
-            const url = new URL(data.webhook_url);
-            if (
-              url.protocol !== 'https:' ||
-              url.hostname !== 'hooks.slack.com'
-            ) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                message: t('validation.slackWebhookUrl'),
-                path: ['webhook_url'],
-              });
-            }
-          } catch {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              message: t('validation.validUrl'),
-              path: ['webhook_url'],
-            });
-          }
-        }
-      } else if (data.method === 'bot_token') {
-        const tokenEmpty = !data.token || data.token.trim() === '';
-        if (data.is_edit && tokenEmpty) {
-          // Blank on edit = keep existing — OK
-          return;
-        }
-        if (tokenEmpty) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: t('validation.botTokenRequired'),
-            path: ['token'],
-          });
-        } else if (!data.token!.startsWith('xoxb-')) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: t('validation.botTokenPrefix'),
-            path: ['token'],
+            message: problem,
+            path: [path],
           });
         }
-      }
-    });
+      })
+  );
 }
 
 export function emailFormSchema(t: Translate) {

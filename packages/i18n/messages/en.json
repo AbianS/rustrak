@@ -1654,12 +1654,16 @@
     "nothingMatches": "Nothing matches",
     "rangeMin": "Min",
     "rangeMax": "Max",
+    "rangeMinimum": "Minimum",
+    "rangeMaximum": "Maximum",
     "queryBarPlaceholder": "Filter by key:value, or search…",
+    "queryBarAddFilter": "Add a filter…",
     "queryBarLabel": "Filter and search",
     "queryBarClear": "Clear filters and search",
     "queryBarSuggestions": "Suggestions",
     "queryBarFilterBy": "Filter by",
     "queryBarTypeValue": "Type a value, then",
+    "queryBarRemoveFilter": "Remove the {field} filter",
     "mainNavigation": "Main navigation",
     "topbarSearch": "Search Rustrak…",
     "loading": "Loading",
@@ -1677,9 +1681,7 @@
     "expandSidebar": "Expand",
     "collapseSidebar": "Collapse",
     "openNavigation": "Open navigation",
-    "closeNavigation": "Close navigation",
-    "queryBarAddFilter": "Add a filter…",
-    "queryBarRemoveFilter": "Remove the {field} filter"
+    "closeNavigation": "Close navigation"
   },
   "projectOverview": {
     "activeReleasesCaption": "Sending sessions in this period",

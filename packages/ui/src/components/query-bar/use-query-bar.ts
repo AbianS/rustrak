@@ -9,7 +9,28 @@ import {
 } from 'react';
 import type { FilterOption } from '../data-table/features';
 import { formatFilterQuery, parseFilterQuery } from '../data-table/query';
-import { type QueryField, variantsFromFields } from './query-bar-parts';
+import {
+  detectPhase,
+  type QueryField,
+  variantsFromFields,
+} from './query-bar-parts';
+
+/**
+ * The values a field holds once one option is ticked.
+ *
+ * Ticking the standing choice of a single-choice field clears it rather than
+ * re-picking it: the same "asking twice withdraws the question" rule the
+ * column headers use for sort.
+ */
+function nextSelection(
+  selected: string[],
+  value: string,
+  multiple: boolean,
+): string[] {
+  const has = selected.includes(value);
+  if (!multiple) return has ? [] : [value];
+  return has ? selected.filter((v) => v !== value) : [...selected, value];
+}
 
 export type Suggestion =
   | { kind: 'field'; field: QueryField }
@@ -96,42 +117,8 @@ export function useQueryBar({
 
   /* --- Phase detection --------------------------------------------------- */
 
-  const tokenMatch = draft.match(/(^|\s)([A-Za-z0-9_.-]+):(\S*)$/);
-  const typedField = tokenMatch
-    ? fields.find((field) => field.key === tokenMatch[2])
-    : undefined;
-  const pickedField = pickedKey
-    ? fields.find((field) => field.key === pickedKey)
-    : undefined;
-  const activeField = pickedField ?? typedField;
-
-  /*
-   * Only the word under the caret is being completed; whatever stands before
-   * it is already said and survives the completion. So `timeout lev` offers
-   * Level, and taking it keeps `timeout` -- the fragment is replaced,
-   * never appended to.
-   */
-  const fragmentMatch = draft.match(/(^|\s)(\S*)$/);
-  const fragment = fragmentMatch?.[2] ?? '';
-  const fragmentPrefix = draft.slice(
-    0,
-    (fragmentMatch?.index ?? 0) + (fragmentMatch?.[1]?.length ?? 0),
-  );
-
-  // With a picked field, whatever is being typed narrows its values.
-  const valueFragment = pickedField
-    ? fragment
-    : typedField
-      ? (tokenMatch?.[3] ?? '')
-      : '';
-  const fieldNeedle = activeField ? '' : fragment.toLowerCase();
-  const prefix =
-    !pickedField && typedField
-      ? draft.slice(
-          0,
-          (tokenMatch?.index ?? 0) + (tokenMatch?.[1]?.length ?? 0),
-        )
-      : fragmentPrefix;
+  const { pickedField, activeField, valueFragment, fieldNeedle, prefix } =
+    detectPhase(draft, fields, pickedKey);
 
   const fieldOptions = activeField
     ? (activeField.options ?? loadedOptions[activeField.key])
@@ -249,16 +236,12 @@ export function useQueryBar({
   }
 
   function toggleValue(field: QueryField, option: FilterOption) {
-    const selected = selectedValues(field.key);
-    const has = selected.includes(option.value);
     const multiple = field.multiple ?? true;
-    const nextValues = multiple
-      ? has
-        ? selected.filter((value) => value !== option.value)
-        : [...selected, option.value]
-      : has
-        ? []
-        : [option.value];
+    const nextValues = nextSelection(
+      selectedValues(field.key),
+      option.value,
+      multiple,
+    );
 
     const rest = filters.filter((filter) => filter.id !== field.key);
     onChange({
@@ -327,70 +310,102 @@ export function useQueryBar({
 
   /* --- Keyboard ---------------------------------------------------------- */
 
+  /** Moves the highlight and brings the row into view. Opens the list first. */
+  function moveHighlight(delta: 1 | -1) {
+    if (!open) {
+      setOpen(true);
+      return;
+    }
+
+    const next =
+      (highlightIndex + delta + suggestions.length) %
+      Math.max(suggestions.length, 1);
+    setHighlighted(next);
+
+    // The list scrolls, the input keeps focus: the highlighted row has to be
+    // brought along by hand.
+    document
+      .getElementById(`${id}-option-${next}`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Enter takes the highlighted suggestion, or commits what is written. */
+  function commitOrApply() {
+    const current = suggestions[highlightIndex];
+    if (open && current) {
+      apply(current);
+      return;
+    }
+
+    commitDraft(draft);
+    setOpen(false);
+    setPickedKey(null);
+  }
+
+  /**
+   * Tab completes a field name and nothing else.
+   *
+   * On a value or the search row it falls through to the browser, because
+   * there Tab is the only way out of the bar.
+   */
+  function completeField(event: KeyboardEvent<HTMLInputElement>) {
+    const current = suggestions[highlightIndex];
+    if (current?.kind !== 'field') return;
+
+    event.preventDefault();
+    apply(current);
+  }
+
+  /** Escape closes the list; with the list already closed, it clears. */
+  function dismiss() {
+    if (open) {
+      setOpen(false);
+      setPickedKey(null);
+      return;
+    }
+    if (!draft) return;
+
+    // The popup is already closed, so this draft is exactly what is committed
+    // (nothing has been typed since). Clearing only the draft would leave the
+    // table filtered by search the bar no longer shows.
+    setDraft('');
+    if (search) onChange({ filters, search: '' });
+  }
+
+  /** Backspace on an empty draft steps back out of the phase, then eats chips. */
+  function stepBack() {
+    if (pickedKey) {
+      setPickedKey(null);
+      return;
+    }
+
+    const last = filters[filters.length - 1];
+    if (last) removeFilter(last.id);
+  }
+
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (!open) {
-        setOpen(true);
-        return;
-      }
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      const next =
-        (highlightIndex + delta + suggestions.length) %
-        Math.max(suggestions.length, 1);
-      setHighlighted(next);
-      // The list scrolls, the input keeps focus: the highlighted row has to
-      // be brought along by hand.
-      document
-        .getElementById(`${id}-option-${next}`)
-        ?.scrollIntoView({ block: 'nearest' });
-      return;
-    }
-
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      const current = suggestions[highlightIndex];
-      if (open && current) {
-        apply(current);
-      } else {
-        commitDraft(draft);
-        setOpen(false);
-        setPickedKey(null);
-      }
-      return;
-    }
-
-    if (event.key === 'Tab' && open) {
-      const current = suggestions[highlightIndex];
-      if (current && current.kind === 'field') {
+    switch (event.key) {
+      case 'ArrowDown':
         event.preventDefault();
-        apply(current);
-      }
-      return;
-    }
-
-    if (event.key === 'Escape') {
-      if (open) {
-        setOpen(false);
-        setPickedKey(null);
-      } else if (draft) {
-        // The popup is already closed, so this draft is exactly what is
-        // committed (nothing has been typed since). Clearing only the draft
-        // would leave the table filtered by search the bar no longer shows.
-        setDraft('');
-        if (search) onChange({ filters, search: '' });
-      }
-      return;
-    }
-
-    if (event.key === 'Backspace' && draft === '') {
-      // First step out of the picked field, then start eating chips.
-      if (pickedKey) {
-        setPickedKey(null);
-        return;
-      }
-      const last = filters[filters.length - 1];
-      if (last) removeFilter(last.id);
+        moveHighlight(1);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        moveHighlight(-1);
+        break;
+      case 'Enter':
+        event.preventDefault();
+        commitOrApply();
+        break;
+      case 'Tab':
+        if (open) completeField(event);
+        break;
+      case 'Escape':
+        dismiss();
+        break;
+      case 'Backspace':
+        if (draft === '') stepBack();
+        break;
     }
   }
 

@@ -33,16 +33,19 @@ export interface UiLabels {
   nothingMatches: string;
   rangeMin: string;
   rangeMax: string;
+  /** The accessible names of the same two inputs, spelled out. */
+  rangeMinimum: string;
+  rangeMaximum: string;
 
   /* Query bar */
   queryBarPlaceholder: string;
+  /** What the bar asks for once it already carries chips. */
+  queryBarAddFilter: string;
   queryBarLabel: string;
   queryBarClear: string;
   queryBarSuggestions: string;
   queryBarFilterBy: string;
   queryBarTypeValue: string;
-  /** The placeholder once at least one chip is in the bar. */
-  queryBarAddFilter: string;
   /** `{field}` is the filter being taken off. */
   queryBarRemoveFilter: string;
 
@@ -105,14 +108,16 @@ export const DEFAULT_UI_LABELS: UiLabels = {
   nothingMatches: 'Nothing matches',
   rangeMin: 'Min',
   rangeMax: 'Max',
+  rangeMinimum: 'Minimum',
+  rangeMaximum: 'Maximum',
 
   queryBarPlaceholder: 'Filter by key:value, or search…',
+  queryBarAddFilter: 'Add a filter…',
   queryBarLabel: 'Filter and search',
   queryBarClear: 'Clear filters and search',
   queryBarSuggestions: 'Suggestions',
   queryBarFilterBy: 'Filter by',
   queryBarTypeValue: 'Type a value, then',
-  queryBarAddFilter: 'Add a filter…',
   queryBarRemoveFilter: 'Remove the {field} filter',
 
   mainNavigation: 'Main navigation',

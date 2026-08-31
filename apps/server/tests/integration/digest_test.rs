@@ -407,6 +407,81 @@ async fn test_digest_handles_custom_fingerprint() {
 }
 
 #[actix_web::test]
+async fn test_digest_empty_fingerprint_does_not_collapse_issues() {
+    // Issue #290: sentry-ruby always sends `"fingerprint": []`. Distinct
+    // exceptions must still land in distinct issues with a non-empty key.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Empty Fingerprint Project").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    for exc_type in [
+        "Rack::Multipart::BoundaryTooLongError",
+        "Rack::Multipart::EmptyContentError",
+    ] {
+        let event_id = Uuid::new_v4().to_string().replace("-", "");
+        let event_json = json!({
+            "event_id": &event_id,
+            "timestamp": Utc::now().timestamp() as f64,
+            "platform": "ruby",
+            "level": "error",
+            "transaction": "/upload",
+            "fingerprint": [],
+            "exception": {
+                "values": [{ "type": exc_type, "value": "boom" }]
+            }
+        });
+        let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+        store_event(ingest_dir, &event_id, &event_bytes)
+            .await
+            .expect("Failed to store event");
+
+        let metadata = EventMetadata {
+            event_id: event_id.clone(),
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+
+        process_error_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
+    }
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::CursorSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(issues.len(), 2);
+
+    let keys: Vec<String> = sqlx::query_scalar("SELECT grouping_key FROM groupings")
+        .fetch_all(&db.pool)
+        .await
+        .expect("Failed to read groupings");
+    assert_eq!(keys.len(), 2);
+    assert!(
+        keys.iter().all(|k| !k.is_empty()),
+        "grouping keys: {keys:?}"
+    );
+}
+
+#[actix_web::test]
 async fn test_digest_handles_default_fingerprint_placeholder() {
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Default Fingerprint Project").await;

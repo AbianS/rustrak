@@ -1654,12 +1654,16 @@
     "nothingMatches": "没有匹配项",
     "rangeMin": "最小",
     "rangeMax": "最大",
+    "rangeMinimum": "最小值",
+    "rangeMaximum": "最大值",
     "queryBarPlaceholder": "按 键:值 筛选，或搜索…",
+    "queryBarAddFilter": "添加筛选…",
     "queryBarLabel": "筛选与搜索",
     "queryBarClear": "清除筛选和搜索",
     "queryBarSuggestions": "建议",
     "queryBarFilterBy": "筛选依据",
     "queryBarTypeValue": "输入一个值，然后",
+    "queryBarRemoveFilter": "移除 {field} 筛选",
     "mainNavigation": "主导航",
     "topbarSearch": "搜索 Rustrak…",
     "loading": "加载中",
@@ -1677,9 +1681,7 @@
     "expandSidebar": "展开",
     "collapseSidebar": "收起",
     "openNavigation": "打开导航",
-    "closeNavigation": "关闭导航",
-    "queryBarAddFilter": "添加筛选…",
-    "queryBarRemoveFilter": "移除 {field} 筛选"
+    "closeNavigation": "关闭导航"
   },
   "projectOverview": {
     "activeReleasesCaption": "此时间范围内有会话上报",

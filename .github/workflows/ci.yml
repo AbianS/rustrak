@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Every pull request, whatever it targets. Deliberately unfiltered: a `branches`
+  # filter here matches the PR's *base*, so gating on `main` meant a stacked PR
+  # or one onto a long-lived feature branch merged with no checks at all. The
+  # work is the same work regardless of where it lands.
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}

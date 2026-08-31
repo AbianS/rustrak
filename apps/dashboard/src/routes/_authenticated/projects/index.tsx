@@ -207,7 +207,10 @@ function Projects() {
                 </SegmentedItem>
               ))}
             </SegmentedControl>
-            <Button icon={NewIcon} variant="primary">
+            {/* Disabled until the creation flow lands: the header of a list
+                screen is where the reader looks for it, and an empty header
+                reads as "you cannot", which is not what is true. */}
+            <Button disabled icon={NewIcon} variant="primary">
               {t.t('projectList.newProject')}
             </Button>
           </>

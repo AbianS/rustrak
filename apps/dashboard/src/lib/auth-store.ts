@@ -58,8 +58,22 @@ export function createAuthStore(api: AuthApi): AuthStore {
 
   return {
     ensure() {
-      inFlight ??= ask();
-      return inFlight;
+      if (inFlight) return inFlight;
+
+      // Kept once it settles, so navigating between guarded routes does not
+      // re-ask. `unreachable` is the one answer a retry can change, so that
+      // is the one the memo drops.
+      const request = ask();
+      inFlight = request;
+      const forget = () => {
+        if (inFlight === request) inFlight = null;
+      };
+      void request.then(
+        (session) => session.state === 'unreachable' && forget(),
+        forget,
+      );
+
+      return request;
     },
 
     peek() {

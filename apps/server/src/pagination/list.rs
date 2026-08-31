@@ -4,6 +4,9 @@ use serde::Deserialize;
 const DEFAULT_PER: i64 = 20;
 /// Ceiling on a page, so one request cannot ask for the whole table.
 const MAX_PER: i64 = 100;
+/// Ceiling on a `key:<days>` window: a century, which already reaches back
+/// past every row any of these tables holds.
+const MAX_DAYS: f64 = 36_525.0;
 
 /// One `field` / `-field` term out of `sort`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +91,9 @@ impl ListParams {
         Self {
             page,
             per,
-            offset: (page - 1) * per,
+            // A page number no table can reach is an empty page, not an
+            // overflow: `page=i64::MAX` is a URL somebody can type.
+            offset: page.saturating_sub(1).saturating_mul(per),
             search,
             filters,
             sort: parse_sort(query.sort.as_deref().unwrap_or_default()),
@@ -146,6 +151,22 @@ impl ListParams {
     /// A filter carrying one number: a window in days, a threshold.
     pub fn number(&self, key: &str) -> Option<f64> {
         self.filter(key)?.first()?.parse().ok()
+    }
+
+    /// A `key:<days>` window as a duration, or nothing when it narrows
+    /// nothing.
+    ///
+    /// Bounded on the way through: `chrono::Duration::days` asserts rather
+    /// than returns, and `created:1e300` reaches it as `i64::MAX`. A window
+    /// wider than the ceiling means the same thing the ceiling does.
+    pub fn days(&self, key: &str) -> Option<chrono::Duration> {
+        let days = self.number(key)?;
+        // `"NaN"` parses, and comparing it decides nothing: it has to be
+        // turned away by name.
+        if days.is_nan() || days <= 0.0 {
+            return None;
+        }
+        Some(chrono::Duration::days(days.min(MAX_DAYS) as i64))
     }
 
     /// The values a filter carries, or nothing if it was not named.

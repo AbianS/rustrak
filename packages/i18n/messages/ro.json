@@ -1654,12 +1654,16 @@
     "nothingMatches": "Nicio potrivire",
     "rangeMin": "Min",
     "rangeMax": "Max",
+    "rangeMinimum": "Minim",
+    "rangeMaximum": "Maxim",
     "queryBarPlaceholder": "Filtrează după cheie:valoare sau caută…",
+    "queryBarAddFilter": "Adaugă un filtru…",
     "queryBarLabel": "Filtrează și caută",
     "queryBarClear": "Șterge filtrele și căutarea",
     "queryBarSuggestions": "Sugestii",
     "queryBarFilterBy": "Filtrează după",
     "queryBarTypeValue": "Scrie o valoare, apoi",
+    "queryBarRemoveFilter": "Elimină filtrul {field}",
     "mainNavigation": "Navigare principală",
     "topbarSearch": "Caută în Rustrak…",
     "loading": "Se încarcă",
@@ -1677,9 +1681,7 @@
     "expandSidebar": "Extinde",
     "collapseSidebar": "Restrânge",
     "openNavigation": "Deschide navigarea",
-    "closeNavigation": "Închide navigarea",
-    "queryBarAddFilter": "Adaugă un filtru…",
-    "queryBarRemoveFilter": "Elimină filtrul {field}"
+    "closeNavigation": "Închide navigarea"
   },
   "projectOverview": {
     "activeReleasesCaption": "Trimit sesiuni în această perioadă",
