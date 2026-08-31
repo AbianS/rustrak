@@ -30,6 +30,12 @@ pub struct CustomWebhookNotifier {
     client: reqwest::Client,
 }
 
+/// Upper bound for a response body the dispatcher will buffer. Bot replies
+/// are one small JSON object; the limit exists so an endpoint that answers
+/// the alert POST with a giant (or endless) body cannot pin memory in the
+/// notification worker.
+const MAX_RESPONSE_BODY_BYTES: u64 = 64 * 1024;
+
 impl CustomWebhookNotifier {
     /// Creates a new custom webhook notifier
     pub fn new() -> Self {
@@ -85,6 +91,27 @@ impl CustomWebhookNotifier {
             .map_err(|e| format!("Rendered template is not valid JSON: {e}"))?;
         serde_json::to_vec(&value).map_err(|e| format!("Failed to serialize payload: {e}"))
     }
+
+    /// Reads the response body with a hard cap. `Response::text()` buffers
+    /// whatever the endpoint sends, and the 30s timeout does not limit size;
+    /// this dispatcher only ever needs a bot's small JSON reply, so anything
+    /// past the bound is an error rather than an allocation.
+    async fn read_capped_body(mut response: reqwest::Response) -> Result<String, String> {
+        let mut bytes: Vec<u8> = Vec::new();
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|e| format!("stream interrupted: {e}"))?
+        {
+            if bytes.len() + chunk.len() > MAX_RESPONSE_BODY_BYTES as usize {
+                return Err(format!(
+                    "response body exceeds the {MAX_RESPONSE_BODY_BYTES}-byte limit"
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        String::from_utf8(bytes).map_err(|e| format!("body is not valid UTF-8: {e}"))
+    }
 }
 
 /// Whether an HTTP status counts as a delivered response (mirrors
@@ -95,25 +122,36 @@ fn response_status_is_success(status: u16) -> bool {
 
 /// A rejection hidden inside a bot's 2xx response body, or `None`.
 ///
-/// Only the fields these three platforms use are consulted:
-/// WeCom and DingTalk signal with `errcode`, Feishu with `StatusCode`. A
-/// missing field, a non-JSON body, or a zero code all mean "no rejection
-/// detected", which the caller treats as success.
+/// The platforms this provider exists for signal with `errcode` (WeCom,
+/// DingTalk), `StatusCode` (Feishu legacy envelope) or a top-level `code`
+/// (Feishu current envelope). An explicit platform success marker wins the
+/// interpretation: a body carrying `errcode`/`StatusCode` of zero is accepted
+/// without reading any generic `code`, because arbitrary APIs use that field
+/// for their own business status. Bare `code` is therefore only treated as a
+/// rejection when it is neither zero nor an HTTP-success echo (200..=299),
+/// which covers the `{"code":200,"message":"OK"}` convention without letting
+/// Feishu's 9499/11232-style failures through as successes.
 fn bot_error_in_body(body: &str) -> Option<String> {
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
-    for field in ["errcode", "StatusCode"] {
+    for (field, reason) in [("errcode", "errmsg"), ("StatusCode", "StatusMessage")] {
         if let Some(code) = value.get(field).and_then(|v| v.as_i64()) {
             if code != 0 {
                 let reason = value
-                    .get(if field == "errcode" {
-                        "errmsg"
-                    } else {
-                        "StatusMessage"
-                    })
+                    .get(reason)
                     .and_then(|v| v.as_str())
                     .unwrap_or("rejected");
                 return Some(format!("bot returned {field}={code}: {reason}"));
             }
+            return None;
+        }
+    }
+    if let Some(code) = value.get("code").and_then(|v| v.as_i64()) {
+        if code != 0 && !(200..=299).contains(&code) {
+            let reason = value
+                .get("msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("rejected");
+            return Some(format!("bot returned code={code}: {reason}"));
         }
     }
     None
@@ -204,7 +242,19 @@ impl NotificationDispatcher for CustomWebhookNotifier {
         match request.body(body).send().await {
             Ok(response) => {
                 let status = response.status().as_u16();
-                let error_body = response.text().await.unwrap_or_default();
+                // A body that cannot be read (truncated, oversized past
+                // MAX_RESPONSE_BODY_BYTES, non-UTF-8) is a failure on every
+                // status: on a 2xx we would otherwise record a delivery as
+                // sent while unable to see a bot rejection hidden inside it.
+                let error_body = match Self::read_capped_body(response).await {
+                    Ok(b) => b,
+                    Err(e) => {
+                        return NotificationResult::failure(
+                            format!("HTTP {status}: failed to read response body: {e}"),
+                            Some(status),
+                        );
+                    }
+                };
                 if !response_status_is_success(status) {
                     let error_msg = if error_body.is_empty() {
                         format!("HTTP {}", status)
@@ -434,6 +484,24 @@ mod tests {
         assert!(bot_error_in_body("ok").is_none());
         assert!(bot_error_in_body(r#"{"status":"queued"}"#).is_none());
         assert!(bot_error_in_body(r#"{"errcode":0,"code":42}"#).is_none());
+    }
+
+    #[test]
+    fn test_feishu_current_envelope_code_detected() {
+        // Feishu's newer envelope signals only through the top-level `code`.
+        let msg = bot_error_in_body(r#"{"code":11232,"msg":"trigger frequency limit","data":{}}"#)
+            .expect("non-zero code without a platform success marker is a rejection");
+        assert!(msg.contains("code=11232"), "got: {msg}");
+        assert!(msg.contains("frequency"), "got: {msg}");
+        assert!(bot_error_in_body(r#"{"code":0,"msg":"success","data":{}}"#).is_none());
+    }
+
+    #[test]
+    fn test_http_echo_code_is_not_a_rejection() {
+        // Generic APIs reuse `code` for an echoed HTTP status; 2xx means OK
+        // there, so the band must not read as a bot failure.
+        assert!(bot_error_in_body(r#"{"code":200,"message":"OK"}"#).is_none());
+        assert!(bot_error_in_body(r#"{"code":204}"#).is_none());
     }
 
     // -------------------------------------------------------------------------
@@ -784,5 +852,112 @@ mod tests {
                 .contains("errcode=93000"),
             "message should carry the bot code"
         );
+    }
+
+    /// Serves a fixed raw HTTP response (after reading one request chunk) on
+    /// a random localhost port; returns the URL. The responder task owns the
+    /// bytes, so callers can build responses at runtime.
+    async fn raw_responder(response: Vec<u8>) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind responder listener");
+        let addr = listener.local_addr().expect("listener addr");
+        tokio::spawn(async move {
+            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            let mut sink = [0u8; 1024];
+            let _ = socket.read(&mut sink).await;
+            let _ = socket.write_all(&response).await;
+            let _ = socket.flush().await;
+        });
+        format!("http://{addr}/hook")
+    }
+
+    fn custom_integration(url: String) -> AlertIntegration {
+        make_integration(
+            json!({
+                "url": url,
+                "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
+            }),
+            true,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_feishu_current_envelope_fails_live_delivery() {
+        let body = r#"{"code":9499,"msg":"Bad Request","data":{}}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK
+content-type: application/json
+content-length: {}
+connection: close
+
+{body}",
+            body.len()
+        );
+        let url = raw_responder(response.into_bytes()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(
+            !result.success,
+            "Feishu 200+code rejection must not record sent"
+        );
+        assert!(result
+            .error_message
+            .unwrap_or_default()
+            .contains("code=9499"));
+    }
+
+    #[tokio::test]
+    async fn test_oversized_response_body_is_a_failure() {
+        let big = vec![b'x'; (MAX_RESPONSE_BODY_BYTES as usize) + 4096];
+        let head = format!(
+            "HTTP/1.1 200 OK
+content-type: text/plain
+content-length: {}
+connection: close
+
+",
+            big.len()
+        );
+        let mut response = head.into_bytes();
+        response.extend_from_slice(&big);
+        let url = raw_responder(response.to_vec()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(
+            !result.success,
+            "a body past the limit must fail rather than buffer"
+        );
+        assert!(result
+            .error_message
+            .unwrap_or_default()
+            .contains("failed to read response body"));
+    }
+
+    #[tokio::test]
+    async fn test_truncated_response_body_is_a_failure() {
+        // Declares 200 bytes, sends 10, then closes: `text()` errors, and a
+        // 2xx whose body cannot be inspected must not read as delivered.
+        let response = b"HTTP/1.1 200 OK
+content-length: 200
+connection: close
+
+truncated!";
+        let url = raw_responder(response.to_vec()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(!result.success, "an unreadable 200 body is a failure");
+        assert_eq!(result.http_status, Some(200));
+        assert!(result
+            .error_message
+            .unwrap_or_default()
+            .contains("failed to read response body"));
     }
 }

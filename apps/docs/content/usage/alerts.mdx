@@ -99,7 +99,11 @@ Webhook integration is unchanged; Custom Webhook is its own provider.
 
 The rendered result must be valid JSON; if it is not, the delivery is recorded
 as a failure with the parse error, and nothing is sent. Template syntax errors
-are rejected when the integration is saved, not at alert time.
+are rejected when the integration is saved, not at alert time. A rejection the
+bot hides inside an HTTP 200 — a non-zero `errcode` (WeCom, DingTalk) or
+`code`/`StatusCode` (Feishu) in the response body — is also recorded as a
+failed delivery, and response bodies larger than 64 KiB are rejected rather
+than buffered.
 
 #### Template variables
 
