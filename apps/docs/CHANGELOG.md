@@ -1,5 +1,14 @@
 # docs
 
+## 0.15.6
+
+### Patch Changes
+
+- [`d276e32`](https://github.com/rustrak/rustrak/commit/d276e321b04b31b344d8c775223de8e694be3a6d) Thanks [@AbianS](https://github.com/AbianS)! - Document the 64-character minimum on `SESSION_SECRET_KEY`, why
+  `openssl rand -base64 32` is not a substitute, and that changing the key
+  invalidates existing sessions. The installation and production guides no longer
+  publish a working key as their example value.
+
 ## 0.15.5
 
 ### Patch Changes
