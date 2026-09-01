@@ -1,6 +1,6 @@
 use actix_cors::Cors;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie::Key, middleware, web, App, HttpServer};
+use actix_web::{middleware, web, App, HttpServer};
 
 use std::sync::Arc;
 
@@ -61,6 +61,18 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("Starting Rustrak server on {}:{}", config.host, config.port);
 
+    // Built before any I/O: an unusable secret must stop the process here, not
+    // after migrations have run and the workers are up.
+    if config.security.session_secret_key.is_none() {
+        log::warn!(
+            "SESSION_SECRET_KEY not set, using random key (sessions won't persist across restarts)"
+        );
+    }
+    let key = config.security.session_key().map_err(|e| {
+        log::error!("Configuration error: {}", e);
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string())
+    })?;
+
     let ingest_dir = rustrak::ingest::get_ingest_dir(config.ingest_dir.as_deref());
     rustrak::ingest::prepare_ingest_dir(&ingest_dir)
         .await
@@ -117,21 +129,6 @@ async fn main() -> std::io::Result<()> {
     if let Err(e) = bootstrap::create_superuser_if_needed(&db_pool).await {
         log::error!("Failed to create superuser: {}", e);
     }
-
-    // Session secret key from config or generate random (with warning)
-    let secret_key = match &config.security.session_secret_key {
-        Some(key) => key.clone(),
-        None => {
-            log::warn!(
-                "SESSION_SECRET_KEY not set, using random key (sessions won't persist across restarts)"
-            );
-            use rand::RngExt;
-            let random_bytes: Vec<u8> = (0..64).map(|_| rand::rng().random()).collect();
-            hex::encode(random_bytes)
-        }
-    };
-
-    let key = Key::from(secret_key.as_bytes());
 
     // Clone values for the closure
     let host = config.host.clone();

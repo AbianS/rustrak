@@ -109,8 +109,9 @@ POSTGRES_DB=rustrak
 SERVER_PORT=8080
 RUST_LOG=info
 
-# Session secret (required) - generate with: openssl rand -hex 32
-SESSION_SECRET_KEY=your-64-char-hex-secret-here
+# Session secret (required) - replace with the output of: openssl rand -hex 32
+# The server refuses to start until you do.
+SESSION_SECRET_KEY=generate-your-own-with-openssl-rand-hex-32
 
 # Admin user (required) - format: email:password
 CREATE_SUPERUSER=admin@example.com:changeme123

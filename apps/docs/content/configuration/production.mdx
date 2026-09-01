@@ -6,11 +6,15 @@ Essential steps before going live.
 
 ### 1. Generate secure secrets
 
-```bash
-# Session secret (required when using HTTPS)
-openssl rand -hex 32
+Session secret, required when using HTTPS:
 
-# Database password
+```bash
+openssl rand -hex 32
+```
+
+Database password (do not reuse this one as the session secret):
+
+```bash
 openssl rand -base64 24
 ```
 

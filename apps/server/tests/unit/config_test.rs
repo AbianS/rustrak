@@ -4,7 +4,8 @@
 //!
 //! Note: These tests modify global environment variables and must run serially.
 
-use rustrak::config::{Config, RateLimitConfig};
+use actix_web::cookie::Key;
+use rustrak::config::{Config, RateLimitConfig, SecurityConfig};
 use serial_test::serial;
 
 // =============================================================================
@@ -192,4 +193,182 @@ fn test_config_public_url_empty_string_treated_as_none() {
         Some(v) => std::env::set_var("PUBLIC_URL", v),
         None => std::env::remove_var("PUBLIC_URL"),
     }
+}
+
+// =============================================================================
+// SESSION_SECRET_KEY Tests
+// =============================================================================
+
+/// Restores SESSION_SECRET_KEY and SSL_PROXY to their pre-test values on drop,
+/// so a failing assertion cannot leak state into the next serial test.
+struct SessionEnv {
+    secret: Option<String>,
+    ssl_proxy: Option<String>,
+}
+
+impl SessionEnv {
+    fn set(secret: Option<&str>) -> Self {
+        let guard = Self {
+            secret: std::env::var("SESSION_SECRET_KEY").ok(),
+            ssl_proxy: std::env::var("SSL_PROXY").ok(),
+        };
+        std::env::remove_var("SSL_PROXY");
+        match secret {
+            Some(value) => std::env::set_var("SESSION_SECRET_KEY", value),
+            None => std::env::remove_var("SESSION_SECRET_KEY"),
+        }
+        guard
+    }
+}
+
+impl Drop for SessionEnv {
+    fn drop(&mut self) {
+        match &self.secret {
+            Some(value) => std::env::set_var("SESSION_SECRET_KEY", value),
+            None => std::env::remove_var("SESSION_SECRET_KEY"),
+        }
+        match &self.ssl_proxy {
+            Some(value) => std::env::set_var("SSL_PROXY", value),
+            None => std::env::remove_var("SSL_PROXY"),
+        }
+    }
+}
+
+#[test]
+#[serial]
+fn test_session_secret_shorter_than_64_bytes_is_rejected_at_load() {
+    let _env = SessionEnv::set(Some("too-short-secret-key"));
+
+    let result = SecurityConfig::from_env();
+
+    assert!(
+        result.is_err(),
+        "a 20-byte secret must be rejected at load, not panic later in the cookie crate"
+    );
+}
+
+#[test]
+#[serial]
+fn test_session_secret_too_short_error_names_the_variable_and_the_fix() {
+    let _env = SessionEnv::set(Some("too-short-secret-key"));
+
+    let message = SecurityConfig::from_env()
+        .expect_err("a 20-byte secret must be rejected")
+        .to_string();
+
+    assert!(
+        message.contains("SESSION_SECRET_KEY"),
+        "the operator must be told which variable is wrong, got: {message}"
+    );
+    assert!(
+        message.contains("20"),
+        "the operator must be told the length we actually received, got: {message}"
+    );
+    assert!(
+        message.contains("64"),
+        "the operator must be told the minimum accepted length, got: {message}"
+    );
+    assert!(
+        message.contains("openssl rand -hex 32"),
+        "the operator must be told how to generate a valid key, got: {message}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_secret_of_64_bytes_keeps_the_key_existing_sessions_were_signed_with() {
+    // What `openssl rand -hex 32` produces, and what every current deployment runs.
+    let secret = "0123456789abcdef".repeat(4);
+    assert_eq!(secret.len(), 64);
+    let _env = SessionEnv::set(Some(&secret));
+
+    let key = SecurityConfig::from_env()
+        .expect("a 64-byte secret must load")
+        .session_key()
+        .expect("a 64-byte secret must build a key");
+
+    // `Key` has no Debug impl, so compare with assert! rather than assert_eq!.
+    assert!(
+        key == Key::from(secret.as_bytes()),
+        "keys of 64 bytes or more must be used verbatim, otherwise upgrading logs everyone out"
+    );
+}
+
+/// Regression guard for rustrak/rustrak#298: the reporter set a 44-byte key,
+/// which is what `openssl rand -base64 32` produces, and the server crash-looped
+/// on `TooShort(44)` from the cookie crate after migrations had already run.
+/// The key is still refused, but now it is refused in a way the operator can act on.
+#[test]
+#[serial]
+fn test_secret_of_44_bytes_from_base64_is_refused_with_a_usable_message() {
+    let secret = "sB5nQm0dK9xTfR2wV7yZaL4pC8jH1gE6uN3oI0kM5tQ=";
+    assert_eq!(secret.len(), 44);
+    let _env = SessionEnv::set(Some(secret));
+
+    let message = SecurityConfig::from_env()
+        .expect_err("a 44-byte secret must be refused, not panic in the cookie crate")
+        .to_string();
+
+    assert!(
+        message.contains("SESSION_SECRET_KEY") && message.contains("44"),
+        "the message must name the variable and the length received, got: {message}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_same_secret_builds_the_same_key_so_sessions_survive_a_restart() {
+    let secret = "0123456789abcdef".repeat(4);
+    let _env = SessionEnv::set(Some(&secret));
+
+    let first = SecurityConfig::from_env().unwrap().session_key().unwrap();
+    let second = SecurityConfig::from_env().unwrap().session_key().unwrap();
+
+    assert!(first == second, "a fixed secret must be deterministic");
+}
+
+#[test]
+#[serial]
+fn test_no_secret_builds_a_random_key_per_start() {
+    let _env = SessionEnv::set(None);
+
+    let first = SecurityConfig::from_env().unwrap().session_key().unwrap();
+    let second = SecurityConfig::from_env().unwrap().session_key().unwrap();
+
+    assert!(
+        first != second,
+        "without a configured secret each start must get its own key"
+    );
+}
+
+#[test]
+#[serial]
+fn test_debug_output_does_not_leak_the_session_secret() {
+    let secret = "0123456789abcdef".repeat(4);
+    let _env = SessionEnv::set(Some(&secret));
+
+    let rendered = format!("{:?}", SecurityConfig::from_env().unwrap());
+
+    assert!(
+        !rendered.contains(&secret),
+        "the session secret must never reach a log line, got: {rendered}"
+    );
+    assert!(
+        rendered.contains("ssl_proxy"),
+        "the rest of the config must still be inspectable, got: {rendered}"
+    );
+}
+
+#[test]
+#[serial]
+fn test_ssl_proxy_still_requires_a_session_secret() {
+    let _env = SessionEnv::set(None);
+    std::env::set_var("SSL_PROXY", "true");
+
+    let result = SecurityConfig::from_env();
+
+    assert!(
+        result.is_err(),
+        "a secure-cookie deployment must not fall back to a per-start random key"
+    );
 }

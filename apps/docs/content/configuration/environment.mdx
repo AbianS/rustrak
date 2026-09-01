@@ -42,7 +42,7 @@ DATABASE_URL=postgres://user:pass@host:5432/rustrak?sslmode=require  # With SSL
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SSL_PROXY` | `false` | Set to `true` when behind HTTPS proxy (nginx, Cloudflare) |
-| `SESSION_SECRET_KEY` | (random) | 64-character hex string for session encryption |
+| `SESSION_SECRET_KEY` | (random) | 64-character key for session encryption |
 
 ### SSL_PROXY
 
@@ -65,6 +65,12 @@ openssl rand -hex 32
 
 - **Development**: Optional (a random key is used, sessions don't persist across restarts)
 - **Production with `SSL_PROXY=true`**: Required
+
+The key must be at least 64 characters, which is what `openssl rand -hex 32`
+produces: the cookie key is a 256-bit signing key followed by a 256-bit
+encryption key. Anything shorter is refused at startup with the length it
+received, so `openssl rand -base64 32` (44 characters) will not do. Changing the
+key invalidates every existing session.
 
 ## Server
 
@@ -236,7 +242,7 @@ DATABASE_URL=postgres://rustrak:password@postgres:5432/rustrak
 
 # Security (required for production behind HTTPS proxy)
 SSL_PROXY=true
-SESSION_SECRET_KEY=a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890
+SESSION_SECRET_KEY=generate-your-own-with-openssl-rand-hex-32
 
 # Server
 PORT=8080

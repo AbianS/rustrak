@@ -34,7 +34,7 @@ cargo run
 docker pull rustrak/rustrak-server
 docker run -d -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@localhost:5432/rustrak" \
-  -e SESSION_SECRET_KEY="your-secret-key" \
+  -e SESSION_SECRET_KEY="$(openssl rand -hex 32)" \
   rustrak/rustrak-server
 ```
 
