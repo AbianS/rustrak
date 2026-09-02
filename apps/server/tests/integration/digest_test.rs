@@ -835,6 +835,75 @@ async fn test_new_event_after_retention_purge_does_not_collide() {
 // =============================================================================
 
 #[actix_web::test]
+async fn test_digest_message_only_events_get_their_own_issue_and_title() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Elixir Warnings").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ingest_dir = temp_dir.path();
+    let rate_limit_config = create_rate_limit_config();
+
+    for warning in ["Disk almost full", "Cache miss storm"] {
+        let event_id = Uuid::new_v4().to_string().replace("-", "");
+        let event_json = json!({
+            "event_id": &event_id,
+            "timestamp": Utc::now().timestamp() as f64,
+            "platform": "elixir",
+            "level": "warning",
+            "exception": [],
+            "fingerprint": ["{{ default }}"],
+            "transaction": null,
+            "message": { "formatted": warning, "message": null, "params": null }
+        });
+        let event_bytes = serde_json::to_vec(&event_json).unwrap();
+
+        store_event(ingest_dir, &event_id, &event_bytes)
+            .await
+            .expect("Failed to store event");
+
+        let metadata = EventMetadata {
+            event_id: event_id.clone(),
+            project_id: project.id,
+            ingested_at: Utc::now(),
+            remote_addr: None,
+        };
+
+        process_error_event(
+            &db.pool,
+            &metadata,
+            ingest_dir,
+            &rate_limit_config,
+            crate::common::null_sourcemap_provider(),
+        )
+        .await
+        .expect("Failed to process event");
+    }
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(issues.len(), 2, "the two warnings collapsed into one issue");
+
+    let mut titles: Vec<String> = issues.iter().map(|i| i.title()).collect();
+    titles.sort();
+    assert_eq!(
+        titles,
+        vec![
+            "Log Message: Cache miss storm".to_string(),
+            "Log Message: Disk almost full".to_string(),
+        ]
+    );
+}
+
+#[actix_web::test]
 async fn test_digest_groups_log_messages() {
     let db = TestDb::new().await;
     let project = create_test_project(&db.pool, "Log Message Project").await;

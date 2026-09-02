@@ -1,3 +1,6 @@
+use std::borrow::Cow;
+
+use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -6,7 +9,8 @@ const GROUPING_SEPARATOR: &str = " ⋄ ";
 
 /// Calculates the grouping key for an event
 pub fn calculate_grouping_key(event_data: &Value) -> String {
-    let (calculated_type, calculated_value) = get_type_and_value(event_data);
+    let (calculated_type, calculated_value) =
+        type_and_value(event_data, MessagePreference::Grouping);
     let transaction = get_transaction(event_data);
 
     // Check for custom fingerprint. An empty fingerprint (sent as `[]` by
@@ -81,8 +85,12 @@ pub fn hash_grouping_key(grouping_key: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Extracts type and value from the event
+/// Extracts the type and value used to title the issue.
 pub fn get_type_and_value(event_data: &Value) -> (String, String) {
+    type_and_value(event_data, MessagePreference::Title)
+}
+
+fn type_and_value(event_data: &Value, preference: MessagePreference) -> (String, String) {
     // Try to extract from exception, unless it is synthetic. Relay ignores the
     // type/value of synthetic exceptions (signal/segfault wrappers) for
     // grouping and falls through to the next component
@@ -104,7 +112,7 @@ pub fn get_type_and_value(event_data: &Value) -> (String, String) {
     }
 
     // Try to extract from logentry/message
-    if let Some(message) = get_log_message(event_data) {
+    if let Some(message) = get_log_message(event_data, preference) {
         return ("Log Message".to_string(), truncate(&message, 1024));
     }
 
@@ -136,25 +144,93 @@ fn is_synthetic(exception: &Value) -> bool {
         .unwrap_or(false)
 }
 
-/// Gets the log message
-fn get_log_message(event_data: &Value) -> Option<String> {
-    // Try logentry.message or logentry.formatted
-    if let Some(logentry) = event_data.get("logentry") {
-        if let Some(msg) = logentry.get("message").and_then(|m| m.as_str()) {
-            return Some(msg.lines().next().unwrap_or("").to_string());
-        }
-        if let Some(msg) = logentry.get("formatted").and_then(|m| m.as_str()) {
-            return Some(msg.lines().next().unwrap_or("").to_string());
+/// Grouping takes the template so every rendering lands in one issue; the title
+/// takes the rendered text.
+#[derive(Clone, Copy)]
+enum MessagePreference {
+    Grouping,
+    Title,
+}
+
+/// Renders `message` with `params`, the way an SDK would have rendered
+/// `formatted` itself. Returns `None` when the template takes no parameters or
+/// the parameters do not fit it, leaving the template as the best text we have.
+fn format_message(template: &str, params: &Value) -> Option<String> {
+    let args = ParamArgs(params);
+    if template.contains('%') {
+        PythonFormat
+            .format(template, args)
+            .ok()
+            .map(Cow::into_owned)
+    } else if template.contains('{') {
+        SimpleCurlyFormat
+            .format(template, args)
+            .ok()
+            .map(Cow::into_owned)
+    } else {
+        None
+    }
+}
+
+struct ParamArgs<'a>(&'a Value);
+
+impl FormatArgs for ParamArgs<'_> {
+    fn get_index(&self, index: usize) -> Result<Option<Argument<'_>>, ()> {
+        match self.0 {
+            Value::Array(array) => Ok(array.get(index).map(|v| v as Argument<'_>)),
+            _ => Err(()),
         }
     }
 
-    // Fallback to message (deprecated)
-    if let Some(message) = event_data.get("message") {
-        if let Some(msg) = message.as_str() {
-            return Some(msg.lines().next().unwrap_or("").to_string());
+    fn get_key(&self, key: &str) -> Result<Option<Argument<'_>>, ()> {
+        match self.0 {
+            Value::Object(object) => Ok(object.get(key).map(|v| v as Argument<'_>)),
+            _ => Err(()),
         }
-        if let Some(msg) = message.get("message").and_then(|m| m.as_str()) {
-            return Some(msg.lines().next().unwrap_or("").to_string());
+    }
+}
+
+/// A top-level `message` is the legacy spelling of `logentry` and carries the
+/// same object shape, so both are read the same way.
+fn get_log_message(event_data: &Value, preference: MessagePreference) -> Option<String> {
+    let first_line = |msg: &str| msg.lines().next().unwrap_or("").to_string();
+
+    for key in ["logentry", "message"] {
+        let Some(entry) = event_data.get(key) else {
+            continue;
+        };
+
+        if let Some(msg) = entry.as_str() {
+            return Some(first_line(msg));
+        }
+
+        // Sentry reads these with `or`, where an empty string is falsy and the
+        // next option is tried, so an empty field must not shadow a usable one.
+        let field = |name: &str| {
+            entry
+                .get(name)
+                .and_then(|m| m.as_str())
+                .filter(|m| !m.is_empty())
+        };
+        let picked = match preference {
+            MessagePreference::Grouping => field("message").or_else(|| field("formatted")),
+            MessagePreference::Title => {
+                if let Some(formatted) = field("formatted") {
+                    Some(formatted)
+                } else {
+                    let rendered = field("message")
+                        .zip(entry.get("params"))
+                        .and_then(|(template, params)| format_message(template, params));
+                    match rendered {
+                        Some(rendered) => return Some(first_line(&rendered)),
+                        None => field("message"),
+                    }
+                }
+            }
+        };
+
+        if let Some(msg) = picked {
+            return Some(first_line(msg));
         }
     }
 
