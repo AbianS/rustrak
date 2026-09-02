@@ -602,30 +602,50 @@ async fn find_or_create_issue_and_grouping_inner(
         // reopen it as `regressed` (mirrors Sentry's lifecycle) — unless the
         // issue was "resolved in next release" and this event is still from the
         // same release (no new deploy yet), in which case it stays resolved.
-        let prev: (String, String, String) =
-            sqlx::query_as("SELECT status, status_details, last_release FROM issues WHERE id = $1")
-                .bind(grouping.issue_id)
-                .fetch_one(&mut **tx)
-                .await?;
-        let in_next_release = serde_json::from_str::<serde_json::Value>(&prev.1)
+        let prev: PrevIssue = sqlx::query_as(
+            "SELECT status, status_details, last_release, calculated_type, calculated_value, \
+             first_seen, last_seen FROM issues WHERE id = $1",
+        )
+        .bind(grouping.issue_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        let in_next_release = serde_json::from_str::<serde_json::Value>(&prev.status_details)
             .ok()
             .and_then(|v| v.get("in_next_release").and_then(|b| b.as_bool()))
             .unwrap_or(false);
         // An event with no release metadata can't prove it's from a newer
         // release, so treat it as the same release rather than triggering a
         // spurious regression reopen.
-        let same_release = denormalized.release.is_empty() || denormalized.release == prev.2;
+        let same_release =
+            denormalized.release.is_empty() || denormalized.release == prev.last_release;
         let suppress = in_next_release && same_release;
-        let regressed = prev.0 == crate::models::STATUS_RESOLVED && !suppress;
+        let regressed = prev.status == crate::models::STATUS_RESOLVED && !suppress;
+
+        let (calculated_type, calculated_value) = updated_title(
+            (&prev.calculated_type, &prev.calculated_value),
+            (
+                &denormalized.calculated_type,
+                &denormalized.calculated_value,
+            ),
+        );
+        // An event can arrive older than the issue (clock skew across hosts, a
+        // replayed envelope), so each bound moves only in its own direction.
+        let first_seen = prev.first_seen.min(timestamp);
+        let last_seen = prev.last_seen.max(timestamp);
 
         // Grouping exists, update issue (reopening it if it regressed).
         let issue: Issue = if regressed {
             sqlx::query_as(
                 r#"
                 UPDATE issues
-                SET last_seen = $2,
+                SET first_seen = $8,
+                    last_seen = $2,
                     digested_event_count = digested_event_count + 1,
                     stored_event_count = stored_event_count + 1,
+                    calculated_type = $4,
+                    calculated_value = $5,
+                    level = $6,
+                    culprit = $7,
                     status = 'unresolved',
                     substatus = 'regressed',
                     status_details = '{}',
@@ -636,17 +656,27 @@ async fn find_or_create_issue_and_grouping_inner(
                 "#,
             )
             .bind(grouping.issue_id)
-            .bind(timestamp)
+            .bind(last_seen)
             .bind(&denormalized.release)
+            .bind(calculated_type)
+            .bind(calculated_value)
+            .bind(level)
+            .bind(&denormalized.culprit)
+            .bind(first_seen)
             .fetch_one(&mut **tx)
             .await?
         } else {
             sqlx::query_as(
                 r#"
                 UPDATE issues
-                SET last_seen = $2,
+                SET first_seen = $8,
+                    last_seen = $2,
                     digested_event_count = digested_event_count + 1,
                     stored_event_count = stored_event_count + 1,
+                    calculated_type = $4,
+                    calculated_value = $5,
+                    level = $6,
+                    culprit = $7,
                     last_release = CASE WHEN $3 <> '' THEN $3 ELSE last_release END,
                     first_release = CASE WHEN first_release = '' THEN $3 ELSE first_release END
                 WHERE id = $1
@@ -654,8 +684,13 @@ async fn find_or_create_issue_and_grouping_inner(
                 "#,
             )
             .bind(grouping.issue_id)
-            .bind(timestamp)
+            .bind(last_seen)
             .bind(&denormalized.release)
+            .bind(calculated_type)
+            .bind(calculated_value)
+            .bind(level)
+            .bind(&denormalized.culprit)
+            .bind(first_seen)
             .fetch_one(&mut **tx)
             .await?
         };
@@ -744,6 +779,43 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_real_incoming_title_always_wins() {
+        assert_eq!(
+            updated_title(("Log Message", "old"), ("TypeError", "boom")),
+            ("TypeError", "boom")
+        );
+        assert_eq!(
+            updated_title(("Unknown", ""), ("TypeError", "boom")),
+            ("TypeError", "boom")
+        );
+    }
+
+    #[test]
+    fn a_placeholder_incoming_title_loses_to_a_real_one() {
+        assert_eq!(
+            updated_title(("TypeError", "boom"), ("Unknown", "")),
+            ("TypeError", "boom")
+        );
+        assert_eq!(
+            updated_title(("TypeError", "boom"), ("Error", "")),
+            ("TypeError", "boom")
+        );
+    }
+
+    #[test]
+    fn a_placeholder_replaces_another_placeholder() {
+        assert_eq!(updated_title(("Unknown", ""), ("Error", "")), ("Error", ""));
+    }
+
+    #[test]
+    fn an_error_carrying_a_value_is_a_real_title() {
+        assert_eq!(
+            updated_title(("TypeError", "boom"), ("Error", "connection reset")),
+            ("Error", "connection reset")
+        );
+    }
+
+    #[test]
     fn busy_codes_are_recognized_and_others_are_not() {
         for code in ["5", "261", "517", "773"] {
             assert!(is_sqlite_busy_code(code), "{code} must classify as busy");
@@ -811,4 +883,38 @@ mod tests {
             "Invalid event JSON".to_string(),
         )));
     }
+}
+
+/// A title that says nothing about the event. Mirrors Sentry's
+/// `PLACEHOLDER_EVENT_TITLES` in Rustrak's vocabulary: "Unknown" is what an
+/// event with neither exception nor message produces, "Error" an exception
+/// carrying neither type nor value.
+fn is_placeholder_title(calculated_type: &str, calculated_value: &str) -> bool {
+    calculated_value.trim().is_empty() && matches!(calculated_type, "Unknown" | "Error")
+}
+
+/// Picks the type and value an issue should carry after a new event. The
+/// incoming pair wins unless it is a placeholder about to replace a real title.
+fn updated_title<'a>(
+    existing: (&'a str, &'a str),
+    incoming: (&'a str, &'a str),
+) -> (&'a str, &'a str) {
+    if is_placeholder_title(incoming.0, incoming.1) && !is_placeholder_title(existing.0, existing.1)
+    {
+        existing
+    } else {
+        incoming
+    }
+}
+
+/// The issue columns the update path reads before deciding what to write.
+#[derive(sqlx::FromRow)]
+struct PrevIssue {
+    status: String,
+    status_details: String,
+    last_release: String,
+    calculated_type: String,
+    calculated_value: String,
+    first_seen: chrono::DateTime<Utc>,
+    last_seen: chrono::DateTime<Utc>,
 }
