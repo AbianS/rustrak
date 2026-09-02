@@ -36,15 +36,27 @@ pub struct CustomWebhookNotifier {
 /// notification worker.
 const MAX_RESPONSE_BODY_BYTES: u64 = 64 * 1024;
 
+/// Shared HTTP client for every dispatcher. Built once process-wide so each
+/// delivery reuses the connection pool and TLS session instead of building a
+/// fresh client per notification. Construction only fails on untenable TLS
+/// config, so a build error falls back to a default client rather than
+/// panicking on the request path.
+fn shared_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
+
 impl CustomWebhookNotifier {
     /// Creates a new custom webhook notifier
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { client }
+        Self {
+            client: shared_client().clone(),
+        }
     }
 
     /// Computes the effective URL: routing.url ?? credentials.url (K5).

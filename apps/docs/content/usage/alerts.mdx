@@ -105,6 +105,15 @@ bot hides inside an HTTP 200 — a non-zero `errcode` (WeCom, DingTalk) or
 failed delivery, and response bodies larger than 64 KiB are rejected rather
 than buffered.
 
+The rejection check looks for a non-zero `errcode`, `StatusCode`, or — for a
+bare top-level `code` — a value that is neither `0` nor an HTTP-success echo
+(`200`–`299`). That recognises the common `{"code":200,"message":"OK"}`
+convention without letting Feishu's rejections through, but it also means an
+arbitrary endpoint that answers a happy HTTP 200 with its own business `code`
+(for example `{"code":1,"msg":"ok"}`) is recorded as a failed delivery. For a
+non-bot endpoint, prefer a 2xx response body without a top-level
+`code`/`errcode` field.
+
 #### Template variables
 
 The context is exactly the [Webhook payload](#webhook-payload) above:
