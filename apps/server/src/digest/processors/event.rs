@@ -545,6 +545,17 @@ async fn write_digest_rows(
     )
     .await?;
 
+    if regressed {
+        crate::services::IssueSocialService::add_activity_on(
+            tx,
+            issue.id,
+            None,
+            "set_regression",
+            &serde_json::json!({ "status": crate::models::STATUS_UNRESOLVED }).to_string(),
+        )
+        .await?;
+    }
+
     // No digest_order to compute: events order within an issue by
     // (timestamp, id) (see idx_events_issue_timestamp), which needs no
     // per-issue counter to derive or keep in sync.
@@ -604,7 +615,8 @@ async fn find_or_create_issue_and_grouping_inner(
         // same release (no new deploy yet), in which case it stays resolved.
         let prev: PrevIssue = sqlx::query_as(
             "SELECT status, status_details, last_release, calculated_type, calculated_value, \
-             first_seen, last_seen FROM issues WHERE id = $1",
+             first_seen, last_seen, last_frame_filename, last_frame_module, \
+             last_frame_function, level FROM issues WHERE id = $1",
         )
         .bind(grouping.issue_id)
         .fetch_one(&mut **tx)
@@ -628,10 +640,27 @@ async fn find_or_create_issue_and_grouping_inner(
                 &denormalized.calculated_value,
             ),
         );
+        // Sentry merges the incoming metadata over the existing bag, so a field
+        // the new event does not carry keeps the value it had.
+        fn keep_if_blank<'a>(incoming: &'a str, existing: &'a str) -> &'a str {
+            if incoming.is_empty() {
+                existing
+            } else {
+                incoming
+            }
+        }
         // An event can arrive older than the issue (clock skew across hosts, a
         // replayed envelope), so each bound moves only in its own direction.
         let first_seen = prev.first_seen.min(timestamp);
         let last_seen = prev.last_seen.max(timestamp);
+        // SDKs omit `level` when it is their default, so an absent one keeps
+        // whatever the issue already had rather than clearing it.
+        let level = level.or(prev.level.as_deref());
+        let frame_filename =
+            keep_if_blank(&denormalized.last_frame_filename, &prev.last_frame_filename);
+        let frame_module = keep_if_blank(&denormalized.last_frame_module, &prev.last_frame_module);
+        let frame_function =
+            keep_if_blank(&denormalized.last_frame_function, &prev.last_frame_function);
 
         // Grouping exists, update issue (reopening it if it regressed).
         let issue: Issue = if regressed {
@@ -646,6 +675,9 @@ async fn find_or_create_issue_and_grouping_inner(
                     calculated_value = $5,
                     level = $6,
                     culprit = $7,
+                    last_frame_filename = $9,
+                    last_frame_module = $10,
+                    last_frame_function = $11,
                     status = 'unresolved',
                     substatus = 'regressed',
                     status_details = '{}',
@@ -663,6 +695,9 @@ async fn find_or_create_issue_and_grouping_inner(
             .bind(level)
             .bind(&denormalized.culprit)
             .bind(first_seen)
+            .bind(frame_filename)
+            .bind(frame_module)
+            .bind(frame_function)
             .fetch_one(&mut **tx)
             .await?
         } else {
@@ -677,6 +712,9 @@ async fn find_or_create_issue_and_grouping_inner(
                     calculated_value = $5,
                     level = $6,
                     culprit = $7,
+                    last_frame_filename = $9,
+                    last_frame_module = $10,
+                    last_frame_function = $11,
                     last_release = CASE WHEN $3 <> '' THEN $3 ELSE last_release END,
                     first_release = CASE WHEN first_release = '' THEN $3 ELSE first_release END
                 WHERE id = $1
@@ -691,6 +729,9 @@ async fn find_or_create_issue_and_grouping_inner(
             .bind(level)
             .bind(&denormalized.culprit)
             .bind(first_seen)
+            .bind(frame_filename)
+            .bind(frame_module)
+            .bind(frame_function)
             .fetch_one(&mut **tx)
             .await?
         };
@@ -917,4 +958,8 @@ struct PrevIssue {
     calculated_value: String,
     first_seen: chrono::DateTime<Utc>,
     last_seen: chrono::DateTime<Utc>,
+    last_frame_filename: String,
+    last_frame_module: String,
+    last_frame_function: String,
+    level: Option<String>,
 }

@@ -68,6 +68,32 @@ impl IssueSocialService {
         Ok(entry)
     }
 
+    /// Records an activity entry on the caller's connection, so it can share a
+    /// transaction with the change it describes.
+    pub async fn add_activity_on(
+        executor: &mut <crate::db::Db as sqlx::Database>::Connection,
+        issue_id: Uuid,
+        user_id: Option<i32>,
+        activity_type: &str,
+        data: &str,
+    ) -> AppResult<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO issue_activity (id, issue_id, user_id, type, data, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(issue_id)
+        .bind(user_id)
+        .bind(activity_type)
+        .bind(data)
+        .bind(Utc::now())
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+
     /// Convenience: record a status-change activity entry.
     pub async fn record_status_change(
         pool: &DbPool,

@@ -570,6 +570,8 @@ impl IssueService {
                 OR LOWER(calculated_value) LIKE $2 ESCAPE '\'
                 OR LOWER("transaction") LIKE $2 ESCAPE '\'
                 OR LOWER(culprit) LIKE $2 ESCAPE '\'
+                OR LOWER(last_frame_filename) LIKE $2 ESCAPE '\'
+                OR LOWER(last_frame_module) LIKE $2 ESCAPE '\'
             )"#;
             let count_query = format!(
                 "SELECT COUNT(*) FROM issues WHERE {} {}",

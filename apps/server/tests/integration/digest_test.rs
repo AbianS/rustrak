@@ -1063,6 +1063,273 @@ async fn test_first_seen_moves_back_for_an_older_event() {
     );
 }
 
+#[actix_web::test]
+async fn test_automatic_regression_is_recorded_in_the_activity_log() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Regression Activity").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+    let event = json!({ "platform": "rust", "logentry": { "formatted": "boom" } });
+
+    digest(&db.pool, dir, project.id, now, event.clone()).await;
+    let issue = only_issue(&db.pool, project.id).await;
+    IssueService::set_status(&db.pool, issue.id, "resolved", None)
+        .await
+        .expect("resolve");
+    let before = rustrak::services::IssueSocialService::list_activity(&db.pool, issue.id)
+        .await
+        .expect("activity");
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now + chrono::Duration::hours(3),
+        event,
+    )
+    .await;
+
+    let after = rustrak::services::IssueSocialService::list_activity(&db.pool, issue.id)
+        .await
+        .expect("activity");
+    assert_eq!(
+        after.len(),
+        before.len() + 1,
+        "the automatic regression should add exactly one activity entry"
+    );
+    let entry = &after[0];
+    assert_eq!(entry.activity_type, "set_regression");
+    assert!(entry.user_id.is_none(), "no human performed this change");
+}
+
+#[actix_web::test]
+async fn test_an_ordinary_event_records_no_activity() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "No Noise").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+    let event = json!({ "platform": "rust", "logentry": { "formatted": "boom" } });
+
+    digest(&db.pool, dir, project.id, now, event.clone()).await;
+    let issue = only_issue(&db.pool, project.id).await;
+    digest(&db.pool, dir, project.id, now, event).await;
+
+    let entries = rustrak::services::IssueSocialService::list_activity(&db.pool, issue.id)
+        .await
+        .expect("activity");
+    assert!(
+        entries.is_empty(),
+        "only lifecycle changes belong in the log, got {entries:?}"
+    );
+}
+
+#[actix_web::test]
+async fn test_issue_search_finds_the_frame_filename_and_module() {
+    use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Search Frames").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+
+    // The frame carries a function, so the culprit takes it and neither the
+    // filename nor the module is reachable through any other column.
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        Utc::now(),
+        json!({
+            "platform": "rust",
+            "exception": { "values": [{
+                "type": "PaymentError",
+                "value": "card declined",
+                "stacktrace": { "frames": [{
+                    "filename": "billing/stripe.rs",
+                    "module": "billing::stripe",
+                    "function": "charge_customer",
+                    "in_app": true
+                }]}
+            }]}
+        }),
+    )
+    .await;
+
+    for term in ["billing/stripe.rs", "billing::stripe"] {
+        let (hits, total) = IssueService::list_offset(
+            &db.pool,
+            project.id,
+            IssueSort::DigestOrder,
+            SortOrder::Desc,
+            IssueFilter::All,
+            1,
+            20,
+            Some(term),
+        )
+        .await
+        .expect("search");
+        assert_eq!(hits.len(), 1, "searching {term:?} should find the issue");
+        assert_eq!(total, 1, "the count query must agree for {term:?}");
+    }
+}
+
+#[actix_web::test]
+async fn test_search_follows_the_frame_of_the_latest_event() {
+    use rustrak::pagination::{IssueFilter, IssueSort, SortOrder};
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Search Freshness").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    let event = |file: &str, module: &str| {
+        json!({
+            "platform": "rust",
+            "fingerprint": ["pinned"],
+            "exception": { "values": [{
+                "type": "PaymentError", "value": "card declined",
+                "stacktrace": { "frames": [{
+                    "filename": file, "module": module,
+                    "function": "charge_customer", "in_app": true
+                }]}
+            }]}
+        })
+    };
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        event("old/path.rs", "old::path"),
+    )
+    .await;
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        event("new/path.rs", "new::path"),
+    )
+    .await;
+
+    let find = |term: &'static str| {
+        let pool = db.pool.clone();
+        async move {
+            IssueService::list_offset(
+                &pool,
+                project.id,
+                IssueSort::DigestOrder,
+                SortOrder::Desc,
+                IssueFilter::All,
+                1,
+                20,
+                Some(term),
+            )
+            .await
+            .expect("search")
+            .0
+            .len()
+        }
+    };
+
+    assert_eq!(
+        find("new/path.rs").await,
+        1,
+        "the newest filename must be searchable"
+    );
+    assert_eq!(
+        find("new::path").await,
+        1,
+        "the newest module must be searchable"
+    );
+}
+
+#[actix_web::test]
+async fn test_a_frameless_event_does_not_erase_a_known_frame() {
+    // Sentry merges incoming metadata over existing, so a key the new event
+    // lacks keeps its old value rather than being blanked.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Frame Merge").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "rust",
+            "fingerprint": ["pinned"],
+            "exception": { "values": [{
+                "type": "PaymentError", "value": "card declined",
+                "stacktrace": { "frames": [{
+                    "filename": "billing/stripe.rs", "module": "billing::stripe",
+                    "function": "charge_customer", "in_app": true
+                }]}
+            }]}
+        }),
+    )
+    .await;
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "rust",
+            "fingerprint": ["pinned"],
+            "exception": { "values": [{ "type": "PaymentError", "value": "card declined" }]}
+        }),
+    )
+    .await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.last_frame_filename, "billing/stripe.rs");
+    assert_eq!(issue.last_frame_module, "billing::stripe");
+    assert_eq!(issue.last_frame_function, "charge_customer");
+}
+
+#[actix_web::test]
+async fn test_an_event_without_a_level_does_not_erase_the_issue_level() {
+    // Sentry SDKs omit `level` when it is the default, so an issue that has a
+    // level must not lose it to the next event that leaves it out.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Level Merge").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "rust", "level": "warning", "fingerprint": ["pinned"],
+            "logentry": { "formatted": "boom" }
+        }),
+    )
+    .await;
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "rust", "fingerprint": ["pinned"],
+            "logentry": { "formatted": "boom" }
+        }),
+    )
+    .await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.level.as_deref(), Some("warning"));
+}
+
 // =============================================================================
 // Log Message Grouping Tests
 // =============================================================================

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 use serde_json::Value;
@@ -120,19 +121,255 @@ fn type_and_value(event_data: &Value, preference: MessagePreference) -> (String,
     ("Unknown".to_string(), String::new())
 }
 
-/// Gets the main exception (the last one in the chain)
+/// Gets the exception that should drive the type and value: the one Sentry
+/// would mark as `main_exception_id`, falling back to the last of the chain.
 fn get_main_exception(event_data: &Value) -> Option<&Value> {
-    let exception = event_data.get("exception")?;
+    let values = exception_values(event_data)?;
+    match main_exception_id(values) {
+        Some(id) => values
+            .iter()
+            .find(|e| mechanism_id(e, "exception_id") == Some(id))
+            .or_else(|| values.last()),
+        None => values.last(),
+    }
+}
 
-    // Can be a direct array or an object with "values"
-    let values = if exception.is_array() {
-        exception.as_array()?
+/// The exception Sentry would title the issue by, or `None` to keep the
+/// default. Mirrors the two steps of its grouping strategy: collapse
+/// exception-group wrappers, then let the framework-specific overrides move the
+/// choice off a wrapper that carries no information.
+fn main_exception_id(values: &[Value]) -> Option<u64> {
+    let (collapsed, from_groups) = filter_exception_groups(values);
+    override_main_exception_id(&collapsed).or(from_groups)
+}
+
+/// Wrappers that exist only to carry a real error, in the order Sentry tries
+/// them (`MAIN_EXCEPTION_ID_FUNCS`); the first match wins.
+fn override_main_exception_id(exceptions: &[&Value]) -> Option<u64> {
+    react_error_with_cause(exceptions)
+        .or_else(|| java_rxjava_framework_exception(exceptions))
+        .or_else(|| kotlin_diagnostic_wrapper(exceptions))
+}
+
+/// React 19 wraps a recovered render error around the error that caused it.
+fn react_error_with_cause(exceptions: &[&Value]) -> Option<u64> {
+    const REACT_ERRORS_WITH_CAUSE: [&str; 2] = [
+        "There was an error during concurrent rendering but React was able to recover by instead synchronously rendering the entire root.",
+        "There was an error while hydrating but React was able to recover by instead client rendering from the nearest Suspense boundary.",
+    ];
+    let (first, last) = (exceptions.first()?, exceptions.last()?);
+    let (ty, value) = type_and_value_of(first);
+    if ty == "Error"
+        && REACT_ERRORS_WITH_CAUSE.contains(&value)
+        && last.get("mechanism")?.get("source")?.as_str() == Some("cause")
+    {
+        return mechanism_id(last, "exception_id");
+    }
+    None
+}
+
+/// RxJava wraps the real error in a framework exception; the answer is its
+/// direct child.
+fn java_rxjava_framework_exception(exceptions: &[&Value]) -> Option<u64> {
+    const RXJAVA_TYPES: [&str; 3] = [
+        "OnErrorNotImplementedException",
+        "CompositeException",
+        "UndeliverableException",
+    ];
+    if exceptions.len() < 2 {
+        return None;
+    }
+    let wrapper_id = exceptions.iter().find_map(|e| {
+        let is_rxjava = e.get("module").and_then(|m| m.as_str())
+            == Some("io.reactivex.rxjava3.exceptions")
+            && RXJAVA_TYPES.contains(&type_and_value_of(e).0);
+        is_rxjava.then(|| mechanism_id(e, "exception_id"))?
+    })?;
+    exceptions.iter().find_map(|e| {
+        (mechanism_id(e, "parent_id") == Some(wrapper_id))
+            .then(|| mechanism_id(e, "exception_id"))?
+    })
+}
+
+/// Kotlin Coroutines and Compose add diagnostic wrappers with no stacktrace and
+/// a placeholder message. Walk past them to the first real parent.
+fn kotlin_diagnostic_wrapper(exceptions: &[&Value]) -> Option<u64> {
+    const WRAPPERS: [(&str, &str); 2] = [
+        (
+            "kotlinx.coroutines.internal",
+            "DiagnosticCoroutineContextException",
+        ),
+        (
+            "androidx.compose.runtime.tooling",
+            "DiagnosticComposeException",
+        ),
+    ];
+    let is_wrapper = |e: &Value| {
+        let module = e.get("module").and_then(|m| m.as_str()).unwrap_or("");
+        WRAPPERS.contains(&(module, type_and_value_of(e).0))
+    };
+    if exceptions.len() < 2 || !exceptions.iter().any(|e| is_wrapper(e)) {
+        return None;
+    }
+    let by_id: HashMap<u64, &&Value> = exceptions
+        .iter()
+        .filter_map(|e| mechanism_id(e, "exception_id").map(|id| (id, e)))
+        .collect();
+
+    for exception in exceptions.iter().filter(|e| is_wrapper(e)) {
+        // Bounded by the number of exceptions, so a malformed cycle terminates.
+        let mut current = *exception;
+        for _ in 0..by_id.len() {
+            let Some(parent_id) = mechanism_id(current, "parent_id") else {
+                break;
+            };
+            let Some(parent) = by_id.get(&parent_id) else {
+                break;
+            };
+            if !is_wrapper(parent) {
+                return Some(parent_id);
+            }
+            current = parent;
+        }
+    }
+    None
+}
+
+fn exception_values(event_data: &Value) -> Option<&Vec<Value>> {
+    let exception = event_data.get("exception")?;
+    if exception.is_array() {
+        exception.as_array()
     } else {
-        exception.get("values")?.as_array()?
+        exception.get("values")?.as_array()
+    }
+}
+
+fn mechanism_id(exception: &Value, field: &str) -> Option<u64> {
+    exception.get("mechanism")?.get(field)?.as_u64()
+}
+
+fn is_exception_group(exception: &Value) -> bool {
+    exception
+        .get("mechanism")
+        .and_then(|m| m.get("is_exception_group"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+}
+
+/// Collapses exception-group wrappers that only add a level to the chain,
+/// returning the surviving chain and the exception the title should use when
+/// the wrapper turned out to carry nothing. A port of Sentry's
+/// `filter_exceptions_for_exception_groups`; any malformed tree returns the
+/// chain untouched.
+fn filter_exception_groups(values: &[Value]) -> (Vec<&Value>, Option<u64>) {
+    let as_is = || (values.iter().collect::<Vec<_>>(), None);
+    if values.len() <= 1 {
+        return as_is();
+    }
+
+    // Reconstruct the tree. A missing, duplicated or self-parenting id means
+    // the chain cannot be trusted, so nothing is filtered.
+    let mut children: HashMap<u64, Vec<&Value>> = HashMap::new();
+    let mut by_id: HashMap<u64, &Value> = HashMap::new();
+    for exception in values.iter().rev() {
+        let Some(id) = mechanism_id(exception, "exception_id") else {
+            return as_is();
+        };
+        let parent = mechanism_id(exception, "parent_id");
+        if parent == Some(id) || by_id.contains_key(&id) {
+            return as_is();
+        }
+        by_id.insert(id, exception);
+        if let Some(parent) = parent {
+            children.entry(parent).or_default().push(exception);
+        }
+    }
+
+    let Some(root) = by_id.get(&0) else {
+        return as_is();
     };
 
-    // Return the last exception (most important)
-    values.last()
+    let mut top_level = Vec::new();
+    collect_top_level(root, &children, &mut top_level, values.len());
+    if top_level.is_empty() {
+        return as_is();
+    }
+    // Sorted by type so sibling de-duplication is deterministic.
+    top_level.sort_by(|a, b| type_and_value_of(b).cmp(&type_and_value_of(a)));
+
+    let mut distinct: Vec<&Value> = Vec::new();
+    for exception in top_level {
+        if distinct
+            .last()
+            .is_none_or(|prev| type_and_value_of(prev) != type_and_value_of(exception))
+        {
+            distinct.push(exception);
+        }
+    }
+
+    if distinct.len() == 1 {
+        // The wrapper adds nothing: keep the inner error and its first path.
+        let mut path = Vec::new();
+        collect_first_path(distinct[0], &children, &mut path, values.len());
+        let main = mechanism_id(distinct[0], "exception_id");
+        return (path, main);
+    }
+
+    distinct.push(root);
+    (distinct, None)
+}
+
+/// The pair Rustrak groups by, standing in for Sentry's grouping component
+/// when de-duplicating sibling exceptions.
+fn type_and_value_of(exception: &Value) -> (&str, &str) {
+    (
+        exception.get("type").and_then(|t| t.as_str()).unwrap_or(""),
+        exception
+            .get("value")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+    )
+}
+
+/// Direct descendants of exception groups that are not groups themselves.
+fn collect_top_level<'a>(
+    exception: &'a Value,
+    children: &HashMap<u64, Vec<&'a Value>>,
+    out: &mut Vec<&'a Value>,
+    budget: usize,
+) {
+    if out.len() >= budget {
+        return;
+    }
+    if !is_exception_group(exception) {
+        out.push(exception);
+        return;
+    }
+    let Some(id) = mechanism_id(exception, "exception_id") else {
+        return;
+    };
+    for child in children.get(&id).into_iter().flatten() {
+        collect_top_level(child, children, out, budget);
+    }
+}
+
+/// Walks from an exception to a leaf, following the first child each time.
+fn collect_first_path<'a>(
+    exception: &'a Value,
+    children: &HashMap<u64, Vec<&'a Value>>,
+    out: &mut Vec<&'a Value>,
+    budget: usize,
+) {
+    if out.len() >= budget {
+        return;
+    }
+    out.push(exception);
+    let Some(id) = mechanism_id(exception, "exception_id") else {
+        return;
+    };
+    if let Some(first) = children.get(&id).and_then(|c| c.first()) {
+        collect_first_path(first, children, out, budget);
+    }
 }
 
 /// Whether an exception is marked synthetic via `mechanism.synthetic`.
