@@ -831,6 +831,239 @@ async fn test_new_event_after_retention_purge_does_not_collide() {
 }
 
 // =============================================================================
+// Issue Fields Follow the Latest Event
+// =============================================================================
+
+/// Digests one event into `project`, returning nothing; the caller reads the
+/// issue back. `event` is merged over the minimum an event needs.
+async fn digest(
+    pool: &rustrak::db::DbPool,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    at: chrono::DateTime<Utc>,
+    mut event: serde_json::Value,
+) {
+    let event_id = Uuid::new_v4().to_string().replace("-", "");
+    let obj = event.as_object_mut().unwrap();
+    obj.insert("event_id".into(), json!(&event_id));
+    obj.insert("timestamp".into(), json!(at.timestamp() as f64));
+
+    store_event(ingest_dir, &event_id, &serde_json::to_vec(&event).unwrap())
+        .await
+        .expect("Failed to store event");
+
+    process_error_event(
+        pool,
+        &EventMetadata {
+            event_id,
+            project_id,
+            ingested_at: at,
+            remote_addr: None,
+        },
+        ingest_dir,
+        &create_rate_limit_config(),
+        crate::common::null_sourcemap_provider(),
+    )
+    .await
+    .expect("Failed to process event");
+}
+
+async fn only_issue(pool: &rustrak::db::DbPool, project_id: i32) -> rustrak::models::Issue {
+    let (issues, _) = IssueService::list_paginated(
+        pool,
+        project_id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), 1, "expected the events to share one issue");
+    issues.into_iter().next().unwrap()
+}
+
+#[actix_web::test]
+async fn test_issue_title_follows_the_latest_event() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Title Follows").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    let event = |param: &str| {
+        json!({
+            "platform": "elixir",
+            "level": "warning",
+            "logentry": { "message": "User %s logged in", "params": [param] }
+        })
+    };
+
+    digest(&db.pool, dir, project.id, now, event("john")).await;
+    digest(&db.pool, dir, project.id, now, event("jane")).await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.digested_event_count, 2);
+    assert_eq!(issue.title(), "Log Message: User jane logged in");
+}
+
+#[actix_web::test]
+async fn test_placeholder_title_does_not_overwrite_a_real_one() {
+    // Sentry keeps the existing title when the incoming one is a placeholder
+    // (`_get_updated_group_title`). Rustrak's placeholders are "Unknown", for an
+    // event with neither exception nor message, and a bare "Error".
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Placeholder Title").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    // A custom fingerprint pins both events to one issue regardless of content.
+    let real = json!({
+        "platform": "rust",
+        "fingerprint": ["pinned"],
+        "logentry": { "formatted": "Something specific happened" }
+    });
+    let placeholder = json!({
+        "platform": "rust",
+        "fingerprint": ["pinned"]
+    });
+
+    digest(&db.pool, dir, project.id, now, real).await;
+    digest(&db.pool, dir, project.id, now, placeholder).await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.digested_event_count, 2);
+    assert_eq!(issue.title(), "Log Message: Something specific happened");
+}
+
+#[actix_web::test]
+async fn test_issue_level_and_culprit_follow_the_latest_event() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Level Follows").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    let event = |level: &str, function: &str| {
+        json!({
+            "platform": "rust",
+            "level": level,
+            "fingerprint": ["pinned"],
+            "exception": { "values": [{
+                "type": "TypeError",
+                "value": "boom",
+                "stacktrace": { "frames": [{
+                    "filename": "app.rs", "function": function, "in_app": true
+                }]}
+            }]}
+        })
+    };
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        event("warning", "first_path"),
+    )
+    .await;
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        event("error", "second_path"),
+    )
+    .await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.level.as_deref(), Some("error"));
+    assert_eq!(issue.culprit, "second_path");
+}
+
+#[actix_web::test]
+async fn test_issue_keeps_creation_only_fields_across_events() {
+    // Sentry's `_process_existing_aggregate` never touches platform, logger or
+    // first_release, and sets priority only at creation.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Creation Only").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+    let now = Utc::now();
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "rust", "level": "warning", "logger": "first.logger",
+            "release": "1.0.0", "fingerprint": ["pinned"],
+            "logentry": { "formatted": "boom" }
+        }),
+    )
+    .await;
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        now,
+        json!({
+            "platform": "python", "level": "fatal", "logger": "second.logger",
+            "release": "2.0.0", "fingerprint": ["pinned"],
+            "logentry": { "formatted": "boom" }
+        }),
+    )
+    .await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.platform.as_deref(), Some("rust"));
+    assert_eq!(issue.logger, "first.logger");
+    assert_eq!(issue.first_release, "1.0.0");
+    assert_eq!(issue.last_release, "2.0.0");
+    assert_eq!(
+        issue.priority.as_deref(),
+        Some("medium"),
+        "priority is derived once, at creation"
+    );
+}
+
+#[actix_web::test]
+async fn test_first_seen_moves_back_for_an_older_event() {
+    // Clock skew between hosts, or a retried envelope, can deliver an event
+    // older than the issue. Sentry moves `first_seen` back; `last_seen` only
+    // ever moves forward.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "First Seen").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+
+    let now = Utc::now();
+    let earlier = now - chrono::Duration::hours(2);
+    let event = json!({
+        "platform": "rust",
+        "logentry": { "formatted": "boom" }
+    });
+
+    digest(&db.pool, dir, project.id, now, event.clone()).await;
+    digest(&db.pool, dir, project.id, earlier, event).await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert!(
+        (issue.first_seen - earlier).num_seconds().abs() <= 1,
+        "first_seen should move back to the older event, got {}",
+        issue.first_seen
+    );
+    assert!(
+        (issue.last_seen - now).num_seconds().abs() <= 1,
+        "last_seen should stay at the newest event, got {}",
+        issue.last_seen
+    );
+}
+
+// =============================================================================
 // Log Message Grouping Tests
 // =============================================================================
 
