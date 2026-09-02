@@ -161,7 +161,8 @@ fn test_logentry_message() {
 
     let (type_, value) = get_type_and_value(&event);
     assert_eq!(type_, "Log Message");
-    assert_eq!(value, "User %s logged in");
+    assert_eq!(value, "User john logged in");
+    assert!(calculate_grouping_key(&event).contains("User %s logged in"));
 }
 
 #[test]
@@ -178,7 +179,26 @@ fn test_logentry_formatted() {
 }
 
 #[test]
-fn test_logentry_prefers_message_over_formatted() {
+fn test_grouping_prefers_message_over_formatted() {
+    let john = json!({
+        "logentry": {
+            "message": "User %s logged in",
+            "formatted": "User john logged in"
+        }
+    });
+    let jane = json!({
+        "logentry": {
+            "message": "User %s logged in",
+            "formatted": "User jane logged in"
+        }
+    });
+
+    assert_eq!(calculate_grouping_key(&john), calculate_grouping_key(&jane));
+    assert!(calculate_grouping_key(&john).contains("User %s logged in"));
+}
+
+#[test]
+fn test_title_prefers_formatted_over_message() {
     let event = json!({
         "logentry": {
             "message": "User %s logged in",
@@ -186,9 +206,76 @@ fn test_logentry_prefers_message_over_formatted() {
         }
     });
 
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(
+        get_title(&type_, &value),
+        "Log Message: User john logged in"
+    );
+}
+
+#[test]
+fn test_title_prefers_formatted_in_deprecated_message_object() {
+    let event = json!({
+        "message": {
+            "message": "User %s logged in",
+            "formatted": "User john logged in"
+        }
+    });
+
     let (_type, value) = get_type_and_value(&event);
-    // Should prefer 'message' (parameterized) for grouping
+    assert_eq!(value, "User john logged in");
+}
+
+#[test]
+fn test_title_interpolates_positional_params() {
+    let event = json!({
+        "logentry": {
+            "message": "User %s logged in",
+            "params": ["john"]
+        }
+    });
+
+    let (_type, value) = get_type_and_value(&event);
+    assert_eq!(value, "User john logged in");
+}
+
+#[test]
+fn test_title_interpolates_named_params() {
+    let event = json!({
+        "logentry": {
+            "message": "Hello, {name}!",
+            "params": { "name": "World" }
+        }
+    });
+
+    let (_type, value) = get_type_and_value(&event);
+    assert_eq!(value, "Hello, World!");
+}
+
+#[test]
+fn test_title_keeps_template_when_params_do_not_fit() {
+    let event = json!({
+        "logentry": {
+            "message": "User %s logged in",
+            "params": null
+        }
+    });
+
+    let (_type, value) = get_type_and_value(&event);
     assert_eq!(value, "User %s logged in");
+}
+
+#[test]
+fn test_title_leaves_a_literal_percent_alone() {
+    let event = json!({
+        "logentry": {
+            "message": "Disk 90% full",
+            "params": ["ignored"]
+        }
+    });
+
+    let (_type, value) = get_type_and_value(&event);
+    assert_eq!(value, "Disk 90% full");
 }
 
 #[test]
@@ -213,6 +300,29 @@ fn test_deprecated_message_object() {
     let (type_, value) = get_type_and_value(&event);
     assert_eq!(type_, "Log Message");
     assert_eq!(value, "Nested message");
+}
+
+#[test]
+fn test_deprecated_message_object_formatted() {
+    let event = json!({
+        "message": {
+            "formatted": "Nested formatted message",
+            "message": null,
+            "params": null
+        }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Log Message");
+    assert_eq!(value, "Nested formatted message");
+}
+
+#[test]
+fn test_message_only_events_do_not_all_group_together() {
+    let foo = json!({ "message": { "formatted": "foo" } });
+    let bar = json!({ "message": { "formatted": "bar" } });
+
+    assert_ne!(calculate_grouping_key(&foo), calculate_grouping_key(&bar));
 }
 
 #[test]

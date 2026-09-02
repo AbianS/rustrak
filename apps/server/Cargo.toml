@@ -81,6 +81,9 @@ bytes = "1.12.1"
 # Hashing (for grouping key hash)
 sha2 = "0.11.0"
 
+# formatting edge cases match.
+dynfmt = { version = "0.2", features = ["python", "curly"] }
+
 # IP address handling (stored as string for SQLite compat)
 # ipnetwork removed - store IP as String for multi-DB support
 
