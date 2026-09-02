@@ -10,8 +10,7 @@ const GROUPING_SEPARATOR: &str = " ⋄ ";
 
 /// Calculates the grouping key for an event
 pub fn calculate_grouping_key(event_data: &Value) -> String {
-    let (calculated_type, calculated_value) =
-        type_and_value(event_data, MessagePreference::Grouping);
+    let components = grouping_components(event_data);
     let transaction = get_transaction(event_data);
 
     // Check for custom fingerprint. An empty fingerprint (sent as `[]` by
@@ -24,11 +23,7 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
             .filter_map(|part| {
                 let coerced = coerce_fingerprint_element(part)?;
                 if coerced == "{{ default }}" {
-                    Some(default_grouping_key(
-                        &calculated_type,
-                        &calculated_value,
-                        &transaction,
-                    ))
+                    Some(default_grouping_key(&components, &transaction))
                 } else {
                     Some(coerced)
                 }
@@ -40,7 +35,35 @@ pub fn calculate_grouping_key(event_data: &Value) -> String {
     }
 
     // Default grouping
-    default_grouping_key(&calculated_type, &calculated_value, &transaction)
+    default_grouping_key(&components, &transaction)
+}
+
+/// One `"Type: value"` per exception the chain contributes, mirroring Sentry's
+/// `chained_exception` component, which holds every surviving exception rather
+/// than a single chosen one.
+fn grouping_components(event_data: &Value) -> Vec<String> {
+    if let Some(values) = exception_values(event_data) {
+        let (chain, _) = filter_exception_groups(values);
+        let contributing: Vec<&&Value> = chain.iter().filter(|e| !is_synthetic(e)).collect();
+        if !contributing.is_empty() {
+            return contributing
+                .iter()
+                .map(|exception| {
+                    let (exc_type, exc_value) = type_and_value_of(exception);
+                    let exc_type = if exc_type.is_empty() {
+                        "Error"
+                    } else {
+                        exc_type
+                    };
+                    get_title(&truncate(exc_type, 128), &truncate(exc_value, 1024))
+                })
+                .collect();
+        }
+    }
+
+    let (calculated_type, calculated_value) =
+        type_and_value(event_data, MessagePreference::Grouping);
+    vec![get_title(&calculated_type, &calculated_value)]
 }
 
 /// Coerces a single fingerprint array element to a string, mirroring Relay's
@@ -69,14 +92,11 @@ fn coerce_fingerprint_element(part: &Value) -> Option<String> {
     }
 }
 
-/// Default grouping key: "Type: value ⋄ transaction"
-fn default_grouping_key(
-    calculated_type: &str,
-    calculated_value: &str,
-    transaction: &str,
-) -> String {
-    let title = get_title(calculated_type, calculated_value);
-    format!("{}{}{}", title, GROUPING_SEPARATOR, transaction)
+/// Default grouping key: every contributing component, then the transaction.
+fn default_grouping_key(components: &[String], transaction: &str) -> String {
+    let mut parts: Vec<&str> = components.iter().map(String::as_str).collect();
+    parts.push(transaction);
+    parts.join(GROUPING_SEPARATOR)
 }
 
 /// Calculates the SHA256 hash of the grouping key

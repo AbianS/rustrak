@@ -648,6 +648,62 @@ fn test_react_concurrent_rendering_is_titled_by_its_cause() {
     assert_eq!(value, "Load failed");
 }
 
+#[test]
+fn test_groups_with_different_children_do_not_collapse() {
+    // Sentry hashes a `chained_exception` component holding every surviving
+    // exception, so the children decide the issue even when the wrapper text is
+    // the same constant every time.
+    let group = |a: &str, b: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": a, "value": "boom",
+                  "mechanism": { "type": "chained", "exception_id": 2, "parent_id": 0 } },
+                { "type": b, "value": "boom",
+                  "mechanism": { "type": "chained", "exception_id": 1, "parent_id": 0 } },
+                { "type": "System.AggregateException", "value": "One or more errors occurred.",
+                  "mechanism": { "type": "generic", "exception_id": 0,
+                                 "is_exception_group": true } }
+            ]}
+        })
+    };
+
+    assert_ne!(
+        calculate_grouping_key(&group("MyApp.SuchWowException", "MyApp.AmazingException")),
+        calculate_grouping_key(&group("MyApp.FooException", "MyApp.BarException"))
+    );
+}
+
+#[test]
+fn test_a_chain_groups_by_every_exception_in_it() {
+    let chain = |cause: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": "IOError", "value": cause },
+                { "type": "RuntimeError", "value": "save failed" }
+            ]}
+        })
+    };
+
+    assert_ne!(
+        calculate_grouping_key(&chain("disk full")),
+        calculate_grouping_key(&chain("permission denied"))
+    );
+}
+
+#[test]
+fn test_a_single_exception_keeps_its_grouping_key() {
+    // The common case must not move: one exception, one component.
+    let event = json!({
+        "exception": { "values": [{ "type": "TypeError", "value": "boom" }] },
+        "transaction": "/api/users"
+    });
+
+    assert_eq!(
+        calculate_grouping_key(&event),
+        "TypeError: boom ⋄ /api/users"
+    );
+}
+
 // =============================================================================
 // Transaction Grouping Tests
 // =============================================================================
@@ -898,6 +954,26 @@ fn test_synthetic_exception_without_message_is_unknown() {
     let (type_, value) = get_type_and_value(&event);
     assert_eq!(type_, "Unknown");
     assert_eq!(value, "");
+}
+
+#[test]
+fn test_a_synthetic_exception_drops_out_but_its_chain_still_groups() {
+    // Only the synthetic component stops contributing; the real error next to
+    // it still decides the issue.
+    let with_cause = |cause: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": "ValueError", "value": cause },
+                { "type": "SIGSEGV", "value": "Segfault",
+                  "mechanism": { "synthetic": true } }
+            ]}
+        })
+    };
+
+    let key = calculate_grouping_key(&with_cause("bad input"));
+    assert!(key.contains("ValueError: bad input"), "got {key}");
+    assert!(!key.contains("SIGSEGV"), "got {key}");
+    assert_ne!(key, calculate_grouping_key(&with_cause("worse input")));
 }
 
 #[test]
