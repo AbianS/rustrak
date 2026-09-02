@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+
+use crate::services::normalize_message_for_grouping;
 use std::collections::HashMap;
 
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
@@ -55,7 +57,8 @@ fn grouping_components(event_data: &Value) -> Vec<String> {
                     } else {
                         exc_type
                     };
-                    get_title(&truncate(exc_type, 128), &truncate(exc_value, 1024))
+                    let exc_value = normalize_message_for_grouping(exc_value);
+                    get_title(&truncate(exc_type, 128), &truncate(&exc_value, 1024))
                 })
                 .collect();
         }
@@ -63,6 +66,7 @@ fn grouping_components(event_data: &Value) -> Vec<String> {
 
     let (calculated_type, calculated_value) =
         type_and_value(event_data, MessagePreference::Grouping);
+    let calculated_value = normalize_message_for_grouping(&calculated_value);
     vec![get_title(&calculated_type, &calculated_value)]
 }
 

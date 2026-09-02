@@ -200,6 +200,8 @@ impl ErrorProcessor {
         // 5. Calculate grouping key and hash
         let grouping_key = calculate_grouping_key(&event_data);
         let grouping_key_hash = hash_grouping_key(&grouping_key);
+        let legacy_grouping_key_hash =
+            hash_grouping_key(&crate::services::calculate_grouping_key_v1(&event_data));
 
         // 6. Extract denormalized fields
         let denormalized = get_denormalized_fields(&event_data);
@@ -215,6 +217,7 @@ impl ErrorProcessor {
                 project_id: metadata.project_id,
                 grouping_key: &grouping_key,
                 grouping_key_hash: &grouping_key_hash,
+                legacy_grouping_key_hash: &legacy_grouping_key_hash,
                 timestamp: metadata.ingested_at,
                 denormalized: &denormalized,
                 level: event_data.get("level").and_then(|l| l.as_str()),
@@ -431,6 +434,9 @@ struct DigestWrite<'a> {
     project_id: i32,
     grouping_key: &'a str,
     grouping_key_hash: &'a str,
+    /// The key this event would have had before the grouping changes, so an
+    /// issue created by an older release still claims its own events.
+    legacy_grouping_key_hash: &'a str,
     timestamp: chrono::DateTime<Utc>,
     denormalized: &'a DenormalizedFields,
     level: Option<&'a str>,
@@ -538,6 +544,7 @@ async fn write_digest_rows(
         write.project_id,
         write.grouping_key,
         write.grouping_key_hash,
+        write.legacy_grouping_key_hash,
         write.timestamp,
         write.denormalized,
         write.level,
@@ -591,22 +598,54 @@ async fn find_or_create_issue_and_grouping_inner(
     project_id: i32,
     grouping_key: &str,
     grouping_key_hash: &str,
+    legacy_grouping_key_hash: &str,
     timestamp: chrono::DateTime<Utc>,
     denormalized: &DenormalizedFields,
     level: Option<&str>,
     platform: Option<&str>,
 ) -> AppResult<(Issue, Grouping, bool, bool)> {
-    // Try to find existing grouping
-    let existing_grouping: Option<Grouping> = sqlx::query_as(
-        r#"
-        SELECT * FROM groupings
-        WHERE project_id = $1 AND grouping_key_hash = $2
-        "#,
-    )
-    .bind(project_id)
-    .bind(grouping_key_hash)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let find = |hash: String| async move {
+        sqlx::query_as::<_, Grouping>(
+            r#"
+            SELECT * FROM groupings
+            WHERE project_id = $1 AND grouping_key_hash = $2
+            "#,
+        )
+        .bind(project_id)
+        .bind(hash)
+    };
+
+    let mut existing_grouping: Option<Grouping> = find(grouping_key_hash.to_string())
+        .await
+        .fetch_optional(&mut **tx)
+        .await?;
+
+    // Nothing under the current key: the issue may predate a change to how the
+    // key is built. Claim it under the key that release would have produced,
+    // and record the current one so later events resolve directly.
+    if existing_grouping.is_none() && legacy_grouping_key_hash != grouping_key_hash {
+        if let Some(legacy) = find(legacy_grouping_key_hash.to_string())
+            .await
+            .fetch_optional(&mut **tx)
+            .await?
+        {
+            existing_grouping = Some(
+                sqlx::query_as(
+                    r#"
+                    INSERT INTO groupings (project_id, issue_id, grouping_key, grouping_key_hash)
+                    VALUES ($1, $2, $3, $4)
+                    RETURNING *
+                    "#,
+                )
+                .bind(project_id)
+                .bind(legacy.issue_id)
+                .bind(grouping_key)
+                .bind(grouping_key_hash)
+                .fetch_one(&mut **tx)
+                .await?,
+            );
+        }
+    }
 
     if let Some(grouping) = existing_grouping {
         // Detect regression: a new event for an already-resolved issue must

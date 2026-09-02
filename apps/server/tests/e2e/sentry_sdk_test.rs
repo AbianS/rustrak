@@ -1107,7 +1107,9 @@ async fn test_aggregate_exception_is_titled_and_grouped_by_the_inner_error() {
 #[actix_web::test]
 async fn test_aggregate_exceptions_wrapping_different_errors_get_separate_issues() {
     // The wrapper's value is the same constant for both, so grouping by it
-    // would file two unrelated errors as one issue.
+    // would file two unrelated errors as one issue. The inner values differ in
+    // more than a number: `Test 1` and `Test 2` both normalize to `Test <int>`
+    // and would share an issue, as they do in Sentry.
     let db = TestDb::new().await;
     let name = format!(
         "SDK Exception Group Split {}",
@@ -1119,13 +1121,13 @@ async fn test_aggregate_exceptions_wrapping_different_errors_get_separate_issues
     post_envelope(
         &server,
         &project,
-        aggregate_exception_with_one_inner("Test 1"),
+        aggregate_exception_with_one_inner("card declined"),
     )
     .await;
     post_envelope(
         &server,
         &project,
-        aggregate_exception_with_one_inner("Test 2"),
+        aggregate_exception_with_one_inner("gateway timeout"),
     )
     .await;
 
@@ -1146,8 +1148,8 @@ async fn test_aggregate_exceptions_wrapping_different_errors_get_separate_issues
     assert_eq!(
         titles,
         vec![
-            "MyApp.Exception: Test 1".to_string(),
-            "MyApp.Exception: Test 2".to_string()
+            "MyApp.Exception: card declined".to_string(),
+            "MyApp.Exception: gateway timeout".to_string()
         ]
     );
 
@@ -1186,6 +1188,148 @@ async fn test_aggregate_exception_with_two_distinct_errors_keeps_the_wrapper() {
         issue.title(),
         "System.AggregateException: One or more errors occurred."
     );
+
+    server.shutdown();
+}
+
+#[actix_web::test]
+async fn test_sdk_same_bug_with_different_ids_lands_in_one_issue() {
+    // The scenario message normalization exists for: one bug, one issue, no
+    // matter how many distinct ids it mentions.
+    let db = TestDb::new().await;
+    let name = format!("SDK Parameterization {}", Utc::now().timestamp_millis());
+    let project = create_test_project(&db.pool, &name).await;
+    let server = TestServer::new(&db).await;
+    let _guard = sentry::init(
+        sentry::ClientOptions::new().dsn(&server.dsn(&project.sentry_key.to_string(), project.id)),
+    );
+
+    for order in [4213, 9981, 1] {
+        sentry::capture_event(Event {
+            level: Level::Warning,
+            exception: sentry::protocol::Values {
+                values: vec![Exception {
+                    ty: "PaymentError".to_string(),
+                    value: Some(format!("Payment failed for order {order}")),
+                    ..Default::default()
+                }],
+            },
+            ..Default::default()
+        });
+        flush_and_digest(&server, project.id).await;
+    }
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.digested_event_count, 3);
+    assert_eq!(
+        issue.title(),
+        "PaymentError: Payment failed for order 1",
+        "the title keeps a real message, only grouping is normalized"
+    );
+
+    server.shutdown();
+}
+
+#[actix_web::test]
+async fn test_sdk_messages_differing_beyond_an_id_still_split() {
+    let db = TestDb::new().await;
+    let name = format!(
+        "SDK Parameterization Split {}",
+        Utc::now().timestamp_millis()
+    );
+    let project = create_test_project(&db.pool, &name).await;
+    let server = TestServer::new(&db).await;
+    let _guard = sentry::init(
+        sentry::ClientOptions::new().dsn(&server.dsn(&project.sentry_key.to_string(), project.id)),
+    );
+
+    for message in [
+        "Payment failed for order 4213",
+        "Refund failed for order 4213",
+    ] {
+        sentry::capture_message(message, Level::Warning);
+        flush_and_digest(&server, project.id).await;
+    }
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), 2, "different bugs must not be merged");
+
+    server.shutdown();
+}
+
+#[actix_web::test]
+async fn test_sdk_an_issue_from_before_the_upgrade_keeps_its_events() {
+    // The whole point of the fallback: after upgrading, a real SDK's events
+    // still land in the issue they were landing in before, instead of opening a
+    // duplicate beside it.
+    let db = TestDb::new().await;
+    let name = format!("SDK Upgrade Path {}", Utc::now().timestamp_millis());
+    let project = create_test_project(&db.pool, &name).await;
+    let server = TestServer::new(&db).await;
+    let _guard = sentry::init(
+        sentry::ClientOptions::new().dsn(&server.dsn(&project.sentry_key.to_string(), project.id)),
+    );
+
+    // Stand in for an issue the previous release created: same event, but keyed
+    // the way v0.14.10 would have keyed it.
+    let event_json = serde_json::json!({
+        "platform": "rust",
+        "exception": { "values": [
+            { "type": "PaymentError", "value": "Payment failed for order 4213" }
+        ]}
+    });
+    let legacy_key = rustrak::services::calculate_grouping_key_v1(&event_json);
+    let issue = IssueService::create(
+        &db.pool,
+        project.id,
+        Utc::now(),
+        &rustrak::services::get_denormalized_fields(&event_json),
+        Some("error"),
+        Some("rust"),
+    )
+    .await
+    .expect("create issue");
+    sqlx::query(
+        "INSERT INTO groupings (project_id, issue_id, grouping_key, grouping_key_hash) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(project.id)
+    .bind(issue.id)
+    .bind(&legacy_key)
+    .bind(rustrak::services::hash_grouping_key(&legacy_key))
+    .execute(&db.pool)
+    .await
+    .expect("insert grouping");
+
+    // Now the SDK sends the same error again, twice, with different order ids.
+    for order in [4213, 9981] {
+        sentry::capture_event(Event {
+            level: Level::Error,
+            exception: sentry::protocol::Values {
+                values: vec![Exception {
+                    ty: "PaymentError".to_string(),
+                    value: Some(format!("Payment failed for order {order}")),
+                    ..Default::default()
+                }],
+            },
+            ..Default::default()
+        });
+        flush_and_digest(&server, project.id).await;
+    }
+
+    let found = only_issue(&db.pool, project.id).await;
+    assert_eq!(found.id, issue.id, "the events opened a new issue");
+    assert_eq!(found.digested_event_count, 3);
 
     server.shutdown();
 }

@@ -1331,6 +1331,169 @@ async fn test_an_event_without_a_level_does_not_erase_the_issue_level() {
 }
 
 // =============================================================================
+// Upgrade Path: issues created before the grouping changes keep their events
+// =============================================================================
+
+/// Digests one event under the v0.14.10 grouping key, standing in for an issue
+/// that already existed before the upgrade.
+async fn digest_as_pre_upgrade(
+    pool: &rustrak::db::DbPool,
+    ingest_dir: &std::path::Path,
+    project_id: i32,
+    event: serde_json::Value,
+) -> rustrak::models::Issue {
+    let key = rustrak::services::calculate_grouping_key_v1(&event);
+    let hash = rustrak::services::hash_grouping_key(&key);
+    let denormalized = rustrak::services::get_denormalized_fields(&event);
+    let issue = IssueService::create(
+        pool,
+        project_id,
+        Utc::now(),
+        &denormalized,
+        event.get("level").and_then(|l| l.as_str()),
+        event.get("platform").and_then(|p| p.as_str()),
+    )
+    .await
+    .expect("create issue");
+    sqlx::query(
+        "INSERT INTO groupings (project_id, issue_id, grouping_key, grouping_key_hash)          VALUES ($1, $2, $3, $4)",
+    )
+    .bind(project_id)
+    .bind(issue.id)
+    .bind(&key)
+    .bind(&hash)
+    .execute(pool)
+    .await
+    .expect("insert grouping");
+    let _ = ingest_dir;
+    issue
+}
+
+#[actix_web::test]
+async fn test_an_event_finds_its_pre_upgrade_issue() {
+    // The exception-chain and normalization changes move this event to a new
+    // key. Without the fallback it would open a second issue and leave the
+    // first frozen.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Upgrade Path").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+
+    let event = json!({
+        "platform": "python",
+        "exception": { "values": [
+            { "type": "IOError", "value": "disk full" },
+            { "type": "RuntimeError", "value": "save failed for order 4213" }
+        ]}
+    });
+    let old = digest_as_pre_upgrade(&db.pool, dir, project.id, event.clone()).await;
+
+    digest(&db.pool, dir, project.id, Utc::now(), event).await;
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+
+    assert_eq!(issues.len(), 1, "the event opened a second issue");
+    assert_eq!(issues[0].id, old.id);
+    assert_eq!(issues[0].digested_event_count, 2);
+}
+
+#[actix_web::test]
+async fn test_the_issue_migrates_to_the_current_key() {
+    // After the first event lands through the fallback, the issue carries both
+    // hashes, so later events resolve directly.
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Upgrade Migrates").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+
+    let event = json!({
+        "platform": "python",
+        "exception": { "values": [
+            { "type": "IOError", "value": "disk full" },
+            { "type": "RuntimeError", "value": "save failed for order 4213" }
+        ]}
+    });
+    let old = digest_as_pre_upgrade(&db.pool, dir, project.id, event.clone()).await;
+    digest(&db.pool, dir, project.id, Utc::now(), event.clone()).await;
+
+    let hashes = IssueService::list_hashes(&db.pool, old.id)
+        .await
+        .expect("list hashes");
+    assert_eq!(hashes.len(), 2, "the current key should have been recorded");
+    let current =
+        rustrak::services::hash_grouping_key(&rustrak::services::calculate_grouping_key(&event));
+    assert!(hashes.iter().any(|h| h.grouping_key_hash == current));
+
+    // A later event, now differing only by the order id, still lands there.
+    let later = json!({
+        "platform": "python",
+        "exception": { "values": [
+            { "type": "IOError", "value": "disk full" },
+            { "type": "RuntimeError", "value": "save failed for order 9981" }
+        ]}
+    });
+    digest(&db.pool, dir, project.id, Utc::now(), later).await;
+
+    let issue = only_issue(&db.pool, project.id).await;
+    assert_eq!(issue.id, old.id);
+    assert_eq!(issue.digested_event_count, 3);
+}
+
+#[actix_web::test]
+async fn test_a_genuinely_new_event_still_opens_its_own_issue() {
+    let db = TestDb::new().await;
+    let project = create_test_project(&db.pool, "Upgrade New").await;
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let dir = temp_dir.path();
+
+    digest_as_pre_upgrade(
+        &db.pool,
+        dir,
+        project.id,
+        json!({
+            "platform": "python",
+            "exception": { "values": [{ "type": "IOError", "value": "disk full" }] }
+        }),
+    )
+    .await;
+
+    digest(
+        &db.pool,
+        dir,
+        project.id,
+        Utc::now(),
+        json!({
+            "platform": "python",
+            "exception": { "values": [{ "type": "ValueError", "value": "bad input" }] }
+        }),
+    )
+    .await;
+
+    let (issues, _) = IssueService::list_paginated(
+        &db.pool,
+        project.id,
+        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::SortOrder::Desc,
+        true,
+        None,
+        100,
+    )
+    .await
+    .expect("Failed to list issues");
+    assert_eq!(issues.len(), 2);
+}
+
+// =============================================================================
 // Log Message Grouping Tests
 // =============================================================================
 

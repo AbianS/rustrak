@@ -705,6 +705,65 @@ fn test_a_single_exception_keeps_its_grouping_key() {
 }
 
 // =============================================================================
+// Message Parameterization in the Grouping Key
+// =============================================================================
+
+#[test]
+fn test_the_same_bug_with_different_ids_is_one_issue() {
+    let err = |value: &str| {
+        json!({
+            "exception": { "values": [{ "type": "KeyError", "value": value }] }
+        })
+    };
+
+    let keys: Vec<String> = ["user_4213", "user_9981", "user_1"]
+        .iter()
+        .map(|id| calculate_grouping_key(&err(&format!("missing key {id}"))))
+        .collect();
+
+    assert_eq!(keys[0], keys[1]);
+    assert_eq!(keys[1], keys[2]);
+    assert!(
+        keys[0].contains("missing key user_<int>"),
+        "got {}",
+        keys[0]
+    );
+}
+
+#[test]
+fn test_log_messages_with_ids_group_together() {
+    let warn = |order: u32| {
+        json!({
+            "logentry": { "formatted": format!("Payment failed for order {order}") }
+        })
+    };
+
+    assert_eq!(
+        calculate_grouping_key(&warn(4213)),
+        calculate_grouping_key(&warn(9981))
+    );
+}
+
+#[test]
+fn test_the_title_keeps_the_real_message() {
+    // Normalization is for grouping only. A human reads the actual values.
+    let event = json!({
+        "exception": { "values": [{ "type": "KeyError", "value": "missing key user_4213" }] }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(get_title(&type_, &value), "KeyError: missing key user_4213");
+}
+
+#[test]
+fn test_genuinely_different_bugs_still_split() {
+    let a = json!({ "exception": { "values": [{ "type": "KeyError", "value": "missing key user_1" }] } });
+    let b = json!({ "exception": { "values": [{ "type": "KeyError", "value": "missing key order_1" }] } });
+
+    assert_ne!(calculate_grouping_key(&a), calculate_grouping_key(&b));
+}
+
+// =============================================================================
 // Transaction Grouping Tests
 // =============================================================================
 
