@@ -1,0 +1,55 @@
+---
+version: v0.14.11
+title: Sentry Grouping Parity
+description: Issue grouping reads the message Sentry renders, parameterizes event-specific values, and walks exception trees safely, so one bug stays one issue across upgrades
+date: 2026-09-02
+tags: [server, grouping, sentry-compat, dashboard, fix]
+---
+
+## Grouping reads the message Sentry renders
+
+An SDK sending `logentry` with a `message` template, `params` and a rendered
+`formatted` used to be grouped and titled by the template alone, because
+`formatted` was never read. Titles now use `formatted`, and when an SDK sends
+only the template, it is rendered with `params` the way the SDK would have.
+
+- Empty `logentry` fields are treated as absent, matching Sentry's `or`
+  semantics, so an empty `message` no longer shadows a usable `formatted`
+- Grouping still keys on the template, so every rendering of one message lands
+  in the same issue while titles show the real text
+
+## Message parameterization before grouping
+
+Event-specific values in a message are replaced with placeholders before it is
+grouped, so one bug does not open one issue per id it mentions.
+
+- A port of Sentry's `parameterization.py`: emails, URLs, UUIDs, hashes,
+  dates, durations, MACs, ints, floats, booleans and quoted strings, in
+  Sentry's order. Applied to grouping only — titles keep the real text
+- Four patterns that need per-match validation callbacks are deliberately not
+  ported, since a half-ported pattern that mangles text is worse than an
+  absent one
+
+## Issues group like Sentry
+
+- Grouping resolves every exception in the chain, not just one, and picks the
+  exception Sentry would title the issue by, including React `Error` wrappers
+  and RxJava/Kotlin diagnostic wrappers
+- The tree walk is bounded at depth 1000 and detects cycles, where Sentry
+  recurses unguarded
+- An issue's title, level and culprit follow its latest event
+
+## Grouping keys migrate instead of forking
+
+The grouping key exactly as computed up to v0.14.10 is frozen in `grouping_v1`
+and kept as a fallback. The digest tries the current key first, then the
+legacy one, then records the current key on the issue it finds — so each
+existing issue migrates itself on its next event instead of opening a fresh
+issue beside the old one.
+
+## Fixes
+
+- Issue search also matches the last frame's filename and module
+- The dashboard renders `set_regression` activity entries again, after the
+  server-side enum rename left the component matching the old `regression`
+  value
