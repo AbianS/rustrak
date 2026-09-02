@@ -1429,3 +1429,80 @@ fn test_long_message_normalizes_before_the_length_limit_applies() {
         calculate_grouping_key(&second)
     );
 }
+
+/// A chain of exception groups nested deeper than the walk can follow is the
+/// acyclic twin of the cycle above: distinct ids, so nothing repeats, and
+/// ~75 bytes per entry, so tens of thousands fit under the 4 MB an event item
+/// is allowed. Sentry's own walk is just as unguarded, but Python raises
+/// `RecursionError` at its recursion limit and the caller's blanket `except`
+/// degrades to the unfiltered chain; a blown Rust stack aborts the process,
+/// so the depth has to be bounded here.
+#[test]
+fn test_deep_exception_group_chain_keeps_the_chain_instead_of_recursing() {
+    let depth = 15_000u64;
+    let mut values = vec![json!({
+        "type": "E0", "value": "boom",
+        "mechanism": { "exception_id": 0, "is_exception_group": true }
+    })];
+    for id in 1..depth {
+        values.push(json!({
+            "type": format!("E{id}"), "value": "boom",
+            "mechanism": {
+                "exception_id": id, "parent_id": id - 1, "is_exception_group": true }
+        }));
+    }
+    values.push(json!({
+        "type": "Inner", "value": "boom",
+        "mechanism": { "exception_id": depth, "parent_id": depth - 1 }
+    }));
+    let event = json!({ "exception": { "values": values } });
+
+    let key = grouping_key_on_a_bounded_stack(event);
+
+    assert!(
+        key.contains("E0: boom"),
+        "the wrapper chain was collapsed away"
+    );
+    assert!(
+        key.contains("Inner: boom"),
+        "key was truncated at the wrapper"
+    );
+}
+
+/// A deep chain below a collapsed wrapper reaches the first-path walk instead
+/// of the top-level one, and has to stop there too.
+#[test]
+fn test_deep_first_path_keeps_the_chain_instead_of_recursing() {
+    let depth = 15_000u64;
+    let mut values = vec![json!({
+        "type": "Wrapper", "value": "1 sub-exception(s)",
+        "mechanism": { "exception_id": 0, "is_exception_group": true }
+    })];
+    for id in 1..=depth {
+        values.push(json!({
+            "type": format!("Cause{id}"), "value": "boom",
+            "mechanism": { "exception_id": id, "parent_id": id - 1 }
+        }));
+    }
+    let event = json!({ "exception": { "values": values } });
+
+    let key = grouping_key_on_a_bounded_stack(event);
+
+    assert!(key.contains("Wrapper: "), "the wrapper was collapsed away");
+    assert!(
+        key.contains("Cause15000: boom"),
+        "key was truncated at the wrapper"
+    );
+}
+
+/// Runs the grouping on a thread with the stack a Tokio worker gets, so the
+/// budget under test is the server's rather than whatever the harness hands
+/// this test.
+fn grouping_key_on_a_bounded_stack(event: serde_json::Value) -> String {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || calculate_grouping_key(&event))
+        .expect("spawn")
+        .join()
+        .expect("the grouping walk aborted the process")
+}

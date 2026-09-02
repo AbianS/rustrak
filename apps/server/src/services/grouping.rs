@@ -10,6 +10,12 @@ use sha2::{Digest, Sha256};
 /// Separator used in grouping keys (diamond character)
 const GROUPING_SEPARATOR: &str = " ⋄ ";
 
+/// How deep the exception tree may be walked before the chain is left
+/// untouched. Sentry's walk is unbounded, but Python's default recursion limit
+/// stops it at the same depth and the caller's blanket `except` turns that into
+/// the unfiltered chain, so the fallback matches at the same threshold.
+const MAX_EXCEPTION_TREE_DEPTH: usize = 1000;
+
 /// Calculates the grouping key for an event
 pub fn calculate_grouping_key(event_data: &Value) -> String {
     let components = grouping_components(event_data);
@@ -332,7 +338,7 @@ fn filter_exception_groups(values: &[Value]) -> (Vec<&Value>, Option<u64>) {
     };
 
     let mut top_level = Vec::new();
-    if !collect_top_level(root, &children, &mut top_level, &mut HashSet::new()) {
+    if !collect_top_level(root, &children, &mut top_level, &mut HashSet::new(), 0) {
         return as_is();
     }
     if top_level.is_empty() {
@@ -354,7 +360,7 @@ fn filter_exception_groups(values: &[Value]) -> (Vec<&Value>, Option<u64>) {
     if distinct.len() == 1 {
         // The wrapper adds nothing: keep the inner error and its first path.
         let mut path = Vec::new();
-        if !collect_first_path(distinct[0], &children, &mut path, &mut HashSet::new()) {
+        if !collect_first_path(distinct[0], &children, &mut path, &mut HashSet::new(), 0) {
             return as_is();
         }
         let main = mechanism_id(distinct[0], "exception_id");
@@ -379,19 +385,24 @@ fn type_and_value_of(exception: &Value) -> (&str, &str) {
 
 /// Direct descendants of exception groups that are not groups themselves.
 ///
-/// Returns `false` when the walk meets an exception it has already visited.
-/// Sentry recurses here unguarded and lets the caller catch the `RecursionError`
-/// a cycle raises; a blown Rust stack has no such second chance, so a repeated
-/// id ends the walk and the whole filter falls back to the untouched chain.
+/// Returns `false` when the walk meets an exception it has already visited or
+/// descends past `MAX_EXCEPTION_TREE_DEPTH`. Sentry recurses here unguarded and
+/// lets the caller catch the `RecursionError` a cycle or a deep chain raises; a
+/// blown Rust stack has no such second chance, so both end the walk and the
+/// whole filter falls back to the untouched chain.
 fn collect_top_level<'a>(
     exception: &'a Value,
     children: &HashMap<u64, Vec<&'a Value>>,
     out: &mut Vec<&'a Value>,
     visited: &mut HashSet<u64>,
+    depth: usize,
 ) -> bool {
     if !is_exception_group(exception) {
         out.push(exception);
         return true;
+    }
+    if depth >= MAX_EXCEPTION_TREE_DEPTH {
+        return false;
     }
     let Some(id) = mechanism_id(exception, "exception_id") else {
         return true;
@@ -403,18 +414,23 @@ fn collect_top_level<'a>(
         .get(&id)
         .into_iter()
         .flatten()
-        .all(|child| collect_top_level(child, children, out, visited))
+        .all(|child| collect_top_level(child, children, out, visited, depth + 1))
 }
 
 /// Walks from an exception to a leaf, following the first child each time.
-/// Returns `false` on a cycle, for the same reason `collect_top_level` does.
+/// Returns `false` on a cycle or past `MAX_EXCEPTION_TREE_DEPTH`, for the same
+/// reasons `collect_top_level` does.
 fn collect_first_path<'a>(
     exception: &'a Value,
     children: &HashMap<u64, Vec<&'a Value>>,
     out: &mut Vec<&'a Value>,
     visited: &mut HashSet<u64>,
+    depth: usize,
 ) -> bool {
     out.push(exception);
+    if depth >= MAX_EXCEPTION_TREE_DEPTH {
+        return false;
+    }
     let Some(id) = mechanism_id(exception, "exception_id") else {
         return true;
     };
@@ -422,7 +438,7 @@ fn collect_first_path<'a>(
         return false;
     }
     match children.get(&id).and_then(|c| c.first()) {
-        Some(first) => collect_first_path(first, children, out, visited),
+        Some(first) => collect_first_path(first, children, out, visited, depth + 1),
         None => true,
     }
 }
