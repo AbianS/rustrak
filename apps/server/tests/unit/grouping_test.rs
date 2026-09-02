@@ -198,6 +198,42 @@ fn test_grouping_prefers_message_over_formatted() {
 }
 
 #[test]
+fn test_an_empty_formatted_falls_through_to_the_message() {
+    // Sentry reads `formatted or message`, and an empty string is falsy there,
+    // so it must not shadow a usable template.
+    let event = json!({
+        "logentry": { "formatted": "", "message": "User %s logged in" }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Log Message");
+    assert_eq!(value, "User %s logged in");
+}
+
+#[test]
+fn test_an_empty_message_falls_through_to_formatted_for_grouping() {
+    // The same falsy rule on the grouping side: `message or formatted`.
+    let event = json!({
+        "logentry": { "message": "", "formatted": "User john logged in" }
+    });
+
+    let key = calculate_grouping_key(&event);
+    assert!(key.contains("User john logged in"), "got {key}");
+}
+
+#[test]
+fn test_an_empty_message_object_still_falls_back() {
+    let event = json!({
+        "message": { "formatted": "", "message": "", "params": null },
+        "exception": []
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Unknown");
+    assert_eq!(value, "");
+}
+
+#[test]
 fn test_title_prefers_formatted_over_message() {
     let event = json!({
         "logentry": {

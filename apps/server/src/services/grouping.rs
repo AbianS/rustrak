@@ -204,7 +204,14 @@ fn get_log_message(event_data: &Value, preference: MessagePreference) -> Option<
             return Some(first_line(msg));
         }
 
-        let field = |name: &str| entry.get(name).and_then(|m| m.as_str());
+        // Sentry reads these with `or`, where an empty string is falsy and the
+        // next option is tried, so an empty field must not shadow a usable one.
+        let field = |name: &str| {
+            entry
+                .get(name)
+                .and_then(|m| m.as_str())
+                .filter(|m| !m.is_empty())
+        };
         let picked = match preference {
             MessagePreference::Grouping => field("message").or_else(|| field("formatted")),
             MessagePreference::Title => {
