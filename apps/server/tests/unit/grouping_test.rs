@@ -1392,24 +1392,25 @@ fn test_cyclic_exception_group_keeps_the_chain_instead_of_recursing() {
 }
 
 /// A cycle below a collapsed wrapper reaches the first-path walk instead of the
-/// top-level one, and has to stop there too.
+/// top-level one, and has to stop there too. The wrapper naming the inner error
+/// as its own parent is what closes the loop: ids stay unique and neither node
+/// parents itself, so the tree reconstruction accepts the chain and the walk is
+/// the only thing left to catch it.
 #[test]
 fn test_cyclic_first_path_keeps_the_chain_instead_of_recursing() {
     let event = json!({
         "exception": { "values": [
             { "type": "Wrapper", "value": "1 sub-exception(s)", "mechanism": {
-                "exception_id": 0, "is_exception_group": true } },
+                "exception_id": 0, "parent_id": 1, "is_exception_group": true } },
             { "type": "Inner", "value": "boom", "mechanism": {
-                "exception_id": 1, "parent_id": 0 } },
-            { "type": "Cause", "value": "root", "mechanism": {
-                "exception_id": 2, "parent_id": 1 } },
-            { "type": "Loop", "value": "back", "mechanism": {
-                "exception_id": 3, "parent_id": 2 } }
+                "exception_id": 1, "parent_id": 0 } }
         ]}
     });
 
     let key = calculate_grouping_key(&event);
 
+    // Falling back keeps both; collapsing the wrapper would leave only "Inner".
+    assert!(key.contains("Wrapper: "), "key was {key}");
     assert!(key.contains("Inner: boom"), "key was {key}");
 }
 
