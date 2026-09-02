@@ -1,5 +1,16 @@
 # @rustrak/server
 
+## 0.14.11
+
+### Patch Changes
+
+- [`1f69815`](https://github.com/rustrak/rustrak/commit/1f69815ea1192b3f71d552b7419b6cebf8236fdc) Thanks [@AbianS](https://github.com/AbianS)! - Issue grouping reaches Sentry parity: `logentry.formatted` is read for the
+  issue title while grouping stays on the message template, messages are
+  parameterized before grouping, the exception-tree walk is depth-bounded and
+  cycle-safe, issues group by every exception in the chain and follow their
+  latest event's title, level and culprit, and the previous grouping key is
+  frozen as a fallback so existing issues migrate instead of forking.
+
 ## 0.14.10
 
 ### Patch Changes
