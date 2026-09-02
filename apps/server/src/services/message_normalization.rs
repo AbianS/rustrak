@@ -101,8 +101,9 @@ static COMBINED: LazyLock<Regex> = LazyLock::new(|| {
 
 /// Replaces event-specific values with `<placeholder>` markers.
 ///
-/// Returns the input untouched when nothing matches, when it is too long, or
-/// when the regex engine gives up on it.
+/// Returns the input untouched when nothing matches or when it is too long.
+/// When the regex engine gives up part way through, the replacements made
+/// before it did are kept.
 pub fn normalize_message_for_grouping(message: &str) -> Cow<'_, str> {
     if message.len() > MAX_INPUT_LENGTH {
         return Cow::Borrowed(message);

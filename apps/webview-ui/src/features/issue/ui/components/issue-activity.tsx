@@ -51,7 +51,7 @@ function describe(
       return t('activity.priorityChanged', {
         priority: String(d.priority ?? '—'),
       });
-    case 'regression':
+    case 'set_regression':
       return t('activity.regression');
     case 'first_seen':
       return t('activity.firstSeen');

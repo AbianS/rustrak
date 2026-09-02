@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::services::normalize_message_for_grouping;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use dynfmt::{Argument, Format, FormatArgs, PythonFormat, SimpleCurlyFormat};
 use serde_json::Value;
@@ -65,9 +65,12 @@ fn grouping_components(event_data: &Value) -> Vec<String> {
     }
 
     let (calculated_type, calculated_value) =
-        type_and_value(event_data, MessagePreference::Grouping);
+        raw_type_and_value(event_data, MessagePreference::Grouping);
     let calculated_value = normalize_message_for_grouping(&calculated_value);
-    vec![get_title(&calculated_type, &calculated_value)]
+    vec![get_title(
+        &truncate(&calculated_type, 128),
+        &truncate(&calculated_value, 1024),
+    )]
 }
 
 /// Coerces a single fingerprint array element to a string, mirroring Relay's
@@ -116,6 +119,21 @@ pub fn get_type_and_value(event_data: &Value) -> (String, String) {
 }
 
 fn type_and_value(event_data: &Value, preference: MessagePreference) -> (String, String) {
+    let (calculated_type, calculated_value) = raw_type_and_value(event_data, preference);
+    (
+        truncate(&calculated_type, 128),
+        truncate(&calculated_value, 1024),
+    )
+}
+
+/// The type and value as the event carries them.
+///
+/// The 128 and 1024 limits belong to an issue's title (Sentry applies them in
+/// `eventtypes/error.py`, never in its grouping strategies), so grouping asks
+/// for the text untouched and applies them itself once the event-specific
+/// values are out: a value cut mid-pattern no longer matches it, and two
+/// messages that differ only there would open two issues.
+fn raw_type_and_value(event_data: &Value, preference: MessagePreference) -> (String, String) {
     // Try to extract from exception, unless it is synthetic. Relay ignores the
     // type/value of synthetic exceptions (signal/segfault wrappers) for
     // grouping and falls through to the next component
@@ -133,12 +151,12 @@ fn type_and_value(event_data: &Value, preference: MessagePreference) -> (String,
             .unwrap_or("")
             .to_string();
 
-        return (truncate(&exc_type, 128), truncate(&exc_value, 1024));
+        return (exc_type, exc_value);
     }
 
     // Try to extract from logentry/message
     if let Some(message) = get_log_message(event_data, preference) {
-        return ("Log Message".to_string(), truncate(&message, 1024));
+        return ("Log Message".to_string(), message);
     }
 
     // Fallback
@@ -314,7 +332,9 @@ fn filter_exception_groups(values: &[Value]) -> (Vec<&Value>, Option<u64>) {
     };
 
     let mut top_level = Vec::new();
-    collect_top_level(root, &children, &mut top_level, values.len());
+    if !collect_top_level(root, &children, &mut top_level, &mut HashSet::new()) {
+        return as_is();
+    }
     if top_level.is_empty() {
         return as_is();
     }
@@ -334,7 +354,9 @@ fn filter_exception_groups(values: &[Value]) -> (Vec<&Value>, Option<u64>) {
     if distinct.len() == 1 {
         // The wrapper adds nothing: keep the inner error and its first path.
         let mut path = Vec::new();
-        collect_first_path(distinct[0], &children, &mut path, values.len());
+        if !collect_first_path(distinct[0], &children, &mut path, &mut HashSet::new()) {
+            return as_is();
+        }
         let main = mechanism_id(distinct[0], "exception_id");
         return (path, main);
     }
@@ -356,43 +378,52 @@ fn type_and_value_of(exception: &Value) -> (&str, &str) {
 }
 
 /// Direct descendants of exception groups that are not groups themselves.
+///
+/// Returns `false` when the walk meets an exception it has already visited.
+/// Sentry recurses here unguarded and lets the caller catch the `RecursionError`
+/// a cycle raises; a blown Rust stack has no such second chance, so a repeated
+/// id ends the walk and the whole filter falls back to the untouched chain.
 fn collect_top_level<'a>(
     exception: &'a Value,
     children: &HashMap<u64, Vec<&'a Value>>,
     out: &mut Vec<&'a Value>,
-    budget: usize,
-) {
-    if out.len() >= budget {
-        return;
-    }
+    visited: &mut HashSet<u64>,
+) -> bool {
     if !is_exception_group(exception) {
         out.push(exception);
-        return;
+        return true;
     }
     let Some(id) = mechanism_id(exception, "exception_id") else {
-        return;
+        return true;
     };
-    for child in children.get(&id).into_iter().flatten() {
-        collect_top_level(child, children, out, budget);
+    if !visited.insert(id) {
+        return false;
     }
+    children
+        .get(&id)
+        .into_iter()
+        .flatten()
+        .all(|child| collect_top_level(child, children, out, visited))
 }
 
 /// Walks from an exception to a leaf, following the first child each time.
+/// Returns `false` on a cycle, for the same reason `collect_top_level` does.
 fn collect_first_path<'a>(
     exception: &'a Value,
     children: &HashMap<u64, Vec<&'a Value>>,
     out: &mut Vec<&'a Value>,
-    budget: usize,
-) {
-    if out.len() >= budget {
-        return;
-    }
+    visited: &mut HashSet<u64>,
+) -> bool {
     out.push(exception);
     let Some(id) = mechanism_id(exception, "exception_id") else {
-        return;
+        return true;
     };
-    if let Some(first) = children.get(&id).and_then(|c| c.first()) {
-        collect_first_path(first, children, out, budget);
+    if !visited.insert(id) {
+        return false;
+    }
+    match children.get(&id).and_then(|c| c.first()) {
+        Some(first) => collect_first_path(first, children, out, visited),
+        None => true,
     }
 }
 

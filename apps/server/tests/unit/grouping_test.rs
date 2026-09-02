@@ -409,7 +409,7 @@ fn test_exception_group_is_titled_by_its_only_inner_error() {
 }
 
 #[test]
-fn test_exception_groups_wrapping_different_errors_do_not_collapse() {
+fn test_exception_groups_with_different_inner_errors_group_apart() {
     // The wrapper's own value is just a count, so grouping by it would put
     // unrelated errors in one issue.
     let value_error = exception_group_event(&[("ValueError", "invalid literal for int()")]);
@@ -1367,4 +1367,65 @@ fn test_newlines_and_tabs_in_value() {
     let (_, value) = get_type_and_value(&event);
     assert!(value.contains('\n'));
     assert!(value.contains('\t'));
+}
+
+/// A cyclic `parent_id` chain is malformed input an SDK can send: Relay passes
+/// `exception_id` and `parent_id` through without validating them. Sentry walks
+/// the same tree unguarded but its caller catches `RecursionError` and falls
+/// back to the unfiltered chain; nothing catches a blown Rust stack, so the
+/// cycle has to be found rather than survived.
+#[test]
+fn test_cyclic_exception_group_keeps_the_chain_instead_of_recursing() {
+    let event = json!({
+        "exception": { "values": [
+            { "type": "A", "value": "a", "mechanism": {
+                "exception_id": 0, "parent_id": 1, "is_exception_group": true } },
+            { "type": "B", "value": "b", "mechanism": {
+                "exception_id": 1, "parent_id": 0, "is_exception_group": true } }
+        ]}
+    });
+
+    let key = calculate_grouping_key(&event);
+
+    assert!(key.contains("A: a"), "key was {key}");
+    assert!(key.contains("B: b"), "key was {key}");
+}
+
+/// A cycle below a collapsed wrapper reaches the first-path walk instead of the
+/// top-level one, and has to stop there too.
+#[test]
+fn test_cyclic_first_path_keeps_the_chain_instead_of_recursing() {
+    let event = json!({
+        "exception": { "values": [
+            { "type": "Wrapper", "value": "1 sub-exception(s)", "mechanism": {
+                "exception_id": 0, "is_exception_group": true } },
+            { "type": "Inner", "value": "boom", "mechanism": {
+                "exception_id": 1, "parent_id": 0 } },
+            { "type": "Cause", "value": "root", "mechanism": {
+                "exception_id": 2, "parent_id": 1 } },
+            { "type": "Loop", "value": "back", "mechanism": {
+                "exception_id": 3, "parent_id": 2 } }
+        ]}
+    });
+
+    let key = calculate_grouping_key(&event);
+
+    assert!(key.contains("Inner: boom"), "key was {key}");
+}
+
+/// `type_and_value` truncates to the limits Sentry applies to an issue's title
+/// (`eventtypes/error.py`), which the grouping path must not inherit before
+/// normalizing: a value cut mid-pattern no longer matches it, so two events
+/// that differ only in that value open two issues instead of one.
+#[test]
+fn test_long_message_normalizes_before_the_length_limit_applies() {
+    let padded = |id: &str| json!({ "message": format!("{} id={id}", "x".repeat(1010)) });
+
+    let first = padded("550e8400-e29b-41d4-a716-446655440000");
+    let second = padded("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+
+    assert_eq!(
+        calculate_grouping_key(&first),
+        calculate_grouping_key(&second)
+    );
 }
