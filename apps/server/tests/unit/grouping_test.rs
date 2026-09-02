@@ -373,6 +373,397 @@ fn test_log_multiline_uses_first_line() {
 }
 
 // =============================================================================
+// Exception Group Tests
+// =============================================================================
+
+/// Python 3.11 `ExceptionGroup` / .NET `AggregateException` / JS `AggregateError`:
+/// a wrapper whose only job is to hold the real errors.
+fn exception_group_event(inner: &[(&str, &str)]) -> serde_json::Value {
+    let mut values = vec![];
+    for (i, (ty, val)) in inner.iter().enumerate() {
+        values.push(json!({
+            "type": ty, "value": val,
+            "mechanism": {
+                "type": "chained",
+                "exception_id": i + 1,
+                "parent_id": 0,
+                "source": format!("exceptions[{i}]")
+            }
+        }));
+    }
+    values.push(json!({
+        "type": "ExceptionGroup",
+        "value": format!("{} sub-exception(s)", inner.len()),
+        "mechanism": { "type": "generic", "exception_id": 0, "is_exception_group": true }
+    }));
+    json!({ "exception": { "values": values } })
+}
+
+#[test]
+fn test_exception_group_is_titled_by_its_only_inner_error() {
+    let event = exception_group_event(&[("ValueError", "invalid literal for int()")]);
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "ValueError");
+    assert_eq!(value, "invalid literal for int()");
+}
+
+#[test]
+fn test_exception_groups_with_different_inner_errors_group_apart() {
+    // The wrapper's own value is just a count, so grouping by it would put
+    // unrelated errors in one issue.
+    let value_error = exception_group_event(&[("ValueError", "invalid literal for int()")]);
+    let key_error = exception_group_event(&[("KeyError", "'user_id'")]);
+
+    assert_ne!(
+        calculate_grouping_key(&value_error),
+        calculate_grouping_key(&key_error)
+    );
+}
+
+#[test]
+fn test_exception_group_groups_by_the_inner_error_not_the_wrapper() {
+    let event = exception_group_event(&[("ValueError", "invalid literal for int()")]);
+    let key = calculate_grouping_key(&event);
+
+    assert!(key.contains("ValueError"), "got {key}");
+    assert!(!key.contains("ExceptionGroup"), "got {key}");
+}
+
+#[test]
+fn test_exception_group_with_several_distinct_errors_keeps_the_wrapper() {
+    // Sentry keeps the root group when the children genuinely differ, so the
+    // issue represents the group rather than one arbitrary child.
+    let event = exception_group_event(&[("ValueError", "bad int"), ("KeyError", "'user_id'")]);
+
+    let (type_, _value) = get_type_and_value(&event);
+    assert_eq!(type_, "ExceptionGroup");
+}
+
+#[test]
+fn test_identical_siblings_collapse_to_one_inner_error() {
+    // Group<['Da', 'Da', 'Da']> is just 'Da'.
+    let event = exception_group_event(&[
+        ("ValueError", "same"),
+        ("ValueError", "same"),
+        ("ValueError", "same"),
+    ]);
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "ValueError");
+    assert_eq!(value, "same");
+}
+
+#[test]
+fn test_a_chain_without_mechanism_ids_is_untouched() {
+    // Most SDKs never set `exception_id`. Without it the chain cannot be
+    // walked, so the last exception still wins and existing issues keep their
+    // grouping keys.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "IOError", "value": "disk full" },
+            { "type": "RuntimeError", "value": "save failed" }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "RuntimeError");
+    assert_eq!(value, "save failed");
+}
+
+#[test]
+fn test_a_chain_with_mechanism_ids_is_titled_by_its_root() {
+    // With ids the tree is known, and Sentry titles by the root unless a
+    // framework override moves the choice. The root is the outermost error;
+    // `source: cause` marks the one it wrapped.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "IOError", "value": "disk full",
+              "mechanism": { "exception_id": 0 } },
+            { "type": "RuntimeError", "value": "save failed",
+              "mechanism": { "exception_id": 1, "parent_id": 0, "source": "cause" } }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "IOError");
+    assert_eq!(value, "disk full");
+}
+
+#[test]
+fn test_duplicate_exception_ids_stop_the_filter() {
+    // A well-formed root, but two children claim the same id. The tree cannot
+    // be trusted, so the wrapper must survive rather than be collapsed away.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "ValueError", "value": "same",
+              "mechanism": { "exception_id": 1, "parent_id": 0 } },
+            { "type": "ValueError", "value": "same",
+              "mechanism": { "exception_id": 1, "parent_id": 0 } },
+            { "type": "ExceptionGroup", "value": "2 sub-exceptions",
+              "mechanism": { "exception_id": 0, "is_exception_group": true } }
+        ]}
+    });
+
+    let (type_, _value) = get_type_and_value(&event);
+    assert_eq!(type_, "ExceptionGroup");
+}
+
+#[test]
+fn test_a_malformed_exception_tree_changes_nothing() {
+    // Duplicate ids: the chain cannot be trusted, so it is left alone.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "Inner", "value": "a", "mechanism": { "exception_id": 1, "parent_id": 0 } },
+            { "type": "Outer", "value": "b",
+              "mechanism": { "exception_id": 1, "is_exception_group": true } }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "Outer");
+    assert_eq!(value, "b");
+}
+
+// =============================================================================
+// Wrapper Exceptions (payloads and expectations from Sentry's own tests)
+// =============================================================================
+
+#[test]
+fn test_rxjava_wrapper_does_not_title_the_issue() {
+    // tests/sentry/event_manager/test_event_manager.py
+    // ::test_java_rxjava_exceptions_correct_error_title_subtitle
+    for wrapper in [
+        "OnErrorNotImplementedException",
+        "CompositeException",
+        "UndeliverableException",
+    ] {
+        let event = json!({
+            "exception": { "values": [
+                { "type": "NullPointerException",
+                  "value": "Attempt to read from field 'a.b.c' on a null object",
+                  "module": "java.lang",
+                  "mechanism": { "type": "chained", "exception_id": 1, "parent_id": 0 } },
+                { "type": wrapper,
+                  "value": "The exception was not handled due to missing onError handler in the subscribe() method call.",
+                  "module": "io.reactivex.rxjava3.exceptions",
+                  "mechanism": { "type": "chained", "handled": false, "exception_id": 0 } }
+            ]}
+        });
+
+        let (type_, value) = get_type_and_value(&event);
+        assert_eq!(type_, "NullPointerException", "wrapper {wrapper}");
+        assert_eq!(value, "Attempt to read from field 'a.b.c' on a null object");
+    }
+}
+
+#[test]
+fn test_rxjava_wrapper_without_mechanism_data_still_titles_by_the_last() {
+    // ::test_java_rxjava_incomplete_error_correct_title_subtitle — without
+    // mechanism ids the chain cannot be walked, so the default stands.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "NullPointerException",
+              "value": "Attempt to read from field 'a.b.c' on a null object" },
+            { "type": "CompositeException", "value": "Can't call onError." }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "CompositeException");
+    assert_eq!(value, "Can't call onError.");
+}
+
+#[test]
+fn test_kotlin_diagnostic_wrapper_does_not_title_the_issue() {
+    // ::test_kotlin_coroutine_diagnostic_exception_correct_title — here the
+    // real error is the root and the wrapper is the child, the reverse of the
+    // RxJava shape.
+    let event = json!({
+        "exception": { "values": [
+            { "type": "RuntimeException", "value": "main exception", "module": "java.lang",
+              "mechanism": { "type": "UncaughtExceptionHandler", "exception_id": 0 } },
+            { "type": "DiagnosticCoroutineContextException",
+              "value": "[StandaloneCoroutine{Cancelling}@1a2b3c]",
+              "module": "kotlinx.coroutines.internal",
+              "mechanism": { "type": "suppressed", "exception_id": 1, "parent_id": 0 } }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "RuntimeException");
+    assert_eq!(value, "main exception");
+}
+
+#[test]
+fn test_kotlin_diagnostic_wrapper_with_chained_mechanism() {
+    // ::test_kotlin_coroutine_diagnostic_exception_chained_mechanism_correct_title
+    let event = json!({
+        "exception": { "values": [
+            { "type": "IllegalStateException", "value": "coroutine error", "module": "java.lang",
+              "mechanism": { "type": "UncaughtExceptionHandler", "handled": false,
+                             "exception_id": 0 } },
+            { "type": "DiagnosticCoroutineContextException",
+              "module": "kotlinx.coroutines.internal",
+              "mechanism": { "type": "chained", "exception_id": 1, "parent_id": 0 } }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "IllegalStateException");
+    assert_eq!(value, "coroutine error");
+}
+
+#[test]
+fn test_a_lone_diagnostic_wrapper_keeps_the_default() {
+    // ::test_kotlin_coroutine_diagnostic_exception_no_parent_keeps_default_behavior
+    let event = json!({
+        "exception": { "values": [
+            { "type": "DiagnosticCoroutineContextException",
+              "module": "kotlinx.coroutines.internal",
+              "mechanism": { "type": "generic", "exception_id": 0 } }
+        ]}
+    });
+
+    let (type_, _value) = get_type_and_value(&event);
+    assert_eq!(type_, "DiagnosticCoroutineContextException");
+}
+
+#[test]
+fn test_react_concurrent_rendering_is_titled_by_its_cause() {
+    // tests/sentry/grouping/grouping_inputs/react-concurrent-rendering.json
+    let event = json!({
+        "exception": { "values": [
+            { "type": "TypeError", "value": "Load failed",
+              "mechanism": { "type": "onerror", "handled": false, "source": "cause",
+                             "exception_id": 1, "parent_id": 0 } },
+            { "type": "Error",
+              "value": "There was an error during concurrent rendering but React was able to recover by instead synchronously rendering the entire root.",
+              "mechanism": { "type": "generic", "handled": true, "exception_id": 0 } }
+        ]}
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(type_, "TypeError");
+    assert_eq!(value, "Load failed");
+}
+
+#[test]
+fn test_groups_with_different_children_do_not_collapse() {
+    // Sentry hashes a `chained_exception` component holding every surviving
+    // exception, so the children decide the issue even when the wrapper text is
+    // the same constant every time.
+    let group = |a: &str, b: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": a, "value": "boom",
+                  "mechanism": { "type": "chained", "exception_id": 2, "parent_id": 0 } },
+                { "type": b, "value": "boom",
+                  "mechanism": { "type": "chained", "exception_id": 1, "parent_id": 0 } },
+                { "type": "System.AggregateException", "value": "One or more errors occurred.",
+                  "mechanism": { "type": "generic", "exception_id": 0,
+                                 "is_exception_group": true } }
+            ]}
+        })
+    };
+
+    assert_ne!(
+        calculate_grouping_key(&group("MyApp.SuchWowException", "MyApp.AmazingException")),
+        calculate_grouping_key(&group("MyApp.FooException", "MyApp.BarException"))
+    );
+}
+
+#[test]
+fn test_a_chain_groups_by_every_exception_in_it() {
+    let chain = |cause: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": "IOError", "value": cause },
+                { "type": "RuntimeError", "value": "save failed" }
+            ]}
+        })
+    };
+
+    assert_ne!(
+        calculate_grouping_key(&chain("disk full")),
+        calculate_grouping_key(&chain("permission denied"))
+    );
+}
+
+#[test]
+fn test_a_single_exception_keeps_its_grouping_key() {
+    // The common case must not move: one exception, one component.
+    let event = json!({
+        "exception": { "values": [{ "type": "TypeError", "value": "boom" }] },
+        "transaction": "/api/users"
+    });
+
+    assert_eq!(
+        calculate_grouping_key(&event),
+        "TypeError: boom ⋄ /api/users"
+    );
+}
+
+// =============================================================================
+// Message Parameterization in the Grouping Key
+// =============================================================================
+
+#[test]
+fn test_the_same_bug_with_different_ids_is_one_issue() {
+    let err = |value: &str| {
+        json!({
+            "exception": { "values": [{ "type": "KeyError", "value": value }] }
+        })
+    };
+
+    let keys: Vec<String> = ["user_4213", "user_9981", "user_1"]
+        .iter()
+        .map(|id| calculate_grouping_key(&err(&format!("missing key {id}"))))
+        .collect();
+
+    assert_eq!(keys[0], keys[1]);
+    assert_eq!(keys[1], keys[2]);
+    assert!(
+        keys[0].contains("missing key user_<int>"),
+        "got {}",
+        keys[0]
+    );
+}
+
+#[test]
+fn test_log_messages_with_ids_group_together() {
+    let warn = |order: u32| {
+        json!({
+            "logentry": { "formatted": format!("Payment failed for order {order}") }
+        })
+    };
+
+    assert_eq!(
+        calculate_grouping_key(&warn(4213)),
+        calculate_grouping_key(&warn(9981))
+    );
+}
+
+#[test]
+fn test_the_title_keeps_the_real_message() {
+    // Normalization is for grouping only. A human reads the actual values.
+    let event = json!({
+        "exception": { "values": [{ "type": "KeyError", "value": "missing key user_4213" }] }
+    });
+
+    let (type_, value) = get_type_and_value(&event);
+    assert_eq!(get_title(&type_, &value), "KeyError: missing key user_4213");
+}
+
+#[test]
+fn test_genuinely_different_bugs_still_split() {
+    let a = json!({ "exception": { "values": [{ "type": "KeyError", "value": "missing key user_1" }] } });
+    let b = json!({ "exception": { "values": [{ "type": "KeyError", "value": "missing key order_1" }] } });
+
+    assert_ne!(calculate_grouping_key(&a), calculate_grouping_key(&b));
+}
+
+// =============================================================================
 // Transaction Grouping Tests
 // =============================================================================
 
@@ -622,6 +1013,26 @@ fn test_synthetic_exception_without_message_is_unknown() {
     let (type_, value) = get_type_and_value(&event);
     assert_eq!(type_, "Unknown");
     assert_eq!(value, "");
+}
+
+#[test]
+fn test_a_synthetic_exception_drops_out_but_its_chain_still_groups() {
+    // Only the synthetic component stops contributing; the real error next to
+    // it still decides the issue.
+    let with_cause = |cause: &str| {
+        json!({
+            "exception": { "values": [
+                { "type": "ValueError", "value": cause },
+                { "type": "SIGSEGV", "value": "Segfault",
+                  "mechanism": { "synthetic": true } }
+            ]}
+        })
+    };
+
+    let key = calculate_grouping_key(&with_cause("bad input"));
+    assert!(key.contains("ValueError: bad input"), "got {key}");
+    assert!(!key.contains("SIGSEGV"), "got {key}");
+    assert_ne!(key, calculate_grouping_key(&with_cause("worse input")));
 }
 
 #[test]
@@ -956,4 +1367,143 @@ fn test_newlines_and_tabs_in_value() {
     let (_, value) = get_type_and_value(&event);
     assert!(value.contains('\n'));
     assert!(value.contains('\t'));
+}
+
+/// A cyclic `parent_id` chain is malformed input an SDK can send: Relay passes
+/// `exception_id` and `parent_id` through without validating them. Sentry walks
+/// the same tree unguarded but its caller catches `RecursionError` and falls
+/// back to the unfiltered chain; nothing catches a blown Rust stack, so the
+/// cycle has to be found rather than survived.
+#[test]
+fn test_cyclic_exception_group_keeps_the_chain_instead_of_recursing() {
+    let event = json!({
+        "exception": { "values": [
+            { "type": "A", "value": "a", "mechanism": {
+                "exception_id": 0, "parent_id": 1, "is_exception_group": true } },
+            { "type": "B", "value": "b", "mechanism": {
+                "exception_id": 1, "parent_id": 0, "is_exception_group": true } }
+        ]}
+    });
+
+    let key = calculate_grouping_key(&event);
+
+    assert!(key.contains("A: a"), "key was {key}");
+    assert!(key.contains("B: b"), "key was {key}");
+}
+
+/// A cycle below a collapsed wrapper reaches the first-path walk instead of the
+/// top-level one, and has to stop there too. The wrapper naming the inner error
+/// as its own parent is what closes the loop: ids stay unique and neither node
+/// parents itself, so the tree reconstruction accepts the chain and the walk is
+/// the only thing left to catch it.
+#[test]
+fn test_cyclic_first_path_keeps_the_chain_instead_of_recursing() {
+    let event = json!({
+        "exception": { "values": [
+            { "type": "Wrapper", "value": "1 sub-exception(s)", "mechanism": {
+                "exception_id": 0, "parent_id": 1, "is_exception_group": true } },
+            { "type": "Inner", "value": "boom", "mechanism": {
+                "exception_id": 1, "parent_id": 0 } }
+        ]}
+    });
+
+    let key = calculate_grouping_key(&event);
+
+    // Falling back keeps both; collapsing the wrapper would leave only "Inner".
+    assert!(key.contains("Wrapper: "), "key was {key}");
+    assert!(key.contains("Inner: boom"), "key was {key}");
+}
+
+/// `type_and_value` truncates to the limits Sentry applies to an issue's title
+/// (`eventtypes/error.py`), which the grouping path must not inherit before
+/// normalizing: a value cut mid-pattern no longer matches it, so two events
+/// that differ only in that value open two issues instead of one.
+#[test]
+fn test_long_message_normalizes_before_the_length_limit_applies() {
+    let padded = |id: &str| json!({ "message": format!("{} id={id}", "x".repeat(1010)) });
+
+    let first = padded("550e8400-e29b-41d4-a716-446655440000");
+    let second = padded("6ba7b810-9dad-11d1-80b4-00c04fd430c8");
+
+    assert_eq!(
+        calculate_grouping_key(&first),
+        calculate_grouping_key(&second)
+    );
+}
+
+/// A chain of exception groups nested deeper than the walk can follow is the
+/// acyclic twin of the cycle above: distinct ids, so nothing repeats, and
+/// ~75 bytes per entry, so tens of thousands fit under the 4 MB an event item
+/// is allowed. Sentry's own walk is just as unguarded, but Python raises
+/// `RecursionError` at its recursion limit and the caller's blanket `except`
+/// degrades to the unfiltered chain; a blown Rust stack aborts the process,
+/// so the depth has to be bounded here.
+#[test]
+fn test_deep_exception_group_chain_keeps_the_chain_instead_of_recursing() {
+    let depth = 15_000u64;
+    let mut values = vec![json!({
+        "type": "E0", "value": "boom",
+        "mechanism": { "exception_id": 0, "is_exception_group": true }
+    })];
+    for id in 1..depth {
+        values.push(json!({
+            "type": format!("E{id}"), "value": "boom",
+            "mechanism": {
+                "exception_id": id, "parent_id": id - 1, "is_exception_group": true }
+        }));
+    }
+    values.push(json!({
+        "type": "Inner", "value": "boom",
+        "mechanism": { "exception_id": depth, "parent_id": depth - 1 }
+    }));
+    let event = json!({ "exception": { "values": values } });
+
+    let key = grouping_key_on_a_bounded_stack(event);
+
+    assert!(
+        key.contains("E0: boom"),
+        "the wrapper chain was collapsed away"
+    );
+    assert!(
+        key.contains("Inner: boom"),
+        "key was truncated at the wrapper"
+    );
+}
+
+/// A deep chain below a collapsed wrapper reaches the first-path walk instead
+/// of the top-level one, and has to stop there too.
+#[test]
+fn test_deep_first_path_keeps_the_chain_instead_of_recursing() {
+    let depth = 15_000u64;
+    let mut values = vec![json!({
+        "type": "Wrapper", "value": "1 sub-exception(s)",
+        "mechanism": { "exception_id": 0, "is_exception_group": true }
+    })];
+    for id in 1..=depth {
+        values.push(json!({
+            "type": format!("Cause{id}"), "value": "boom",
+            "mechanism": { "exception_id": id, "parent_id": id - 1 }
+        }));
+    }
+    let event = json!({ "exception": { "values": values } });
+
+    let key = grouping_key_on_a_bounded_stack(event);
+
+    assert!(key.contains("Wrapper: "), "the wrapper was collapsed away");
+    assert!(
+        key.contains("Cause15000: boom"),
+        "key was truncated at the wrapper"
+    );
+}
+
+/// Runs the grouping on a thread with the stack a Tokio worker gets, so the
+/// budget under test is the server's rather than whatever the harness hands
+/// this test.
+fn grouping_key_on_a_bounded_stack(event: serde_json::Value) -> String {
+    std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(move || calculate_grouping_key(&event))
+        .expect("spawn")
+        .join()
+        .expect("the grouping walk aborted the process")
 }

@@ -84,6 +84,11 @@ sha2 = "0.11.0"
 # formatting edge cases match.
 dynfmt = { version = "0.2", features = ["python", "curly"] }
 
+# Message parameterization for grouping. `fancy-regex` rather than `regex`
+# because Sentry's patterns lean on lookbehind and lookahead, which `regex`
+# does not support.
+fancy-regex = "0.19"
+
 # IP address handling (stored as string for SQLite compat)
 # ipnetwork removed - store IP as String for multi-DB support
 
