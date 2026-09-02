@@ -3,7 +3,7 @@ use slug::slugify;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult, FieldErrorCode};
 use crate::models::{CreateProject, Project, UpdateProject, SELECTABLE_PLATFORMS, VALID_PLATFORMS};
-use crate::pagination::SortOrder;
+use crate::pagination::{ListParams, SortableField};
 
 /// Whether [`ProjectService::update_inner`] runs the slug availability
 /// pre-check before the UPDATE.
@@ -16,6 +16,29 @@ use crate::pagination::SortOrder;
 enum SlugPrecheck {
     Run,
     Skip,
+}
+
+/// Which columns `?sort=` may name on the projects list, and what each means.
+///
+/// The only thing between a query string and an `ORDER BY`. Every value it
+/// returns is a literal in this file.
+///
+/// `open` and `events` are absent on purpose: they are aggregates that
+/// `StatsService` computes for the page that was already fetched, so sorting
+/// by them would mean pulling the whole table through the stats query.
+pub struct ProjectSort;
+
+impl SortableField for ProjectSort {
+    fn column(name: &str) -> Option<&'static str> {
+        match name {
+            "name" => Some("name"),
+            "slug" => Some("slug"),
+            "platform" => Some("platform"),
+            "created" | "created_at" => Some("created_at"),
+            "total" | "stored_event_count" => Some("stored_event_count"),
+            _ => None,
+        }
+    }
 }
 
 pub struct ProjectService;
@@ -38,104 +61,146 @@ impl ProjectService {
         Ok(projects)
     }
 
-    /// Lists projects with offset-based pagination
-    pub async fn list_offset(
-        pool: &DbPool,
-        order: SortOrder,
-        page: i64,
-        per_page: i64,
-    ) -> AppResult<(Vec<Project>, i64)> {
-        let offset = (page - 1) * per_page;
-
-        // Get total count
-        let total_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM projects")
-            .fetch_one(pool)
-            .await?;
-
-        // Build ORDER BY clause
-        let order_clause = match order {
-            SortOrder::Asc => "ORDER BY created_at ASC",
-            SortOrder::Desc => "ORDER BY created_at DESC",
-        };
-
-        let query = format!(
-            r#"
-            SELECT id, name, slug, sentry_key, stored_event_count,
-                   digested_event_count, created_at, updated_at, platform,
-                   quota_exceeded_until, quota_exceeded_reason, next_quota_check
-            FROM projects
-            {}
-            LIMIT $1 OFFSET $2
-            "#,
-            order_clause
-        );
-
-        let projects = sqlx::query_as::<_, Project>(sqlx::AssertSqlSafe(&*query))
-            .bind(per_page)
-            .bind(offset)
-            .fetch_all(pool)
-            .await?;
-
-        Ok((projects, total_count.0))
-    }
-
-    /// Lists projects with offset-based pagination, restricted to the given ids.
+    /// Lists projects for one page of a table.
     ///
-    /// Used to scope the project list for non-admin members to only the projects
-    /// they belong to. If `ids` is empty, returns `(vec![], 0)` without issuing a
-    /// query (avoids an invalid `IN ()` clause).
-    pub async fn list_offset_for_ids(
+    /// Replaces the pair of near-identical `list_offset` / `list_offset_for_ids`
+    /// functions: the member restriction is a `WHERE` clause like the others
+    /// rather than a second copy of the query.
+    pub async fn list_page(
         pool: &DbPool,
-        ids: &[i32],
-        order: SortOrder,
-        page: i64,
-        per_page: i64,
+        params: &ListParams,
+        restrict_to: Option<&[i32]>,
     ) -> AppResult<(Vec<Project>, i64)> {
-        if ids.is_empty() {
+        if restrict_to.is_some_and(<[i32]>::is_empty) {
             return Ok((Vec::new(), 0));
         }
 
-        let offset = (page - 1) * per_page;
+        let mut wheres: Vec<String> = Vec::new();
+        let mut binds: Vec<String> = Vec::new();
+        let mut ids: Vec<i32> = Vec::new();
+        let mut next = 1usize;
 
-        // Build a parameterized IN list ($1, $2, ...). Bind params start at $1
-        // for the ids; LIMIT/OFFSET come after.
-        let placeholders: Vec<String> = (1..=ids.len()).map(|i| format!("${}", i)).collect();
-        let in_clause = placeholders.join(", ");
-        let limit_param = ids.len() + 1;
-        let offset_param = ids.len() + 2;
+        if let Some(allowed) = restrict_to {
+            let placeholders: Vec<String> = allowed
+                .iter()
+                .map(|_| {
+                    let p = format!("${}", next);
+                    next += 1;
+                    p
+                })
+                .collect();
+            wheres.push(format!("id IN ({})", placeholders.join(", ")));
+            ids = allowed.to_vec();
+        }
 
-        let order_clause = match order {
-            SortOrder::Asc => "ORDER BY created_at ASC",
-            SortOrder::Desc => "ORDER BY created_at DESC",
+        // `LOWER(...) LIKE` rather than `ILIKE`: the same statement has to run
+        // on SQLite, which is the default store, and on PostgreSQL.
+        if !params.search.is_empty() {
+            wheres.push(format!(
+                "(LOWER(name) LIKE ${0} OR LOWER(slug) LIKE ${0})",
+                next
+            ));
+            binds.push(format!("%{}%", params.search.to_lowercase()));
+            next += 1;
+        }
+
+        if let Some(platforms) = params.filter("platform") {
+            let placeholders: Vec<String> = platforms
+                .iter()
+                .map(|value| {
+                    let p = format!("${}", next);
+                    next += 1;
+                    binds.push(value.clone());
+                    p
+                })
+                .collect();
+            wheres.push(format!("platform IN ({})", placeholders.join(", ")));
+        }
+
+        // `total:min..max`, the events a project has stored. Bound as numbers,
+        // so the range never reaches the statement as text.
+        let mut numbers: Vec<i64> = Vec::new();
+        if let Some((min, max)) = params.range("total") {
+            if let Some(min) = min {
+                wheres.push(format!("stored_event_count >= ${}", next));
+                numbers.push(min as i64);
+                next += 1;
+            }
+            if let Some(max) = max {
+                wheres.push(format!("stored_event_count <= ${}", next));
+                numbers.push(max as i64);
+                next += 1;
+            }
+        }
+
+        // `created:7`, projects created in the last seven days. The cutoff is
+        // computed here rather than in SQL, so the statement is the same one on
+        // SQLite and on PostgreSQL.
+        let mut cutoff: Option<chrono::DateTime<chrono::Utc>> = None;
+        if let Some(window) = params.days("created") {
+            cutoff = Some(chrono::Utc::now() - window);
+            wheres.push(format!("created_at >= ${}", next));
+            next += 1;
+        }
+
+        let where_clause = if wheres.is_empty() {
+            String::new()
+        } else {
+            format!("WHERE {}", wheres.join(" AND "))
         };
 
-        let count_query = format!("SELECT COUNT(*) FROM projects WHERE id IN ({})", in_clause);
-        let mut count_q = sqlx::query_as::<_, (i64,)>(sqlx::AssertSqlSafe(&*count_query));
-        for id in ids {
+        let count_sql = format!("SELECT COUNT(*) FROM projects {}", where_clause);
+        let mut count_q = sqlx::query_as::<_, (i64,)>(sqlx::AssertSqlSafe(&*count_sql));
+        for id in &ids {
             count_q = count_q.bind(id);
         }
-        let total_count: (i64,) = count_q.fetch_one(pool).await?;
+        for value in &binds {
+            count_q = count_q.bind(value);
+        }
+        for value in &numbers {
+            count_q = count_q.bind(value);
+        }
+        if let Some(at) = cutoff {
+            count_q = count_q.bind(at);
+        }
+        let (total_count,) = count_q.fetch_one(pool).await?;
 
-        let query = format!(
+        let sql = format!(
             r#"
             SELECT id, name, slug, sentry_key, stored_event_count,
                    digested_event_count, created_at, updated_at, platform,
                    quota_exceeded_until, quota_exceeded_reason, next_quota_check
             FROM projects
-            WHERE id IN ({})
             {}
+            ORDER BY {}
             LIMIT ${} OFFSET ${}
             "#,
-            in_clause, order_clause, limit_param, offset_param
+            where_clause,
+            params.order_by::<ProjectSort>("created_at DESC"),
+            next,
+            next + 1,
         );
 
-        let mut q = sqlx::query_as::<_, Project>(sqlx::AssertSqlSafe(&*query));
-        for id in ids {
+        let mut q = sqlx::query_as::<_, Project>(sqlx::AssertSqlSafe(&*sql));
+        for id in &ids {
             q = q.bind(id);
         }
-        let projects = q.bind(per_page).bind(offset).fetch_all(pool).await?;
+        for value in &binds {
+            q = q.bind(value);
+        }
+        for value in &numbers {
+            q = q.bind(value);
+        }
+        if let Some(at) = cutoff {
+            q = q.bind(at);
+        }
+        let projects = q
+            .bind(params.per)
+            .bind(params.offset)
+            .fetch_all(pool)
+            .await?;
 
-        Ok((projects, total_count.0))
+        Ok((projects, total_count))
     }
 
     /// Gets a project by ID

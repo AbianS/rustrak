@@ -13,7 +13,7 @@ import type {
   IssueAggregates,
   IssueStats,
   IssueStatsWindow,
-  ListIssuesOptions,
+  ListOptions,
   OffsetPaginatedResponse,
   Result,
   RustrakError,
@@ -37,7 +37,7 @@ import { createClient } from '@/shared/api/rustrak';
  */
 export async function listIssues(
   projectId: number,
-  options?: ListIssuesOptions,
+  options?: ListOptions,
 ): Promise<Result<OffsetPaginatedResponse<Issue>, RustrakError>> {
   const client = await createClient();
   return client.issues.list(projectId, options);

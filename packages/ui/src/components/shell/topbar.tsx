@@ -3,6 +3,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import {
   chevronFlip,
   interactiveTransition,
@@ -13,18 +14,12 @@ import { tv } from '../../lib/tv';
 import { Avatar } from '../avatar/avatar';
 import { Wordmark } from '../brand/wordmark';
 import type { IconComponent } from '../icon/icon';
-import {
-  ChevronDownIcon,
-  CloseIcon,
-  MenuIcon,
-  SearchIcon,
-} from '../icon/icon-catalog';
+import { ChevronDownIcon, SearchIcon } from '../icon/icon-catalog';
 import { Kbd } from '../kbd/kbd';
 import { Menu, MenuActions } from '../menu/menu';
 import type { MenuAction } from '../menu/menu-parts';
 import { Separator } from '../separator/separator';
 import { Text } from '../text/text';
-import { useSidebar } from './sidebar-context';
 
 /**
  * The topbar: 48 px, full width, fixed. Identity on the left, everything global
@@ -139,17 +134,21 @@ export interface TopbarSearchProps
  * it, which is a far clearer answer than any sink.
  */
 export function TopbarSearch({
-  placeholder = 'Search Rustrak…',
+  placeholder,
   shortcut = '⌘K',
   className,
   ...props
 }: TopbarSearchProps) {
+  // The product names it; with nobody naming it the system still has to, or
+  // the button reaches a screen reader with no accessible name at all.
+  const label = placeholder ?? uiLabel('topbarSearch');
+
   return (
     <button
       type="button"
       /* On a phone the label is hidden, and hidden text is read by nobody:
          the accessible name lives on the element itself, always. */
-      aria-label={placeholder}
+      aria-label={label}
       className={cn(
         'flex h-control-sm w-search max-w-full items-center justify-between',
         'gap-2 rounded-md border border-border bg-canvas px-2.25',
@@ -172,7 +171,7 @@ export function TopbarSearch({
       <span className="flex min-w-0 items-center gap-2">
         <SearchIcon size="md" className="max-md:size-icon-xl" />
         <span className="min-w-0 truncate text-start max-md:hidden">
-          {placeholder}
+          {label}
         </span>
       </span>
       <Kbd className="max-md:hidden">{shortcut}</Kbd>
@@ -337,33 +336,3 @@ export function TopbarUser({
 }
 
 TopbarUser.displayName = 'TopbarUser';
-
-/**
- * The button that opens the navigation on a phone.
- *
- * It only exists below `md`. Above that the sidebar is on screen already, and a
- * button that opens what you can see says nothing.
- */
-export function TopbarMenuButton() {
-  const { drawerOpen, toggleDrawer } = useSidebar();
-
-  return (
-    <button
-      type="button"
-      onClick={toggleDrawer}
-      aria-label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-      aria-expanded={drawerOpen}
-      className={cn(
-        'flex size-control-sm shrink-0 items-center justify-center md:hidden',
-        'rounded-md text-fg-subtle hover:bg-surface-hover hover:text-fg',
-        interactiveTransition,
-        pressScaleSmall,
-        focusRing,
-      )}
-    >
-      {drawerOpen ? <CloseIcon size="xl" /> : <MenuIcon size="xl" />}
-    </button>
-  );
-}
-
-TopbarMenuButton.displayName = 'TopbarMenuButton';

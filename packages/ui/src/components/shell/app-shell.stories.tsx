@@ -33,6 +33,7 @@ import { AppShell, Page, PageHeader, SubHeader } from './app-shell';
 import {
   Sidebar,
   SidebarCollapseButton,
+  SidebarDrawerButton,
   SidebarItem,
   SidebarProject,
 } from './sidebar';
@@ -40,7 +41,6 @@ import {
   Topbar,
   TopbarAction,
   TopbarBrand,
-  TopbarMenuButton,
   TopbarSearch,
   TopbarUser,
 } from './topbar';
@@ -81,7 +81,7 @@ function Frame({
     <AppShell
       topbar={
         <Topbar
-          menu={<TopbarMenuButton />}
+          menu={<SidebarDrawerButton />}
           brand={<TopbarBrand render={<a href="#home" />} />}
           actions={
             <>
@@ -116,7 +116,7 @@ function Frame({
           header={
             <SidebarProject
               name="Checkout API"
-              organisation="Acme Corp"
+              caption="Acme Corp"
               platform="JS"
             />
           }
@@ -231,6 +231,62 @@ function IssueList() {
     </div>
   );
 }
+
+/**
+ * The organisation-level frame: no sidebar.
+ *
+ * The projects list and settings are not scoped to one project, so there is
+ * nothing to navigate *within*. A rail of links to elsewhere is decoration,
+ * and the content takes the width instead. `SidebarDrawerButton` goes with it:
+ * it opens the sidebar drawer, and there is no drawer here.
+ */
+export const NoSidebar: Story = {
+  render: () => (
+    <AppShell
+      topbar={
+        <Topbar
+          brand={<TopbarBrand render={<a href="#home" />} />}
+          actions={
+            <>
+              <TopbarSearch />
+              <TopbarUser
+                name="Mar\u00eda L\u00f3pez"
+                email="maria@acme.dev"
+                actions={[{ id: 'signout', label: 'Sign out', tone: 'danger' }]}
+              />
+            </>
+          }
+        />
+      }
+    >
+      <Page>
+        <PageHeader
+          title="Projects"
+          meta={
+            <Text variant="body" tone="tertiary">
+              6 projects
+            </Text>
+          }
+          actions={
+            <Button variant="primary" icon={NewIcon}>
+              New project
+            </Button>
+          }
+        />
+        <IssueList />
+      </Page>
+    </AppShell>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(
+      canvas.getByRole('heading', { name: 'Projects' }),
+    ).toBeVisible();
+    // No rail, so nothing announces itself as navigation.
+    await expect(canvas.queryByRole('navigation')).not.toBeInTheDocument();
+  },
+};
 
 /** The list screen: the frame, a title, the views, and rows. */
 export const IssueListScreen: Story = {
@@ -406,7 +462,7 @@ export const CollapsedSidebar: Story = {
           header={
             <SidebarProject
               name="Checkout API"
-              organisation="Acme Corp"
+              caption="Acme Corp"
               platform="JS"
             />
           }
@@ -443,14 +499,14 @@ export const TheShortcutCollapsesIt: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const collapse = canvas.getByRole('button', { name: 'Collapse sidebar' });
+    const collapse = canvas.getByRole('button', { name: 'Collapse' });
 
     await expect(collapse).toHaveAttribute('aria-expanded', 'true');
 
     await userEvent.keyboard('{Meta>}b{/Meta}');
 
     await expect(
-      await canvas.findByRole('button', { name: 'Expand sidebar' }),
+      await canvas.findByRole('button', { name: 'Expand' }),
     ).toHaveAttribute('aria-expanded', 'false');
   },
 };

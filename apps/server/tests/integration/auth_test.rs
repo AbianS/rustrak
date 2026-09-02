@@ -43,6 +43,7 @@ fn create_test_config() -> Config {
         max_chunk_size_bytes: 10 * 1024 * 1024,
         session_flush_interval_secs: 30,
         session_cardinality_cap: 10_000,
+        dashboard_dir: "./static".to_string(),
     }
 }
 
@@ -614,7 +615,7 @@ async fn test_middleware_blocks_unauthenticated_access() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::new(false))
             .configure(routes::auth::configure)
             .configure(routes::projects::configure),
     )
@@ -646,7 +647,7 @@ async fn test_middleware_allows_authenticated_access() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::new(false))
             .configure(routes::auth::configure)
             .configure(routes::projects::configure),
     )
@@ -691,7 +692,7 @@ async fn test_middleware_exempts_auth_routes() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::new(false))
             .configure(routes::auth::configure),
     )
     .await;
@@ -727,7 +728,7 @@ async fn test_middleware_exempts_health_routes() {
                     .cookie_secure(false)
                     .build(),
             )
-            .wrap(RequireAuth)
+            .wrap(RequireAuth::new(false))
             .service(
                 web::scope("/health")
                     .route("", web::get().to(routes::health::liveness))

@@ -965,9 +965,33 @@
         "operationId": "list_projects",
         "parameters": [
           {
+            "name": "q",
+            "in": "query",
+            "description": "Filters and free text in one string: `platform:rust,node timeout`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort fields, `-` for descending: `-events,name`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
             "name": "page",
             "in": "query",
-            "description": "Page number (1-indexed, default: 1)",
+            "description": "Page number, 1-indexed.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -976,24 +1000,15 @@
             }
           },
           {
-            "name": "per_page",
+            "name": "per",
             "in": "query",
-            "description": "Items per page (default: 20, max: 100)",
+            "description": "Items per page.",
             "required": false,
             "schema": {
               "type": "integer",
               "format": "int64",
               "maximum": 100,
               "minimum": 1
-            }
-          },
-          {
-            "name": "order",
-            "in": "query",
-            "description": "Sort order direction (default: desc = newest first)",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SortOrder"
             }
           },
           {
@@ -2852,65 +2867,50 @@
             }
           },
           {
-            "name": "page",
-            "in": "query",
-            "description": "Page number (1-indexed, default: 1)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "minimum": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Items per page (default: 20, max: 100)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "format": "int64",
-              "maximum": 100,
-              "minimum": 1
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "description": "Sort mode (default: last_seen)",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/IssueSort"
-            }
-          },
-          {
-            "name": "order",
-            "in": "query",
-            "description": "Sort order direction (default: desc)",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/SortOrder"
-            }
-          },
-          {
-            "name": "filter",
-            "in": "query",
-            "description": "Filter: open (not resolved, not muted), resolved, muted, all",
-            "required": false,
-            "schema": {
-              "$ref": "#/components/schemas/IssueFilter"
-            }
-          },
-          {
             "name": "q",
             "in": "query",
-            "description": "Free-text search across type, value, transaction, and culprit.",
+            "description": "Filters and free text in one string: `platform:rust,node timeout`.",
             "required": false,
             "schema": {
               "type": [
                 "string",
                 "null"
               ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort fields, `-` for descending: `-events,name`.",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number, 1-indexed.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 100,
+              "minimum": 1
             }
           }
         ],

@@ -21,7 +21,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/routeTree.gen.ts"
     ]
   },
   "formatter": {
@@ -35,7 +36,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/routeTree.gen.ts"
     ],
     "enabled": true,
     "formatWithErrors": false,
@@ -123,7 +125,8 @@
       "!**/.turbo",
       "!**/playwright-report",
       "!**/test-results",
-      "!**/src-tauri"
+      "!**/src-tauri",
+      "!**/routeTree.gen.ts"
     ]
   },
   "overrides": [

@@ -1,0 +1,196 @@
+import { Controls, Meta, Unstyled } from '@storybook/addon-docs/blocks';
+import {
+  Cover,
+  Do,
+  DoDont,
+  DocPage,
+  Dont,
+  Guarantee,
+  Guarantees,
+  Matrix,
+  P,
+  Place,
+  Rule,
+  Section,
+  Stage,
+  UsedIn,
+} from '../../docs/blocks';
+import { compareMetric } from './compare';
+import { Metric } from './metric';
+import * as MetricStories from './metric.stories';
+
+<Meta of={MetricStories} />
+
+<Unstyled>
+<DocPage>
+
+<Cover
+  eyebrow="Components"
+  title="Metric"
+  lede="One figure, with what it was and what that means. The row of these across the top of an overview is the page's headline."
+  note="The arrow says which way it moved. The colour says whether that is good news. They are two different facts."
+/>
+
+<Section
+  n="01"
+  title="Anatomy"
+  intro="Label, figure, change, caption. The figure is the only loud thing in it, because a row of these is read by scanning the numbers and coming back for the words only where a number looked wrong."
+>
+
+<Stage label="the four parts">
+  <div className="w-64">
+    <Metric
+      caption="Compared with the previous 24 hours"
+      comparison={compareMetric(12403, 10511, 'up-is-bad')}
+      comparisonLabel="vs previous"
+      label="Events"
+      value="12,403"
+    />
+  </div>
+</Stage>
+
+<Rule>
+  <b>1</b> the label: what is being counted, sentence case.
+  <b>2</b> the figure, already formatted by whoever owns the locale.
+  <b>3</b> the change, arrow and colour.
+  <b>4</b> the caption: one line of context.
+</Rule>
+
+</Section>
+
+<Section
+  n="02"
+  title="Polarity is required, and that is the point"
+  intro="Errors going up and crash-free sessions going up are the same arrow and opposite news. A component that guessed would be right half the time and green while the product burns the other half."
+>
+
+<Matrix
+  columns={['rose', 'fell']}
+  rows={['up-is-bad', 'up-is-good', 'neutral']}
+  cell={(direction, polarity) => (
+    <Metric
+      comparison={compareMetric(
+        direction === 'rose' ? 130 : 70,
+        100,
+        polarity,
+      )}
+      label={polarity}
+      value={direction === 'rose' ? '130' : '70'}
+    />
+  )}
+/>
+
+<P>
+  Read down the second column. The arrow is the same in every row and the colour
+  is not, because the arrow reports the movement and the colour reports the
+  verdict.
+</P>
+
+</Section>
+
+<Section
+  n="03"
+  title="Nothing to compare against is not zero per cent"
+  intro="compareMetric returns nothing in two cases, and they are different cases: an all-time figure has no window before it, and a previous window of zero makes the change undefined rather than infinite."
+>
+
+<P>
+  Naive arithmetic prints <code>+100 %</code> for both. Neither is true, and a
+  headline reading <code>+100 %</code> on the morning a project received its
+  first event is the kind of number that gets escalated.
+</P>
+
+</Section>
+
+<Section n="04" title="Guidelines">
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-56">
+        <Metric
+          comparison={compareMetric(41, 63, 'up-is-bad')}
+          comparisonLabel="vs previous"
+          label="New issues"
+          value="41"
+        />
+      </div>
+    }
+  >
+    Say what the comparison is against.
+  </Do>
+  <Dont
+    example={
+      <div className="w-56">
+        <Metric
+          comparison={{ percent: -35, tone: 'negative' }}
+          label="New issues"
+          value="41"
+        />
+      </div>
+    }
+  >
+    A bare percentage. Against what, over how long, nobody can tell.
+  </Dont>
+</DoDont>
+
+<DoDont>
+  <Do
+    example={
+      <div className="w-56">
+        <Metric
+          caption="Nothing to compare against"
+          label="Events"
+          value="900"
+        />
+      </div>
+    }
+  >
+    Say there is no comparison.
+  </Do>
+  <Dont
+    example={
+      <div className="w-56">
+        <Metric
+          comparison={{ percent: 100, tone: 'negative' }}
+          label="Events"
+          value="900"
+        />
+      </div>
+    }
+  >
+    Invent one. A previous window of zero is not a hundred per cent rise.
+  </Dont>
+</DoDont>
+
+</Section>
+
+<Section n="05" title="Where it is used">
+
+<UsedIn>
+  <Place at="Project overview">The four figures across the top: events, new issues, open issues, crash-free sessions.</Place>
+  <Place at="Release detail">Adoption and crash-free rate against the release before it.</Place>
+  <Place at="Transaction summary">Count, p50, p95, failure rate.</Place>
+</UsedIn>
+
+</Section>
+
+<Section n="06" title="What it guarantees">
+
+<Guarantees>
+  <Guarantee story="States">The arrow follows the movement and the colour follows the polarity, independently.</Guarantee>
+  <Guarantee story="NothingToCompare">A missing or zero previous window draws no change at all.</Guarantee>
+  <Guarantee story="Unchanged">A change of exactly zero draws no arrow.</Guarantee>
+  <Guarantee story="AsALink">With <code>render</code> the whole tile is one link, not a figure with a link inside it.</Guarantee>
+</Guarantees>
+
+</Section>
+
+<Section n="07" title="Props">
+
+<Controls />
+
+</Section>
+
+</DocPage>
+</Unstyled>

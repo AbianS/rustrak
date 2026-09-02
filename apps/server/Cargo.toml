@@ -18,6 +18,10 @@ actix-web = { version = "4.14.1", default-features = false, features = [
 ] }
 actix-rt = "2.11.0"
 
+# Static file serving for the compiled dashboard. Optional at runtime: the
+# server mounts it only when a build is actually present on disk.
+actix-files = "0.7.0"
+
 # Session management
 actix-session = { version = "0.11", features = ["cookie-session"] }
 
@@ -146,6 +150,7 @@ proptest = "1.11.0"
 
 # Better assertion diffs
 pretty_assertions = "1.4.1"
+serde_urlencoded = "0.7.1"
 
 # tempfile moved to [dependencies] (needed at runtime for assembly)
 

@@ -12,7 +12,12 @@ import {
 export interface AppShellProps
   extends Omit<SidebarProviderProps, 'children' | 'shortcutKey'> {
   topbar: ReactNode;
-  sidebar: ReactNode;
+  /**
+   * Left out for the screens that are not scoped to one project: the list of
+   * projects, settings. There is nothing to navigate *within* yet, and a rail
+   * of links to elsewhere is not navigation, it is decoration.
+   */
+  sidebar?: ReactNode;
   children: ReactNode;
   className?: string;
   /** The shortcut that collapses the sidebar. `false` turns it off. */
@@ -20,7 +25,8 @@ export interface AppShellProps
 }
 
 /**
- * The application frame: topbar across the top, sidebar and content below it.
+ * The application frame: topbar across the top, content below it, and a
+ * sidebar beside the content on the screens that have one.
  *
  * It occupies exactly the window and the only thing that scrolls is the
  * content. An error tracker is a place you spend the day jumping between a list
@@ -34,6 +40,11 @@ export interface AppShellProps
  * It brings the tooltip provider with it, because the collapsed sidebar depends
  * on it: without a provider, running down a rail of seven icons means waiting
  * out the full delay seven times.
+ *
+ * The sidebar can also be mounted further down, by a nested layout that is the
+ * first thing to know which project it belongs to. That is what {@link
+ * Workspace} is: the same row, rendered inside these children instead of beside
+ * them, against the sidebar state this provider already holds.
  */
 export function AppShell({
   topbar,
@@ -54,14 +65,13 @@ export function AppShell({
         >
           {topbar}
 
-          <div className="relative flex min-h-0 flex-1">
-            {sidebar}
-            <DrawerScrim />
-
-            <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {sidebar ? (
+            <Workspace sidebar={sidebar}>{children}</Workspace>
+          ) : (
+            <div className="relative flex min-h-0 flex-1 flex-col">
               {children}
-            </main>
-          </div>
+            </div>
+          )}
         </div>
       </SidebarProvider>
     </TooltipProvider>
@@ -69,6 +79,41 @@ export function AppShell({
 }
 
 AppShell.displayName = 'AppShell';
+
+export interface WorkspaceProps {
+  sidebar: ReactNode;
+  children: ReactNode;
+  className?: string;
+}
+
+/**
+ * A sidebar beside its content, and the drawer scrim that goes with it.
+ *
+ * `AppShell` uses it for the sidebar it is handed directly. A nested route uses
+ * it for the one it owns: on `/projects/$id` the sidebar carries the project
+ * and its seven routes, and the layout that knows which project that is sits
+ * two levels below the shell. Rendering it here rather than threading a node
+ * back up keeps the shell ignorant of routing, which is the whole reason this
+ * package has no router in it.
+ *
+ * There is no `<main>` in either path. The landmark belongs to `Page`, which is
+ * the region that actually scrolls -- and nesting a second one here is what
+ * would happen the first time a route used both.
+ */
+export function Workspace({ sidebar, children, className }: WorkspaceProps) {
+  return (
+    <div className={cn('relative flex min-h-0 flex-1', className)}>
+      {sidebar}
+      <DrawerScrim />
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+Workspace.displayName = 'Workspace';
 
 /**
  * The dimmed backdrop behind the navigation drawer, on phones only.
@@ -104,7 +149,13 @@ function DrawerScrim() {
       onClick={() => setDrawerOpen(false)}
       data-open={drawerOpen || undefined}
       className={cn(
-        'absolute inset-0 z-30 bg-scrim md:hidden',
+        /* `fixed`, not `absolute`: the drawer covers the full height of the
+           viewport, so anything less than that leaves the topbar lit above a
+           dimmed page, which reads as a rendering fault rather than as a
+           panel on top. */
+        'fixed inset-0 z-30 bg-scrim md:hidden',
+        'supports-backdrop-filter:bg-scrim-blurred',
+        'supports-backdrop-filter:backdrop-blur-sm',
         'transition-opacity duration-slow ease-standard',
         'not-data-open:pointer-events-none not-data-open:opacity-0',
       )}
@@ -125,6 +176,11 @@ export interface PageProps {
 /**
  * A page's content, with the system's 28 px gutter.
  *
+ * It is the document's `<main>`, and it is here rather than in the shell
+ * because the landmark should be the region that scrolls: skipping to the main
+ * content and landing on a frame that cannot move is not a skip link, it is a
+ * detour. One page renders one of these, so there is exactly one.
+ *
  * When it scrolls it also takes focus, and that is not decoration: a logs
  * screen is sixty lines of text with nothing clickable in it, and a scrollable
  * box with no focusable content inside is unreachable with a keyboard --
@@ -134,7 +190,7 @@ export interface PageProps {
  */
 export function Page({ children, className, scroll = true }: PageProps) {
   return (
-    <div
+    <main
       tabIndex={scroll ? 0 : undefined}
       className={cn(
         'flex min-h-0 flex-1 flex-col gap-4 p-page-gutter outline-none',
@@ -143,7 +199,7 @@ export function Page({ children, className, scroll = true }: PageProps) {
       )}
     >
       {children}
-    </div>
+    </main>
   );
 }
 
@@ -158,7 +214,14 @@ export interface PageHeaderProps {
   className?: string;
 }
 
-/** A page's heading row: the title, what it is made of, and its actions. */
+/**
+ * A page's heading row: the title, what it is made of, and its actions.
+ *
+ * It wraps. On a phone the actions drop under the title and take the width,
+ * rather than squeezing the title block toward zero -- which is what happened
+ * before, and what turned a one-line summary into one word per line with the
+ * heading pushed out of sight entirely.
+ */
 export function PageHeader({
   title,
   meta,
@@ -167,14 +230,21 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div
-      className={cn('flex shrink-0 items-end justify-between gap-6', className)}
+      className={cn(
+        'flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-3',
+        className,
+      )}
     >
-      <div className="min-w-0">
+      {/* `basis-full sm:basis-auto`: the title owns its own line while the
+          actions are wrapped under it, and shares one once they fit beside. */}
+      <div className="min-w-0 basis-full sm:basis-auto">
         <h1 className="truncate text-page-title text-fg">{title}</h1>
         {meta ? <div className="mt-1.5 min-w-0">{meta}</div> : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
     </div>
   );

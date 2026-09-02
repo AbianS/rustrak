@@ -148,14 +148,13 @@ describe('Pagination', () => {
           'http://localhost:8080/api/projects/:projectId/issues',
           ({ request }) => {
             const url = new URL(request.url);
-            const sort = url.searchParams.get('sort');
-            const order = url.searchParams.get('order');
-            const filter = url.searchParams.get('filter');
 
-            // Verify parameters are passed correctly
-            expect(sort).toBe('last_seen');
-            expect(order).toBe('asc');
-            expect(filter).toBe('all');
+            // Four parameters, the same four every list endpoint takes. The
+            // direction rides on the sort field and the status rides in `q`.
+            expect(url.searchParams.get('sort')).toBe('last_seen');
+            expect(url.searchParams.get('q')).toBe('is:all');
+            expect(url.searchParams.get('order')).toBeNull();
+            expect(url.searchParams.get('filter')).toBeNull();
 
             return HttpResponse.json({
               items: [],
@@ -168,13 +167,7 @@ describe('Pagination', () => {
         ),
       );
 
-      expectOk(
-        await client.issues.list(1, {
-          sort: 'last_seen',
-          order: 'asc',
-          filter: 'all',
-        }),
-      );
+      expectOk(await client.issues.list(1, { sort: 'last_seen', q: 'is:all' }));
     });
 
     it('should preserve query params across pagination', async () => {
@@ -288,15 +281,15 @@ describe('Pagination', () => {
   });
 
   describe('Edge Cases', () => {
-    it('should handle per_page parameter', async () => {
+    it('should handle the per parameter', async () => {
       server.use(
         http.get(
           'http://localhost:8080/api/projects/:projectId/issues',
           ({ request }) => {
             const url = new URL(request.url);
-            const perPage = url.searchParams.get('per_page');
 
-            expect(perPage).toBe('5');
+            expect(url.searchParams.get('per')).toBe('5');
+            expect(url.searchParams.get('per_page')).toBeNull();
 
             return HttpResponse.json({
               items: [],
@@ -309,7 +302,7 @@ describe('Pagination', () => {
         ),
       );
 
-      expectOk(await client.issues.list(1, { per_page: 5 }));
+      expectOk(await client.issues.list(1, { per: 5 }));
     });
 
     it('should handle last page correctly', async () => {

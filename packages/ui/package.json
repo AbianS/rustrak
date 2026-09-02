@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "sideEffects": [
-    "*.css"
+    "**/*.css"
   ],
   "files": [
     "dist",
@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",
+    "@rustrak/i18n": "workspace:*",
     "@tanstack/react-table": "9.1.2",
     "clsx": "2.1.1",
     "lucide-react": "1.33.0",

@@ -2,6 +2,7 @@ import { AlertDialog as BaseAlertDialog } from '@base-ui/react/alert-dialog';
 import { Dialog as BaseDialog } from '@base-ui/react/dialog';
 import type { ReactNode, RefObject } from 'react';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition, pressScaleSmall } from '../../lib/motion';
 import { tv, type VariantProps } from '../../lib/tv';
 import type { IconComponent } from '../icon/icon';
@@ -27,7 +28,13 @@ import { CloseIcon } from '../icon/icon-catalog';
 const dialog = tv({
   slots: {
     backdrop: [
+      /* The blur is what separates the modal from the page; the tint only
+         holds contrast up behind it. Guarded, so a browser without
+         `backdrop-filter` still gets the full scrim rather than a
+         see-through one. */
       'fixed inset-0 z-50 bg-scrim',
+      'supports-backdrop-filter:bg-scrim-blurred',
+      'supports-backdrop-filter:backdrop-blur-sm',
       'transition-[opacity] duration-fast',
       'data-starting-style:opacity-0 data-starting-style:ease-entrance',
       'data-ending-style:opacity-0 data-ending-style:ease-exit',
@@ -210,7 +217,10 @@ export function DialogHeader({
       </div>
 
       {dismissible ? (
-        <BaseDialog.Close className={styles.close()} aria-label="Close">
+        <BaseDialog.Close
+          className={styles.close()}
+          aria-label={uiLabel('close')}
+        >
           <CloseIcon size="sm" aria-hidden="true" />
         </BaseDialog.Close>
       ) : null}

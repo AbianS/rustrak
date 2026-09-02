@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { uiLabel } from '../../lib/labels';
 import type { IconSize } from '../icon/icon';
 import { SpinnerIcon } from '../icon/icon-catalog';
 
@@ -24,13 +25,13 @@ export interface SpinnerProps {
  * With reduced motion it stops spinning: the icon stays, and what says "still
  * working" is that it is still there.
  */
-export function Spinner({
-  size = 'lg',
-  label = 'Loading',
-  className,
-}: SpinnerProps) {
+export function Spinner({ size = 'lg', label, className }: SpinnerProps) {
   return (
-    <span role="status" aria-label={label} className={cn('inline-flex')}>
+    <span
+      role="status"
+      aria-label={label ?? uiLabel('loading')}
+      className={cn('inline-flex')}
+    >
       <SpinnerIcon
         size={size}
         className={cn('animate-spin motion-reduce:animate-none', className)}

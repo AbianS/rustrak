@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react';
+import { uiLabel } from '../../lib/labels';
 import { Button } from '../button/button';
 import { Field, FieldLabel } from '../field/field';
 import type { IconComponent } from '../icon/icon';
@@ -47,6 +48,19 @@ export interface ConfirmOptions {
    * is the point.
    */
   phrase?: string;
+  /**
+   * The copy around `phrase` and the footer hint, for an application that
+   * ships in more than one language.
+   *
+   * The English defaults are a convenience for Storybook and for a caller
+   * with one locale, not a licence to leave them: everything a reader sees in
+   * the product comes from `@rustrak/i18n`.
+   *
+   * `{phrase}` and `{count}` are replaced.
+   */
+  phraseLabel?: string;
+  charactersLeftLabel?: string;
+  escapeHint?: string;
 }
 
 const TONE_ICONS: Record<DialogTone, IconComponent> = {
@@ -61,12 +75,20 @@ function ConfirmContent({
   description,
   tone = 'danger',
   icon,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   details,
   phrase,
+  phraseLabel,
+  charactersLeftLabel,
+  escapeHint,
   close,
 }: ConfirmOptions & { close: (result?: boolean) => void }) {
+  const confirmText = confirmLabel ?? uiLabel('confirm');
+  const cancelText = cancelLabel ?? uiLabel('cancel');
+  const phraseText = phraseLabel ?? uiLabel('confirmPhrase');
+  const charactersLeftText = charactersLeftLabel;
+  const escapeText = escapeHint ?? uiLabel('escapeCancels');
   const [typed, setTyped] = useState('');
   const locked = !!phrase && typed.trim() !== phrase;
   const remaining = phrase == null ? 0 : phrase.length - typed.trim().length;
@@ -89,7 +111,16 @@ function ConfirmContent({
             // hand it would end in an `htmlFor` with no partner.
             <Field className="pt-3.5 first:pt-0">
               <FieldLabel>
-                Type <b className="font-mono text-fg">{phrase}</b> to continue
+                {phraseText.split('{phrase}').flatMap((part, index) =>
+                  index === 0
+                    ? [part]
+                    : [
+                        <b className="font-mono text-fg" key="phrase">
+                          {phrase}
+                        </b>,
+                        part,
+                      ],
+                )}
               </FieldLabel>
               <Input
                 value={typed}
@@ -106,16 +137,24 @@ function ConfirmContent({
 
       <DialogFooter
         hint={
-          locked ? `${Math.max(remaining, 0)} characters left` : 'Esc cancels'
+          locked
+            ? (charactersLeftText?.replace(
+                '{count}',
+                String(Math.max(remaining, 0)),
+              ) ??
+              uiLabel('confirmCharactersLeft', {
+                count: Math.max(remaining, 0),
+              }))
+            : escapeText
         }
       >
         {/* The modal's first focusable element, which is where Base UI puts
             the focus on open: in the destructive, the way out comes before
             the action. */}
         <DialogClose
-          render={<Button variant="secondary" aria-label={cancelLabel} />}
+          render={<Button variant="secondary" aria-label={cancelText} />}
         >
-          {cancelLabel}
+          {cancelText}
         </DialogClose>
         <Button
           variant={tone === 'danger' ? 'danger-primary' : 'primary'}
@@ -123,7 +162,7 @@ function ConfirmContent({
           disabled={locked}
           onClick={() => close(true)}
         >
-          {confirmLabel}
+          {confirmText}
         </Button>
       </DialogFooter>
     </>

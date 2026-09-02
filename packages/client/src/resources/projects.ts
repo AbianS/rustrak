@@ -27,14 +27,13 @@ export class ProjectsResource extends BaseResource {
   ): Promise<Result<OffsetPaginatedResponse<Project>, RustrakError>> {
     const searchParams = new URLSearchParams();
 
+    if (options?.q) searchParams.set('q', options.q);
+    if (options?.sort) searchParams.set('sort', options.sort);
     if (options?.page !== undefined) {
       searchParams.set('page', options.page.toString());
     }
-    if (options?.per_page !== undefined) {
-      searchParams.set('per_page', options.per_page.toString());
-    }
-    if (options?.order) {
-      searchParams.set('order', options.order);
+    if (options?.per !== undefined) {
+      searchParams.set('per', options.per.toString());
     }
     if (options?.stats_period) {
       searchParams.set('stats_period', options.stats_period);

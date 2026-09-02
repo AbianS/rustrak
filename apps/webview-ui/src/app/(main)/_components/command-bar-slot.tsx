@@ -17,7 +17,7 @@ import { CommandBar } from '@/shared/ui/components/command-bar/command-bar';
  * stated ceiling instead of paging until the instance runs out.
  */
 export async function CommandBarSlot() {
-  const result = await getProjects({ per_page: COMMAND_BAR_PROJECT_LIMIT });
+  const result = await getProjects({ per: COMMAND_BAR_PROJECT_LIMIT });
   const projects = result.success ? result.data.items : [];
 
   return <CommandBar projects={toCommandProjects(projects)} />;

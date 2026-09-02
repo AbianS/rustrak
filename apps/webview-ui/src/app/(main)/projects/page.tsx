@@ -37,7 +37,7 @@ export default async function ProjectsPage({
   // above the fold.
   const projectsResponse = await getProjects({
     page: currentPage,
-    per_page: 20,
+    per: 20,
     stats_period: STATS_PERIOD,
   });
 

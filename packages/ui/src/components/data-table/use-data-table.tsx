@@ -9,6 +9,7 @@ import {
   useTable,
 } from '@tanstack/react-table';
 import { useState } from 'react';
+import { uiLabel } from '../../lib/labels';
 import { Button } from '../button/button';
 import { Checkbox } from '../checkbox/checkbox';
 import { OverflowIcon } from '../icon/icon-catalog';
@@ -93,6 +94,14 @@ export function useDataTable<TData extends RowData>({
     );
   }
 
+  /*
+   * A selection lasts as long as the rows it was made on are on screen. The
+   * strip counts every ticked row and the screen acts on the page it was
+   * handed, so a tick that outlived its page would be counted by one and
+   * skipped by the other. Every query change empties it, which is the same
+   * rule the header checkbox already follows: it ticks the page, never the
+   * result.
+   */
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnVisibility, setColumnVisibility] =
     useState<ColumnVisibilityState>({});
@@ -107,6 +116,7 @@ export function useDataTable<TData extends RowData>({
     slice: TSlice,
     updater: Updater<DataTableQuery[TSlice]>,
   ) {
+    setRowSelection({});
     onQueryChange((previous) => {
       const next = functionalUpdate(updater, previous[slice]);
       return {
@@ -139,11 +149,13 @@ export function useDataTable<TData extends RowData>({
     onSortingChange: (updater) => applyQuery('sorting', updater),
     onColumnFiltersChange: (updater) => applyQuery('filters', updater),
     onGlobalFilterChange: (updater) => applyQuery('search', updater),
-    onPaginationChange: (updater) =>
+    onPaginationChange: (updater) => {
+      setRowSelection({});
       onQueryChange((previous) => ({
         ...previous,
         pagination: functionalUpdate(updater, previous.pagination),
-      })),
+      }));
+    },
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
   });
@@ -168,7 +180,7 @@ function selectionColumn<TData extends RowData>(): DataTableColumnDef<TData> {
       const all = table.getIsAllPageRowsSelected();
       return (
         <Checkbox
-          aria-label="Select all rows on this page"
+          aria-label={uiLabel('selectAllRows')}
           checked={all}
           indeterminate={table.getIsSomePageRowsSelected() && !all}
           onCheckedChange={() => table.toggleAllPageRowsSelected()}
@@ -177,7 +189,7 @@ function selectionColumn<TData extends RowData>(): DataTableColumnDef<TData> {
     },
     cell: ({ row }) => (
       <Checkbox
-        aria-label="Select row"
+        aria-label={uiLabel('selectRow')}
         checked={row.getIsSelected()}
         disabled={!row.getCanSelect()}
         onCheckedChange={(checked) => row.toggleSelected(checked)}
@@ -202,7 +214,10 @@ function menuColumn<TData extends RowData>(
     id: 'actions',
     enableSorting: false,
     enableHiding: false,
-    header: () => <span className="sr-only">Actions</span>,
+    // Read out but never drawn: the column is a row of icon buttons and the
+    // heading above them would be noise on screen and nothing at all without
+    // it. `uiLabel`, not a literal, or it says "Actions" to every reader.
+    header: () => <span className="sr-only">{uiLabel('actionsColumn')}</span>,
     cell: ({ row }) => (
       <span className="flex items-center justify-end">
         <Menu
@@ -213,7 +228,7 @@ function menuColumn<TData extends RowData>(
               variant="ghost"
               size="xs"
               icon={OverflowIcon}
-              aria-label="Row actions"
+              aria-label={uiLabel('rowActions')}
             />
           }
         />

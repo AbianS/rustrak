@@ -465,6 +465,35 @@ export const SortFromHeader: Story = {
 };
 
 /**
+ * A selection does not follow you off the page it was made on.
+ *
+ * The strip counts every ticked row and the screen acts on the rows it can
+ * see, so a tick that survived a page turn would be counted by one and
+ * skipped by the other. Turning the page empties it.
+ */
+export const SelectionEndsWithThePage: Story = {
+  render: () => <IssuesTable />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: 'Select all rows on this page' }),
+    );
+    await expect(
+      within(
+        canvas.getByRole('toolbar', { name: 'Actions for the selected rows' }),
+      ).getByText('10 selected'),
+    ).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Next page' }));
+
+    await waitFor(() =>
+      expect(canvas.queryByRole('toolbar')).not.toBeInTheDocument(),
+    );
+  },
+};
+
+/**
  * Ticking rows turns the header into the bulk strip: count, actions, Clear.
  * Emptying the selection hands the column titles back.
  */
@@ -524,6 +553,34 @@ export const RowMenu: Story = {
   },
 };
 
+/**
+ * Choosing a row action does not also open the row.
+ *
+ * The menu is portalled out of the table, but React sends its events up the
+ * component tree, so the click arrives at the row's handler. Base UI renders a
+ * menu item as a `div`, so a guard that only knows tag names lets it through.
+ */
+const rowOpened = fn();
+
+export const ARowActionDoesNotOpenTheRow: Story = {
+  render: () => <IssuesTable onRowClick={rowOpened} />,
+  play: async ({ canvasElement }) => {
+    rowOpened.mockClear();
+    const canvas = within(canvasElement);
+    const body = within(document.body);
+
+    const trigger = canvas.getAllByRole('button', { name: 'Row actions' })[0];
+    await userEvent.click(trigger as HTMLElement);
+
+    const menu = await body.findByRole('menu');
+    await userEvent.click(
+      within(menu).getByRole('menuitem', { name: /Resolve/ }),
+    );
+
+    await expect(rowOpened).not.toHaveBeenCalled();
+  },
+};
+
 /** A row opens with Enter once focus reaches it -- the keyboard path for `onRowClick`. */
 const rowOpensFromKeyboardSpy = fn();
 
@@ -567,15 +624,17 @@ export const BarAndHeaderStayInSync: Story = {
     await userEvent.keyboard('{Escape}');
 
     // The panel's tick is the bar's chip.
-    await expect(canvas.getByText('level:')).toBeInTheDocument();
+    // The chip names the field the way the column does, not the way the
+    // wire does: `Level:` and not `level:`.
+    await expect(canvas.getByText('Level:')).toBeInTheDocument();
 
     // And removing the chip clears the column's filter.
     await userEvent.click(
-      canvas.getByRole('button', { name: 'Remove Level filter' }),
+      canvas.getByRole('button', { name: 'Remove the Level filter' }),
     );
     await waitFor(() =>
       expect(
-        canvas.queryByRole('button', { name: 'Remove Level filter' }),
+        canvas.queryByRole('button', { name: 'Remove the Level filter' }),
       ).not.toBeInTheDocument(),
     );
     await expect(canvas.getAllByText(/PaymentDeclined/).length).toBeGreaterThan(

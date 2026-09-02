@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::db::{Db, DbPool};
 use crate::error::{AppError, AppResult};
 use crate::models::{Grouping, Issue};
-use crate::pagination::{IssueCursor, IssueFilter, IssueSort, SortOrder};
+use crate::pagination::{CursorSort, IssueCursor, ListParams, SortOrder, SortableField};
 use crate::services::grouping::DenormalizedFields;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -169,6 +169,63 @@ fn sort_counts(counts: HashMap<String, i64>) -> Vec<TagValueCount> {
     v
 }
 
+/// Which columns `?sort=` may name on the issue list, and what each means.
+///
+/// The only thing between a query string and an `ORDER BY`. Every value it
+/// returns is a literal in this file.
+///
+/// `users` is absent: the user count is an aggregate `list_stats` computes for
+/// the page that was already fetched, so sorting by it would mean pulling the
+/// whole table through the stats query. The table says so too, with
+/// `enableSorting: false`.
+pub struct IssueSort;
+
+impl SortableField for IssueSort {
+    fn column(name: &str) -> Option<&'static str> {
+        match name {
+            "seen" | "last_seen" => Some("last_seen"),
+            "age" | "first_seen" => Some("first_seen"),
+            "events" | "event_count" => Some("digested_event_count"),
+            "level" => Some("level"),
+            "issue" | "title" => Some("calculated_type"),
+            "digest_order" => Some("digest_order"),
+            _ => None,
+        }
+    }
+}
+
+/// The statuses an `is:` filter names, as the column stores them.
+///
+/// An empty result means "every status": that is what `is:all` asks for, and
+/// the only case where the list is not narrowed at all. An absent filter is
+/// `is:open`, because an issue list that opened on everything ever recorded
+/// would be a list nobody could use.
+fn status_clauses(values: &[String]) -> Vec<&'static str> {
+    if values.is_empty() {
+        return vec!["unresolved"];
+    }
+
+    let mut statuses = Vec::new();
+    for value in values {
+        match value.to_lowercase().as_str() {
+            "all" => return Vec::new(),
+            "open" | "unresolved" => statuses.push("unresolved"),
+            "resolved" => statuses.push("resolved"),
+            "muted" | "ignored" => statuses.push("ignored"),
+            _ => {}
+        }
+    }
+
+    // Every value was one this resource does not know. Narrowing to nothing
+    // would answer an empty list to a typo; the default answers the question
+    // that was probably meant.
+    if statuses.is_empty() {
+        return vec!["unresolved"];
+    }
+
+    statuses
+}
+
 impl IssueService {
     /// Lists issues with cursor-based pagination
     ///
@@ -177,7 +234,7 @@ impl IssueService {
     pub async fn list_paginated(
         pool: &DbPool,
         project_id: i32,
-        sort: IssueSort,
+        sort: CursorSort,
         order: SortOrder,
         include_resolved: bool,
         cursor: Option<&IssueCursor>,
@@ -188,7 +245,7 @@ impl IssueService {
 
         let issues = match (sort, order, cursor) {
             // digest_order DESC (default) - no cursor
-            (IssueSort::DigestOrder, SortOrder::Desc, None) => {
+            (CursorSort::DigestOrder, SortOrder::Desc, None) => {
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
                         r#"
@@ -219,7 +276,7 @@ impl IssueService {
             }
 
             // digest_order DESC - with cursor
-            (IssueSort::DigestOrder, SortOrder::Desc, Some(c)) => {
+            (CursorSort::DigestOrder, SortOrder::Desc, Some(c)) => {
                 let last_order = c.last_digest_order.unwrap_or(i32::MAX);
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
@@ -255,7 +312,7 @@ impl IssueService {
             }
 
             // digest_order ASC - no cursor
-            (IssueSort::DigestOrder, SortOrder::Asc, None) => {
+            (CursorSort::DigestOrder, SortOrder::Asc, None) => {
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
                         r#"
@@ -286,7 +343,7 @@ impl IssueService {
             }
 
             // digest_order ASC - with cursor
-            (IssueSort::DigestOrder, SortOrder::Asc, Some(c)) => {
+            (CursorSort::DigestOrder, SortOrder::Asc, Some(c)) => {
                 let last_order = c.last_digest_order.unwrap_or(0);
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
@@ -322,7 +379,7 @@ impl IssueService {
             }
 
             // last_seen DESC - no cursor
-            (IssueSort::LastSeen, SortOrder::Desc, None) => {
+            (CursorSort::LastSeen, SortOrder::Desc, None) => {
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
                         r#"
@@ -353,7 +410,7 @@ impl IssueService {
             }
 
             // last_seen DESC - with cursor
-            (IssueSort::LastSeen, SortOrder::Desc, Some(c)) => {
+            (CursorSort::LastSeen, SortOrder::Desc, Some(c)) => {
                 let last_seen = c.last_seen.unwrap_or_else(Utc::now);
                 let last_id = c.last_id.unwrap_or(Uuid::nil());
                 if include_resolved {
@@ -392,7 +449,7 @@ impl IssueService {
             }
 
             // last_seen ASC - no cursor
-            (IssueSort::LastSeen, SortOrder::Asc, None) => {
+            (CursorSort::LastSeen, SortOrder::Asc, None) => {
                 if include_resolved {
                     sqlx::query_as::<_, Issue>(
                         r#"
@@ -423,7 +480,7 @@ impl IssueService {
             }
 
             // last_seen ASC - with cursor
-            (IssueSort::LastSeen, SortOrder::Asc, Some(c)) => {
+            (CursorSort::LastSeen, SortOrder::Asc, Some(c)) => {
                 let last_seen = c.last_seen.unwrap_or(DateTime::UNIX_EPOCH);
                 let last_id = c.last_id.unwrap_or(Uuid::nil());
                 if include_resolved {
@@ -465,7 +522,7 @@ impl IssueService {
             // IssueCursor has no event-count field, so cursor-based EventCount
             // pagination isn't implemented — the live sort=event_count path is
             // IssueService::list_offset.
-            (IssueSort::EventCount, _, _) => {
+            (CursorSort::EventCount, _, _) => {
                 return Err(AppError::Validation(
                     "EventCount sort is not supported for cursor-based pagination".to_string(),
                 ));
@@ -503,119 +560,158 @@ impl IssueService {
         Ok(issues)
     }
 
-    /// Lists issues with offset-based pagination
+    /// One page of issues, from a request the list contract already parsed.
     ///
-    /// Returns (issues, total_count) where total_count is the total matching issues.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn list_offset(
+    /// The same shape `ProjectService::list_page` has, and for the same reason:
+    /// `@rustrak/ui` writes one query string for every table it draws, so the
+    /// address bar, this method and the whitelist above are one contract rather
+    /// than three translations of one.
+    pub async fn list_page(
         pool: &DbPool,
         project_id: i32,
-        sort: IssueSort,
-        order: SortOrder,
-        filter: IssueFilter,
-        page: i64,
-        per_page: i64,
-        search: Option<&str>,
+        params: &ListParams,
     ) -> AppResult<(Vec<Issue>, i64)> {
-        if page < 1 {
-            return Err(AppError::Validation(format!(
-                "page must be >= 1, got {}",
-                page
-            )));
+        let mut wheres: Vec<String> = vec!["project_id = $1".to_string()];
+        let mut binds: Vec<String> = Vec::new();
+        let mut next = 2usize;
+
+        // `is:` is the status, and its absence is `is:open`. An issue list that
+        // opened on every issue ever recorded would be a list nobody could use.
+        let statuses = status_clauses(params.filter("is").unwrap_or(&[]));
+        if !statuses.is_empty() {
+            let placeholders: Vec<String> = statuses
+                .iter()
+                .map(|status| {
+                    let p = format!("${}", next);
+                    next += 1;
+                    binds.push((*status).to_string());
+                    p
+                })
+                .collect();
+            wheres.push(format!("status IN ({})", placeholders.join(", ")));
         }
-        if !(1..=100).contains(&per_page) {
-            return Err(AppError::Validation(format!(
-                "per_page must be between 1 and 100, got {}",
-                per_page
-            )));
+
+        // The severity as the SDK sent it. Compared lowercased because the
+        // column stores whatever arrived and `WARNING` is the same alarm as
+        // `warning`.
+        if let Some(levels) = params.filter("level") {
+            let placeholders: Vec<String> = levels
+                .iter()
+                .map(|value| {
+                    let p = format!("${}", next);
+                    next += 1;
+                    binds.push(value.to_lowercase());
+                    p
+                })
+                .collect();
+            wheres.push(format!("LOWER(level) IN ({})", placeholders.join(", ")));
         }
-        let offset = (page - 1) * per_page;
 
-        // Build WHERE clause based on filter
-        let status_clause = match filter {
-            IssueFilter::Open => "project_id = $1 AND status = 'unresolved'",
-            IssueFilter::Resolved => "project_id = $1 AND status = 'resolved'",
-            IssueFilter::Muted => "project_id = $1 AND status = 'ignored'",
-            IssueFilter::All => "project_id = $1",
-        };
-
-        // Build ORDER BY clause
-        let order_clause = match (sort, order) {
-            (IssueSort::DigestOrder, SortOrder::Desc) => "digest_order DESC",
-            (IssueSort::DigestOrder, SortOrder::Asc) => "digest_order ASC",
-            (IssueSort::LastSeen, SortOrder::Desc) => "last_seen DESC, id DESC",
-            (IssueSort::LastSeen, SortOrder::Asc) => "last_seen ASC, id ASC",
-            (IssueSort::EventCount, SortOrder::Desc) => "digested_event_count DESC, id DESC",
-            (IssueSort::EventCount, SortOrder::Asc) => "digested_event_count ASC, id ASC",
-        };
-
-        // Normalize the search term into a case-insensitive LIKE pattern (works
-        // on both Postgres and SQLite, unlike Postgres-only ILIKE). Literal
-        // `%`/`_`/`\` in the user's term are escaped first so they match
-        // themselves instead of acting as LIKE wildcards (the `%` added here
-        // for the prefix/suffix match are the only real wildcards).
-        let pattern = search.map(str::trim).filter(|s| !s.is_empty()).map(|s| {
-            let escaped = s
-                .to_lowercase()
-                .replace('\\', "\\\\")
-                .replace('%', "\\%")
-                .replace('_', "\\_");
-            format!("%{}%", escaped)
-        });
-
-        if let Some(pattern) = pattern {
-            // $2 = search pattern, applied to both count and select.
-            let search_clause = r#"AND (
-                LOWER(calculated_type) LIKE $2 ESCAPE '\'
-                OR LOWER(calculated_value) LIKE $2 ESCAPE '\'
-                OR LOWER("transaction") LIKE $2 ESCAPE '\'
-                OR LOWER(culprit) LIKE $2 ESCAPE '\'
-            )"#;
-            let count_query = format!(
-                "SELECT COUNT(*) FROM issues WHERE {} {}",
-                status_clause, search_clause
+        // `LOWER(...) LIKE` rather than `ILIKE`: the same statement has to run
+        // on SQLite, which is the default store, and on PostgreSQL. A literal
+        // `%`, `_` or `\` in the term is escaped so it matches itself instead
+        // of acting as a wildcard.
+        if !params.search.is_empty() {
+            let pattern = format!(
+                "%{}%",
+                params
+                    .search
+                    .to_lowercase()
+                    .replace('\\', "\\\\")
+                    .replace('%', "\\%")
+                    .replace('_', "\\_")
             );
-            let total_count: (i64,) = sqlx::query_as(sqlx::AssertSqlSafe(&*count_query))
-                .bind(project_id)
-                .bind(&pattern)
-                .fetch_one(pool)
-                .await?;
-
-            let select_query = format!(
-                "SELECT * FROM issues WHERE {} {} ORDER BY {} LIMIT $3 OFFSET $4",
-                status_clause, search_clause, order_clause
-            );
-            let issues = sqlx::query_as::<_, Issue>(sqlx::AssertSqlSafe(&*select_query))
-                .bind(project_id)
-                .bind(&pattern)
-                .bind(per_page)
-                .bind(offset)
-                .fetch_all(pool)
-                .await?;
-
-            return Ok((issues, total_count.0));
+            wheres.push(format!(
+                r#"(LOWER(calculated_type) LIKE ${0} ESCAPE '\'
+                    OR LOWER(calculated_value) LIKE ${0} ESCAPE '\'
+                    OR LOWER("transaction") LIKE ${0} ESCAPE '\'
+                    OR LOWER(culprit) LIKE ${0} ESCAPE '\')"#,
+                next
+            ));
+            binds.push(pattern);
+            next += 1;
         }
 
-        // Get total count
-        let count_query = format!("SELECT COUNT(*) FROM issues WHERE {}", status_clause);
-        let total_count: (i64,) = sqlx::query_as(sqlx::AssertSqlSafe(&*count_query))
-            .bind(project_id)
-            .fetch_one(pool)
-            .await?;
+        /*
+         * Everything below this line is built after the search clause and
+         * bound after it too. The two orders have to match: `next` numbers the
+         * placeholders in the order the clauses are written, and the binds go
+         * on in the order the groups are appended, so a filter that jumps the
+         * queue points a placeholder at somebody else's value.
+         *
+         * `events:min..max`, with either end open. Bound as numbers, so the
+         * range never reaches the statement as text.
+         */
+        let mut numbers: Vec<i64> = Vec::new();
+        if let Some((min, max)) = params.range("events") {
+            if let Some(min) = min {
+                wheres.push(format!("digested_event_count >= ${}", next));
+                numbers.push(min as i64);
+                next += 1;
+            }
+            if let Some(max) = max {
+                wheres.push(format!("digested_event_count <= ${}", next));
+                numbers.push(max as i64);
+                next += 1;
+            }
+        }
 
-        // Get paginated results
+        // `seen:7`, still firing in the last seven days. The cutoff is computed
+        // here rather than in SQL, so the statement is the same one on SQLite
+        // and on PostgreSQL. `days` rather than `number`: it is the one that
+        // turns away a window nobody could live through, and
+        // `chrono::Duration::days` panics rather than returns on overflow.
+        let mut cutoff: Option<DateTime<Utc>> = None;
+        if let Some(window) = params.days("seen") {
+            cutoff = Some(Utc::now() - window);
+            wheres.push(format!("last_seen >= ${}", next));
+            next += 1;
+        }
+
+        let where_clause = wheres.join(" AND ");
+
+        let count_query = format!("SELECT COUNT(*) FROM issues WHERE {}", where_clause);
+        let mut count =
+            sqlx::query_as::<_, (i64,)>(sqlx::AssertSqlSafe(&*count_query)).bind(project_id);
+        for value in &binds {
+            count = count.bind(value);
+        }
+        for value in &numbers {
+            count = count.bind(value);
+        }
+        if let Some(cutoff) = cutoff {
+            count = count.bind(cutoff);
+        }
+        let (total,) = count.fetch_one(pool).await?;
+
+        // `id` closes every order. Two issues can share a `last_seen` to the
+        // microsecond, and a page boundary that falls between them would show
+        // one of them twice and the other never.
         let select_query = format!(
-            "SELECT * FROM issues WHERE {} ORDER BY {} LIMIT $2 OFFSET $3",
-            status_clause, order_clause
+            "SELECT * FROM issues WHERE {} ORDER BY {}, id DESC LIMIT ${} OFFSET ${}",
+            where_clause,
+            params.order_by::<IssueSort>("digest_order DESC"),
+            next,
+            next + 1
         );
-        let issues = sqlx::query_as::<_, Issue>(sqlx::AssertSqlSafe(&*select_query))
-            .bind(project_id)
-            .bind(per_page)
-            .bind(offset)
+        let mut select =
+            sqlx::query_as::<_, Issue>(sqlx::AssertSqlSafe(&*select_query)).bind(project_id);
+        for value in &binds {
+            select = select.bind(value);
+        }
+        for value in &numbers {
+            select = select.bind(value);
+        }
+        if let Some(cutoff) = cutoff {
+            select = select.bind(cutoff);
+        }
+        let issues = select
+            .bind(params.per)
+            .bind(params.offset)
             .fetch_all(pool)
             .await?;
 
-        Ok((issues, total_count.0))
+        Ok((issues, total))
     }
 
     /// Gets an issue by ID

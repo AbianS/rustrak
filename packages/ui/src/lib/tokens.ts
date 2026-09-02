@@ -76,9 +76,11 @@ export const colorTokens = [
   'ring',
   'ring-subtle',
   'scrim',
+  'scrim-blurred',
 ] as const;
 
 export const textTokens = [
+  'display',
   'page-title',
   'title',
   'section',
@@ -108,6 +110,7 @@ export const spacingTokens = [
   'chip',
   'topbar',
   'wordmark',
+  'wordmark-brand',
   'subheader',
   'tab',
   'sidebar',

@@ -3,6 +3,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { focusRing } from '../../lib/focus';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition, pressScaleSmall } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Avatar } from '../avatar/avatar';
@@ -11,6 +12,8 @@ import type { IconComponent } from '../icon/icon';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  CloseIcon,
+  MenuIcon,
   SelectorIcon,
 } from '../icon/icon-catalog';
 import { Kbd } from '../kbd/kbd';
@@ -98,7 +101,7 @@ export function Sidebar({
 
   return (
     <nav
-      aria-label="Main navigation"
+      aria-label={uiLabel('mainNavigation')}
       data-collapsed={collapsed || undefined}
       data-drawer-open={drawerOpen || undefined}
       data-switching={switching || undefined}
@@ -158,10 +161,16 @@ export interface SidebarProjectProps
   extends Omit<useRender.ComponentProps<'button'>, 'children'> {
   /** The project. */
   name: string;
-  /** The organisation it belongs to. */
-  organisation?: string;
+  /** The line under the name: its slug, or the organisation it belongs to. */
+  caption?: string;
   /** The platform code inside the tile: `JS`, `PY`, `RS`. */
   platform?: string;
+  /**
+   * The tile, when the initials are not the best mark available. The product
+   * has a real logo per platform; the design system does not ship 446 SVGs to
+   * every consumer to draw one of them.
+   */
+  mark?: ReactNode;
 }
 
 /**
@@ -177,8 +186,9 @@ export interface SidebarProjectProps
  */
 export function SidebarProject({
   name,
-  organisation,
+  caption,
   platform,
+  mark,
   className,
   render,
   ...props
@@ -194,8 +204,8 @@ export function SidebarProject({
         className: projectCard({ collapsed, className }),
         ...(collapsed
           ? {
-              'aria-label': organisation ? `${name} · ${organisation}` : name,
-              children: (
+              'aria-label': caption ? `${name} · ${caption}` : name,
+              children: mark ?? (
                 <Avatar
                   shape="square"
                   size="md"
@@ -208,19 +218,21 @@ export function SidebarProject({
           : {
               children: (
                 <>
-                  <Avatar
-                    shape="square"
-                    size="md"
-                    name={name}
-                    initials={platform}
-                  />
+                  {mark ?? (
+                    <Avatar
+                      shape="square"
+                      size="md"
+                      name={name}
+                      initials={platform}
+                    />
+                  )}
                   <span className="flex min-w-0 flex-1 flex-col">
                     <Text variant="control" truncate className="font-semibold">
                       {name}
                     </Text>
-                    {organisation ? (
+                    {caption ? (
                       <Text variant="hint" tone="meta" truncate>
-                        {organisation}
+                        {caption}
                       </Text>
                     ) : null}
                   </span>
@@ -368,7 +380,7 @@ SidebarItem.displayName = 'SidebarItem';
 /** The collapse button, and its shortcut. */
 export function SidebarCollapseButton() {
   const { collapsed, toggle } = useSidebar();
-  const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  const label = uiLabel(collapsed ? 'expandSidebar' : 'collapseSidebar');
   const Icon = collapsed ? ChevronRightIcon : ChevronLeftIcon;
 
   const button = (
@@ -412,3 +424,38 @@ export function SidebarCollapseButton() {
 }
 
 SidebarCollapseButton.displayName = 'SidebarCollapseButton';
+
+/**
+ * The button that opens the navigation on a phone.
+ *
+ * It only exists below `md`. Above that the sidebar is on screen already, and a
+ * button that opens what you can see says nothing.
+ *
+ * It goes wherever the sidebar it opens is mounted: in the topbar when the
+ * shell owns the sidebar, in the breadcrumb strip when a nested layout does.
+ * Both read the same state, so either placement toggles the same drawer.
+ */
+export function SidebarDrawerButton({ className }: { className?: string }) {
+  const { drawerOpen, toggleDrawer } = useSidebar();
+
+  return (
+    <button
+      type="button"
+      onClick={toggleDrawer}
+      aria-label={uiLabel(drawerOpen ? 'closeNavigation' : 'openNavigation')}
+      aria-expanded={drawerOpen}
+      className={cn(
+        'flex size-control-sm shrink-0 items-center justify-center md:hidden',
+        'rounded-md text-fg-subtle hover:bg-surface-hover hover:text-fg',
+        interactiveTransition,
+        pressScaleSmall,
+        focusRing,
+        className,
+      )}
+    >
+      {drawerOpen ? <CloseIcon size="xl" /> : <MenuIcon size="xl" />}
+    </button>
+  );
+}
+
+SidebarDrawerButton.displayName = 'SidebarDrawerButton';

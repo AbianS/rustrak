@@ -1,10 +1,5 @@
 import type { z } from 'zod';
-import type {
-  apiErrorSchema,
-  issueFilterSchema,
-  issueSortSchema,
-  sortOrderSchema,
-} from '../schemas/common.js';
+import type { apiErrorSchema, sortOrderSchema } from '../schemas/common.js';
 
 /**
  * Paginated response wrapper for list endpoints (cursor-based)
@@ -32,16 +27,6 @@ export interface OffsetPaginatedResponse<T> {
 export type SortOrder = z.infer<typeof sortOrderSchema>;
 
 /**
- * Sort field for issue queries
- */
-export type IssueSort = z.infer<typeof issueSortSchema>;
-
-/**
- * Filter for issue queries
- */
-export type IssueFilter = z.infer<typeof issueFilterSchema>;
-
-/**
  * The flat `{error, message?}` error body, as it appears **on the wire**.
  *
  * This is not the client's error type and no resource method returns it. A
@@ -58,19 +43,6 @@ export type IssueFilter = z.infer<typeof issueFilterSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
 
 /**
- * List options for issues endpoint (offset-based pagination)
- */
-export interface ListIssuesOptions {
-  page?: number;
-  per_page?: number;
-  sort?: IssueSort;
-  order?: SortOrder;
-  filter?: IssueFilter;
-  /** Free-text search across type, value, transaction, and culprit. */
-  q?: string;
-}
-
-/**
  * List options for events endpoint
  */
 export interface ListEventsOptions {
@@ -79,12 +51,27 @@ export interface ListEventsOptions {
 }
 
 /**
+ * What every table-backed list endpoint accepts.
+ *
+ * The names are the ones `@rustrak/ui`'s `serializeTableQuery` writes, so a
+ * table's URL is already a request: `q` carries filters and free text in one
+ * string, `sort` is a comma list with `-` for descending.
+ */
+export interface ListOptions {
+  /** Filters and free text together: `platform:rust,node checkout`. */
+  q?: string;
+  /** `-events,name`. Fields a resource does not know are ignored. */
+  sort?: string;
+  /** 1-indexed. */
+  page?: number;
+  /** Capped at 100 by the server. */
+  per?: number;
+}
+
+/**
  * List options for projects endpoint (offset-based pagination)
  */
-export interface ListProjectsOptions {
-  page?: number;
-  per_page?: number;
-  order?: SortOrder;
+export interface ListProjectsOptions extends ListOptions {
   /**
    * Attach per-project stats to each row, over this window (e.g. '24h', '7d').
    *

@@ -23,6 +23,29 @@ src/
 └── pagination/                     cursor and offset helpers
 ```
 
+## It also serves the dashboard
+
+`routes/dashboard.rs` mounts `apps/dashboard`'s compiled bundle at `/` when a
+build is present in `RUSTRAK_DASHBOARD_DIR` (default `./static`), so the
+browser and the API share one origin: the session cookie stays first-party and
+CORS never enters the dashboard's path.
+
+It stays optional. No `index.html` there means nothing is mounted and the
+server is exactly the API it was before -- which is the premise of the product,
+not a fallback.
+
+Two rules it exists to keep, both covered by
+`tests/integration/dashboard_test.rs`:
+
+- A path the API does not own falls back to the application shell, because
+  `/projects/42` is a real page only the router knows about.
+- A path the API *does* own never does. `API_PREFIXES` is that list, and an
+  unclaimed path under it stays a JSON 404 -- otherwise a mistyped endpoint
+  answers `200 text/html` and the client reports a failure against itself.
+
+`RequireAuth` reads the same list: with the dashboard mounted, everything
+outside it is public static files.
+
 ## Ingestion is two-phase
 
 1. **Ingest**, synchronous, target under 50ms: parse the envelope, validate,
@@ -47,6 +70,38 @@ They are separate on purpose, the same way GitHub separates sessions from PATs.
 Session auth is better UX for people; token auth is the standard for machines.
 
 DSN format: `http://<sentry_key>@<host>/<project_id>`.
+
+## One contract for every list
+
+Every table-backed endpoint takes the same four parameters, and they are not
+ours to invent: `@rustrak/ui`'s `serializeTableQuery` already writes them, so a
+table's URL *is* a request.
+
+| | |
+|---|---|
+| `q` | filters and free text in one string: `platform:rust,node checkout` |
+| `sort` | comma list, `-` for descending: `-created,name` |
+| `page` | 1-indexed |
+| `per` | capped at 100 |
+
+`pagination::ListParams::from_query` parses and clamps it once. `tokenize` in
+`list.rs` is a transcription of the one in `query.ts` and has to stay that way:
+the query bar writes the string and this reads it, so a value that survives one
+and not the other comes back changed to whoever typed it.
+
+**Sorting goes through a whitelist.** A resource implements `SortableField`,
+which maps a wire name to a `&'static str` column, and `order_by` builds the
+`ORDER BY` from that alone. A column name from a request can never reach SQL;
+an unknown field is dropped rather than rejected, so a stale link still renders
+the list in its default order.
+
+Adding a list endpoint is `web::Query<ListQuery>`, an impl of `SortableField`,
+and a `WHERE` clause. Anything the endpoint needs on top goes in its own query
+struct extracted alongside (`ProjectStatsQuery` is the first): `web::Query` runs
+on `serde_urlencoded`, which cannot flatten.
+
+`per_page` and a bare `order` are still accepted, because `webview-ui` and
+`@rustrak/mcp` send them. Both go when those callers do.
 
 ## Tests
 

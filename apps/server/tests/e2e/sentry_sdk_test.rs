@@ -52,6 +52,7 @@ fn create_test_config(ingest_dir: &str) -> Config {
         max_chunk_size_bytes: 10 * 1024 * 1024,
         session_flush_interval_secs: 30,
         session_cardinality_cap: 10_000,
+        dashboard_dir: "./static".to_string(),
     }
 }
 
@@ -230,7 +231,7 @@ async fn test_sentry_sdk_capture_message() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -288,7 +289,7 @@ async fn test_sentry_sdk_capture_error() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -360,7 +361,7 @@ async fn test_sentry_sdk_with_custom_fingerprint() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -453,7 +454,7 @@ async fn test_sentry_sdk_with_stacktrace() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -509,7 +510,7 @@ async fn test_sentry_sdk_different_levels() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -560,7 +561,7 @@ async fn test_sentry_sdk_with_tags() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -613,7 +614,7 @@ async fn test_sentry_sdk_with_user_context() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -674,7 +675,7 @@ async fn test_sentry_sdk_with_breadcrumbs() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -750,7 +751,7 @@ async fn test_sentry_sdk_groups_similar_errors() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,
@@ -825,7 +826,7 @@ async fn test_sentry_sdk_separates_different_errors() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        rustrak::pagination::IssueSort::DigestOrder,
+        rustrak::pagination::CursorSort::DigestOrder,
         rustrak::pagination::SortOrder::Desc,
         true,
         None,

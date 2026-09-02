@@ -1,6 +1,7 @@
 import type { Cell, Header, Row, RowData } from '@tanstack/react-table';
 import { flexRender } from '@tanstack/react-table';
 import type { MouseEvent, ReactNode } from 'react';
+import { uiLabel } from '../../lib/labels';
 import { interactiveTransition, swapAnimation } from '../../lib/motion';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
@@ -136,6 +137,13 @@ export function DataTable<TData extends RowData>({
    * A click that lands on a control inside the row -- the checkbox, an
    * action, a link a cell rendered -- belongs to that control. Only the inert
    * remainder of the row opens it.
+   *
+   * The roles are not redundant with the tag names. A popup opened from the
+   * row is portalled out of the table, but React sends its events up the
+   * *component* tree, so choosing "Delete" in the row menu arrives here as a
+   * click on the row -- and Base UI renders a menu item as a `div`, which no
+   * tag in the list matches. Without them, opening a row's menu and picking
+   * anything also opened the row.
    */
   function handleRowClick(
     row: Row<DataTableFeatures, TData>,
@@ -143,7 +151,11 @@ export function DataTable<TData extends RowData>({
   ) {
     if (!onRowClick) return;
     const target = event.target as HTMLElement;
-    if (target.closest('button, a, input, label, [role="checkbox"]')) return;
+    const control =
+      'button, a, input, label, [role="checkbox"], [role="menuitem"],' +
+      ' [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"],' +
+      ' [role="dialog"], [role="alertdialog"]';
+    if (target.closest(control)) return;
     onRowClick(row);
   }
 
@@ -185,11 +197,11 @@ export function DataTable<TData extends RowData>({
                     >
                       <div
                         role="toolbar"
-                        aria-label="Actions for the selected rows"
+                        aria-label={uiLabel('selectionActions')}
                         className={styles.bulk()}
                       >
                         <span aria-live="polite" className={styles.bulkCount()}>
-                          {selectedCount} selected
+                          {uiLabel('rowsSelected', { count: selectedCount })}
                         </span>
                         {bulkActions}
                         <Button
@@ -198,7 +210,7 @@ export function DataTable<TData extends RowData>({
                           className="ms-auto"
                           onClick={() => table.toggleAllRowsSelected(false)}
                         >
-                          Clear
+                          {uiLabel('clearSelection')}
                         </Button>
                       </div>
                     </th>
@@ -290,7 +302,7 @@ export function DataTable<TData extends RowData>({
                   table.setGlobalFilter('');
                 }}
               >
-                Clear filters
+                {uiLabel('clearFilters')}
               </Button>
             ) : null}
           </div>

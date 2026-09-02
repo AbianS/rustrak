@@ -11,7 +11,7 @@ use rustrak::config::RateLimitConfig;
 use rustrak::ingest::get_event_path;
 use rustrak::ingest::{store_event, EventMetadata};
 use rustrak::models::CreateProject;
-use rustrak::pagination::{IssueSort, SortOrder};
+use rustrak::pagination::{CursorSort, SortOrder};
 use rustrak::services::{IssueService, ProjectService};
 use serde_json::json;
 use std::collections::HashSet;
@@ -122,7 +122,7 @@ async fn test_concurrent_different_errors_same_project_creates_sequential_issues
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -213,7 +213,7 @@ async fn test_concurrent_same_errors_same_project_groups_into_one_issue() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -306,7 +306,7 @@ async fn test_concurrent_different_projects_process_in_parallel() {
         let (issues, _) = IssueService::list_paginated(
             &db.pool,
             project.id,
-            IssueSort::DigestOrder,
+            CursorSort::DigestOrder,
             SortOrder::Asc,
             true,
             None,
@@ -401,7 +401,7 @@ async fn test_high_concurrency_stress_test() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -532,7 +532,7 @@ async fn test_concurrent_digests_sqlite_file_mode_no_lock_errors_or_loss() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -628,7 +628,7 @@ async fn test_concurrent_mixed_create_and_update() {
     let (issues, _) = IssueService::list_paginated(
         &db.pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -776,7 +776,7 @@ async fn test_digest_retries_when_sqlite_write_lock_held_past_busy_timeout() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -868,7 +868,7 @@ async fn test_digest_recovers_on_second_attempt_after_busy_failure() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -968,7 +968,7 @@ async fn test_digest_fails_after_exhausting_sqlite_write_retries() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -1074,7 +1074,7 @@ async fn test_shared_processor_digests_concurrent_events() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -1251,7 +1251,7 @@ async fn test_a_slow_write_does_not_drop_queued_digests() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,
@@ -1315,7 +1315,7 @@ async fn test_a_digest_that_cannot_store_its_event_leaves_no_issue_behind() {
     let (issues, _) = IssueService::list_paginated(
         &pool,
         project.id,
-        IssueSort::DigestOrder,
+        CursorSort::DigestOrder,
         SortOrder::Asc,
         true,
         None,

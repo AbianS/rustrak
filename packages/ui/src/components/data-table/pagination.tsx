@@ -1,4 +1,6 @@
 import type { RowData } from '@tanstack/react-table';
+import { useMemo } from 'react';
+import { uiLabel, uiLocale } from '../../lib/labels';
 import { tv } from '../../lib/tv';
 import { Button } from '../button/button';
 import { ChevronLeftIcon, ChevronRightIcon } from '../icon/icon-catalog';
@@ -39,6 +41,11 @@ export interface DataTablePaginationProps<TData extends RowData> {
 export function DataTablePagination<TData extends RowData>({
   table,
 }: DataTablePaginationProps<TData>) {
+  // Rebuilt only when the language changes: constructing an `Intl` formatter
+  // is the expensive half, and this footer redraws on every keystroke that
+  // filters the table.
+  const locale = uiLocale();
+  const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
   const { pageIndex, pageSize } = table.state.pagination;
   const rowCount = table.options.rowCount ?? table.getRowCount();
   const pageCount = table.getPageCount();
@@ -50,14 +57,18 @@ export function DataTablePagination<TData extends RowData>({
   return (
     <div className={styles.footer()}>
       <span aria-live="polite">
-        <span className={styles.figure()}>
-          {first.toLocaleString('en-US')}–{last.toLocaleString('en-US')}
-        </span>{' '}
-        of {rowCount.toLocaleString('en-US')}
+        {uiLabel('pageRange', {
+          first: number.format(first),
+          last: number.format(last),
+          total: number.format(rowCount),
+        })}
         {selected > 0 ? (
           <>
             {' '}
-            · <span className={styles.figure()}>{selected} selected</span>
+            ·{' '}
+            <span className={styles.figure()}>
+              {uiLabel('rowsSelected', { count: number.format(selected) })}
+            </span>
           </>
         ) : null}
       </span>
@@ -67,23 +78,23 @@ export function DataTablePagination<TData extends RowData>({
           align="end"
           trigger={
             <Button variant="ghost" size="xs" menu>
-              Rows {pageSize}
+              {uiLabel('rowsPerPageValue', { count: pageSize })}
             </Button>
           }
           actions={PAGE_SIZES.map((size) => ({
             id: String(size),
-            label: `${size} rows`,
+            label: uiLabel('rowsOption', { count: size }),
             onSelect: () => table.setPageSize(size),
           }))}
         />
 
         <div className="flex items-center gap-1">
-          <Tooltip content="Previous page">
+          <Tooltip content={uiLabel('previousPage')}>
             <Button
               variant="secondary"
               size="xs"
               icon={ChevronLeftIcon}
-              aria-label="Previous page"
+              aria-label={uiLabel('previousPage')}
               disabled={!table.getCanPreviousPage()}
               onClick={() => table.previousPage()}
             />
@@ -91,12 +102,12 @@ export function DataTablePagination<TData extends RowData>({
           <span aria-hidden="true" className={styles.fraction()}>
             {pageCount === 0 ? 0 : pageIndex + 1} / {pageCount}
           </span>
-          <Tooltip content="Next page">
+          <Tooltip content={uiLabel('nextPage')}>
             <Button
               variant="secondary"
               size="xs"
               icon={ChevronRightIcon}
-              aria-label="Next page"
+              aria-label={uiLabel('nextPage')}
               disabled={!table.getCanNextPage()}
               onClick={() => table.nextPage()}
             />

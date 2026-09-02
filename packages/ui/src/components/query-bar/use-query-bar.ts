@@ -45,6 +45,22 @@ interface UseQueryBarOptions {
 }
 
 /**
+ * A comma-separated wire value, back in the words the menu offered.
+ *
+ * A value with no matching option is left as it was: a field can carry
+ * something typed by hand that its option list has never heard of, and
+ * dropping it would lose the filter rather than the label.
+ */
+function readable(value: string, options: readonly FilterOption[]): string {
+  return value
+    .split(',')
+    .map(
+      (part) => options.find((option) => option.value === part)?.label ?? part,
+    )
+    .join(', ');
+}
+
+/**
  * The bar's whole behaviour: phase detection, suggestions, commits and
  * keyboard handling. Split from `QueryBar` so the component is left with only
  * what it renders -- this owns what it means.
@@ -197,6 +213,26 @@ export function useQueryBar({
       search: parsed.search,
     });
     setDraft(parsed.search);
+  }
+
+  /**
+   * A keystroke in the input.
+   *
+   * Typing waits for Enter, because committing per character would put a
+   * request on the wire for every letter of a word. Emptying the field does
+   * not wait: with nothing typed there is nothing left to confirm, and the
+   * committed search would otherwise stay applied behind an input that looks
+   * cleared. Enter cannot rescue it either -- on an empty draft the popup is
+   * offering fields, so Enter picks one instead of clearing anything.
+   */
+  function changeDraft(next: string) {
+    setDraft(next);
+    setHighlighted(0);
+    setOpen(true);
+
+    if (next === '' && search !== '') {
+      commitDraft('');
+    }
   }
 
   function toggleValue(field: QueryField, option: FilterOption) {
@@ -377,6 +413,14 @@ export function useQueryBar({
    * Everything below is data the render still needs, not behaviour.
    */
 
+  /*
+   * A chip shows what was picked, not what is sent.
+   *
+   * The two are different for an options field: `seen:7` is what the URL and
+   * the server read, and `Last 7 days` is what somebody chose off a menu.
+   * Showing the wire value asks the reader to learn the protocol before they
+   * can read their own filter back.
+   */
   const chips = filters
     .map((filter) => {
       const field = fields.find((f) => f.key === filter.id);
@@ -386,7 +430,11 @@ export function useQueryBar({
         ? text.slice(filter.id.length + 1)
         : text;
       if (!value) return null;
-      return { key: filter.id, label: field.label, value };
+      return {
+        key: filter.id,
+        label: field.label,
+        value: field.options ? readable(value, field.options) : value,
+      };
     })
     .filter((chip) => chip !== null);
 
@@ -418,6 +466,7 @@ export function useQueryBar({
     listboxId,
     showClear,
     apply,
+    changeDraft,
     removeFilter,
     clearAll,
     onKeyDown,

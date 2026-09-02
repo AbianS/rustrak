@@ -27,6 +27,13 @@ pub struct Config {
     /// Max distinct (release, environment) pairs tracked per project before folding into <overflow>.
     /// Default: 10000. Override with SESSION_CARDINALITY_CAP env var.
     pub session_cardinality_cap: usize,
+    /// Where the compiled dashboard lives, relative to the working directory
+    /// or absolute. Default: `./static`. Override with RUSTRAK_DASHBOARD_DIR.
+    ///
+    /// A path, not a switch: the dashboard is mounted when the directory
+    /// actually holds an `index.html` and skipped when it does not, so a
+    /// server-only deployment needs no configuration to stay server-only.
+    pub dashboard_dir: String,
 }
 
 /// Database connection pool configuration
@@ -116,6 +123,10 @@ impl Config {
                 .unwrap_or_else(|_| "10000".to_string())
                 .parse()
                 .unwrap_or(10_000),
+            dashboard_dir: env::var("RUSTRAK_DASHBOARD_DIR")
+                .ok()
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| "./static".to_string()),
         })
     }
 }

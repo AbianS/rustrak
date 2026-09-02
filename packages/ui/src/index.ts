@@ -14,6 +14,8 @@ export {
   focusRingInset,
   focusRingWithin,
 } from './lib/focus';
+export type { UiLabels } from './lib/labels';
+export { DEFAULT_UI_LABELS, fill, uiLabel, uiLocale } from './lib/labels';
 export {
   chevronFlip,
   dropIn,
@@ -71,10 +73,29 @@ export * from './components/icon/icon-catalog';
 
 export type { AvatarProps, AvatarShape } from './components/avatar/avatar';
 export { Avatar } from './components/avatar/avatar';
+export type {
+  CardBodyProps,
+  CardEmptyProps,
+  CardHeaderProps,
+  CardProps,
+} from './components/card/card';
+export {
+  Card,
+  CardBody,
+  CardEmpty,
+  CardHeader,
+} from './components/card/card';
 export type { CountProps } from './components/count/count';
 export { Count } from './components/count/count';
 export type { KbdProps } from './components/kbd/kbd';
 export { Kbd } from './components/kbd/kbd';
+export type {
+  MetricComparison,
+  MetricPolarity,
+} from './components/metric/compare';
+export { compareMetric } from './components/metric/compare';
+export type { MetricProps } from './components/metric/metric';
+export { Metric } from './components/metric/metric';
 export type { SeparatorProps } from './components/separator/separator';
 export { Separator } from './components/separator/separator';
 export type { SpinnerProps } from './components/spinner/spinner';
@@ -102,12 +123,17 @@ export type {
   Crumb,
 } from './components/breadcrumbs/breadcrumbs';
 export { Breadcrumbs } from './components/breadcrumbs/breadcrumbs';
-export type { MenuProps } from './components/menu/menu';
+export type {
+  MenuGroupProps,
+  MenuItemProps,
+  MenuProps,
+} from './components/menu/menu';
 export {
   Menu,
   MenuActions,
   MenuGroup,
-  MenuGroupLabel,
+  MenuItem,
+  MenuSeparator,
 } from './components/menu/menu';
 export type { MenuAction } from './components/menu/menu-parts';
 export { explainAction } from './components/menu/menu-parts';
@@ -206,6 +232,12 @@ export { ChartLegend, ChartTooltip } from './components/chart/chart-parts';
 export type { ChartSeries } from './components/chart/chart-series';
 export { seriesColor } from './components/chart/chart-series';
 export type {
+  ScatterChartProps,
+  ScatterPoint,
+  ScatterTone,
+} from './components/chart/scatter-chart';
+export { ScatterChart } from './components/chart/scatter-chart';
+export type {
   SparklineProps,
   SparklineTone,
 } from './components/chart/sparkline';
@@ -283,12 +315,14 @@ export type {
   PageHeaderProps,
   PageProps,
   SubHeaderProps,
+  WorkspaceProps,
 } from './components/shell/app-shell';
 export {
   AppShell,
   Page,
   PageHeader,
   SubHeader,
+  Workspace,
 } from './components/shell/app-shell';
 export type {
   SidebarItemProps,
@@ -298,6 +332,7 @@ export type {
 export {
   Sidebar,
   SidebarCollapseButton,
+  SidebarDrawerButton,
   SidebarItem,
   SidebarProject,
 } from './components/shell/sidebar';
@@ -317,7 +352,6 @@ export {
   Topbar,
   TopbarAction,
   TopbarBrand,
-  TopbarMenuButton,
   TopbarSearch,
   TopbarUser,
 } from './components/shell/topbar';
