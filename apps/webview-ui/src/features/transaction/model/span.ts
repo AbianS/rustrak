@@ -13,7 +13,9 @@
  * neither slice imports the other, and neither type belongs in `shared`.
  *
  * Every field is optional because SDKs omit most of them. A minimal legal span
- * is `{ span_id, start_timestamp, timestamp }`.
+ * is `{ span_id, start_timestamp, timestamp }`. The transaction payload reader
+ * normalizes timestamps from either epoch numbers or RFC3339 strings before
+ * this type reaches the UI.
  */
 export interface Span {
   span_id?: string;

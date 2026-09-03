@@ -55,6 +55,54 @@ describe('readTransactionPayload', () => {
     ).toEqual([]);
   });
 
+  it('normalizes mixed numeric and RFC3339 span timestamps', () => {
+    const payload = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              start_timestamp: 1000,
+              timestamp: '1970-01-01T00:16:42.000Z',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(payload.spans).toEqual([
+      {
+        span_id: 's1',
+        start_timestamp: 1000,
+        timestamp: 1002,
+      },
+    ]);
+  });
+
+  it('drops invalid span timestamps instead of exposing NaN arithmetic', () => {
+    const payload = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              start_timestamp: Number.NaN,
+              timestamp: 'not-a-timestamp',
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(payload.spans).toEqual([
+      {
+        span_id: 's1',
+        start_timestamp: undefined,
+        timestamp: undefined,
+      },
+    ]);
+  });
+
   it('prefers the payload epoch seconds over the row timestamps', () => {
     const payload = readTransactionPayload(
       txn({ data: { start_timestamp: 1000, timestamp: 1002 } }),

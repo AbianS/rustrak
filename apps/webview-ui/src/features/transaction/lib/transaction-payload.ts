@@ -17,9 +17,37 @@ function asObject(value: unknown): Record<string, unknown> | null {
  * The fallback has to be converted rather than passed through, or every bar
  * would be placed a thousand times too far along.
  */
+function parseEpochSeconds(raw: unknown): number | undefined {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : undefined;
+  }
+  if (typeof raw === 'string') {
+    const milliseconds = Date.parse(raw);
+    return Number.isFinite(milliseconds) ? milliseconds / 1000 : undefined;
+  }
+  return undefined;
+}
+
 function epochSeconds(raw: unknown, fallbackIso: string): number {
-  if (typeof raw === 'number') return raw;
-  return Date.parse(fallbackIso) / 1000;
+  return parseEpochSeconds(raw) ?? Date.parse(fallbackIso) / 1000;
+}
+
+/**
+ * Normalizes timestamps on a transaction-embedded span to epoch seconds.
+ *
+ * Sentry SDKs may encode protocol timestamps as either epoch numbers or
+ * RFC3339 strings. Keeping that distinction out of the waterfall prevents
+ * arithmetic on a string from producing `NaN` durations and geometry.
+ */
+function readSpan(raw: unknown): Span | null {
+  const span = asObject(raw);
+  if (!span) return null;
+
+  return {
+    ...span,
+    start_timestamp: parseEpochSeconds(span.start_timestamp),
+    timestamp: parseEpochSeconds(span.timestamp),
+  } as Span;
 }
 
 function asString(value: unknown): string | undefined {
@@ -57,7 +85,12 @@ export function readTransactionPayload(
 
   return {
     trace: trace as TraceContext | undefined,
-    spans: Array.isArray(data.spans) ? (data.spans as Span[]) : [],
+    spans: Array.isArray(data.spans)
+      ? data.spans.flatMap((span) => {
+          const normalized = readSpan(span);
+          return normalized ? [normalized] : [];
+        })
+      : [],
     measurements: asObject(data.measurements),
     tags: asObject(data.tags),
     request: asObject(data.request),
