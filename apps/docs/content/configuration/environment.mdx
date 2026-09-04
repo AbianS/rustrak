@@ -192,7 +192,37 @@ Only creates user if database is empty.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `RUSTRAK_API_URL` | `http://localhost:8080` | Backend API URL |
+| `HOSTNAME` | `0.0.0.0` | Bind address for the dashboard (Next.js standalone) |
+| `HOST` | `0.0.0.0` | Alias for `HOSTNAME` |
+| `PORT` | `3000` | Port the dashboard listens on **inside** the container |
 | `RUSTRAK_VERSION_CHECK_ENABLED` | `true` | Set to `false` to disable the update notice and stop all outbound version checks |
+
+### HOSTNAME / PORT (dashboard)
+
+The dashboard is a Next.js standalone server. It reads `HOSTNAME` and `PORT` at runtime:
+
+```bash
+# Inside Docker (default — correct)
+HOSTNAME=0.0.0.0
+PORT=3000
+```
+
+`HOST` is accepted as an alias for `HOSTNAME` for compatibility with the typical Docker convention — if `HOSTNAME` is unset, `HOST` is used.
+
+> **Behind a reverse proxy?** You don't need to expose a host port. Remove the `ports` section from the `ui` service in `docker-compose.yml` and let the proxy (Traefik, nginx, Caddy) route by host header. The container still listens on `3000` internally, but nothing is mapped to the host.
+>
+> ```yaml
+> # docker-compose.yml — no ports, routed by host via proxy network
+> services:
+>   ui:
+>     image: rustrak/rustrak-ui:latest
+>     environment:
+>       - HOSTNAME=0.0.0.0
+>       - RUSTRAK_API_URL=http://server:8080
+>     networks: [proxy]
+> ```
+>
+> The same applies to the `server` service — combine with `PUBLIC_URL=https://your-domain.com` so the DSN shown in the dashboard uses your public host instead of `0.0.0.0:8080`.
 
 ### RUSTRAK_VERSION_CHECK_ENABLED
 
@@ -215,7 +245,6 @@ RUSTRAK_VERSION_CHECK_ENABLED=false
 With the check disabled, no request is made under any circumstances.
 
 ## Complete Example
-
 ### SQLite (development / personal)
 
 ```bash

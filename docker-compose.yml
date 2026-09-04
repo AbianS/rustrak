@@ -16,14 +16,20 @@ services:
 
   server:
     image: rustrak/rustrak-server:latest
+    # Expose via host port mapping (e.g. SERVER_PORT=8080 -> 8080:8080).
+    # When behind a reverse proxy (Traefik, nginx, Caddy) you can remove `ports`
+    # and let the proxy route by container name / host header — no port exposure needed.
     ports:
-      - "${SERVER_PORT}:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
+      - HOST=${HOST:-0.0.0.0}
       - PORT=8080
       - RUST_LOG=${RUST_LOG}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+      # Public URL shown in DSN — set to your reverse-proxy host to avoid exposing :8080
+      # e.g. PUBLIC_URL=https://rustrak.example.com
       - PUBLIC_URL=${PUBLIC_URL:-}
       - SOURCEMAP_STORAGE_PATH=/data/sourcemaps
     volumes:
@@ -35,9 +41,13 @@ services:
 
   ui:
     image: rustrak/rustrak-ui:latest
+    # By default exposes ${UI_PORT:-3000}:3000. Behind a reverse proxy you can
+    # remove `ports` and route by host (e.g. ui.example.com) — no port needed.
     ports:
-      - "${UI_PORT}:3000"
+      - "${UI_PORT:-3000}:3000"
     environment:
+      - HOSTNAME=${HOSTNAME:-0.0.0.0}
+      - PORT=3000
       - RUSTRAK_API_URL=${RUSTRAK_API_URL}
     depends_on:
       - server

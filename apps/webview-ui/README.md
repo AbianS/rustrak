@@ -29,8 +29,6 @@ export RUSTRAK_API_URL="http://localhost:8080"
 pnpm dev
 ```
 
-## Docker
-
 ```bash
 docker pull rustrak/rustrak-ui
 docker run -d -p 3000:3000 \
@@ -38,12 +36,29 @@ docker run -d -p 3000:3000 \
   rustrak/rustrak-ui
 ```
 
+### Behind a reverse proxy (no port exposure)
+
+You don't need to expose a host port. Let the proxy route by host header
+and keep the container on the internal Docker network:
+
+```bash
+docker run -d --network rustrak \
+  -e HOSTNAME=0.0.0.0 \
+  -e RUSTRAK_API_URL=http://server:8080 \
+  rustrak/rustrak-ui
+```
+
+Or with docker-compose, remove the `ports` section from the `ui` service
+and put it behind Traefik/nginx/Caddy.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `RUSTRAK_API_URL` | Yes | - | Rustrak server URL |
-
+| `RUSTRAK_API_URL` | Yes | - | Rustrak server URL (e.g. `http://server:8080` internally, or `https://api.example.com` via proxy) |
+| `HOSTNAME` | No | `0.0.0.0` | Bind address for Next.js standalone server. `0.0.0.0` is correct inside Docker |
+| `HOST` | No | `0.0.0.0` | Alias for `HOSTNAME` (compatibility). If `HOSTNAME` is unset, `HOST` is used |
+| `PORT` | No | `3000` | Port the UI listens on inside the container |
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)

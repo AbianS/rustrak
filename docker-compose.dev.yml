@@ -22,13 +22,15 @@ services:
       args:
         FEATURES: postgres
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
+      - HOST=${HOST:-0.0.0.0}
       - PORT=8080
       - RUST_LOG=info
       - DATABASE_URL=postgres://rustrak:rustrak@postgres:5432/rustrak
-      - SESSION_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - SESSION_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       - CREATE_SUPERUSER=admin@admin.com:password123
+      - PUBLIC_URL=${PUBLIC_URL:-}
     volumes:
       - sourcemaps_data:/data/sourcemaps
     depends_on:
@@ -40,12 +42,13 @@ services:
       context: .
       dockerfile: ./apps/webview-ui/Dockerfile
     ports:
-      - "3000:3000"
+      - "${UI_PORT:-3000}:3000"
     environment:
+      - HOSTNAME=${HOSTNAME:-0.0.0.0}
+      - PORT=3000
       - RUSTRAK_API_URL=http://server:8080
     depends_on:
       - server
-
 volumes:
   postgres_data:
   sourcemaps_data:
