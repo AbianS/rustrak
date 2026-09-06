@@ -427,26 +427,6 @@ async fn test_custom_webhook_channel_crud_and_validation() {
         "a template that cannot render JSON must not be saved"
     );
 
-    // A response check the dispatcher does not implement.
-    let result = AlertService::create_channel(
-        &db.pool,
-        CreateNotificationChannel {
-            name: "Custom Unknown Platform".to_string(),
-            provider_type: ChannelType::CustomWebhook,
-            credentials: json!({
-                "url": "https://example.com/hook",
-                "template": r#"{"a": 1}"#,
-                "response_check": "telegram",
-            }),
-            is_enabled: true,
-        },
-    )
-    .await;
-    assert!(
-        result.is_err(),
-        "an unknown response check must be rejected"
-    );
-
     // Broken template syntax: rejected at save time, not delivery time.
     let result = AlertService::create_channel(
         &db.pool,
@@ -465,9 +445,9 @@ async fn test_custom_webhook_channel_crud_and_validation() {
     let channel = AlertService::create_channel(
         &db.pool,
         CreateNotificationChannel {
-            name: "DingTalk Bridge".to_string(),
+            name: "Ops chat bridge".to_string(),
             provider_type: ChannelType::CustomWebhook,
-            credentials: json!({ "url": "https://oapi.dingtalk.com/robot/send", "template": template }),
+            credentials: json!({ "url": "https://example.com/hooks/incoming", "template": template }),
             is_enabled: true,
         },
     )
@@ -505,29 +485,6 @@ async fn test_custom_webhook_channel_crud_and_validation() {
     .await
     .expect("valid template update must succeed");
     assert_eq!(updated.credentials["template"], json!("{\"a\": 1}"));
-
-    // Naming the platform round-trips, and an integration that names none
-    // keeps judging by HTTP status alone.
-    let bot = AlertService::create_channel(
-        &db.pool,
-        CreateNotificationChannel {
-            name: "WeCom Ops".to_string(),
-            provider_type: ChannelType::CustomWebhook,
-            credentials: json!({
-                "url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send",
-                "template": template,
-                "response_check": "wecom",
-            }),
-            is_enabled: true,
-        },
-    )
-    .await
-    .expect("a custom webhook naming its platform must save");
-    assert_eq!(bot.credentials["response_check"], json!("wecom"));
-    assert!(
-        channel.credentials.get("response_check").is_none(),
-        "an integration that named no platform stores none"
-    );
 }
 
 /// The SQLite provider_type rebuild must not let SQLx's default foreign-key

@@ -73,7 +73,6 @@ pub use alert::{
     AlertStatus,
     AlertType,
     // New types
-    BotResponseCheck,
     // Legacy aliases
     ChannelType,
     CreateAlertIntegration,

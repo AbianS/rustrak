@@ -553,8 +553,7 @@
       "botTokenPrefix": "Token-ul de bot trebuie să înceapă cu xoxb-",
       "smtpHostRequired": "Gazda SMTP este obligatorie",
       "validEmail": "Introdu un e-mail valid",
-      "templateRequired": "Șablonul este obligatoriu",
-      "responseCheckInvalid": "Alege o verificare a raspunsului din lista"
+      "templateRequired": "Șablonul este obligatoriu"
     },
     "routing": {
       "slackChannelRequired": "Canalul Slack este obligatoriu pentru „{name}”",
@@ -627,31 +626,41 @@
     "customWebhook": {
       "titleNew": "Configurare webhook personalizat",
       "titleEdit": "Editare webhook personalizat",
-      "description": "Corpul cererii este randat dintr-un șablon Minijinja peste payload-ul alertei, apoi POST-at ca JSON. Folosește un preset mai jos pentru schema exactă așteptată de un bot WeCom, DingTalk sau Feishu.",
-      "namePlaceholder": "Ex.: Grup WeCom operațiuni",
-      "templateLabel": "Șablon de corp",
-      "templateDescription": "Variabile: alert_id, alert_type, triggered_at, project (id, name, slug), issue (id, short_id, title, level, first_seen, last_seen, event_count), issue_url, actor. Trece textele dinamice prin filtrul tojson ca ghilimelele să nu strice JSON-ul.",
-      "presets": {
-        "wecomText": "WeCom text",
-        "wecomMarkdown": "WeCom markdown",
-        "dingtalkText": "DingTalk text",
-        "feishuText": "Feishu text"
-      },
-      "responseCheckLabel": "Verificarea raspunsului",
-      "responseCheckDescription": "Botii de grup raspund HTTP 200 chiar si atunci cand resping un mesaj, iar rezultatul real ajunge in corp. Indica platforma pentru ca o respingere sa fie inregistrata ca livrare esuata. Lasa pe doar statusul HTTP pentru orice alt endpoint: corpul raspunsului nu mai este citit deloc.",
-      "responseChecks": {
-        "status_only": "Doar statusul HTTP",
-        "wecom": "Bot WeCom (errcode)",
-        "dingtalk": "Bot DingTalk (errcode)",
-        "feishu": "Bot Feishu (code)"
-      },
-      "fieldResponseCheck": "Aceasta verificare a raspunsului",
-      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "description": "Trimite alertele cu un corp de mesaj scris de tine.",
+      "namePlaceholder": "De ex., Punte către chatul de gardă",
+      "urlLabel": "URL webhook",
+      "urlPlaceholder": "https://example.com/hooks/incoming",
+      "urlDescription": "Opțional. O regulă de alertă poate furniza propriul URL.",
+      "templateLabel": "Corpul mesajului",
+      "editorLabel": "JSON",
+      "templateDescription": "Completează câmpurile pe care le poți insera. Butonul de ajutor deschide referința completă.",
+      "format": "Formatează",
+      "secretLabel": "Secret de semnare",
+      "secretDescription": "Opțional. Semnează cererea cu HMAC-SHA256.",
       "create": "Creează webhook personalizat",
       "fieldTemplate": "Acel șablon",
       "saveFailed": "Salvarea webhook-ului personalizat a eșuat",
       "updated": "Webhook personalizat actualizat",
-      "created": "Webhook personalizat creat"
+      "created": "Webhook personalizat creat",
+      "variables": {
+        "issue.title": "Titlul erorii",
+        "issue.short_id": "Id lizibil al problemei",
+        "issue.level": "error, warning, info… sau absent",
+        "issue.event_count": "De câte ori s-a întâmplat",
+        "issue.id": "Id intern al problemei",
+        "issue.first_seen": "Când a apărut prima dată",
+        "issue.last_seen": "Când a apărut ultima dată",
+        "issue_url": "Link către problemă în Rustrak",
+        "project.name": "Numele proiectului",
+        "project.slug": "Slugul proiectului",
+        "project.id": "Id intern al proiectului",
+        "alert_type": "Ce a declanșat alerta",
+        "alert_id": "Id-ul acestei trimiteri",
+        "triggered_at": "Când s-a declanșat alerta",
+        "actor": "Cine o trimite, mereu Rustrak"
+      },
+      "variablesLabel": "Câmpuri",
+      "help": "Deschide documentația"
     },
     "slack": {
       "titleNew": "Adaugă integrare Slack",
@@ -720,6 +729,7 @@
       "configureAria": "Configurează {name}",
       "testFailed": "Trimiterea testului a eșuat",
       "testSent": "Notificarea de test a fost trimisă",
+      "testAnswered": "Endpointul a răspuns",
       "testFailedResult": "Testul a eșuat",
       "deleteFailed": "Ștergerea integrării a eșuat",
       "deleted": "Integrare ștearsă",
@@ -768,7 +778,7 @@
         "description": "Trimite payload-uri JSON către orice endpoint HTTP."
       },
       "customWebhook": {
-        "description": "POSTează un corp JSON randat din propriul șablon. Vine cu șabloane pentru boții WeCom, DingTalk și Feishu."
+        "description": "Trimite un corp scris de tine, în forma pe care o așteaptă endpointul."
       }
     },
     "newIssue": {

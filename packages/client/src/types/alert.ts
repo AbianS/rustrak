@@ -9,6 +9,7 @@ import type {
   createAlertIntegrationSchema,
   createAlertRuleSchema,
   providerTypeSchema,
+  previewTemplateResponseSchema,
   testChannelResponseSchema,
   testIntegrationBodySchema,
   updateAlertIntegrationSchema,
@@ -83,6 +84,9 @@ export type AlertHistory = z.infer<typeof alertHistorySchema>;
  * Test channel response
  */
 export type TestChannelResponse = z.infer<typeof testChannelResponseSchema>;
+export type PreviewTemplateResponse = z.infer<
+  typeof previewTemplateResponseSchema
+>;
 
 /**
  * Test integration request body

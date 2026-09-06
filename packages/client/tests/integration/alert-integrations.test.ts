@@ -159,10 +159,10 @@ describe('AlertIntegrationsResource Integration', () => {
     it('should create custom webhook integration', async () => {
       const integration = expectOk(
         await client.alertIntegrations.create({
-          name: 'DingTalk Bridge',
+          name: 'Ops chat bridge',
           provider_type: 'custom_webhook',
           credentials: {
-            url: 'https://oapi.dingtalk.com/robot/send?access_token=x',
+            url: 'https://example.com/hooks/incoming',
             template:
               '{"msgtype":"text","text":{"content":"{{ issue.title }}"}}',
           },
@@ -188,7 +188,7 @@ describe('AlertIntegrationsResource Integration', () => {
       const result = await client.alertIntegrations.create({
         name: 'Broken Bridge',
         provider_type: 'custom_webhook',
-        credentials: { url: 'https://oapi.dingtalk.com/robot/send' },
+        credentials: { url: 'https://example.com/hooks/incoming' },
       });
 
       expect(result.success).toBe(false);

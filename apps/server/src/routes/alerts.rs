@@ -289,6 +289,49 @@ pub async fn delete_channel(
     Ok(HttpResponse::NoContent().finish())
 }
 
+/// Body of a template preview request.
+#[derive(Debug, serde::Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct PreviewTemplateBody {
+    pub template: String,
+}
+
+#[cfg_attr(feature = "openapi", utoipa::path(
+    post,
+    path = "/api/integrations/preview-template",
+    tag = "Alert Channels",
+    request_body = PreviewTemplateBody,
+    responses(
+        (status = 200, description = "Rendered body, or why it would not render"),
+        (status = 401, description = "Unauthorized", body = crate::error::ErrorResponse),
+    ),
+    security(("bearer_auth" = [])),
+))]
+/// POST /api/integrations/preview-template
+///
+/// Renders a Custom Webhook template against a sample payload and hands back
+/// the body that would be sent. The dashboard cannot run the template engine,
+/// so it asks while the reader types; going through the dispatcher's own
+/// renderer is what keeps the preview from disagreeing with a delivery.
+pub async fn preview_template(
+    actor: ApiActor,
+    body: web::Json<PreviewTemplateBody>,
+) -> AppResult<HttpResponse> {
+    require_admin(&actor)?;
+    Ok(
+        match crate::services::notification::CustomWebhookNotifier::preview_template(
+            &body.into_inner().template,
+        ) {
+            Ok(rendered) => HttpResponse::Ok().json(serde_json::json!({
+                "ok": true, "rendered": rendered,
+            })),
+            Err(error) => HttpResponse::Ok().json(serde_json::json!({
+                "ok": false, "error": error,
+            })),
+        },
+    )
+}
+
 #[cfg_attr(feature = "openapi", utoipa::path(
     post,
     path = "/api/integrations/{id}/test",
@@ -344,17 +387,22 @@ pub async fn test_channel(
     let dispatcher = create_dispatcher(channel.provider_type);
     let result = dispatcher.send(&channel, &routing, &test_payload).await;
 
-    if result.success {
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": true,
-            "message": "Test notification sent successfully"
-        })))
+    // The endpoint's own answer rides along on both outcomes. Rustrak judges
+    // a delivery by the HTTP status and does not interpret the body, so a
+    // reader testing an integration needs to see what came back: a group bot
+    // that refused the message answered 200 and said why in here.
+    let message = if result.success {
+        "Test notification sent successfully".to_string()
     } else {
-        Ok(HttpResponse::Ok().json(serde_json::json!({
-            "success": false,
-            "message": result.error_message.unwrap_or_else(|| "Unknown error".to_string())
-        })))
-    }
+        result
+            .error_message
+            .unwrap_or_else(|| "Unknown error".to_string())
+    };
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": result.success,
+        "message": message,
+        "response_body": result.response_body,
+    })))
 }
 
 // =============================================================================
@@ -722,6 +770,7 @@ pub async fn list_history(
         update_channel,
         delete_channel,
         test_channel,
+        preview_template,
         list_rules,
         create_rule,
         get_rule,
@@ -753,6 +802,8 @@ pub fn configure_channels(cfg: &mut web::ServiceConfig) {
             .route("/{id}", web::get().to(get_channel))
             .route("/{id}", web::patch().to(update_channel))
             .route("/{id}", web::delete().to(delete_channel))
+            // Before `/{id}` so the literal segment is not read as an id.
+            .route("/preview-template", web::post().to(preview_template))
             .route("/{id}/test", web::post().to(test_channel)),
     );
 }
@@ -935,7 +986,7 @@ mod tests {
     #[test]
     fn test_validate_routing_custom_webhook_cred_url_only_ok() {
         let creds =
-            serde_json::json!({"url": "https://oapi.dingtalk.com/robot/send", "template": "{}"});
+            serde_json::json!({"url": "https://example.com/hooks/incoming", "template": "{}"});
         let routing = serde_json::json!({});
         assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_ok());
     }
@@ -943,7 +994,7 @@ mod tests {
     #[test]
     fn test_validate_routing_custom_webhook_routing_url_only_ok() {
         let creds = serde_json::json!({"template": "{}"});
-        let routing = serde_json::json!({"url": "https://open.feishu.cn/hook"});
+        let routing = serde_json::json!({"url": "https://example.com/hooks/other"});
         assert!(validate_routing_override(ProviderType::CustomWebhook, &creds, &routing).is_ok());
     }
 

@@ -220,28 +220,6 @@ pub struct WebhookConfig {
     pub headers: Option<HashMap<String, String>>,
 }
 
-/// How a delivery decides success once the HTTP status already says 2xx.
-///
-/// A generic webhook judges by status alone: that is what Stripe and Adyen
-/// document for their receivers, and what Alertmanager's own webhook receiver
-/// does. Reading someone else's response body is a per-platform contract, so
-/// it is opted into per integration rather than guessed — Alertmanager puts
-/// its `errcode` check in a dedicated WeCom receiver for the same reason.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BotResponseCheck {
-    /// 2xx is delivered; the body is not read for a verdict.
-    #[default]
-    StatusOnly,
-    /// WeCom group bots: a non-zero `errcode`, described by `errmsg`.
-    Wecom,
-    /// DingTalk group bots: the same `errcode`/`errmsg` envelope as WeCom.
-    Dingtalk,
-    /// Feishu group bots: a non-zero `code`/`msg`, or the legacy
-    /// `StatusCode`/`StatusMessage` envelope older tenants still answer with.
-    Feishu,
-}
-
 /// Custom Webhook integration credentials.
 ///
 /// Same delivery as [`WebhookConfig`] plus a user-supplied Minijinja template
@@ -256,11 +234,6 @@ pub struct CustomWebhookConfig {
     #[serde(default)]
     pub headers: Option<HashMap<String, String>>,
     pub template: String,
-    /// Which response envelope, if any, is read for a rejection hidden in a
-    /// 2xx. Absent means [`BotResponseCheck::StatusOnly`], so an integration
-    /// saved before this field existed keeps judging by status alone.
-    #[serde(default)]
-    pub response_check: BotResponseCheck,
 }
 
 /// Email integration credentials
@@ -509,33 +482,6 @@ mod tests {
             ProviderType::CustomWebhook
         );
         assert_eq!(ProviderType::CustomWebhook.to_string(), "custom_webhook");
-    }
-
-    #[test]
-    fn bot_response_check_wire_strings_and_default() {
-        // The wire strings are what the dashboard select and the docs use.
-        for (variant, wire) in [
-            (BotResponseCheck::StatusOnly, "status_only"),
-            (BotResponseCheck::Wecom, "wecom"),
-            (BotResponseCheck::Dingtalk, "dingtalk"),
-            (BotResponseCheck::Feishu, "feishu"),
-        ] {
-            assert_eq!(serde_json::to_value(variant).unwrap(), json!(wire));
-            assert_eq!(
-                serde_json::from_value::<BotResponseCheck>(json!(wire)).unwrap(),
-                variant
-            );
-        }
-        assert!(serde_json::from_value::<BotResponseCheck>(json!("telegram")).is_err());
-    }
-
-    #[test]
-    fn custom_webhook_credentials_without_response_check_default_to_status_only() {
-        // Rows saved by the build that had no such field must still load.
-        let config: CustomWebhookConfig =
-            serde_json::from_value(json!({"url": "https://example.com/hook", "template": "{}"}))
-                .expect("legacy credentials must deserialise");
-        assert_eq!(config.response_check, BotResponseCheck::StatusOnly);
     }
 
     #[test]

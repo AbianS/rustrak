@@ -1,9 +1,5 @@
 import type { AlertIntegration } from '@rustrak/client';
 import { z } from 'zod';
-import {
-  RESPONSE_CHECKS,
-  type ResponseCheck,
-} from '@/features/alert/model/webhook-presets';
 import type { Translate } from '@/shared/lib/error-copy';
 import type { ServerFieldMap } from '@/shared/lib/form-errors';
 
@@ -42,7 +38,6 @@ export const CUSTOM_WEBHOOK_FIELD_MAP: ServerFieldMap = {
   'credentials.url': 'url',
   'credentials.secret': 'secret',
   'credentials.template': 'template',
-  'credentials.response_check': 'response_check',
 };
 
 /* -------------------------------------------------------------------------- */
@@ -189,11 +184,6 @@ export function customWebhookFormSchema(t: Translate) {
       ),
     secret: z.string().optional(),
     template: z.string().min(1, t('validation.templateRequired')),
-    // The server rejects an unknown value anyway; the enum here keeps a bad
-    // one from ever leaving the form, and keeps the two lists in one shape.
-    response_check: z.enum(RESPONSE_CHECKS, {
-      message: t('validation.responseCheckInvalid'),
-    }),
     is_enabled: z.boolean(),
   });
 }
@@ -273,7 +263,6 @@ export function customWebhookDefaults(
     url?: string;
     secret?: string;
     template?: string;
-    response_check?: ResponseCheck;
   };
   return {
     name: integration?.name ?? '',
@@ -282,10 +271,6 @@ export function customWebhookDefaults(
     // Seeded, unlike a secret: the template is configuration, not a
     // credential, and the server returns it in full.
     template: creds.template ?? '',
-    // Absent on integrations saved before the check existed. Falling back to
-    // status_only matches what the server does with those same credentials,
-    // so opening the form never silently changes how they are judged.
-    response_check: creds.response_check ?? 'status_only',
     is_enabled: integration?.is_enabled ?? true,
   };
 }

@@ -32,6 +32,13 @@ pub struct NotificationResult {
     pub http_status: Option<u16>,
     /// Error message (if failed)
     pub error_message: Option<String>,
+    /// What the endpoint answered, when it answered anything.
+    ///
+    /// Rustrak judges a delivery by the HTTP status and does not interpret
+    /// the body, so the body has to be visible instead: a group bot that
+    /// refuses a message still answers 200 and explains itself in here, and
+    /// a reader testing an integration has no other way to find that out.
+    pub response_body: Option<String>,
 }
 
 impl NotificationResult {
@@ -41,7 +48,17 @@ impl NotificationResult {
             success: true,
             http_status,
             error_message: None,
+            response_body: None,
         }
+    }
+
+    /// Attaches the endpoint's answer, dropping an empty one: "answered
+    /// nothing" and "answered the empty string" are the same fact, and the
+    /// second one renders as a blank line nobody can read.
+    pub fn with_response_body(mut self, body: impl Into<String>) -> Self {
+        let body = body.into();
+        self.response_body = (!body.trim().is_empty()).then_some(body);
+        self
     }
 
     /// Creates a failed result
@@ -50,6 +67,7 @@ impl NotificationResult {
             success: false,
             http_status,
             error_message: Some(error_message),
+            response_body: None,
         }
     }
 }

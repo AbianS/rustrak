@@ -139,11 +139,10 @@ function firstCwIssue(input: Record<string, unknown>): [string, string] | null {
 }
 
 const customWebhook = (over: Record<string, unknown>) => ({
-  name: 'DingTalk Bridge',
-  url: 'https://oapi.dingtalk.com/robot/send',
+  name: 'Ops chat bridge',
+  url: 'https://example.com/hooks/incoming',
   secret: '',
   template: '{"msgtype":"text"}',
-  response_check: 'status_only',
   is_enabled: true,
   ...over,
 });
@@ -170,46 +169,30 @@ describe('customWebhookFormSchema', () => {
       'validation.validHttpUrl',
     ]);
   });
-  it('accepts every response check the server knows', () => {
-    for (const check of ['status_only', 'wecom', 'dingtalk', 'feishu']) {
-      expect(firstCwIssue(customWebhook({ response_check: check }))).toBeNull();
-    }
-  });
-
-  it('rejects a response check the server would not understand', () => {
-    const issue = firstCwIssue(customWebhook({ response_check: 'telegram' }));
-    expect(issue?.[0]).toBe('response_check');
-  });
 });
 
 describe('customWebhookDefaults', () => {
-  it('judges by HTTP status when the integration names no platform', () => {
-    // Integrations saved before the check existed carry no such field; the
-    // form must not silently switch them to reading response bodies.
+  it('seeds the stored template, which is configuration rather than a secret', () => {
     expect(
       customWebhookDefaults({
         id: 1,
-        name: 'Legacy',
+        name: 'Ops bridge',
+        provider_type: 'custom_webhook',
+        credentials: { url: 'https://example.test/h', template: '{"a":1}' },
+        is_enabled: true,
+      } as never).template,
+    ).toBe('{"a":1}');
+  });
+
+  it('leaves the secret blank so saving does not overwrite a working one', () => {
+    expect(
+      customWebhookDefaults({
+        id: 1,
+        name: 'Ops bridge',
         provider_type: 'custom_webhook',
         credentials: { url: 'https://example.test/h', template: '{}' },
         is_enabled: true,
-      } as never).response_check,
-    ).toBe('status_only');
-  });
-
-  it('seeds the platform an existing integration declared', () => {
-    expect(
-      customWebhookDefaults({
-        id: 1,
-        name: 'WeCom',
-        provider_type: 'custom_webhook',
-        credentials: {
-          url: 'https://example.test/h',
-          template: '{}',
-          response_check: 'wecom',
-        },
-        is_enabled: true,
-      } as never).response_check,
-    ).toBe('wecom');
+      } as never).secret,
+    ).toBe('');
   });
 });

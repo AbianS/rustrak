@@ -126,6 +126,7 @@ export type {
   TagSummary,
   TagValueCount,
   TeamMember,
+  PreviewTemplateResponse,
   TestChannelResponse,
   TestIntegrationBody,
   Transaction,

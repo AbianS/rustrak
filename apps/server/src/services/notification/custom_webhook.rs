@@ -23,9 +23,7 @@ use chrono::Utc;
 use super::webhook::WebhookNotifier;
 use super::{NotificationDispatcher, NotificationResult};
 use crate::error::{AppError, AppResult};
-use crate::models::{
-    AlertIntegration, AlertPayload, BotResponseCheck, CustomWebhookConfig, WebhookRoutingOverride,
-};
+use crate::models::{AlertIntegration, AlertPayload, CustomWebhookConfig, WebhookRoutingOverride};
 
 /// Custom webhook notification dispatcher
 pub struct CustomWebhookNotifier {
@@ -204,6 +202,22 @@ impl CustomWebhookNotifier {
         [full, without_level]
     }
 
+    /// Renders `template` against the fully populated sample payload and
+    /// returns the body as it would be sent, pretty-printed for reading.
+    ///
+    /// The dashboard cannot run minijinja, so it asks for this while the
+    /// reader types. It goes through [`Self::render_body`] rather than
+    /// reimplementing it, so the preview cannot disagree with a delivery, and
+    /// the render budget applies here too: a preview is not a way to spend
+    /// what a delivery may not.
+    pub fn preview_template(template: &str) -> Result<String, String> {
+        let [sample, _] = Self::validation_samples();
+        let body = Self::render_body(template, &sample)?;
+        let value: serde_json::Value = serde_json::from_slice(&body)
+            .map_err(|e| format!("Rendered template is not valid JSON: {e}"))?;
+        serde_json::to_string_pretty(&value).map_err(|e| format!("Failed to format preview: {e}"))
+    }
+
     /// Reads the response body with a hard cap. `Response::text()` buffers
     /// whatever the endpoint sends, and the 30s timeout does not limit size;
     /// this dispatcher only ever needs a bot's small JSON reply, so anything
@@ -230,37 +244,6 @@ impl CustomWebhookNotifier {
 /// `StatusCode::is_success`, evaluated from the integer the dispatcher kept).
 fn response_status_is_success(status: u16) -> bool {
     (200..=299).contains(&status)
-}
-
-/// A rejection hidden inside a bot's 2xx response body, or `None`.
-///
-/// Only the envelope the integration named is read, so a non-zero value in a
-/// field this platform does not use is not a verdict. `StatusOnly` reads
-/// nothing at all. A body that is not JSON, or that carries none of the
-/// envelope's fields, is a success: the bot answered, and this dispatcher has
-/// no contract that says otherwise.
-fn bot_error_in_body(check: BotResponseCheck, body: &str) -> Option<String> {
-    // `(code field, reason field)`, most specific envelope first.
-    let envelopes: &[(&str, &str)] = match check {
-        BotResponseCheck::StatusOnly => return None,
-        BotResponseCheck::Wecom | BotResponseCheck::Dingtalk => &[("errcode", "errmsg")],
-        BotResponseCheck::Feishu => &[("code", "msg"), ("StatusCode", "StatusMessage")],
-    };
-    let value: serde_json::Value = serde_json::from_str(body).ok()?;
-    for (code_field, reason_field) in envelopes {
-        let Some(code) = value.get(code_field).and_then(|v| v.as_i64()) else {
-            continue;
-        };
-        if code == 0 {
-            return None;
-        }
-        let reason = value
-            .get(reason_field)
-            .and_then(|v| v.as_str())
-            .unwrap_or("rejected");
-        return Some(format!("bot returned {code_field}={code}: {reason}"));
-    }
-    None
 }
 
 impl Default for CustomWebhookNotifier {
@@ -352,7 +335,7 @@ impl NotificationDispatcher for CustomWebhookNotifier {
                 // MAX_RESPONSE_BODY_BYTES, non-UTF-8) is a failure on every
                 // status: on a 2xx we would otherwise record a delivery as
                 // sent while unable to see a bot rejection hidden inside it.
-                let error_body = match Self::read_capped_body(response).await {
+                let response_body = match Self::read_capped_body(response).await {
                     Ok(b) => b,
                     Err(e) => {
                         return NotificationResult::failure(
@@ -362,27 +345,14 @@ impl NotificationDispatcher for CustomWebhookNotifier {
                     }
                 };
                 if !response_status_is_success(status) {
-                    let error_msg = if error_body.is_empty() {
+                    let error_msg = if response_body.is_empty() {
                         format!("HTTP {}", status)
                     } else {
-                        format!("HTTP {}: {}", status, error_body)
+                        format!("HTTP {}: {}", status, response_body)
                     };
                     return NotificationResult::failure(error_msg, Some(status));
                 }
-                // WeCom, DingTalk and Feishu group bots answer 200 even for a
-                // rejected message, carrying the real result in the body. A
-                // delivery that only checked the status would look sent. The
-                // field names below are specific to those platforms' bot APIs,
-                // so an arbitrary endpoint that ignores the payload and returns
-                // `200` with an unrelated body is still treated as success.
-                if let Some(rejection) = bot_error_in_body(credentials.response_check, &error_body)
-                {
-                    return NotificationResult::failure(
-                        format!("HTTP {}: {}", status, rejection),
-                        Some(status),
-                    );
-                }
-                NotificationResult::success(Some(status))
+                NotificationResult::success(Some(status)).with_response_body(response_body)
             }
             Err(e) => {
                 let error_msg = if e.is_timeout() {
@@ -607,23 +577,6 @@ mod tests {
         assert_eq!(parsed["lines"].as_array().unwrap().len(), 50);
     }
 
-    // -------------------------------------------------------------------------
-    // Bot rejection hidden in a 2xx body
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_status_only_is_the_default_and_ignores_the_response_body() {
-        // Arbitrary APIs reuse `code` and even `errcode` for their own
-        // business status. An integration that did not name a platform must
-        // judge by the HTTP status alone, or a delivered alert is recorded
-        // as failed.
-        let check = BotResponseCheck::default();
-        assert_eq!(check, BotResponseCheck::StatusOnly);
-        assert!(bot_error_in_body(check, r#"{"code":1,"msg":"ok"}"#).is_none());
-        assert!(bot_error_in_body(check, r#"{"errcode":93000,"errmsg":"nope"}"#).is_none());
-        assert!(bot_error_in_body(check, r#"{"StatusCode":9499}"#).is_none());
-    }
-
     #[test]
     fn test_status_is_success_matches_2xx() {
         assert!(response_status_is_success(200));
@@ -632,103 +585,33 @@ mod tests {
         assert!(!response_status_is_success(500));
     }
 
-    #[test]
-    fn test_wecom_dingtalk_errcode_detected() {
-        assert!(
-            bot_error_in_body(BotResponseCheck::Wecom, r#"{"errcode":0,"errmsg":"ok"}"#).is_none()
-        );
-        assert!(bot_error_in_body(
-            BotResponseCheck::Wecom,
-            r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#
-        )
-        .unwrap()
-        .contains("93000"));
-    }
-
-    #[test]
-    fn test_feishu_statuscode_detected() {
-        assert!(bot_error_in_body(
-            BotResponseCheck::Feishu,
-            r#"{"StatusCode":0,"StatusMessage":"success"}"#
-        )
-        .is_none());
-        let msg = bot_error_in_body(
-            BotResponseCheck::Feishu,
-            r#"{"StatusCode":9499,"StatusMessage":"Bad Request"}"#,
-        )
-        .expect("non-zero StatusCode is a rejection");
-        assert!(msg.contains("StatusCode=9499"), "got: {msg}");
-        assert!(msg.contains("Bad Request"), "got: {msg}");
-    }
-
-    #[test]
-    fn test_non_bot_bodies_are_not_misread_as_rejection() {
-        // A generic endpoint returning 200 with unrelated content stays success:
-        // not JSON, or JSON without the platform-specific codes.
-        assert!(bot_error_in_body(BotResponseCheck::Wecom, "").is_none());
-        assert!(bot_error_in_body(BotResponseCheck::Wecom, "ok").is_none());
-        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"status":"queued"}"#).is_none());
-        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"errcode":0,"code":42}"#).is_none());
-    }
-
-    #[test]
-    fn test_feishu_current_envelope_code_detected() {
-        // Feishu's newer envelope signals only through the top-level `code`.
-        let msg = bot_error_in_body(
-            BotResponseCheck::Feishu,
-            r#"{"code":11232,"msg":"trigger frequency limit","data":{}}"#,
-        )
-        .expect("a non-zero code is a Feishu rejection");
-        assert!(msg.contains("code=11232"), "got: {msg}");
-        assert!(msg.contains("frequency"), "got: {msg}");
-        assert!(bot_error_in_body(
-            BotResponseCheck::Feishu,
-            r#"{"code":0,"msg":"success","data":{}}"#
-        )
-        .is_none());
-    }
-
-    #[test]
-    fn test_a_named_platform_reads_only_its_own_envelope() {
-        // The band that let `{"code":200}` pass existed only because the
-        // check ran against every endpoint. Scoped to a platform, `code` is
-        // Feishu's and non-zero means rejected, while WeCom never reads it.
-        assert!(bot_error_in_body(BotResponseCheck::Feishu, r#"{"code":200}"#).is_some());
-        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"code":200}"#).is_none());
-        assert!(bot_error_in_body(BotResponseCheck::Dingtalk, r#"{"code":11232}"#).is_none());
-        // DingTalk shares WeCom's envelope, so it must share the verdict.
-        let msg = bot_error_in_body(
-            BotResponseCheck::Dingtalk,
-            r#"{"errcode":310000,"errmsg":"keywords not in content"}"#,
-        )
-        .expect("DingTalk rejections ride on errcode");
-        assert!(msg.contains("errcode=310000"), "got: {msg}");
-    }
-
     // -------------------------------------------------------------------------
-    // Built-in presets (must stay in sync with
-    // apps/webview-ui/src/features/alert/model/webhook-presets.ts)
+    // Documented example bodies
+    //
+    // Rustrak carries no per-service message shapes; the ones below are the
+    // copy-and-paste examples in apps/docs/content/usage/alerts.mdx. They are
+    // rendered here so a doc that would teach someone an invalid template
+    // fails this test instead of failing in their alert history.
     // -------------------------------------------------------------------------
 
-    const PRESET_WECOM_TEXT: &str = r#"{"msgtype":"text","text":{"content":{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}"#;
+    const DOC_WECOM_TEXT: &str = r#"{"msgtype":"text","text":{"content":{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}"#;
 
     // Split because a raw string cannot end with `("`: that quote would fuse
     // with the closing hashes. The head is a normal escaped string, the tail
     // needs r#### so the `"###` heading survives inside it.
-    const PRESET_WECOM_MARKDOWN: &str = concat!(
+    const DOC_MARKDOWN_WITH_LEVEL: &str = concat!(
         "{\"msgtype\":\"markdown\",\"markdown\":{\"content\":{{ (\"",
         r####"### " ~ issue.title ~ "\n> Project: " ~ project.name ~ "\n> Level: " ~ (issue.level or "unknown") ~ "\n> [View issue](" ~ issue_url ~ ")") | tojson }}}}"####,
     );
 
-    const PRESET_DINGTALK_TEXT: &str = PRESET_WECOM_TEXT;
+    const DOC_DINGTALK_TEXT: &str = DOC_WECOM_TEXT;
 
-    const PRESET_FEISHU_TEXT: &str = r#"{"msg_type":"text","content":{"text":{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}"#;
+    const DOC_FEISHU_TEXT: &str = r#"{"msg_type":"text","content":{"text":{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}"#;
 
-    // The dashboard's textarea placeholder
-    // (webhook-presets.ts `templatePlaceholder`); mirrored so a copy that
-    // would teach users an invalid template fails this test instead.
-    const PLACEHOLDER_EXAMPLE: &str =
-        r#"{"msgtype":"text","text":{"content":{{ ("Rustrak: " ~ issue.title) | tojson }}}}"#;
+    // The dashboard's textarea placeholder (message-template.ts
+    // `templatePlaceholder`); mirrored so a copy that would teach users an
+    // invalid template fails this test instead.
+    const PLACEHOLDER_EXAMPLE: &str = r#"{"text":{{ ("Rustrak: " ~ issue.title) | tojson }}}"#;
 
     #[test]
     fn test_placeholder_example_renders_valid_json() {
@@ -737,13 +620,13 @@ mod tests {
                 .expect("placeholder example must render to valid JSON"),
         )
         .unwrap();
-        assert_eq!(parsed["text"]["content"], "Rustrak: Test error");
+        assert_eq!(parsed["text"], "Rustrak: Test error");
     }
 
     #[test]
-    fn test_preset_wecom_text_renders_valid_schema() {
+    fn test_doc_example_wecom_text_renders_valid_schema() {
         let parsed: serde_json::Value = serde_json::from_slice(
-            &CustomWebhookNotifier::render_body(PRESET_WECOM_TEXT, &create_test_payload())
+            &CustomWebhookNotifier::render_body(DOC_WECOM_TEXT, &create_test_payload())
                 .expect("wecom text preset must render"),
         )
         .unwrap();
@@ -755,9 +638,9 @@ mod tests {
     }
 
     #[test]
-    fn test_preset_markdown_renders_newlines_as_escapes() {
+    fn test_doc_example_markdown_renders_newlines_as_escapes() {
         let parsed: serde_json::Value = serde_json::from_slice(
-            &CustomWebhookNotifier::render_body(PRESET_WECOM_MARKDOWN, &create_test_payload())
+            &CustomWebhookNotifier::render_body(DOC_MARKDOWN_WITH_LEVEL, &create_test_payload())
                 .expect("wecom markdown preset must render"),
         )
         .unwrap();
@@ -770,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn test_preset_markdown_names_a_missing_level_readably() {
+    fn test_doc_example_markdown_names_a_missing_level_readably() {
         // issue.level is optional. Interpolated bare, minijinja stringifies the
         // absent value and the bot message reads "Level: None".
         let payload = AlertPayload {
@@ -781,7 +664,7 @@ mod tests {
             ..create_test_payload()
         };
         let parsed: serde_json::Value = serde_json::from_slice(
-            &CustomWebhookNotifier::render_body(PRESET_WECOM_MARKDOWN, &payload)
+            &CustomWebhookNotifier::render_body(DOC_MARKDOWN_WITH_LEVEL, &payload)
                 .expect("the preset must render without a level"),
         )
         .unwrap();
@@ -794,9 +677,9 @@ mod tests {
     }
 
     #[test]
-    fn test_preset_feishu_text_renders_valid_schema() {
+    fn test_doc_example_feishu_text_renders_valid_schema() {
         let parsed: serde_json::Value = serde_json::from_slice(
-            &CustomWebhookNotifier::render_body(PRESET_FEISHU_TEXT, &create_test_payload())
+            &CustomWebhookNotifier::render_body(DOC_FEISHU_TEXT, &create_test_payload())
                 .expect("feishu text preset must render"),
         )
         .unwrap();
@@ -808,7 +691,7 @@ mod tests {
     }
 
     #[test]
-    fn test_preset_dingtalk_survives_quotes_in_title() {
+    fn test_doc_example_dingtalk_survives_quotes_in_title() {
         let payload = AlertPayload {
             issue: IssueInfo {
                 title: r#"He said "boom""#.to_string(),
@@ -817,7 +700,7 @@ mod tests {
             ..create_test_payload()
         };
         let parsed: serde_json::Value = serde_json::from_slice(
-            &CustomWebhookNotifier::render_body(PRESET_DINGTALK_TEXT, &payload)
+            &CustomWebhookNotifier::render_body(DOC_DINGTALK_TEXT, &payload)
                 .expect("tojson-escaped preset must survive a quoted title"),
         )
         .unwrap();
@@ -825,6 +708,45 @@ mod tests {
             parsed["text"]["content"],
             r#"Rustrak: He said "boom" (TEST-1) https://example.com/issues/abc-123"#
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Preview
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_preview_shows_the_body_that_would_be_sent() {
+        // The dashboard cannot render minijinja, so it asks the server. The
+        // answer has to come from the same code path as a delivery or the
+        // preview is a second opinion nobody asked for.
+        let rendered = CustomWebhookNotifier::preview_template(
+            r#"{"text":{{ issue.title | tojson }},"count":{{ issue.event_count }}}"#,
+        )
+        .expect("a valid template previews");
+        // Pretty-printed: the reader is looking at it, not parsing it.
+        assert!(
+            rendered.contains("\n"),
+            "preview must be readable: {rendered}"
+        );
+        let parsed: serde_json::Value = serde_json::from_str(&rendered).unwrap();
+        assert_eq!(parsed["text"], "Sample issue");
+        assert_eq!(parsed["count"], 1);
+    }
+
+    #[test]
+    fn test_preview_reports_why_a_template_would_fail() {
+        let err = CustomWebhookNotifier::preview_template(r#"{"a": {{ issue.title }}}"#)
+            .expect_err("a body that is not JSON must report why");
+        assert!(err.contains("valid JSON"), "got: {err}");
+    }
+
+    #[test]
+    fn test_preview_applies_the_same_limits_as_delivery() {
+        let err = CustomWebhookNotifier::preview_template(
+            r#"{"a":"{% for i in range(1000) %}{% for j in range(1000) %}x{% endfor %}{% endfor %}"}"#,
+        )
+        .expect_err("the preview must not be a way around the render budget");
+        assert!(err.contains("too complex"), "got: {err}");
     }
 
     // -------------------------------------------------------------------------
@@ -955,7 +877,6 @@ mod tests {
             secret: None,
             headers: None,
             template: "{}".to_string(),
-            response_check: BotResponseCheck::StatusOnly,
         };
         assert_eq!(
             CustomWebhookNotifier::effective_url(&routing, &credentials),
@@ -974,7 +895,6 @@ mod tests {
             secret: None,
             headers: None,
             template: "{}".to_string(),
-            response_check: BotResponseCheck::StatusOnly,
         };
         assert_eq!(
             CustomWebhookNotifier::effective_url(&routing, &credentials),
@@ -1062,7 +982,7 @@ mod tests {
             "url": format!("http://{addr}/hook"),
             "secret": "s3cret",
             "headers": {"X-Custom": "cred-level"},
-            "template": PRESET_DINGTALK_TEXT,
+            "template": DOC_DINGTALK_TEXT,
         });
         let integration = make_integration(credentials, true);
         let routing = json!({"extra_headers": {"X-Extra": "route-level"}});
@@ -1093,48 +1013,6 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn test_200_with_errcode_body_is_a_failure() {
-        // The core of the greptile P1: a WeCom/DingTalk rejection rides on a
-        // 200 response. The dispatcher must not record it as sent.
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("bind rejection listener");
-        let addr = listener.local_addr().expect("listener addr");
-        tokio::spawn(async move {
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
-            let (mut socket, _) = listener.accept().await.expect("accept");
-            let mut sink = [0u8; 1024];
-            let _ = socket.read(&mut sink).await;
-            let body = r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#;
-            let resp = format!(
-                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-                body.len()
-            );
-            let _ = socket.write_all(resp.as_bytes()).await;
-        });
-
-        let notifier = CustomWebhookNotifier::new();
-        let credentials = json!({
-            "url": format!("http://{addr}/hook"),
-            "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
-            "response_check": "wecom",
-        });
-        let integration = make_integration(credentials, true);
-        let result = notifier
-            .send(&integration, &json!({}), &create_test_payload())
-            .await;
-        assert!(!result.success, "a 200 that hides errcode!=0 is a failure");
-        assert_eq!(result.http_status, Some(200));
-        assert!(
-            result
-                .error_message
-                .unwrap_or_default()
-                .contains("errcode=93000"),
-            "message should carry the bot code"
-        );
-    }
-
     /// Serves a fixed raw HTTP response (after reading one request chunk) on
     /// a random localhost port; returns the URL. The responder task owns the
     /// bytes, so callers can build responses at runtime.
@@ -1154,19 +1032,6 @@ mod tests {
         format!("http://{addr}/hook")
     }
 
-    /// An integration pointed at `url`, optionally declaring the response
-    /// envelope its endpoint speaks.
-    fn custom_integration_checking(url: String, check: &str) -> AlertIntegration {
-        make_integration(
-            json!({
-                "url": url,
-                "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
-                "response_check": check,
-            }),
-            true,
-        )
-    }
-
     fn custom_integration(url: String) -> AlertIntegration {
         make_integration(
             json!({
@@ -1178,42 +1043,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_feishu_current_envelope_fails_live_delivery() {
-        let body = r#"{"code":9499,"msg":"Bad Request","data":{}}"#;
-        let response = format!(
-            "HTTP/1.1 200 OK
-content-type: application/json
-content-length: {}
-connection: close
-
-{body}",
-            body.len()
-        );
-        let url = raw_responder(response.into_bytes()).await;
-        let notifier = CustomWebhookNotifier::new();
-        let result = notifier
-            .send(
-                &custom_integration_checking(url, "feishu"),
-                &json!({}),
-                &create_test_payload(),
-            )
-            .await;
-        assert!(
-            !result.success,
-            "Feishu 200+code rejection must not record sent"
-        );
-        assert!(result
-            .error_message
-            .unwrap_or_default()
-            .contains("code=9499"));
-    }
-
-    #[tokio::test]
-    async fn test_generic_endpoint_business_code_is_still_a_delivery() {
-        // The regression this whole check exists to prevent: an integration
-        // that named no platform must not have its own `code` read as a
-        // rejection. Before the check became opt-in, every alert from an
-        // endpoint answering `{"code":1,"msg":"ok"}` was recorded as failed.
+    async fn test_a_2xx_is_a_delivery_whatever_the_body_says() {
+        // A generic webhook judges by the HTTP status, the way Grafana,
+        // Alertmanager and Uptime Kuma do. Fields an endpoint happens to use
+        // for its own business status are its business, not a verdict.
         let body = r#"{"code":1,"msg":"ok"}"#;
         let response = format!(
             "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
@@ -1232,10 +1065,10 @@ connection: close
     }
 
     #[tokio::test]
-    async fn test_credentials_saved_before_the_check_existed_keep_delivering() {
-        // Rows written by the previous build carry no `response_check`. They
-        // must deserialise, and they must not start failing on a body that
-        // used to be ignored.
+    async fn test_a_delivery_reports_what_the_endpoint_answered() {
+        // Rustrak does not interpret the reply, so it has to show it. A bot
+        // that answers 200 with `{"errcode":93000}` has refused the message,
+        // and the only way the reader can find that out is by seeing it.
         let body = r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#;
         let response = format!(
             "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
@@ -1246,10 +1079,20 @@ connection: close
         let result = notifier
             .send(&custom_integration(url), &json!({}), &create_test_payload())
             .await;
-        assert!(
-            result.success,
-            "an integration with no declared platform judges by status alone"
-        );
+        assert!(result.success, "a 2xx is still a delivery");
+        assert_eq!(result.response_body.as_deref(), Some(body));
+    }
+
+    #[tokio::test]
+    async fn test_an_empty_answer_reports_no_body_rather_than_an_empty_one() {
+        let url =
+            raw_responder(b"HTTP/1.1 204 No Content\r\nconnection: close\r\n\r\n".to_vec()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(result.success);
+        assert_eq!(result.response_body, None);
     }
 
     #[tokio::test]

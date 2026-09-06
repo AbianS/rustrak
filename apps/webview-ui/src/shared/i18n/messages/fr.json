@@ -553,8 +553,7 @@
       "botTokenPrefix": "Le token de bot doit commencer par xoxb-",
       "smtpHostRequired": "L’hôte SMTP est obligatoire",
       "validEmail": "Veuillez saisir une adresse e-mail valide",
-      "templateRequired": "Le modèle est requis",
-      "responseCheckInvalid": "Choisissez une verification de reponse dans la liste"
+      "templateRequired": "Le modèle est requis"
     },
     "routing": {
       "slackChannelRequired": "Un canal Slack est requis pour « {name} »",
@@ -627,31 +626,41 @@
     "customWebhook": {
       "titleNew": "Configurer le webhook personnalisé",
       "titleEdit": "Modifier le webhook personnalisé",
-      "description": "Le corps de la requête est rendu depuis un modèle Minijinja sur la charge de l'alerte, puis POSTé en JSON. Utilisez un preset ci-dessous pour partir du schéma exact attendu par un bot WeCom, DingTalk ou Feishu.",
-      "namePlaceholder": "Ex. : Groupe d'exploitation WeCom",
-      "templateLabel": "Modèle de corps",
-      "templateDescription": "Variables : alert_id, alert_type, triggered_at, project (id, name, slug), issue (id, short_id, title, level, first_seen, last_seen, event_count), issue_url, actor. Passez les textes dynamiques par le filtre tojson pour que les guillemets ne cassent pas le JSON.",
-      "presets": {
-        "wecomText": "WeCom texte",
-        "wecomMarkdown": "WeCom markdown",
-        "dingtalkText": "DingTalk texte",
-        "feishuText": "Feishu texte"
-      },
-      "responseCheckLabel": "Verification de la reponse",
-      "responseCheckDescription": "Les bots de groupe repondent HTTP 200 meme lorsqu ils rejettent un message, et placent le resultat reel dans le corps. Indiquez la plateforme pour qu un rejet soit enregistre comme un echec de livraison. Laissez sur statut HTTP uniquement pour tout autre endpoint : son corps de reponse n est alors pas lu.",
-      "responseChecks": {
-        "status_only": "Statut HTTP uniquement",
-        "wecom": "Bot WeCom (errcode)",
-        "dingtalk": "Bot DingTalk (errcode)",
-        "feishu": "Bot Feishu (code)"
-      },
-      "fieldResponseCheck": "Cette verification de reponse",
-      "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
+      "description": "Envoyez les alertes avec un corps de message que vous écrivez.",
+      "namePlaceholder": "P. ex., Passerelle vers le chat d'astreinte",
+      "urlLabel": "URL du webhook",
+      "urlPlaceholder": "https://example.com/hooks/incoming",
+      "urlDescription": "Facultatif. Une règle d'alerte peut fournir la sienne.",
+      "templateLabel": "Corps du message",
+      "editorLabel": "JSON",
+      "templateDescription": "Complète les champs que vous pouvez insérer. Le bouton d'aide ouvre la référence complète.",
+      "format": "Formater",
+      "secretLabel": "Secret de signature",
+      "secretDescription": "Facultatif. Signe la requête en HMAC-SHA256.",
       "create": "Créer le webhook personnalisé",
       "fieldTemplate": "Ce modèle",
       "saveFailed": "Échec de l'enregistrement du webhook personnalisé",
       "updated": "Webhook personnalisé mis à jour",
-      "created": "Webhook personnalisé créé"
+      "created": "Webhook personnalisé créé",
+      "variables": {
+        "issue.title": "Le titre de l'erreur",
+        "issue.short_id": "Id lisible du problème",
+        "issue.level": "error, warning, info… ou absent",
+        "issue.event_count": "Nombre d'occurrences",
+        "issue.id": "Id interne du problème",
+        "issue.first_seen": "Première occurrence",
+        "issue.last_seen": "Dernière occurrence",
+        "issue_url": "Lien vers le problème dans Rustrak",
+        "project.name": "Nom du projet",
+        "project.slug": "Slug du projet",
+        "project.id": "Id interne du projet",
+        "alert_type": "Ce qui a déclenché l'alerte",
+        "alert_id": "Id de cet envoi",
+        "triggered_at": "Quand l'alerte a été déclenchée",
+        "actor": "L'expéditeur, toujours Rustrak"
+      },
+      "variablesLabel": "Champs",
+      "help": "Ouvrir la documentation"
     },
     "slack": {
       "titleNew": "Ajouter l’intégration Slack",
@@ -720,6 +729,7 @@
       "configureAria": "Configurer {name}",
       "testFailed": "Échec de l’envoi du test",
       "testSent": "Notification de test envoyée",
+      "testAnswered": "L'endpoint a répondu",
       "testFailedResult": "Test échoué",
       "deleteFailed": "Échec de la suppression de l’intégration",
       "deleted": "Intégration supprimée",
@@ -768,7 +778,7 @@
         "description": "Envoie des charges utiles JSON vers n’importe quel endpoint HTTP."
       },
       "customWebhook": {
-        "description": "POSTez un corps JSON rendu depuis votre propre modèle. Presets fournis pour les bots WeCom, DingTalk et Feishu."
+        "description": "POST un corps que vous écrivez, dans la forme attendue par l'endpoint."
       }
     },
     "newIssue": {

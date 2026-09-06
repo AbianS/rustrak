@@ -71,15 +71,27 @@ export function IntegrationsList({
         return;
       }
 
-      if (result.data.success) {
-        toast.success(t('integrations.testSent'), {
-          description: result.data.message,
-        });
-      } else {
+      if (!result.data.success) {
         toast.error(t('integrations.testFailedResult'), {
           description: result.data.message,
         });
+        return;
       }
+
+      // The request reached the endpoint. Whether the endpoint was happy about
+      // it is its own business: Rustrak judges delivery by the HTTP status and
+      // never interprets the body, so an answer it cannot read must not be
+      // dressed as a success. A tick over `{"errcode":93000}` reads as a lie.
+      // Neutral when there is something to read, success only when the 2xx is
+      // genuinely all there was.
+      if (result.data.response_body) {
+        toast.info(t('integrations.testAnswered'), {
+          description: result.data.response_body,
+        });
+        return;
+      }
+
+      toast.success(t('integrations.testSent'));
     });
   };
 
