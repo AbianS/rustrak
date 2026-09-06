@@ -10,6 +10,30 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
+/** The grammar Relay accepts for a timestamp string, and no more. */
+const ISO_DATE_TIME =
+  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:?\d{2})?$/;
+
+/**
+ * A moment on the waterfall's clock, which counts seconds.
+ *
+ * No offset means UTC, as it does in Relay. `Date.parse` would read it as the
+ * reader's local time and place the same span differently in every timezone.
+ */
+function parseEpochSeconds(raw: unknown): number | undefined {
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) ? raw : undefined;
+  }
+  if (typeof raw !== 'string') return undefined;
+
+  const match = ISO_DATE_TIME.exec(raw);
+  if (!match) return undefined;
+
+  const [, date, time, offset] = match;
+  const milliseconds = Date.parse(`${date}T${time}${offset ?? 'Z'}`);
+  return Number.isFinite(milliseconds) ? milliseconds / 1000 : undefined;
+}
+
 /**
  * A moment on the waterfall's clock, which counts seconds.
  *
@@ -17,17 +41,6 @@ function asObject(value: unknown): Record<string, unknown> | null {
  * The fallback has to be converted rather than passed through, or every bar
  * would be placed a thousand times too far along.
  */
-function parseEpochSeconds(raw: unknown): number | undefined {
-  if (typeof raw === 'number') {
-    return Number.isFinite(raw) ? raw : undefined;
-  }
-  if (typeof raw === 'string') {
-    const milliseconds = Date.parse(raw);
-    return Number.isFinite(milliseconds) ? milliseconds / 1000 : undefined;
-  }
-  return undefined;
-}
-
 function epochSeconds(raw: unknown, fallbackIso: string): number {
   return parseEpochSeconds(raw) ?? Date.parse(fallbackIso) / 1000;
 }

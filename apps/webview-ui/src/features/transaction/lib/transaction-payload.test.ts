@@ -103,6 +103,74 @@ describe('readTransactionPayload', () => {
     ]);
   });
 
+  // Captured from sentry-types 0.49.2, which serializes a span's two ends with
+  // different encodings: ts_seconds_float and ts_rfc3339_opt.
+  it('reads a real Rust-SDK span into arithmetic that yields a duration', () => {
+    const payload = readTransactionPayload(
+      txn({
+        timestamp: '2025-09-04T15:33:20.800Z',
+        start_timestamp: '2025-09-04T15:33:20.500Z',
+        data: {
+          start_timestamp: 1757000000.5,
+          timestamp: '2025-09-04T15:33:20.8Z',
+          spans: [
+            {
+              op: 'db.sql.query',
+              span_id: 'f796eed91584d618',
+              start_timestamp: 1757000000.5,
+              timestamp: '2025-09-04T15:33:20.8Z',
+              trace_id: 'db542d8976bbdc31d5940a8bfe604128',
+            },
+          ],
+        },
+      }),
+    );
+
+    const [span] = payload.spans;
+    const durationMs =
+      ((span.timestamp as number) - (span.start_timestamp as number)) * 1000;
+
+    expect(durationMs).toBeCloseTo(300, 3);
+    // Math.max over a string is NaN, which takes the whole waterfall window.
+    expect(
+      Math.max(payload.transactionStart, span.timestamp as number),
+    ).not.toBeNaN();
+  });
+
+  it('reads a span timestamp with no offset as UTC, the way Relay does', () => {
+    const [span] = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              start_timestamp: 1757000000.5,
+              timestamp: '2025-09-04T15:33:20.8',
+            },
+          ],
+        },
+      }),
+    ).spans;
+
+    expect(span.timestamp).toBeCloseTo(1757000000.8, 3);
+  });
+
+  it('rejects date strings Relay would not have accepted', () => {
+    const [span] = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            // Date.parse turns both of these into a finite epoch.
+            { span_id: 's1', start_timestamp: '2025/09/04', timestamp: '0' },
+          ],
+        },
+      }),
+    ).spans;
+
+    expect(span.start_timestamp).toBeUndefined();
+    expect(span.timestamp).toBeUndefined();
+  });
+
   it('prefers the payload epoch seconds over the row timestamps', () => {
     const payload = readTransactionPayload(
       txn({ data: { start_timestamp: 1000, timestamp: 1002 } }),
