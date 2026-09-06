@@ -53,6 +53,14 @@
         "rules": [
           "react-doctor/dangerous-html-sink"
         ]
+      },
+      {
+        "files": [
+          "**/features/alert/ui/components/json-template-editor.tsx"
+        ],
+        "rules": [
+          "react-doctor/prefer-dynamic-import"
+        ]
       }
     ]
   }

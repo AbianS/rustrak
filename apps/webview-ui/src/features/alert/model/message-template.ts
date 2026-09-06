@@ -80,15 +80,3 @@ export const TEMPLATE_VARIABLES: readonly TemplateVariable[] = [
   variable('triggered_at', 'timestamp', '2026-01-01T00:00:00Z'),
   variable('actor', 'string', 'Rustrak'),
 ];
-
-/** The handful the chip row shows; the rest are one keystroke away in the editor. */
-export const QUICK_VARIABLES: readonly TemplateVariable[] =
-  TEMPLATE_VARIABLES.filter((v) =>
-    [
-      'issue.title',
-      'issue.short_id',
-      'issue.level',
-      'project.name',
-      'issue_url',
-    ].includes(v.path),
-  );

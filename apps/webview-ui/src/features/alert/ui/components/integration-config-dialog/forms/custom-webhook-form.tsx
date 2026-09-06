@@ -63,6 +63,18 @@ const JsonTemplateEditor = dynamic(
   },
 );
 
+/**
+ * Why the body would be refused, or `null`. The editor asks while the reader
+ * types and marks the spot itself; the server answers because it owns the
+ * template engine, and a check computed anywhere else would eventually
+ * disagree with what a save accepts.
+ */
+async function validateTemplate(template: string) {
+  const result = await previewTemplate(template);
+  if (!result.success) return null;
+  return result.data.ok ? null : (result.data.error ?? null);
+}
+
 export function CustomWebhookForm({
   onOpenChange,
   existingIntegration,
@@ -107,18 +119,6 @@ export function CustomWebhookForm({
   });
 
   const isLoading = isPending || parentPending;
-
-  /**
-   * Why the body would be refused, or `null`. The editor asks while the reader
-   * types and marks the spot itself; the server answers because it owns the
-   * template engine, and a check computed anywhere else would eventually
-   * disagree with what a save accepts.
-   */
-  const validateTemplate = async (template: string) => {
-    const result = await previewTemplate(template);
-    if (!result.success) return null;
-    return result.data.ok ? null : (result.data.error ?? null);
-  };
 
   // An integration that is being edited already has a body, and the reader
   // should see what it renders to without having to touch it first. One

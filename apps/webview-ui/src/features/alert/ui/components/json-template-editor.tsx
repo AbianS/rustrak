@@ -42,7 +42,7 @@ import {
 import { tags } from '@lezer/highlight';
 import { CircleQuestionMarkIcon, WandSparklesIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { expressionAt } from '@/features/alert/lib/template-completion';
 import { locateTemplateError } from '@/features/alert/lib/template-diagnostic';
 import type { TemplateVariable } from '@/features/alert/model/message-template';
@@ -67,6 +67,13 @@ import type { TemplateVariable } from '@/features/alert/model/message-template';
  * 2. JSON syntax highlighting, with the `{{ … }}` spans marked so they read as
  *    expressions instead of as broken JSON.
  * 3. Bracket closing and matching, because the shape of the body is brackets.
+ *
+ * The CodeMirror packages are imported statically here on purpose, and
+ * `react-doctor/prefer-dynamic-import` is turned off for this file in
+ * `doctor.config.json` because of it: this whole component is already behind a
+ * `next/dynamic` boundary in the form that uses it, so it is never in the
+ * page's bundle. Splitting the imports again inside it would buy nothing and
+ * cost a second waterfall.
  *
  * What it deliberately does not do is validate. The template only becomes JSON
  * once it is rendered, and the only renderer that agrees with a delivery is
@@ -108,15 +115,7 @@ export function JsonTemplateEditor({
 }) {
   const t = useTranslations('alerts.customWebhook.variables');
   const host = useRef<HTMLDivElement | null>(null);
-  const check = useRef(validate);
-  check.current = validate;
   const view = useRef<EditorView | null>(null);
-  // Held in a ref so changing the handler never rebuilds the editor, which
-  // would drop the caret mid-word.
-  const emit = useRef(onChange);
-  emit.current = onChange;
-  const emitBlur = useRef(onBlur);
-  emitBlur.current = onBlur;
 
   const completions = useMemo<Completion[]>(
     () =>
@@ -135,17 +134,33 @@ export function JsonTemplateEditor({
     [variables, t],
   );
 
-  const editable = useRef(new Compartment()).current;
+  // One compartment for the editor's lifetime. `useState` rather than
+  // `useRef(new Compartment())`, which would build a compartment on every
+  // render and throw all but the first away.
+  const [editable] = useState(() => new Compartment());
 
-  // Read through refs inside the editor's own callbacks. Anything named in the
-  // dependency array below would tear the editor down and build it again, and
-  // a rebuild mid-word drops the caret, the selection and the undo history.
-  const options = useRef(completions);
-  options.current = completions;
-  const initialDoc = useRef(value);
-  const disabledOnMount = useRef(disabled);
-  const initialPlaceholder = useRef(placeholder);
-  const ariaRef = useRef(ariaLabel);
+  /**
+   * Everything the editor's own callbacks read, in one box.
+   *
+   * The editor is built once: naming any of these in the effect below would
+   * tear it down and rebuild it, and a rebuild mid-word drops the caret, the
+   * selection and the undo history. Writing to the box during render is what
+   * React tells you not to do, so it is written after the render commits, and
+   * read only from callbacks that run later than that.
+   */
+  const live = useRef({ onChange, onBlur, validate, completions });
+  useEffect(() => {
+    live.current = { onChange, onBlur, validate, completions };
+  }, [onChange, onBlur, validate, completions]);
+
+  // What the editor is built from, captured at mount. `useState` again, so the
+  // initial value is read once instead of on every render.
+  const [initial] = useState(() => ({
+    doc: value,
+    disabled,
+    placeholder,
+    ariaLabel,
+  }));
 
   useEffect(() => {
     if (!host.current || view.current) return;
@@ -156,7 +171,7 @@ export function JsonTemplateEditor({
       if (!open.word && !ctx.explicit) return null;
       return {
         from: open.from,
-        options: options.current,
+        options: live.current.completions,
         validFor: /^[\w.]*$/,
       };
     };
@@ -164,7 +179,7 @@ export function JsonTemplateEditor({
     const instance = new EditorView({
       parent: host.current,
       state: EditorState.create({
-        doc: initialDoc.current,
+        doc: initial.doc,
         extensions: [
           history(),
           json(),
@@ -186,7 +201,7 @@ export function JsonTemplateEditor({
             async (view): Promise<Diagnostic[]> => {
               const doc = view.state.doc.toString();
               if (!doc.trim()) return [];
-              const message = await check.current(doc);
+              const message = await live.current.validate(doc);
               if (!message) return [];
               return [
                 {
@@ -211,16 +226,19 @@ export function JsonTemplateEditor({
             ...defaultKeymap,
           ]),
           EditorView.lineWrapping,
-          cmPlaceholder(initialPlaceholder.current),
+          cmPlaceholder(initial.placeholder),
           editorTheme,
-          editable.of(EditorView.editable.of(!disabledOnMount.current)),
+          editable.of(EditorView.editable.of(!initial.disabled)),
           EditorView.updateListener.of((update: ViewUpdate) => {
-            if (update.docChanged) emit.current(update.state.doc.toString());
-            if (update.focusChanged && !update.view.hasFocus)
-              emitBlur.current?.();
+            if (update.docChanged) {
+              live.current.onChange(update.state.doc.toString());
+            }
+            if (update.focusChanged && !update.view.hasFocus) {
+              live.current.onBlur?.();
+            }
           }),
           EditorView.contentAttributes.of({
-            'aria-label': ariaRef.current,
+            'aria-label': initial.ariaLabel,
             role: 'textbox',
             'aria-multiline': 'true',
           }),
@@ -235,7 +253,7 @@ export function JsonTemplateEditor({
     // Built once, deliberately. `disabled` is reconfigured through a
     // compartment below and everything else is read through a ref, so this
     // array stays empty on purpose rather than by oversight.
-  }, [editable]);
+  }, [editable, initial]);
 
   useEffect(() => {
     view.current?.dispatch({
