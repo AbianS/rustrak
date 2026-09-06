@@ -42,9 +42,19 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 USER nextjs
 
+# Next.js standalone binds to whatever HOSTNAME holds, and Docker fills that
+# variable with the container id whenever the image leaves it unset. The server
+# then listens on that one interface: reachable through a published port by
+# accident, unreachable anywhere the name does not resolve. Pinning it is what
+# lets a reverse proxy on the same network reach the container with no host
+# port published, and it is what the upstream `with-docker` example does.
+ENV HOSTNAME="0.0.0.0"
+ENV PORT="3000"
+EXPOSE 3000
+
 # Copia sólo lo necesario para producción (standalone, static y public)
 COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/.next/standalone ./
 COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/.next/static ./apps/webview-ui/.next/static
 COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/public ./apps/webview-ui/public
 
-CMD node apps/webview-ui/server.js
+CMD ["node", "apps/webview-ui/server.js"]

@@ -38,11 +38,33 @@ docker run -d -p 3000:3000 \
   rustrak/rustrak-ui
 ```
 
+### Behind a reverse proxy
+
+The image binds to `0.0.0.0`, so a proxy on the same Docker network reaches it
+on port `3000` with nothing published to the host. Drop the `-p` and join the
+network the proxy is on:
+
+```bash
+docker network create rustrak                       # once
+docker run -d --network rustrak --name ui \
+  -e RUSTRAK_API_URL=http://server:8080 \
+  rustrak/rustrak-ui
+```
+
+`RUSTRAK_API_URL` stays internal here. The dashboard calls the server
+server-side, so that request never leaves the network, and pointing it at your
+public domain breaks sign-in. With Compose, delete the `ports:` block from the
+`ui` service and route by host in Traefik, nginx or Caddy. The full setup,
+including the DSN, is in
+[Reverse proxy](https://rustrak.github.io/rustrak/configuration/production#reverse-proxy).
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `RUSTRAK_API_URL` | Yes | - | Rustrak server URL |
+| `RUSTRAK_API_URL` | Yes | `http://localhost:8080` | Address the dashboard uses to reach the server. Always an internal one |
+| `PORT` | No | `3000` | Port the dashboard listens on inside the container |
+| `HOSTNAME` | No | `0.0.0.0` | TCP bind address. Already correct in the image, and not something to forward from the host environment |
 
 ## Tech Stack
 

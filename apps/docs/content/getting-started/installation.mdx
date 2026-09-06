@@ -57,13 +57,14 @@ services:
   server:
     image: rustrak/rustrak-server:postgres
     ports:
-      - "${SERVER_PORT}:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
       - PORT=8080
       - RUST_LOG=${RUST_LOG}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+      - PUBLIC_URL=${PUBLIC_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,7 +73,7 @@ services:
   ui:
     image: rustrak/rustrak-ui:latest
     ports:
-      - "${UI_PORT}:3000"
+      - "${UI_PORT:-3000}:3000"
     environment:
       - RUSTRAK_API_URL=${RUSTRAK_API_URL}
     depends_on:
@@ -108,6 +109,9 @@ POSTGRES_DB=rustrak
 # ===================
 SERVER_PORT=8080
 RUST_LOG=info
+# The address your SDKs will send events to. Without it the DSN carries the
+# bind address, which nothing can reach. e.g. https://rustrak.example.com
+PUBLIC_URL=
 
 # Session secret (required) - replace with the output of: openssl rand -hex 32
 # The server refuses to start until you do.
@@ -120,8 +124,16 @@ CREATE_SUPERUSER=admin@example.com:changeme123
 # Dashboard
 # ===================
 UI_PORT=3000
+# The dashboard reaches the server from inside its own container, so this is
+# the internal address and stays internal behind a proxy.
 RUSTRAK_API_URL=http://server:8080
 ```
+
+> **Reverse proxy?** Behind Traefik, nginx or Caddy you can delete the `ports`
+> blocks from `server` and `ui` entirely and let the proxy reach the containers
+> on the Docker network. Set `PUBLIC_URL` to your public host and leave
+> `RUSTRAK_API_URL` internal. See
+> [Reverse proxy](/configuration/production#reverse-proxy).
 
 To generate a secure session secret:
 

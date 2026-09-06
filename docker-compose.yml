@@ -16,14 +16,19 @@ services:
 
   server:
     image: rustrak/rustrak-server:latest
+    # Behind a reverse proxy on the same Docker network, delete this `ports`
+    # block: the proxy reaches the container on 8080 and nothing needs a host
+    # port. Full setup: https://rustrak.github.io/rustrak/configuration/production#reverse-proxy
     ports:
-      - "${SERVER_PORT}:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
       - PORT=8080
       - RUST_LOG=${RUST_LOG}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
+      # The host your SDKs will send events to, e.g. https://rustrak.example.com.
+      # Without it the DSN carries the bind address, which nothing can reach.
       - PUBLIC_URL=${PUBLIC_URL:-}
       - SOURCEMAP_STORAGE_PATH=/data/sourcemaps
     volumes:
@@ -35,9 +40,13 @@ services:
 
   ui:
     image: rustrak/rustrak-ui:latest
+    # Same as the server: delete this `ports` block when a reverse proxy routes
+    # to the container directly.
     ports:
-      - "${UI_PORT}:3000"
+      - "${UI_PORT:-3000}:3000"
     environment:
+      # Always the internal address of the server, never the public one: this
+      # request never leaves the Docker network.
       - RUSTRAK_API_URL=${RUSTRAK_API_URL}
     depends_on:
       - server

@@ -191,8 +191,51 @@ Only creates user if database is empty.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RUSTRAK_API_URL` | `http://localhost:8080` | Backend API URL |
+| `RUSTRAK_API_URL` | `http://localhost:8080` | Address the dashboard uses to reach the server. Always an internal one |
+| `PORT` | `3000` | Port the dashboard listens on **inside** the container |
+| `HOSTNAME` | `0.0.0.0` | TCP bind address. Already correct in the image |
 | `RUSTRAK_VERSION_CHECK_ENABLED` | `true` | Set to `false` to disable the update notice and stop all outbound version checks |
+
+### RUSTRAK_API_URL
+
+Every call the dashboard makes to the server happens **server-side**, inside the
+Next.js process. The browser never talks to the server directly, so this is the
+address one container uses to reach the other:
+
+```bash
+# Docker Compose: the service name
+RUSTRAK_API_URL=http://server:8080
+
+# Dashboard running outside Docker
+RUSTRAK_API_URL=http://localhost:8080
+```
+
+It stays internal even when both are published on a public domain. Pointing it
+at that domain sends the dashboard's own API calls back out through your proxy,
+which routes them to the dashboard rather than the server, and sign-in stops
+working.
+
+### HOSTNAME
+
+The interface the dashboard binds to inside its container. The image already
+sets `0.0.0.0`, which is what you want in every deployment, so you do not need
+this in your Compose file or your `.env`.
+
+It is spelled `HOSTNAME` and not `HOST` because that is the name a Next.js
+standalone server reads. Docker also fills `HOSTNAME` with the container id on
+any image that leaves it unset, and that collision has one practical
+consequence: **never forward the ambient variable into the container**.
+
+```yaml
+# Wrong. On a host that exports HOSTNAME (a CI runner, Portainer, anything
+# running Compose from inside a container) the dashboard inherits a name it
+# cannot bind to and the container crash-loops on ENOTFOUND.
+environment:
+  - HOSTNAME=${HOSTNAME:-0.0.0.0}
+```
+
+> **Behind a reverse proxy?** You do not need to publish a host port for either
+> service. See [Reverse proxy](/configuration/production#reverse-proxy).
 
 ### RUSTRAK_VERSION_CHECK_ENABLED
 

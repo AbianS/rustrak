@@ -20,28 +20,8 @@ openssl rand -base64 24
 
 ### 2. Use HTTPS
 
-Put Rustrak behind a reverse proxy with SSL:
-
-```nginx
-# nginx example
-server {
-    listen 443 ssl http2;
-    server_name rustrak.yourcompany.com;
-
-    ssl_certificate /etc/ssl/certs/rustrak.crt;
-    ssl_certificate_key /etc/ssl/private/rustrak.key;
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-Or use Caddy, Traefik, or your cloud provider's load balancer.
+Put Rustrak behind a reverse proxy that terminates SSL. See
+[Reverse proxy](#reverse-proxy) below for the routing.
 
 ### 3. Enable SSL_PROXY
 
@@ -67,6 +47,117 @@ DATABASE_URL=postgres://user:pass@host:5432/rustrak?sslmode=require
 - Use strong passwords
 - Restrict network access
 - Enable automated backups
+
+## Reverse proxy
+
+Neither container needs a published host port. Put them on the proxy's network,
+delete the `ports:` blocks from `docker-compose.yml`, and let the proxy reach
+them on `3000` and `8080` directly.
+
+Two addresses decide the rest of the configuration, and they are not the same
+one:
+
+- **`RUSTRAK_API_URL` is internal.** The dashboard calls the server from inside
+  its own container, server-side, so this request never leaves the Docker
+  network. It stays `http://server:8080`.
+- **`PUBLIC_URL` is public.** It is the host Rustrak writes into every DSN, so
+  it has to be an address your SDKs can reach from outside.
+
+Getting the first one wrong is the common mistake: pointing `RUSTRAK_API_URL` at
+your public domain sends the dashboard's own calls back out through the proxy,
+which routes them to the dashboard instead of the server, and sign-in fails.
+
+### Two hostnames
+
+One host for the dashboard, one for ingestion. Nothing overlaps, so this is the
+shape to reach for.
+
+```yaml
+# docker-compose.yml
+services:
+  server:
+    image: rustrak/rustrak-server:latest
+    environment:
+      - DATABASE_URL=postgres://rustrak:${POSTGRES_PASSWORD}@postgres:5432/rustrak
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
+      - SSL_PROXY=true
+      - PUBLIC_URL=https://ingest.example.com
+    networks: [internal, proxy]
+
+  ui:
+    image: rustrak/rustrak-ui:latest
+    environment:
+      - RUSTRAK_API_URL=http://server:8080
+    networks: [proxy]
+
+networks:
+  internal:
+  proxy:
+    external: true
+```
+
+With nginx, that is one `server` block per hostname:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name rustrak.example.com;   # dashboard
+    location / {
+        proxy_pass http://ui:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name ingest.example.com;    # SDKs and the DSN
+    location / {
+        proxy_pass http://server:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Caddy says the same thing in four lines, and Traefik in two labels per service
+(`traefik.http.routers.<name>.rule=Host(...)` plus the service port). The rule
+is the same in all three: hostname in, container out, no published port.
+
+### One hostname
+
+If you only have one name to spend, route by path. Everything an SDK sends
+lives under `/api/`, and the dashboard serves no routes there:
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name rustrak.example.com;
+
+    location /api/ {
+        proxy_pass http://server:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://ui:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+`PUBLIC_URL=https://rustrak.example.com` then produces a DSN with no port in
+it, and the SDK's `POST /api/<project>/envelope/` lands on the server.
+
+The server's own `/auth/` and `/health/` routes are deliberately not exposed
+this way: the dashboard reaches them over `RUSTRAK_API_URL` on the internal
+network, and `/auth/login` on the public host is the dashboard's sign-in page.
 
 ## Performance
 
