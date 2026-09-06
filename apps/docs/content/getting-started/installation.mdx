@@ -59,13 +59,11 @@ services:
     ports:
       - "${SERVER_PORT:-8080}:8080"
     environment:
-      - HOST=${HOST:-0.0.0.0}
       - PORT=8080
       - RUST_LOG=${RUST_LOG}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - SESSION_SECRET_KEY=${SESSION_SECRET_KEY}
       - CREATE_SUPERUSER=${CREATE_SUPERUSER}
-      # Set to your public host to avoid exposing :8080 in DSN (e.g. https://rustrak.example.com)
       - PUBLIC_URL=${PUBLIC_URL:-}
     depends_on:
       postgres:
@@ -77,7 +75,6 @@ services:
     ports:
       - "${UI_PORT:-3000}:3000"
     environment:
-      - HOSTNAME=${HOSTNAME:-0.0.0.0}
       - RUSTRAK_API_URL=${RUSTRAK_API_URL}
     depends_on:
       - server
@@ -88,6 +85,7 @@ volumes:
 ```
 
 **What each service does:**
+
 | Service | Description |
 |---------|-------------|
 | `postgres` | PostgreSQL 16 database with persistent storage. Includes a healthcheck to ensure it's ready before the server starts. |
@@ -110,10 +108,9 @@ POSTGRES_DB=rustrak
 # Server
 # ===================
 SERVER_PORT=8080
-HOST=0.0.0.0
 RUST_LOG=info
-# Public host for DSN — set when behind a reverse proxy to hide the port
-# e.g. PUBLIC_URL=https://rustrak.example.com
+# The address your SDKs will send events to. Without it the DSN carries the
+# bind address, which nothing can reach. e.g. https://rustrak.example.com
 PUBLIC_URL=
 
 # Session secret (required) - replace with the output of: openssl rand -hex 32
@@ -127,11 +124,16 @@ CREATE_SUPERUSER=admin@example.com:changeme123
 # Dashboard
 # ===================
 UI_PORT=3000
-HOSTNAME=0.0.0.0
+# The dashboard reaches the server from inside its own container, so this is
+# the internal address and stays internal behind a proxy.
 RUSTRAK_API_URL=http://server:8080
 ```
 
-> **Reverse proxy (no port exposure):** If you run behind Traefik / nginx / Caddy, you can remove the `ports` section from `server` and `ui` and route by host header instead. Keep `HOST`/`HOSTNAME=0.0.0.0` inside the container and set `PUBLIC_URL=https://your-domain.com` + `RUSTRAK_API_URL=https://your-domain.com` so the DSN and dashboard use the public host without a port.
+> **Reverse proxy?** Behind Traefik, nginx or Caddy you can delete the `ports`
+> blocks from `server` and `ui` entirely and let the proxy reach the containers
+> on the Docker network. Set `PUBLIC_URL` to your public host and leave
+> `RUSTRAK_API_URL` internal. See
+> [Reverse proxy](/configuration/production#reverse-proxy).
 
 To generate a secure session secret:
 

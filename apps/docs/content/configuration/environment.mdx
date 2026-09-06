@@ -191,38 +191,51 @@ Only creates user if database is empty.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RUSTRAK_API_URL` | `http://localhost:8080` | Backend API URL |
-| `HOSTNAME` | `0.0.0.0` | Bind address for the dashboard (Next.js standalone) |
-| `HOST` | `0.0.0.0` | Alias for `HOSTNAME` |
+| `RUSTRAK_API_URL` | `http://localhost:8080` | Address the dashboard uses to reach the server. Always an internal one |
 | `PORT` | `3000` | Port the dashboard listens on **inside** the container |
+| `HOSTNAME` | `0.0.0.0` | TCP bind address. Already correct in the image |
 | `RUSTRAK_VERSION_CHECK_ENABLED` | `true` | Set to `false` to disable the update notice and stop all outbound version checks |
 
-### HOSTNAME / PORT (dashboard)
+### RUSTRAK_API_URL
 
-The dashboard is a Next.js standalone server. It reads `HOSTNAME` and `PORT` at runtime:
+Every call the dashboard makes to the server happens **server-side**, inside the
+Next.js process. The browser never talks to the server directly, so this is the
+address one container uses to reach the other:
 
 ```bash
-# Inside Docker (default — correct)
-HOSTNAME=0.0.0.0
-PORT=3000
+# Docker Compose: the service name
+RUSTRAK_API_URL=http://server:8080
+
+# Dashboard running outside Docker
+RUSTRAK_API_URL=http://localhost:8080
 ```
 
-`HOST` is accepted as an alias for `HOSTNAME` for compatibility with the typical Docker convention — if `HOSTNAME` is unset, `HOST` is used.
+It stays internal even when both are published on a public domain. Pointing it
+at that domain sends the dashboard's own API calls back out through your proxy,
+which routes them to the dashboard rather than the server, and sign-in stops
+working.
 
-> **Behind a reverse proxy?** You don't need to expose a host port. Remove the `ports` section from the `ui` service in `docker-compose.yml` and let the proxy (Traefik, nginx, Caddy) route by host header. The container still listens on `3000` internally, but nothing is mapped to the host.
->
-> ```yaml
-> # docker-compose.yml — no ports, routed by host via proxy network
-> services:
->   ui:
->     image: rustrak/rustrak-ui:latest
->     environment:
->       - HOSTNAME=0.0.0.0
->       - RUSTRAK_API_URL=http://server:8080
->     networks: [proxy]
-> ```
->
-> The same applies to the `server` service — combine with `PUBLIC_URL=https://your-domain.com` so the DSN shown in the dashboard uses your public host instead of `0.0.0.0:8080`.
+### HOSTNAME
+
+The interface the dashboard binds to inside its container. The image already
+sets `0.0.0.0`, which is what you want in every deployment, so you do not need
+this in your Compose file or your `.env`.
+
+It is spelled `HOSTNAME` and not `HOST` because that is the name a Next.js
+standalone server reads. Docker also fills `HOSTNAME` with the container id on
+any image that leaves it unset, and that collision has one practical
+consequence: **never forward the ambient variable into the container**.
+
+```yaml
+# Wrong. On a host that exports HOSTNAME (a CI runner, Portainer, anything
+# running Compose from inside a container) the dashboard inherits a name it
+# cannot bind to and the container crash-loops on ENOTFOUND.
+environment:
+  - HOSTNAME=${HOSTNAME:-0.0.0.0}
+```
+
+> **Behind a reverse proxy?** You do not need to publish a host port for either
+> service. See [Reverse proxy](/configuration/production#reverse-proxy).
 
 ### RUSTRAK_VERSION_CHECK_ENABLED
 
@@ -245,6 +258,7 @@ RUSTRAK_VERSION_CHECK_ENABLED=false
 With the check disabled, no request is made under any circumstances.
 
 ## Complete Example
+
 ### SQLite (development / personal)
 
 ```bash

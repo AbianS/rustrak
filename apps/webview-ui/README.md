@@ -29,6 +29,8 @@ export RUSTRAK_API_URL="http://localhost:8080"
 pnpm dev
 ```
 
+## Docker
+
 ```bash
 docker pull rustrak/rustrak-ui
 docker run -d -p 3000:3000 \
@@ -36,29 +38,34 @@ docker run -d -p 3000:3000 \
   rustrak/rustrak-ui
 ```
 
-### Behind a reverse proxy (no port exposure)
+### Behind a reverse proxy
 
-You don't need to expose a host port. Let the proxy route by host header
-and keep the container on the internal Docker network:
+The image binds to `0.0.0.0`, so a proxy on the same Docker network reaches it
+on port `3000` with nothing published to the host. Drop the `-p` and join the
+network the proxy is on:
 
 ```bash
-docker run -d --network rustrak \
-  -e HOSTNAME=0.0.0.0 \
+docker network create rustrak                       # once
+docker run -d --network rustrak --name ui \
   -e RUSTRAK_API_URL=http://server:8080 \
   rustrak/rustrak-ui
 ```
 
-Or with docker-compose, remove the `ports` section from the `ui` service
-and put it behind Traefik/nginx/Caddy.
+`RUSTRAK_API_URL` stays internal here. The dashboard calls the server
+server-side, so that request never leaves the network, and pointing it at your
+public domain breaks sign-in. With Compose, delete the `ports:` block from the
+`ui` service and route by host in Traefik, nginx or Caddy. The full setup,
+including the DSN, is in
+[Reverse proxy](https://rustrak.github.io/rustrak/configuration/production#reverse-proxy).
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `RUSTRAK_API_URL` | Yes | - | Rustrak server URL (e.g. `http://server:8080` internally, or `https://api.example.com` via proxy) |
-| `HOSTNAME` | No | `0.0.0.0` | Bind address for Next.js standalone server. `0.0.0.0` is correct inside Docker |
-| `HOST` | No | `0.0.0.0` | Alias for `HOSTNAME` (compatibility). If `HOSTNAME` is unset, `HOST` is used |
-| `PORT` | No | `3000` | Port the UI listens on inside the container |
+| `RUSTRAK_API_URL` | Yes | `http://localhost:8080` | Address the dashboard uses to reach the server. Always an internal one |
+| `PORT` | No | `3000` | Port the dashboard listens on inside the container |
+| `HOSTNAME` | No | `0.0.0.0` | TCP bind address. Already correct in the image, and not something to forward from the host environment |
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)

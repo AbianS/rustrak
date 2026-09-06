@@ -42,9 +42,12 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 USER nextjs
 
-# Next.js standalone reads HOSTNAME and PORT at runtime.
-# HOSTNAME controls the bind address; 0.0.0.0 is correct for Docker.
-# HOST is also accepted as alias via startup shell (HOST -> HOSTNAME fallback).
+# Next.js standalone binds to whatever HOSTNAME holds, and Docker fills that
+# variable with the container id whenever the image leaves it unset. The server
+# then listens on that one interface: reachable through a published port by
+# accident, unreachable anywhere the name does not resolve. Pinning it is what
+# lets a reverse proxy on the same network reach the container with no host
+# port published, and it is what the upstream `with-docker` example does.
 ENV HOSTNAME="0.0.0.0"
 ENV PORT="3000"
 EXPOSE 3000
@@ -54,7 +57,4 @@ COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/.next/standalon
 COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/.next/static ./apps/webview-ui/.next/static
 COPY --from=installer --chown=nextjs:nodejs /app/apps/webview-ui/public ./apps/webview-ui/public
 
-# HOST is an alias for HOSTNAME (common convention). Next.js standalone only
-# reads HOSTNAME, so map HOST -> HOSTNAME when HOSTNAME is not explicitly set.
-# This allows `HOST=0.0.0.0` or reverse-proxy setups without exposing a port.
-CMD ["sh", "-c", "HOSTNAME=${HOSTNAME:-${HOST:-0.0.0.0}} PORT=${PORT:-3000} node apps/webview-ui/server.js"]
+CMD ["node", "apps/webview-ui/server.js"]
