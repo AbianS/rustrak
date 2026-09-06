@@ -12,13 +12,29 @@ function asObject(value: unknown): Record<string, unknown> | null {
 
 /** The grammar Relay accepts for a timestamp string, and no more. */
 const ISO_DATE_TIME =
-  /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:?\d{2})?$/;
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/;
+
+/** February 30th is a date `Date.parse` rolls into March and chrono rejects. */
+function isRealCalendarDate(year: number, month: number, day: number): boolean {
+  const probe = new Date(0);
+  probe.setUTCFullYear(year, month - 1, day);
+  return (
+    probe.getUTCFullYear() === year &&
+    probe.getUTCMonth() === month - 1 &&
+    probe.getUTCDate() === day
+  );
+}
 
 /**
  * A moment on the waterfall's clock, which counts seconds.
  *
  * No offset means UTC, as it does in Relay. `Date.parse` would read it as the
  * reader's local time and place the same span differently in every timezone.
+ *
+ * The fraction is added back by hand because `Date.parse` truncates it to
+ * milliseconds, and the SDK sends microseconds: against a full-precision
+ * `start_timestamp` float that truncation renders sub-millisecond spans with a
+ * negative duration.
  */
 function parseEpochSeconds(raw: unknown): number | undefined {
   if (typeof raw === 'number') {
@@ -29,9 +45,17 @@ function parseEpochSeconds(raw: unknown): number | undefined {
   const match = ISO_DATE_TIME.exec(raw);
   if (!match) return undefined;
 
-  const [, date, time, offset] = match;
-  const milliseconds = Date.parse(`${date}T${time}${offset ?? 'Z'}`);
-  return Number.isFinite(milliseconds) ? milliseconds / 1000 : undefined;
+  const [, year, month, day, time, fraction, offset] = match;
+  if (!isRealCalendarDate(Number(year), Number(month), Number(day))) {
+    return undefined;
+  }
+
+  const milliseconds = Date.parse(
+    `${year}-${month}-${day}T${time}${offset ?? 'Z'}`,
+  );
+  if (!Number.isFinite(milliseconds)) return undefined;
+
+  return milliseconds / 1000 + (fraction ? Number(`0.${fraction}`) : 0);
 }
 
 /**

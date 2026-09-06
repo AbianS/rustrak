@@ -171,6 +171,48 @@ describe('readTransactionPayload', () => {
     expect(span.timestamp).toBeUndefined();
   });
 
+  it('keeps microsecond precision so a sub-ms span is not negative', () => {
+    // Both ends are the same instant; the SDK just encodes them differently.
+    const [span] = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              start_timestamp: 1757000000.123456,
+              timestamp: '2025-09-04T15:33:20.123456Z',
+            },
+          ],
+        },
+      }),
+    ).spans;
+
+    expect(span.timestamp).toBe(1757000000.123456);
+    expect(
+      ((span.timestamp as number) - (span.start_timestamp as number)) * 1000,
+    ).toBe(0);
+  });
+
+  it('rejects calendar-impossible dates instead of rolling them forward', () => {
+    const [span] = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              // Date.parse turns these into March 2nd and March 1st.
+              start_timestamp: '2025-02-30T00:00:00Z',
+              timestamp: '2025-02-29T00:00:00Z',
+            },
+          ],
+        },
+      }),
+    ).spans;
+
+    expect(span.start_timestamp).toBeUndefined();
+    expect(span.timestamp).toBeUndefined();
+  });
+
   it('prefers the payload epoch seconds over the row timestamps', () => {
     const payload = readTransactionPayload(
       txn({ data: { start_timestamp: 1000, timestamp: 1002 } }),
