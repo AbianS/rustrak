@@ -213,6 +213,25 @@ describe('readTransactionPayload', () => {
     expect(span.timestamp).toBeUndefined();
   });
 
+  it('rejects hour 24, which Date.parse rolls into the next day', () => {
+    const [span] = readTransactionPayload(
+      txn({
+        data: {
+          spans: [
+            {
+              span_id: 's1',
+              start_timestamp: '2025-09-04T24:00:00Z',
+              timestamp: '2025-09-04T23:59:59Z',
+            },
+          ],
+        },
+      }),
+    ).spans;
+
+    expect(span.start_timestamp).toBeUndefined();
+    expect(span.timestamp).toBe(1757030399);
+  });
+
   it('prefers the payload epoch seconds over the row timestamps', () => {
     const payload = readTransactionPayload(
       txn({ data: { start_timestamp: 1000, timestamp: 1002 } }),

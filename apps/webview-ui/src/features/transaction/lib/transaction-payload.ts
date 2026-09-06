@@ -10,9 +10,14 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-/** The grammar Relay accepts for a timestamp string, and no more. */
+/**
+ * The grammar Relay accepts for a timestamp string, and no more.
+ *
+ * The hour is bounded because `Date.parse` treats `24:00:00` as midnight the
+ * next day, a whole day of drift on a value chrono rejects outright.
+ */
 const ISO_DATE_TIME =
-  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/;
+  /^(\d{4})-(\d{2})-(\d{2})[T ]((?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)(?:\.(\d+))?(Z|[+-]\d{2}:?\d{2})?$/;
 
 /** February 30th is a date `Date.parse` rolls into March and chrono rejects. */
 function isRealCalendarDate(year: number, month: number, day: number): boolean {
