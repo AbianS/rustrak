@@ -6,7 +6,7 @@ Get notified when errors happen in your applications. Rustrak supports multiple 
 
 Alerts have two components:
 
-1. **Notification Channels** (Global): Where to send alerts (Slack, Email, Webhooks)
+1. **Notification Channels** (Global): Where to send alerts (Slack, Email, Webhooks, Custom Webhooks)
 2. **Alert Rules** (Per-Project): When to trigger alerts and which channels to use
 
 ## Setting up notification channels
@@ -78,6 +78,132 @@ function verifySignature(payload, signature, secret) {
   );
 }
 ```
+
+### Custom Webhook
+
+POST a request body that you compose yourself, in whatever shape the receiving
+endpoint expects. The body is rendered from a
+[Minijinja](https://docs.rs/minijinja) template over the alert payload, so a
+service with its own fixed message schema can be fed without Rustrak carrying
+an integration per service. The plain Webhook integration is unchanged; Custom
+Webhook is its own provider.
+
+1. Go to **Settings** → **Global Alerts**
+2. Click **Configure** on Custom Webhook
+3. Enter:
+   - **Name**: what this destination is, e.g. "Ops chat bridge"
+   - **Message body**: the JSON your endpoint expects. Insert payload values
+     with the chips under the field
+   - **Webhook URL**: optional, since a per-rule override can supply it
+   - **Secret** (optional): for the same HMAC header the plain Webhook sends
+4. Click **Create Custom Webhook**
+
+The rendered result must be valid JSON. That is checked when you save, not
+only when an alert fires: the template is rendered against a sample payload,
+once with every field populated and once with the issue level absent, and the
+integration is rejected if either render fails. Syntax errors are caught the
+same way.
+
+Rendering is bounded, because a template runs on the notification worker once
+per delivery. A template that spends more than the instruction budget, or whose
+body renders past 1 MiB, fails with that reason instead of running. Response
+bodies larger than 64 KiB are rejected rather than buffered, and a 2xx whose
+body cannot be read at all is recorded as a failure rather than assumed
+delivered.
+
+#### How a delivery is judged
+
+By the HTTP status. A 2xx is a delivery; the response body is never
+interpreted. That is what Grafana's Custom Payload, Uptime Kuma's Custom Body
+and Alertmanager's webhook receiver all do, and it means Rustrak never has to
+guess what a field in someone else's response means.
+
+Some services answer `200` even when they refuse the message and put the real
+outcome in the body. **Press Test after configuring**: the result shows exactly
+what the endpoint answered, so a refusal is visible rather than silent.
+
+#### Template variables
+
+The context is exactly the [Webhook payload](#webhook-payload) above:
+
+```jinja
+{{ alert_id }} {{ alert_type }} {{ triggered_at }}
+{{ project.name }} {{ project.slug }} {{ project.id }}
+{{ issue.short_id }} {{ issue.title }} {{ issue.level }} {{ issue.event_count }}
+{{ issue_url }} {{ actor }}
+```
+
+Anything dynamic that may contain quotes goes through `| tojson`, which emits
+a properly quoted JSON string. A title like `He said "boom"` would otherwise
+break your body. The chips under the message field insert values already
+wrapped this way, so you do not have to remember it:
+
+```json
+{
+  "text": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+}
+```
+
+`issue.level` is optional. Give it a fallback so an alert without one does not
+print the template engine's word for absent:
+
+```jinja
+{{ (issue.level or "unknown") | tojson }}
+```
+
+#### Example bodies
+
+Copy one of these into **Message body** and adjust the wording. They are
+examples, not a supported list: any endpoint that accepts JSON works the same
+way.
+
+**Mattermost or Slack-compatible incoming webhook**
+
+```json
+{
+  "text": {{ ("*" ~ issue.title ~ "* (" ~ issue.short_id ~ ")\n" ~ issue_url) | tojson }}
+}
+```
+
+**Discord**
+
+```json
+{
+  "content": {{ (issue.title ~ " — " ~ issue_url) | tojson }}
+}
+```
+
+**WeCom group bot** (企业微信)
+
+```json
+{
+  "msgtype": "text",
+  "text": {
+    "content": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+  }
+}
+```
+
+**DingTalk group bot** (钉钉) uses the same shape as WeCom. Its `access_token`
+(and optionally `timestamp`/`sign`) goes in the URL, so paste the full URL from
+the bot settings into **Webhook URL**.
+
+**Feishu / Lark group bot** (飞书) uses `msg_type`, not `msgtype`:
+
+```json
+{
+  "msg_type": "text",
+  "content": {
+    "text": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+  }
+}
+```
+
+A WeCom or DingTalk bot configured with a **custom keyword** (自定义关键词)
+refuses any message whose text does not contain that keyword, so put the
+keyword in the template's static text. A bot restricted by **IP allowlist**
+refuses based on the source address of the Rustrak server instead, and no
+template change helps there. In both cases Test shows you the refusal.
 
 ### Slack
 
@@ -167,6 +293,7 @@ Click the delete icon and confirm to remove a rule.
 ### Channel organization
 
 - **Webhook**: For custom integrations, PagerDuty, Opsgenie
+- **Custom Webhook**: For an endpoint that expects its own message shape
 - **Slack**: For team awareness
 - **Email**: For on-call or compliance
 

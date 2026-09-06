@@ -5,6 +5,7 @@ import type {
   AlertRule,
   CreateAlertIntegration,
   CreateAlertRule,
+  PreviewTemplateResponse,
   Result,
   RoutingOverride,
   RustrakError,
@@ -46,6 +47,20 @@ export async function testIntegration(
 ): Promise<Result<TestChannelResponse, RustrakError>> {
   const client = await createClient();
   return client.alertIntegrations.test(id, routingOverride);
+}
+
+/**
+ * Render a Custom Webhook body template against a sample payload.
+ *
+ * The dashboard cannot run the template engine, so the preview under the
+ * editor comes from the server: the same renderer a delivery uses, which is
+ * the only way the preview cannot lie about what will be sent.
+ */
+export async function previewTemplate(
+  template: string,
+): Promise<Result<PreviewTemplateResponse, RustrakError>> {
+  const client = await createClient();
+  return client.alertIntegrations.previewTemplate(template);
 }
 
 // ============================================================================

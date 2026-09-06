@@ -3,8 +3,17 @@ import { dateTimeSchema } from './common.js';
 
 /**
  * Provider type enum (replaces channel_type)
+ *
+ * `custom_webhook` POSTs a body rendered from a user-supplied template, so an
+ * endpoint that expects its own message shape can be fed without Rustrak
+ * carrying an integration per service.
  */
-export const providerTypeSchema = z.enum(['webhook', 'email', 'slack']);
+export const providerTypeSchema = z.enum([
+  'webhook',
+  'email',
+  'slack',
+  'custom_webhook',
+]);
 
 /** @deprecated Use providerTypeSchema */
 export const channelTypeSchema = providerTypeSchema;
@@ -137,6 +146,27 @@ export const alertHistorySchema = z.object({
 export const testChannelResponseSchema = z.object({
   success: z.boolean(),
   message: z.string(),
+  /**
+   * What the endpoint answered, when it answered anything.
+   *
+   * Delivery is judged by the HTTP status and the body is not interpreted, so
+   * the body is handed back instead: a group bot that refuses a message still
+   * answers 200 and explains itself here.
+   */
+  response_body: z.string().nullish(),
+});
+
+/**
+ * Template preview response schema.
+ *
+ * The dashboard cannot run the template engine, so it asks the server what a
+ * body would render to while the reader types. `ok: false` is a template the
+ * server would refuse, not a failed request.
+ */
+export const previewTemplateResponseSchema = z.object({
+  ok: z.boolean(),
+  rendered: z.string().nullish(),
+  error: z.string().nullish(),
 });
 
 /**

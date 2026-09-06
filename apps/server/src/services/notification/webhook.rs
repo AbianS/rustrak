@@ -27,16 +27,16 @@ pub struct WebhookNotifier {
 impl WebhookNotifier {
     /// Creates a new webhook notifier
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { client }
+        Self {
+            client: super::shared_http_client().clone(),
+        }
     }
 
     /// Generates HMAC-SHA256 signature for webhook payload
-    fn generate_signature(secret: &str, timestamp: &str, payload: &[u8]) -> String {
+    ///
+    /// Shared with the custom webhook dispatcher; same `timestamp.payload`
+    /// canonicalisation and `sha256=<hex>` scheme.
+    pub(crate) fn generate_signature(secret: &str, timestamp: &str, payload: &[u8]) -> String {
         let signature_payload = format!("{}.{}", timestamp, String::from_utf8_lossy(payload));
         let mut mac =
             HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");

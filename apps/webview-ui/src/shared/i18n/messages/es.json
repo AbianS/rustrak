@@ -552,7 +552,8 @@
       "botTokenRequired": "El token de bot es obligatorio",
       "botTokenPrefix": "El token de bot debe empezar por xoxb-",
       "smtpHostRequired": "El host SMTP es obligatorio",
-      "validEmail": "Introduce un correo electrónico válido"
+      "validEmail": "Introduce un correo electrónico válido",
+      "templateRequired": "La plantilla es obligatoria"
     },
     "routing": {
       "slackChannelRequired": "Se requiere un canal de Slack para «{name}»",
@@ -622,6 +623,45 @@
       "updated": "Webhook actualizado",
       "created": "Webhook creado"
     },
+    "customWebhook": {
+      "titleNew": "Configurar webhook personalizado",
+      "titleEdit": "Editar webhook personalizado",
+      "description": "Envía las alertas con un cuerpo de mensaje que escribes tú.",
+      "namePlaceholder": "P. ej., Puente al chat de guardia",
+      "urlLabel": "URL del webhook",
+      "urlPlaceholder": "https://example.com/hooks/incoming",
+      "urlDescription": "Opcional. Una regla de alerta puede aportar la suya.",
+      "templateLabel": "Cuerpo del mensaje",
+      "editorLabel": "JSON",
+      "templateDescription": "Autocompleta los campos que puedes insertar. El botón de ayuda abre la referencia completa.",
+      "format": "Formatear",
+      "secretLabel": "Secreto de firma",
+      "secretDescription": "Opcional. Firma la petición con HMAC-SHA256.",
+      "create": "Crear webhook personalizado",
+      "fieldTemplate": "Esa plantilla",
+      "saveFailed": "Error al guardar el webhook personalizado",
+      "updated": "Webhook personalizado actualizado",
+      "created": "Webhook personalizado creado",
+      "variables": {
+        "issue.title": "El título del error",
+        "issue.short_id": "Id legible del problema",
+        "issue.level": "error, warning, info… o ausente",
+        "issue.event_count": "Cuántas veces ha ocurrido",
+        "issue.id": "Id interno del problema",
+        "issue.first_seen": "Cuándo se vio por primera vez",
+        "issue.last_seen": "Cuándo se vio por última vez",
+        "issue_url": "Enlace al problema en Rustrak",
+        "project.name": "Nombre del proyecto",
+        "project.slug": "Slug del proyecto",
+        "project.id": "Id interno del proyecto",
+        "alert_type": "Qué disparó esta alerta",
+        "alert_id": "Id de este envío",
+        "triggered_at": "Cuándo saltó la alerta",
+        "actor": "Quién la envía, siempre Rustrak"
+      },
+      "variablesLabel": "Campos",
+      "help": "Abrir la documentación"
+    },
     "slack": {
       "titleNew": "Añadir integración de Slack",
       "titleEdit": "Editar integración de Slack",
@@ -689,6 +729,7 @@
       "configureAria": "Configurar {name}",
       "testFailed": "No se pudo enviar la prueba",
       "testSent": "Notificación de prueba enviada",
+      "testAnswered": "El endpoint respondió",
       "testFailedResult": "La prueba falló",
       "deleteFailed": "No se pudo eliminar la integración",
       "deleted": "Integración eliminada",
@@ -735,6 +776,9 @@
       },
       "webhook": {
         "description": "Envía cargas JSON a cualquier endpoint HTTP."
+      },
+      "customWebhook": {
+        "description": "Envía un cuerpo que escribes tú, con la forma que espere el endpoint."
       }
     },
     "newIssue": {

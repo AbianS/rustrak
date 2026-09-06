@@ -1,4 +1,4 @@
-import { Bell, Hash, Mail, Webhook } from 'lucide-react';
+import { Bell, Braces, Hash, Mail, Webhook } from 'lucide-react';
 
 /**
  * The mark for an alert provider.
@@ -21,6 +21,8 @@ export function ProviderIcon({
       return <Mail className={className} />;
     case 'webhook':
       return <Webhook className={className} />;
+    case 'custom_webhook':
+      return <Braces className={className} />;
     default:
       return <Bell className={className} />;
   }

@@ -72,12 +72,13 @@ pub use alert::{
     AlertRuleResponse,
     AlertStatus,
     AlertType,
+    // New types
     // Legacy aliases
     ChannelType,
-    // New types
     CreateAlertIntegration,
     CreateAlertRule,
     CreateNotificationChannel,
+    CustomWebhookConfig,
     EmailConfig,
     EmailRoutingOverride,
     IssueInfo,

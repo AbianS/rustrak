@@ -22,6 +22,12 @@ pub enum ProviderType {
     Webhook,
     Email,
     Slack,
+    // Explicit renames: the container-level `lowercase` would silently produce
+    // "customwebhook" from the variant name. The wire/DB string is
+    // `custom_webhook` everywhere (CHECK constraints, client enum, i18n).
+    #[serde(rename = "custom_webhook")]
+    #[sqlx(rename = "custom_webhook")]
+    CustomWebhook,
 }
 
 /// Legacy alias so existing code using ChannelType still compiles.
@@ -33,6 +39,7 @@ impl std::fmt::Display for ProviderType {
             ProviderType::Webhook => write!(f, "webhook"),
             ProviderType::Email => write!(f, "email"),
             ProviderType::Slack => write!(f, "slack"),
+            ProviderType::CustomWebhook => write!(f, "custom_webhook"),
         }
     }
 }
@@ -170,7 +177,7 @@ pub struct EmailRoutingOverride {
     pub recipients: Vec<String>,
 }
 
-/// Per-rule routing override for Webhook integrations.
+/// Per-rule routing override for Webhook and Custom Webhook integrations.
 ///
 /// url overrides the credential-level url when present.
 /// extra_headers are merged with (and override) credential-level headers.
@@ -211,6 +218,22 @@ pub struct WebhookConfig {
     pub secret: Option<String>,
     #[serde(default)]
     pub headers: Option<HashMap<String, String>>,
+}
+
+/// Custom Webhook integration credentials.
+///
+/// Same delivery as [`WebhookConfig`] plus a user-supplied Minijinja template
+/// that renders the request body from the [`AlertPayload`] context. The
+/// rendered result must be valid JSON.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomWebhookConfig {
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub secret: Option<String>,
+    #[serde(default)]
+    pub headers: Option<HashMap<String, String>>,
+    pub template: String,
 }
 
 /// Email integration credentials
@@ -444,6 +467,22 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use serde_json::json;
+
+    #[test]
+    fn custom_webhook_provider_type_is_snake_case_everywhere() {
+        // The wire string must match the DB CHECK, the client enum and i18n
+        // lookups. Container-level `lowercase` alone would produce
+        // "customwebhook"; the explicit variant renames must win.
+        assert_eq!(
+            serde_json::to_value(ProviderType::CustomWebhook).unwrap(),
+            json!("custom_webhook")
+        );
+        assert_eq!(
+            serde_json::from_value::<ProviderType>(json!("custom_webhook")).unwrap(),
+            ProviderType::CustomWebhook
+        );
+        assert_eq!(ProviderType::CustomWebhook.to_string(), "custom_webhook");
+    }
 
     #[test]
     fn alert_history_payload_is_internal_only() {

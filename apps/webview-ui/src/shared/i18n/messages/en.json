@@ -552,7 +552,8 @@
       "botTokenRequired": "Bot token is required",
       "botTokenPrefix": "Bot token must start with xoxb-",
       "smtpHostRequired": "SMTP host is required",
-      "validEmail": "Please enter a valid email"
+      "validEmail": "Please enter a valid email",
+      "templateRequired": "Template is required"
     },
     "routing": {
       "slackChannelRequired": "Slack channel is required for \"{name}\"",
@@ -622,6 +623,45 @@
       "updated": "Webhook updated",
       "created": "Webhook created"
     },
+    "customWebhook": {
+      "titleNew": "Configure Custom Webhook",
+      "titleEdit": "Edit Custom Webhook",
+      "description": "Send alerts as a message body you write yourself.",
+      "namePlaceholder": "e.g., Ops chat bridge",
+      "urlLabel": "Webhook URL",
+      "urlPlaceholder": "https://example.com/hooks/incoming",
+      "urlDescription": "Optional. An alert rule can supply its own.",
+      "templateLabel": "Message body",
+      "editorLabel": "JSON",
+      "templateDescription": "Autocompletes the fields you can insert. The help button opens the full reference.",
+      "format": "Format",
+      "secretLabel": "Signing secret",
+      "secretDescription": "Optional. Signs the request with HMAC-SHA256.",
+      "create": "Create Custom Webhook",
+      "fieldTemplate": "That template",
+      "saveFailed": "Failed to save custom webhook",
+      "updated": "Custom webhook updated",
+      "created": "Custom webhook created",
+      "variables": {
+        "issue.title": "The error title",
+        "issue.short_id": "Human-readable issue id",
+        "issue.level": "error, warning, info… or absent",
+        "issue.event_count": "How many times it has happened",
+        "issue.id": "Internal issue id",
+        "issue.first_seen": "When it was first seen",
+        "issue.last_seen": "When it was last seen",
+        "issue_url": "Link to the issue in Rustrak",
+        "project.name": "The project name",
+        "project.slug": "The project slug",
+        "project.id": "Internal project id",
+        "alert_type": "What triggered this alert",
+        "alert_id": "Id of this delivery",
+        "triggered_at": "When the alert fired",
+        "actor": "Who sent it, always Rustrak"
+      },
+      "variablesLabel": "Fields",
+      "help": "Open the documentation"
+    },
     "slack": {
       "titleNew": "Add Slack Integration",
       "titleEdit": "Edit Slack Integration",
@@ -689,6 +729,7 @@
       "configureAria": "Configure {name}",
       "testFailed": "Failed to send test",
       "testSent": "Test notification sent",
+      "testAnswered": "The endpoint answered",
       "testFailedResult": "Test failed",
       "deleteFailed": "Failed to delete integration",
       "deleted": "Integration deleted",
@@ -735,6 +776,9 @@
       },
       "webhook": {
         "description": "POST JSON payloads to any HTTP endpoint."
+      },
+      "customWebhook": {
+        "description": "POST a body you write yourself, in whatever shape the endpoint expects."
       }
     },
     "newIssue": {

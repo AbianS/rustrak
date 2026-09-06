@@ -9402,7 +9402,8 @@
         "enum": [
           "webhook",
           "email",
-          "slack"
+          "slack",
+          "custom_webhook"
         ]
       },
       "ReadinessChecks": {

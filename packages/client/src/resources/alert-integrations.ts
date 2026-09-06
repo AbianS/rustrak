@@ -4,6 +4,7 @@ import type { Result } from '../result.js';
 import {
   alertIntegrationSchema,
   createAlertIntegrationSchema,
+  previewTemplateResponseSchema,
   testChannelResponseSchema,
   testIntegrationBodySchema,
   updateAlertIntegrationSchema,
@@ -11,6 +12,7 @@ import {
 import type {
   AlertIntegration,
   CreateAlertIntegration,
+  PreviewTemplateResponse,
   RoutingOverride,
   TestChannelResponse,
   UpdateAlertIntegration,
@@ -120,6 +122,26 @@ export class AlertIntegrationsResource extends BaseResource {
           body !== undefined ? { json: body } : undefined,
         ),
       testChannelResponseSchema,
+    );
+  }
+
+  /**
+   * Render a Custom Webhook template against a sample payload.
+   *
+   * Answers with the body that would be sent, or with why it would not
+   * render. It goes to the server because the server owns the template
+   * engine: a preview computed anywhere else would eventually disagree with
+   * what a delivery actually sends.
+   */
+  async previewTemplate(
+    template: string,
+  ): Promise<Result<PreviewTemplateResponse, RustrakError>> {
+    return this.request(
+      () =>
+        this.http.post('api/integrations/preview-template', {
+          json: { template },
+        }),
+      previewTemplateResponseSchema,
     );
   }
 }

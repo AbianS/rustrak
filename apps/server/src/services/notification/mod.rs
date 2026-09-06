@@ -1,8 +1,10 @@
 //! Notification dispatcher system using the Strategy pattern.
 //!
 //! This module provides a pluggable notification system that supports
-//! multiple delivery integrations (Webhook, Email, Slack) through a common trait.
+//! multiple delivery integrations (Webhook, Custom Webhook, Email, Slack)
+//! through a common trait.
 
+pub mod custom_webhook;
 pub mod email;
 pub mod slack;
 pub mod webhook;
@@ -12,6 +14,7 @@ use async_trait::async_trait;
 use crate::error::AppResult;
 use crate::models::{AlertIntegration, AlertPayload, ProviderType};
 
+pub use custom_webhook::CustomWebhookNotifier;
 pub use email::EmailNotifier;
 pub use slack::SlackNotifier;
 pub use webhook::WebhookNotifier;
@@ -29,6 +32,13 @@ pub struct NotificationResult {
     pub http_status: Option<u16>,
     /// Error message (if failed)
     pub error_message: Option<String>,
+    /// What the endpoint answered, when it answered anything.
+    ///
+    /// Rustrak judges a delivery by the HTTP status and does not interpret
+    /// the body, so the body has to be visible instead: a group bot that
+    /// refuses a message still answers 200 and explains itself in here, and
+    /// a reader testing an integration has no other way to find that out.
+    pub response_body: Option<String>,
 }
 
 impl NotificationResult {
@@ -38,7 +48,17 @@ impl NotificationResult {
             success: true,
             http_status,
             error_message: None,
+            response_body: None,
         }
+    }
+
+    /// Attaches the endpoint's answer, dropping an empty one: "answered
+    /// nothing" and "answered the empty string" are the same fact, and the
+    /// second one renders as a blank line nobody can read.
+    pub fn with_response_body(mut self, body: impl Into<String>) -> Self {
+        let body = body.into();
+        self.response_body = (!body.trim().is_empty()).then_some(body);
+        self
     }
 
     /// Creates a failed result
@@ -47,6 +67,7 @@ impl NotificationResult {
             success: false,
             http_status,
             error_message: Some(error_message),
+            response_body: None,
         }
     }
 }
@@ -55,10 +76,26 @@ impl NotificationResult {
 // Notification Dispatcher Trait
 // =============================================================================
 
+/// Shared HTTP client for every dispatcher. Built once process-wide so each
+/// delivery reuses the connection pool and TLS session instead of building a
+/// fresh client per notification — `create_dispatcher` runs once per alert, so
+/// a per-notifier client meant a new pool and a new TLS handshake every time.
+/// Construction only fails on untenable TLS config, so a build error falls back
+/// to a default client rather than panicking on the request path.
+pub(crate) fn shared_http_client() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
+
 /// Trait for notification dispatchers (Strategy pattern)
 ///
-/// Each provider type (Webhook, Email, Slack) implements this trait
-/// to provide provider-specific delivery logic.
+/// Each provider type (Webhook, Custom Webhook, Email, Slack) implements this
+/// trait to provide provider-specific delivery logic.
 #[async_trait]
 pub trait NotificationDispatcher: Send + Sync {
     /// Send a notification to the integration.
@@ -91,7 +128,20 @@ pub trait NotificationDispatcher: Send + Sync {
 pub fn create_dispatcher(provider_type: ProviderType) -> Box<dyn NotificationDispatcher> {
     match provider_type {
         ProviderType::Webhook => Box::new(WebhookNotifier::new()),
+        ProviderType::CustomWebhook => Box::new(CustomWebhookNotifier::new()),
         ProviderType::Email => Box::new(EmailNotifier::new()),
         ProviderType::Slack => Box::new(SlackNotifier::new()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_dispatcher_shares_one_http_client() {
+        // create_dispatcher runs once per alert delivery; a per-notifier client
+        // would mean a fresh connection pool and TLS handshake each time.
+        assert!(std::ptr::eq(shared_http_client(), shared_http_client()));
     }
 }

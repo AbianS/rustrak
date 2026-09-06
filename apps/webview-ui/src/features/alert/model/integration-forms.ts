@@ -34,6 +34,12 @@ export const EMAIL_FIELD_MAP: ServerFieldMap = {
   'credentials.from_address': 'from_address',
 };
 
+export const CUSTOM_WEBHOOK_FIELD_MAP: ServerFieldMap = {
+  'credentials.url': 'url',
+  'credentials.secret': 'secret',
+  'credentials.template': 'template',
+};
+
 /* -------------------------------------------------------------------------- */
 /* Schemas -- credentials only, no routing fields                              */
 /* -------------------------------------------------------------------------- */
@@ -153,9 +159,41 @@ export function emailFormSchema(t: Translate) {
     is_enabled: z.boolean(),
   });
 }
+
+/**
+ * Custom webhook: the plain webhook's fields plus the body template.
+ *
+ * Only presence is judged here. Syntax and the rendered-JSON rule are the
+ * server's to enforce — it owns the template engine, and a client copy would
+ * drift from the first minijinja upgrade.
+ */
+export function customWebhookFormSchema(t: Translate) {
+  return z.object({
+    name: z.string().min(1, t('validation.nameRequired')).max(255),
+    // url is optional: per-rule routing_override.url can supply it
+    url: z
+      .string()
+      .optional()
+      .refine(
+        (v) =>
+          !v ||
+          v.trim() === '' ||
+          v.startsWith('http://') ||
+          v.startsWith('https://'),
+        { message: t('validation.validHttpUrl') },
+      ),
+    secret: z.string().optional(),
+    template: z.string().min(1, t('validation.templateRequired')),
+    is_enabled: z.boolean(),
+  });
+}
+
 export type WebhookFormData = z.infer<ReturnType<typeof webhookFormSchema>>;
 export type SlackFormData = z.infer<ReturnType<typeof slackFormSchema>>;
 export type EmailFormData = z.infer<ReturnType<typeof emailFormSchema>>;
+export type CustomWebhookFormData = z.infer<
+  ReturnType<typeof customWebhookFormSchema>
+>;
 export type SlackMethod = 'webhook' | 'bot_token';
 
 /* -------------------------------------------------------------------------- */
@@ -214,6 +252,25 @@ export function emailDefaults(
     // password, and an empty field means "leave the stored one alone".
     smtp_password: '',
     from_address: creds.from_address ?? '',
+    is_enabled: integration?.is_enabled ?? true,
+  };
+}
+
+export function customWebhookDefaults(
+  integration: AlertIntegration | null,
+): CustomWebhookFormData {
+  const creds = (integration?.credentials ?? {}) as {
+    url?: string;
+    secret?: string;
+    template?: string;
+  };
+  return {
+    name: integration?.name ?? '',
+    url: creds.url ?? '',
+    secret: creds.secret ?? '',
+    // Seeded, unlike a secret: the template is configuration, not a
+    // credential, and the server returns it in full.
+    template: creds.template ?? '',
     is_enabled: integration?.is_enabled ?? true,
   };
 }

@@ -11,7 +11,7 @@ export function registerAlertTools(
     'list_alert_channels',
     {
       description:
-        'List all configured alert notification channels (Slack, email, webhook, etc.).',
+        'List all configured alert notification channels (Slack, email, webhook, custom webhook, etc.).',
       inputSchema: {},
     },
     async () => {

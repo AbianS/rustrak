@@ -1,7 +1,9 @@
 'use client';
 
 import type { AlertIntegration, ProviderType } from '@rustrak/client';
+import { cn } from '@/shared/lib/utils';
 import { Dialog, DialogContent } from '@/shared/ui/components/shadcn/dialog';
+import { CustomWebhookForm } from './forms/custom-webhook-form';
 import { EmailForm } from './forms/email-form';
 import { SlackForm } from './forms/slack-form';
 import { WebhookForm } from './forms/webhook-form';
@@ -37,16 +39,21 @@ export function IntegrationConfigDialog({
   provider: ProviderType | null;
   onOpenChange: (open: boolean) => void;
 } & Omit<ConfigFormProps, 'onOpenChange'>) {
-  // Email is the tall one: SMTP host, port, credentials and a from-address do
-  // not fit the others' height, so it alone scrolls inside the viewport.
-  const isEmail = provider === 'email';
+  // Custom Webhook lays itself out in three bands — header, scrolling fields,
+  // actions — so the shell hands it the height and gets out of the way: no
+  // padding, no gap, and the popup is a column rather than the default grid.
+  // Email is only tall, not banded, so it still scrolls as one piece.
+  const banded = provider === 'custom_webhook';
+  const tall = provider === 'email';
 
   return (
     <Dialog open={provider !== null} onOpenChange={onOpenChange}>
       <DialogContent
-        className={
-          isEmail ? 'sm:max-w-lg max-h-[90vh] overflow-y-auto' : 'sm:max-w-lg'
-        }
+        className={cn(
+          'sm:max-w-lg',
+          banded && 'flex max-h-[85dvh] flex-col gap-0 p-0',
+          tall && 'max-h-[90dvh] overflow-y-auto',
+        )}
       >
         <ConfigForm
           // Remounts when the dialog switches to another integration, so each
@@ -72,6 +79,8 @@ function ConfigForm({
       return <EmailForm {...props} />;
     case 'webhook':
       return <WebhookForm {...props} />;
+    case 'custom_webhook':
+      return <CustomWebhookForm {...props} />;
     default:
       // Closed, or a provider this build cannot configure. Rendering nothing
       // keeps the shell mounted so Base UI can play its close animation.

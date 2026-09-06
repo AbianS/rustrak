@@ -1,0 +1,206 @@
+# Message body template
+
+The Custom Webhook integration sends a request body that you write. This page
+is the reference for that field: what you can put in it, what the editor does
+for you, and what the server checks before it lets you save.
+
+The short version: write the JSON your endpoint expects, and where a value
+should come from the alert, insert a field with `{{ … }}`.
+
+```json
+{
+  "text": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ")") | tojson }}
+}
+```
+
+## The editor
+
+The body field is a small JSON editor rather than a plain text box.
+
+| What | How it works |
+|---|---|
+| **Completion** | Type `{{` and start a field name. The list shows every field of the alert payload with a short description; accepting one inserts it already escaped. |
+| **Errors** | A body that would not render is underlined where it breaks, with the reason on hover and a marker in the gutter. Nothing is saved while it is broken. |
+| **Format** (the wand) | Re-indents the body the way you would write JSON by hand. It leaves a half-written body alone rather than mangling it. |
+| **Line numbers** | So an error that says "line 4" means something. |
+
+Errors come from the same renderer that sends your alerts, so if the editor is
+quiet, the body renders.
+
+## Fields
+
+The context is the alert payload. Every field below is available:
+
+| Field | Type | What it holds |
+|---|---|---|
+| `issue.title` | string | The error title |
+| `issue.short_id` | string | Human-readable issue id, e.g. `CHECKOUT-API-14` |
+| `issue.level` | string or null | `error`, `warning`, `info`, … or absent |
+| `issue.event_count` | number | How many times it has happened |
+| `issue.id` | string | Internal issue id |
+| `issue.first_seen` | timestamp | When it was first seen |
+| `issue.last_seen` | timestamp | When it was last seen |
+| `issue_url` | string | Link to the issue in Rustrak |
+| `project.name` | string | The project name |
+| `project.slug` | string | The project slug |
+| `project.id` | number | Internal project id |
+| `alert_type` | string | What triggered the alert |
+| `alert_id` | string | Id of this delivery |
+| `triggered_at` | timestamp | When the alert fired |
+| `actor` | string | Who sent it, always `Rustrak` |
+
+## Writing expressions
+
+The template language is [Minijinja](https://docs.rs/minijinja), a Jinja2
+dialect. Three things cover almost every body.
+
+**Insert a value.** Always through `| tojson`, which wraps the value in quotes
+and escapes what is inside them:
+
+```json
+{ "text": {{ issue.title | tojson }} }
+```
+
+**Join text together** with `~`, then escape the whole thing once:
+
+```json
+{ "text": {{ ("[" ~ project.name ~ "] " ~ issue.title) | tojson }} }
+```
+
+**Give an optional field a fallback.** `issue.level` can be absent, and
+interpolated bare it prints the template engine's word for that:
+
+```json
+{ "level": {{ (issue.level or "unknown") | tojson }} }
+```
+
+Conditionals and loops work too, though a message rarely needs them:
+
+```json
+{ "text": {{ ("New" if issue.event_count == 1 else "Recurring") | tojson }} }
+```
+
+## Best practices
+
+**Always use `| tojson` on anything from the payload.** An error title is
+arbitrary text. The moment one contains a quote, a body written without it
+stops being valid JSON and the alert is not delivered:
+
+```json
+// Breaks on a title like: He said "boom"
+{ "text": "{{ issue.title }}" }
+
+// Correct
+{ "text": {{ issue.title | tojson }} }
+```
+
+**Put `issue_url` in the message.** A notification that says something broke
+without saying where costs someone a search.
+
+**Keep it short.** Chat clients truncate, and the detail is one click away
+behind `issue_url`.
+
+**Give every optional field a fallback**, so an alert missing one still reads
+as a sentence.
+
+**Press Test after saving.** The result shows the response your endpoint
+actually returned, which is the only way to see a service that answers `200`
+while refusing the message.
+
+## Limits
+
+A template runs on the notification worker once per delivery, so it is bounded:
+
+| Limit | Value | What happens past it |
+|---|---|---|
+| Rendered body | 1 MiB | The delivery fails with that reason; nothing is sent |
+| Render budget | 500,000 instructions | Same. A template that wants more is not formatting an alert |
+| Response body read | 64 KiB | The delivery is recorded as failed rather than buffering it |
+
+Saving is checked too: the body is rendered against a sample payload, once with
+every field populated and once with `issue.level` absent. If either render
+fails, the integration is not saved, so a broken template cannot sit waiting
+for a real incident.
+
+## Examples
+
+These are starting points, not a supported list. Any endpoint that accepts
+JSON works the same way.
+
+**Mattermost, or any Slack-compatible incoming webhook**
+
+```json
+{
+  "text": {{ ("*" ~ issue.title ~ "* (" ~ issue.short_id ~ ")\n" ~ issue_url) | tojson }}
+}
+```
+
+**Discord**
+
+```json
+{
+  "content": {{ (issue.title ~ " — " ~ issue_url) | tojson }}
+}
+```
+
+**A structured internal API**
+
+```json
+{
+  "source": "rustrak",
+  "severity": {{ (issue.level or "error") | tojson }},
+  "title": {{ issue.title | tojson }},
+  "url": {{ issue_url | tojson }},
+  "occurrences": {{ issue.event_count }},
+  "project": {{ project.slug | tojson }}
+}
+```
+
+**WeCom group bot** (企业微信)
+
+```json
+{
+  "msgtype": "text",
+  "text": {
+    "content": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+  }
+}
+```
+
+**DingTalk group bot** (钉钉) takes the same shape. Its `access_token` goes in
+the URL, so paste the full URL from the bot settings into **Webhook URL**.
+
+**Feishu / Lark group bot** (飞书) uses `msg_type`, not `msgtype`:
+
+```json
+{
+  "msg_type": "text",
+  "content": {
+    "text": {{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}
+  }
+}
+```
+
+## Troubleshooting
+
+**"Rendered template is not valid JSON"** — the body rendered, but the result
+is not JSON. Almost always a value inserted without `| tojson`, or a missing
+comma. The underline points at the character where parsing stopped.
+
+**"Invalid template syntax"** — the body is not a valid template at all: an
+unclosed `{{`, or a `{%` block with no end.
+
+**"Template is too complex to render"** — the render budget ran out, usually a
+loop over something large. Alert messages do not need one.
+
+**The alert says it was delivered but nothing arrived** — delivery is judged by
+the HTTP status, and some services answer `200` while refusing the message.
+Press **Test** and read what came back.
+
+## Notes
+
+- The **Webhook URL** is optional here. An alert rule can supply its own, which
+  is how one integration can post to several destinations.
+- A **signing secret** adds an `X-Rustrak-Signature` header, `sha256=` followed
+  by the HMAC-SHA256 of `timestamp.body`. Verify it the same way as the plain
+  [Webhook](/usage/alerts#webhook).

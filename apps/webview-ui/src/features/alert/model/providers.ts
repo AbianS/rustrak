@@ -37,4 +37,10 @@ export const alertProviders: {
     descriptionKey: 'providers.webhook.description',
     color: 'bg-orange-600',
   },
+  {
+    type: 'custom_webhook',
+    name: 'Custom Webhook',
+    descriptionKey: 'providers.customWebhook.description',
+    color: 'bg-emerald-600',
+  },
 ];
