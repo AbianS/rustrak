@@ -26,12 +26,9 @@ pub struct SlackNotifier {
 impl SlackNotifier {
     /// Creates a new Slack notifier
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { client }
+        Self {
+            client: super::shared_http_client().clone(),
+        }
     }
 
     /// Escapes special Slack markdown characters

@@ -553,7 +553,8 @@
       "botTokenPrefix": "Bot token 必须以 xoxb- 开头",
       "smtpHostRequired": "必须填写 SMTP 主机",
       "validEmail": "请输入有效的邮箱地址",
-      "templateRequired": "模板不能为空"
+      "templateRequired": "模板不能为空",
+      "responseCheckInvalid": "请从列表中选择一种响应校验"
     },
     "routing": {
       "slackChannelRequired": "必须为 “{name}” 指定 Slack 频道",
@@ -636,6 +637,15 @@
         "dingtalkText": "钉钉 text",
         "feishuText": "飞书 text"
       },
+      "responseCheckLabel": "响应校验",
+      "responseCheckDescription": "群机器人即使拒收消息也会返回 HTTP 200，真正的结果放在响应体里。指明平台，被拒的消息才会记为投递失败。其他任何端点保持\"仅 HTTP 状态码\"，此时完全不读取响应体。",
+      "responseChecks": {
+        "status_only": "仅 HTTP 状态码",
+        "wecom": "企业微信机器人（errcode）",
+        "dingtalk": "钉钉机器人（errcode）",
+        "feishu": "飞书机器人（code）"
+      },
+      "fieldResponseCheck": "该响应校验",
       "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
       "create": "创建自定义 Webhook",
       "fieldTemplate": "该模板",

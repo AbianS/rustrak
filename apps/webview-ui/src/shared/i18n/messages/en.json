@@ -553,7 +553,8 @@
       "botTokenPrefix": "Bot token must start with xoxb-",
       "smtpHostRequired": "SMTP host is required",
       "validEmail": "Please enter a valid email",
-      "templateRequired": "Template is required"
+      "templateRequired": "Template is required",
+      "responseCheckInvalid": "Pick a response check from the list"
     },
     "routing": {
       "slackChannelRequired": "Slack channel is required for \"{name}\"",
@@ -636,6 +637,15 @@
         "dingtalkText": "DingTalk text",
         "feishuText": "Feishu text"
       },
+      "responseCheckLabel": "Response check",
+      "responseCheckDescription": "Group bots answer HTTP 200 even when they reject a message, and put the real result in the body. Name the platform so a rejection is recorded as a failed delivery. Leave it on HTTP status only for any other endpoint: its response body is then not read at all.",
+      "responseChecks": {
+        "status_only": "HTTP status only",
+        "wecom": "WeCom bot (errcode)",
+        "dingtalk": "DingTalk bot (errcode)",
+        "feishu": "Feishu bot (code)"
+      },
+      "fieldResponseCheck": "That response check",
       "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
       "create": "Create Custom Webhook",
       "fieldTemplate": "That template",

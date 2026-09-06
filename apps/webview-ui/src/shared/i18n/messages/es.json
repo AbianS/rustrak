@@ -553,7 +553,8 @@
       "botTokenPrefix": "El token de bot debe empezar por xoxb-",
       "smtpHostRequired": "El host SMTP es obligatorio",
       "validEmail": "Introduce un correo electrónico válido",
-      "templateRequired": "La plantilla es obligatoria"
+      "templateRequired": "La plantilla es obligatoria",
+      "responseCheckInvalid": "Elige una comprobacion de respuesta de la lista"
     },
     "routing": {
       "slackChannelRequired": "Se requiere un canal de Slack para «{name}»",
@@ -636,6 +637,15 @@
         "dingtalkText": "DingTalk texto",
         "feishuText": "Feishu texto"
       },
+      "responseCheckLabel": "Comprobacion de respuesta",
+      "responseCheckDescription": "Los bots de grupo responden HTTP 200 incluso cuando rechazan un mensaje, y ponen el resultado real en el cuerpo. Indica la plataforma para que un rechazo quede registrado como entrega fallida. Dejalo en solo estado HTTP para cualquier otro endpoint: entonces su cuerpo de respuesta no se lee.",
+      "responseChecks": {
+        "status_only": "Solo estado HTTP",
+        "wecom": "Bot de WeCom (errcode)",
+        "dingtalk": "Bot de DingTalk (errcode)",
+        "feishu": "Bot de Feishu (code)"
+      },
+      "fieldResponseCheck": "Esa comprobacion de respuesta",
       "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
       "create": "Crear webhook personalizado",
       "fieldTemplate": "Esa plantilla",

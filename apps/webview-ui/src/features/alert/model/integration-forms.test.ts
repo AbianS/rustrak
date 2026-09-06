@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Translate } from '@/shared/lib/error-copy';
-import { customWebhookFormSchema, slackFormSchema } from './integration-forms';
+import {
+  customWebhookDefaults,
+  customWebhookFormSchema,
+  slackFormSchema,
+} from './integration-forms';
 
 /** The key, so a test asserts which reason was given rather than its copy. */
 const t: Translate = (key) => key;
@@ -139,6 +143,7 @@ const customWebhook = (over: Record<string, unknown>) => ({
   url: 'https://oapi.dingtalk.com/robot/send',
   secret: '',
   template: '{"msgtype":"text"}',
+  response_check: 'status_only',
   is_enabled: true,
   ...over,
 });
@@ -164,5 +169,47 @@ describe('customWebhookFormSchema', () => {
       'url',
       'validation.validHttpUrl',
     ]);
+  });
+  it('accepts every response check the server knows', () => {
+    for (const check of ['status_only', 'wecom', 'dingtalk', 'feishu']) {
+      expect(firstCwIssue(customWebhook({ response_check: check }))).toBeNull();
+    }
+  });
+
+  it('rejects a response check the server would not understand', () => {
+    const issue = firstCwIssue(customWebhook({ response_check: 'telegram' }));
+    expect(issue?.[0]).toBe('response_check');
+  });
+});
+
+describe('customWebhookDefaults', () => {
+  it('judges by HTTP status when the integration names no platform', () => {
+    // Integrations saved before the check existed carry no such field; the
+    // form must not silently switch them to reading response bodies.
+    expect(
+      customWebhookDefaults({
+        id: 1,
+        name: 'Legacy',
+        provider_type: 'custom_webhook',
+        credentials: { url: 'https://example.test/h', template: '{}' },
+        is_enabled: true,
+      } as never).response_check,
+    ).toBe('status_only');
+  });
+
+  it('seeds the platform an existing integration declared', () => {
+    expect(
+      customWebhookDefaults({
+        id: 1,
+        name: 'WeCom',
+        provider_type: 'custom_webhook',
+        credentials: {
+          url: 'https://example.test/h',
+          template: '{}',
+          response_check: 'wecom',
+        },
+        is_enabled: true,
+      } as never).response_check,
+    ).toBe('wecom');
   });
 });

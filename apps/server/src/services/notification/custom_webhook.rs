@@ -23,7 +23,9 @@ use chrono::Utc;
 use super::webhook::WebhookNotifier;
 use super::{NotificationDispatcher, NotificationResult};
 use crate::error::{AppError, AppResult};
-use crate::models::{AlertIntegration, AlertPayload, CustomWebhookConfig, WebhookRoutingOverride};
+use crate::models::{
+    AlertIntegration, AlertPayload, BotResponseCheck, CustomWebhookConfig, WebhookRoutingOverride,
+};
 
 /// Custom webhook notification dispatcher
 pub struct CustomWebhookNotifier {
@@ -36,26 +38,58 @@ pub struct CustomWebhookNotifier {
 /// notification worker.
 const MAX_RESPONSE_BODY_BYTES: u64 = 64 * 1024;
 
-/// Shared HTTP client for every dispatcher. Built once process-wide so each
-/// delivery reuses the connection pool and TLS session instead of building a
-/// fresh client per notification. Construction only fails on untenable TLS
-/// config, so a build error falls back to a default client rather than
-/// panicking on the request path.
-fn shared_client() -> &'static reqwest::Client {
-    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
-    CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .unwrap_or_else(|_| reqwest::Client::new())
-    })
+/// Upper bound for the body a template may render. Generous next to any bot
+/// message, small next to what an unbounded loop produces; the writer stops at
+/// it so the bytes past the bound are never allocated.
+const MAX_RENDERED_BODY_BYTES: usize = 1024 * 1024;
+
+/// Instruction budget for one render. A preset costs a few dozen; a loop over
+/// a hundred issues with formatting costs thousands. A template that wants
+/// more than this is not formatting an alert.
+const RENDER_FUEL: u64 = 500_000;
+
+/// A sink that refuses to grow past `limit`, so a runaway template fails at
+/// the bound instead of allocating whatever it decided to produce.
+struct LimitedWriter {
+    buffer: Vec<u8>,
+    limit: usize,
+}
+
+impl LimitedWriter {
+    fn new(limit: usize) -> Self {
+        Self {
+            buffer: Vec::new(),
+            limit,
+        }
+    }
+
+    fn into_inner(self) -> Vec<u8> {
+        self.buffer
+    }
+}
+
+impl std::io::Write for LimitedWriter {
+    fn write(&mut self, chunk: &[u8]) -> std::io::Result<usize> {
+        if self.buffer.len() + chunk.len() > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "rendered body exceeds the configured limit",
+            ));
+        }
+        self.buffer.extend_from_slice(chunk);
+        Ok(chunk.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl CustomWebhookNotifier {
     /// Creates a new custom webhook notifier
     pub fn new() -> Self {
         Self {
-            client: shared_client().clone(),
+            client: super::shared_http_client().clone(),
         }
     }
 
@@ -90,18 +124,84 @@ impl CustomWebhookNotifier {
 
     /// Renders the template against the payload and returns the normalised
     /// JSON body bytes, or a human-readable failure reason.
+    ///
+    /// Two guards bound the work, because a template is user input that runs
+    /// on the notification worker once per delivery. Fuel stops a template
+    /// that burns instructions without producing output (minijinja bounds a
+    /// single `range()`, not the product of two nested ones), and the writer
+    /// stops one that produces output faster than it spends fuel, before the
+    /// bytes are ever allocated.
     fn render_body(template: &str, payload: &AlertPayload) -> Result<Vec<u8>, String> {
-        let mut env = minijinja::Environment::new();
-        env.add_template("body", template)
-            .map_err(|e| format!("Invalid template: {e}"))?;
-        let rendered = env
-            .get_template("body")
+        let env = Self::template_env(template)?;
+        let mut rendered = LimitedWriter::new(MAX_RENDERED_BODY_BYTES);
+        env.get_template("body")
             .map_err(|e| format!("Invalid template: {e}"))?
-            .render(payload)
-            .map_err(|e| format!("Template rendering failed: {e}"))?;
-        let value: serde_json::Value = serde_json::from_str(&rendered)
+            .render_captured_to(payload, &mut rendered)
+            .map_err(|e| Self::describe_render_error(&e))?;
+        let value: serde_json::Value = serde_json::from_slice(&rendered.into_inner())
             .map_err(|e| format!("Rendered template is not valid JSON: {e}"))?;
         serde_json::to_vec(&value).map_err(|e| format!("Failed to serialize payload: {e}"))
+    }
+
+    /// The environment every render and every save-time check uses, so the
+    /// limits cannot drift between validation and delivery.
+    fn template_env(template: &str) -> Result<minijinja::Environment<'_>, String> {
+        let mut env = minijinja::Environment::new();
+        env.set_fuel(Some(RENDER_FUEL));
+        env.add_template("body", template)
+            .map_err(|e| format!("Invalid template: {e}"))?;
+        Ok(env)
+    }
+
+    /// Turns a render failure into a reason a dashboard can show. The byte cap
+    /// surfaces as an io error wrapped by minijinja, and exhausted fuel as
+    /// minijinja's own error; both are the template asking for too much, so
+    /// both are reported as such rather than as an engine internal.
+    fn describe_render_error(error: &minijinja::Error) -> String {
+        if error.kind() == minijinja::ErrorKind::WriteFailure {
+            return format!("Rendered body exceeds the {MAX_RENDERED_BODY_BYTES}-byte limit");
+        }
+        if error.kind() == minijinja::ErrorKind::OutOfFuel {
+            return "Template is too complex to render within the instruction budget".to_string();
+        }
+        format!("Template rendering failed: {error}")
+    }
+
+    /// The payloads `validate_config` renders against: one with every field
+    /// populated, one with the optional issue level absent. Kept beside the
+    /// dispatcher so save-time validation and delivery always agree on the
+    /// context shape.
+    fn validation_samples() -> [AlertPayload; 2] {
+        let now = Utc::now();
+        let full = AlertPayload {
+            alert_id: "00000000-0000-0000-0000-000000000000".to_string(),
+            alert_type: "new_issue".to_string(),
+            triggered_at: now,
+            project: crate::models::ProjectInfo {
+                id: 1,
+                name: "Sample Project".to_string(),
+                slug: "sample-project".to_string(),
+            },
+            issue: crate::models::IssueInfo {
+                id: "00000000-0000-0000-0000-000000000000".to_string(),
+                short_id: "SAMPLE-1".to_string(),
+                title: "Sample issue".to_string(),
+                level: Some("error".to_string()),
+                first_seen: now,
+                last_seen: now,
+                event_count: 1,
+            },
+            issue_url: "https://rustrak.example/issues/sample".to_string(),
+            actor: "Rustrak".to_string(),
+        };
+        let without_level = AlertPayload {
+            issue: crate::models::IssueInfo {
+                level: None,
+                ..full.issue.clone()
+            },
+            ..full.clone()
+        };
+        [full, without_level]
     }
 
     /// Reads the response body with a hard cap. `Response::text()` buffers
@@ -134,37 +234,31 @@ fn response_status_is_success(status: u16) -> bool {
 
 /// A rejection hidden inside a bot's 2xx response body, or `None`.
 ///
-/// The platforms this provider exists for signal with `errcode` (WeCom,
-/// DingTalk), `StatusCode` (Feishu legacy envelope) or a top-level `code`
-/// (Feishu current envelope). An explicit platform success marker wins the
-/// interpretation: a body carrying `errcode`/`StatusCode` of zero is accepted
-/// without reading any generic `code`, because arbitrary APIs use that field
-/// for their own business status. Bare `code` is therefore only treated as a
-/// rejection when it is neither zero nor an HTTP-success echo (200..=299),
-/// which covers the `{"code":200,"message":"OK"}` convention without letting
-/// Feishu's 9499/11232-style failures through as successes.
-fn bot_error_in_body(body: &str) -> Option<String> {
+/// Only the envelope the integration named is read, so a non-zero value in a
+/// field this platform does not use is not a verdict. `StatusOnly` reads
+/// nothing at all. A body that is not JSON, or that carries none of the
+/// envelope's fields, is a success: the bot answered, and this dispatcher has
+/// no contract that says otherwise.
+fn bot_error_in_body(check: BotResponseCheck, body: &str) -> Option<String> {
+    // `(code field, reason field)`, most specific envelope first.
+    let envelopes: &[(&str, &str)] = match check {
+        BotResponseCheck::StatusOnly => return None,
+        BotResponseCheck::Wecom | BotResponseCheck::Dingtalk => &[("errcode", "errmsg")],
+        BotResponseCheck::Feishu => &[("code", "msg"), ("StatusCode", "StatusMessage")],
+    };
     let value: serde_json::Value = serde_json::from_str(body).ok()?;
-    for (field, reason) in [("errcode", "errmsg"), ("StatusCode", "StatusMessage")] {
-        if let Some(code) = value.get(field).and_then(|v| v.as_i64()) {
-            if code != 0 {
-                let reason = value
-                    .get(reason)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("rejected");
-                return Some(format!("bot returned {field}={code}: {reason}"));
-            }
+    for (code_field, reason_field) in envelopes {
+        let Some(code) = value.get(code_field).and_then(|v| v.as_i64()) else {
+            continue;
+        };
+        if code == 0 {
             return None;
         }
-    }
-    if let Some(code) = value.get("code").and_then(|v| v.as_i64()) {
-        if code != 0 && !(200..=299).contains(&code) {
-            let reason = value
-                .get("msg")
-                .and_then(|v| v.as_str())
-                .unwrap_or("rejected");
-            return Some(format!("bot returned code={code}: {reason}"));
-        }
+        let reason = value
+            .get(reason_field)
+            .and_then(|v| v.as_str())
+            .unwrap_or("rejected");
+        return Some(format!("bot returned {code_field}={code}: {reason}"));
     }
     None
 }
@@ -281,7 +375,8 @@ impl NotificationDispatcher for CustomWebhookNotifier {
                 // field names below are specific to those platforms' bot APIs,
                 // so an arbitrary endpoint that ignores the payload and returns
                 // `200` with an unrelated body is still treated as success.
-                if let Some(rejection) = bot_error_in_body(&error_body) {
+                if let Some(rejection) = bot_error_in_body(credentials.response_check, &error_body)
+                {
                     return NotificationResult::failure(
                         format!("HTTP {}: {}", status, rejection),
                         Some(status),
@@ -312,10 +407,20 @@ impl NotificationDispatcher for CustomWebhookNotifier {
             return Err(AppError::Validation("Template cannot be empty".to_string()));
         }
 
-        // Compile check: surface syntax errors at save time, not delivery time.
-        let mut env = minijinja::Environment::new();
-        env.add_template("body", &config.template)
+        // Compile check first, so a syntax error reads as one rather than as a
+        // render failure.
+        Self::template_env(&config.template)
             .map_err(|e| AppError::Validation(format!("Invalid template syntax: {}", e)))?;
+
+        // Then render it, because compiling proves nothing about the output.
+        // The common mistake is a bare interpolation in a value position: valid
+        // syntax, never valid JSON, and before this it only surfaced when a
+        // real incident fired. Both samples must render, so a template that
+        // holds together only while an optional field is present is caught too.
+        for sample in Self::validation_samples() {
+            Self::render_body(&config.template, &sample)
+                .map_err(|e| AppError::Validation(format!("Template check failed: {e}")))?;
+        }
 
         Ok(())
     }
@@ -458,8 +563,66 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
+    // Render limits
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_render_aborts_a_template_that_burns_cpu_without_output() {
+        // Nested ranges: minijinja bounds a single range() but not the product
+        // of two, so the only guard is fuel. Unguarded this renders ~1 MB of
+        // "x" through a million iterations; the point is that it stops.
+        let template = r#"{"a":"{% for i in range(1000) %}{% for j in range(1000) %}x{% endfor %}{% endfor %}"}"#;
+        let err = CustomWebhookNotifier::render_body(template, &create_test_payload())
+            .map(|b| b.len())
+            .expect_err("an unbounded template must not render");
+        assert!(
+            err.contains("too complex"),
+            "the failure must name the resource limit, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_render_aborts_a_template_whose_body_exceeds_the_cap() {
+        // Cheap in instructions, enormous in bytes: fuel alone would let this
+        // through, so the byte cap is what stops it.
+        let filler = "x".repeat(4096);
+        let template = format!(r#"{{"a":"{{% for i in range(1000) %}}{filler}{{% endfor %}}"}}"#);
+        let err = CustomWebhookNotifier::render_body(&template, &create_test_payload())
+            .map(|b| b.len())
+            .expect_err("a body past the cap must not render");
+        assert!(
+            err.contains("exceeds"),
+            "the failure must name the size limit, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_render_limits_leave_a_realistic_template_alone() {
+        // The guards must not fire on the kind of template the feature exists
+        // for: a loop with formatting, well inside both bounds.
+        let template = r#"{"lines":[{% for i in range(50) %}{{ (issue.title ~ i) | tojson }}{% if not loop.last %},{% endif %}{% endfor %}]}"#;
+        let body = CustomWebhookNotifier::render_body(template, &create_test_payload())
+            .expect("a legitimate loop must render");
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(parsed["lines"].as_array().unwrap().len(), 50);
+    }
+
+    // -------------------------------------------------------------------------
     // Bot rejection hidden in a 2xx body
     // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_status_only_is_the_default_and_ignores_the_response_body() {
+        // Arbitrary APIs reuse `code` and even `errcode` for their own
+        // business status. An integration that did not name a platform must
+        // judge by the HTTP status alone, or a delivered alert is recorded
+        // as failed.
+        let check = BotResponseCheck::default();
+        assert_eq!(check, BotResponseCheck::StatusOnly);
+        assert!(bot_error_in_body(check, r#"{"code":1,"msg":"ok"}"#).is_none());
+        assert!(bot_error_in_body(check, r#"{"errcode":93000,"errmsg":"nope"}"#).is_none());
+        assert!(bot_error_in_body(check, r#"{"StatusCode":9499}"#).is_none());
+    }
 
     #[test]
     fn test_status_is_success_matches_2xx() {
@@ -471,19 +634,29 @@ mod tests {
 
     #[test]
     fn test_wecom_dingtalk_errcode_detected() {
-        assert!(bot_error_in_body(r#"{"errcode":0,"errmsg":"ok"}"#).is_none());
         assert!(
-            bot_error_in_body(r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#)
-                .unwrap()
-                .contains("93000")
+            bot_error_in_body(BotResponseCheck::Wecom, r#"{"errcode":0,"errmsg":"ok"}"#).is_none()
         );
+        assert!(bot_error_in_body(
+            BotResponseCheck::Wecom,
+            r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#
+        )
+        .unwrap()
+        .contains("93000"));
     }
 
     #[test]
     fn test_feishu_statuscode_detected() {
-        assert!(bot_error_in_body(r#"{"StatusCode":0,"StatusMessage":"success"}"#).is_none());
-        let msg = bot_error_in_body(r#"{"StatusCode":9499,"StatusMessage":"Bad Request"}"#)
-            .expect("non-zero StatusCode is a rejection");
+        assert!(bot_error_in_body(
+            BotResponseCheck::Feishu,
+            r#"{"StatusCode":0,"StatusMessage":"success"}"#
+        )
+        .is_none());
+        let msg = bot_error_in_body(
+            BotResponseCheck::Feishu,
+            r#"{"StatusCode":9499,"StatusMessage":"Bad Request"}"#,
+        )
+        .expect("non-zero StatusCode is a rejection");
         assert!(msg.contains("StatusCode=9499"), "got: {msg}");
         assert!(msg.contains("Bad Request"), "got: {msg}");
     }
@@ -492,28 +665,44 @@ mod tests {
     fn test_non_bot_bodies_are_not_misread_as_rejection() {
         // A generic endpoint returning 200 with unrelated content stays success:
         // not JSON, or JSON without the platform-specific codes.
-        assert!(bot_error_in_body("").is_none());
-        assert!(bot_error_in_body("ok").is_none());
-        assert!(bot_error_in_body(r#"{"status":"queued"}"#).is_none());
-        assert!(bot_error_in_body(r#"{"errcode":0,"code":42}"#).is_none());
+        assert!(bot_error_in_body(BotResponseCheck::Wecom, "").is_none());
+        assert!(bot_error_in_body(BotResponseCheck::Wecom, "ok").is_none());
+        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"status":"queued"}"#).is_none());
+        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"errcode":0,"code":42}"#).is_none());
     }
 
     #[test]
     fn test_feishu_current_envelope_code_detected() {
         // Feishu's newer envelope signals only through the top-level `code`.
-        let msg = bot_error_in_body(r#"{"code":11232,"msg":"trigger frequency limit","data":{}}"#)
-            .expect("non-zero code without a platform success marker is a rejection");
+        let msg = bot_error_in_body(
+            BotResponseCheck::Feishu,
+            r#"{"code":11232,"msg":"trigger frequency limit","data":{}}"#,
+        )
+        .expect("a non-zero code is a Feishu rejection");
         assert!(msg.contains("code=11232"), "got: {msg}");
         assert!(msg.contains("frequency"), "got: {msg}");
-        assert!(bot_error_in_body(r#"{"code":0,"msg":"success","data":{}}"#).is_none());
+        assert!(bot_error_in_body(
+            BotResponseCheck::Feishu,
+            r#"{"code":0,"msg":"success","data":{}}"#
+        )
+        .is_none());
     }
 
     #[test]
-    fn test_http_echo_code_is_not_a_rejection() {
-        // Generic APIs reuse `code` for an echoed HTTP status; 2xx means OK
-        // there, so the band must not read as a bot failure.
-        assert!(bot_error_in_body(r#"{"code":200,"message":"OK"}"#).is_none());
-        assert!(bot_error_in_body(r#"{"code":204}"#).is_none());
+    fn test_a_named_platform_reads_only_its_own_envelope() {
+        // The band that let `{"code":200}` pass existed only because the
+        // check ran against every endpoint. Scoped to a platform, `code` is
+        // Feishu's and non-zero means rejected, while WeCom never reads it.
+        assert!(bot_error_in_body(BotResponseCheck::Feishu, r#"{"code":200}"#).is_some());
+        assert!(bot_error_in_body(BotResponseCheck::Wecom, r#"{"code":200}"#).is_none());
+        assert!(bot_error_in_body(BotResponseCheck::Dingtalk, r#"{"code":11232}"#).is_none());
+        // DingTalk shares WeCom's envelope, so it must share the verdict.
+        let msg = bot_error_in_body(
+            BotResponseCheck::Dingtalk,
+            r#"{"errcode":310000,"errmsg":"keywords not in content"}"#,
+        )
+        .expect("DingTalk rejections ride on errcode");
+        assert!(msg.contains("errcode=310000"), "got: {msg}");
     }
 
     // -------------------------------------------------------------------------
@@ -528,7 +717,7 @@ mod tests {
     // needs r#### so the `"###` heading survives inside it.
     const PRESET_WECOM_MARKDOWN: &str = concat!(
         "{\"msgtype\":\"markdown\",\"markdown\":{\"content\":{{ (\"",
-        r####"### " ~ issue.title ~ "\n> Project: " ~ project.name ~ "\n> Level: " ~ issue.level ~ "\n> [View issue](" ~ issue_url ~ ")") | tojson }}}}"####,
+        r####"### " ~ issue.title ~ "\n> Project: " ~ project.name ~ "\n> Level: " ~ (issue.level or "unknown") ~ "\n> [View issue](" ~ issue_url ~ ")") | tojson }}}}"####,
     );
 
     const PRESET_DINGTALK_TEXT: &str = PRESET_WECOM_TEXT;
@@ -578,6 +767,30 @@ mod tests {
             "minijinja must unescape \\n so the JSON carries a real newline, got: {content:?}"
         );
         assert!(content.starts_with("### Test error"), "got: {content:?}");
+    }
+
+    #[test]
+    fn test_preset_markdown_names_a_missing_level_readably() {
+        // issue.level is optional. Interpolated bare, minijinja stringifies the
+        // absent value and the bot message reads "Level: None".
+        let payload = AlertPayload {
+            issue: IssueInfo {
+                level: None,
+                ..create_test_payload().issue
+            },
+            ..create_test_payload()
+        };
+        let parsed: serde_json::Value = serde_json::from_slice(
+            &CustomWebhookNotifier::render_body(PRESET_WECOM_MARKDOWN, &payload)
+                .expect("the preset must render without a level"),
+        )
+        .unwrap();
+        let content = parsed["markdown"]["content"].as_str().unwrap();
+        assert!(
+            !content.contains("None"),
+            "an absent level must not leak the engine's word for it, got: {content:?}"
+        );
+        assert!(content.contains("> Level: unknown"), "got: {content:?}");
     }
 
     #[test]
@@ -658,6 +871,59 @@ mod tests {
     }
 
     #[test]
+    fn test_validate_rejects_a_template_that_cannot_render_json() {
+        // Syntactically valid, never valid JSON: the classic mistake is a bare
+        // interpolation in a value position, without | tojson. Compiling the
+        // template does not catch it, so before this the integration saved
+        // fine and only failed when a real incident fired.
+        let notifier = CustomWebhookNotifier::new();
+        let err = notifier
+            .validate_config(&make_config(r#"{"a": {{ issue.title }}}"#, None))
+            .expect_err("a template that renders invalid JSON must be rejected at save time");
+        assert!(
+            err.to_string().contains("valid JSON"),
+            "the message must say what is wrong, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_validate_rejects_a_template_that_breaks_on_an_absent_optional_field() {
+        // issue.level is optional. A template that only produces JSON when it
+        // is present is broken for half the alerts, so validation renders an
+        // issue without a level too.
+        let notifier = CustomWebhookNotifier::new();
+        let err = notifier
+            .validate_config(&make_config(
+                r#"{"level":"{% if issue.level %}{{ issue.level }}{% endif %}"{% if issue.level %},"has_level":true{% endif %}}"#,
+                None,
+            ))
+            .map(|_| ());
+        assert!(
+            err.is_ok(),
+            "this one is valid JSON either way and must pass: {err:?}"
+        );
+        let err = notifier
+            .validate_config(&make_config(
+                r#"{"level":{% if issue.level %}{{ issue.level | tojson }}{% endif %}}"#,
+                None,
+            ))
+            .expect_err("a template invalid when level is absent must be rejected");
+        assert!(err.to_string().contains("valid JSON"), "got: {err}");
+    }
+
+    #[test]
+    fn test_validate_rejects_a_template_past_the_render_limits() {
+        let notifier = CustomWebhookNotifier::new();
+        let err = notifier
+            .validate_config(&make_config(
+                r#"{"a":"{% for i in range(1000) %}{% for j in range(1000) %}x{% endfor %}{% endfor %}"}"#,
+                None,
+            ))
+            .expect_err("the save-time check must apply the same limits as delivery");
+        assert!(err.to_string().contains("too complex"), "got: {err}");
+    }
+
+    #[test]
     fn test_validate_rejects_non_http_url() {
         let notifier = CustomWebhookNotifier::new();
         let err = notifier
@@ -689,6 +955,7 @@ mod tests {
             secret: None,
             headers: None,
             template: "{}".to_string(),
+            response_check: BotResponseCheck::StatusOnly,
         };
         assert_eq!(
             CustomWebhookNotifier::effective_url(&routing, &credentials),
@@ -707,6 +974,7 @@ mod tests {
             secret: None,
             headers: None,
             template: "{}".to_string(),
+            response_check: BotResponseCheck::StatusOnly,
         };
         assert_eq!(
             CustomWebhookNotifier::effective_url(&routing, &credentials),
@@ -850,6 +1118,7 @@ mod tests {
         let credentials = json!({
             "url": format!("http://{addr}/hook"),
             "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
+            "response_check": "wecom",
         });
         let integration = make_integration(credentials, true);
         let result = notifier
@@ -885,6 +1154,19 @@ mod tests {
         format!("http://{addr}/hook")
     }
 
+    /// An integration pointed at `url`, optionally declaring the response
+    /// envelope its endpoint speaks.
+    fn custom_integration_checking(url: String, check: &str) -> AlertIntegration {
+        make_integration(
+            json!({
+                "url": url,
+                "template": r#"{"msgtype":"text","text":{"content":"hi"}}"#,
+                "response_check": check,
+            }),
+            true,
+        )
+    }
+
     fn custom_integration(url: String) -> AlertIntegration {
         make_integration(
             json!({
@@ -910,7 +1192,11 @@ connection: close
         let url = raw_responder(response.into_bytes()).await;
         let notifier = CustomWebhookNotifier::new();
         let result = notifier
-            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .send(
+                &custom_integration_checking(url, "feishu"),
+                &json!({}),
+                &create_test_payload(),
+            )
             .await;
         assert!(
             !result.success,
@@ -920,6 +1206,50 @@ connection: close
             .error_message
             .unwrap_or_default()
             .contains("code=9499"));
+    }
+
+    #[tokio::test]
+    async fn test_generic_endpoint_business_code_is_still_a_delivery() {
+        // The regression this whole check exists to prevent: an integration
+        // that named no platform must not have its own `code` read as a
+        // rejection. Before the check became opt-in, every alert from an
+        // endpoint answering `{"code":1,"msg":"ok"}` was recorded as failed.
+        let body = r#"{"code":1,"msg":"ok"}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let url = raw_responder(response.into_bytes()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(
+            result.success,
+            "a generic 2xx must stay delivered: {:?}",
+            result.error_message
+        );
+    }
+
+    #[tokio::test]
+    async fn test_credentials_saved_before_the_check_existed_keep_delivering() {
+        // Rows written by the previous build carry no `response_check`. They
+        // must deserialise, and they must not start failing on a body that
+        // used to be ignored.
+        let body = r#"{"errcode":93000,"errmsg":"invalid webhook url"}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let url = raw_responder(response.into_bytes()).await;
+        let notifier = CustomWebhookNotifier::new();
+        let result = notifier
+            .send(&custom_integration(url), &json!({}), &create_test_payload())
+            .await;
+        assert!(
+            result.success,
+            "an integration with no declared platform judges by status alone"
+        );
     }
 
     #[tokio::test]
@@ -953,8 +1283,8 @@ connection: close
 
     #[tokio::test]
     async fn test_truncated_response_body_is_a_failure() {
-        // Declares 200 bytes, sends 10, then closes: `text()` errors, and a
-        // 2xx whose body cannot be inspected must not read as delivered.
+        // Declares 200 bytes, sends 10, then closes: the capped read errors,
+        // and a 2xx whose body cannot be inspected must not read as delivered.
         let response = b"HTTP/1.1 200 OK
 content-length: 200
 connection: close

@@ -72,9 +72,10 @@ pub use alert::{
     AlertRuleResponse,
     AlertStatus,
     AlertType,
+    // New types
+    BotResponseCheck,
     // Legacy aliases
     ChannelType,
-    // New types
     CreateAlertIntegration,
     CreateAlertRule,
     CreateNotificationChannel,

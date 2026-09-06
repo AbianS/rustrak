@@ -27,12 +27,9 @@ pub struct WebhookNotifier {
 impl WebhookNotifier {
     /// Creates a new webhook notifier
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .expect("Failed to create HTTP client");
-
-        Self { client }
+        Self {
+            client: super::shared_http_client().clone(),
+        }
     }
 
     /// Generates HMAC-SHA256 signature for webhook payload

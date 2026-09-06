@@ -94,25 +94,45 @@ Webhook integration is unchanged; Custom Webhook is its own provider.
    - **Body template**: your JSON template, or start from a preset button
      (WeCom text/markdown, DingTalk text, Feishu text)
    - **URL**: your bot endpoint (optional — a per-rule override can supply it)
+   - **Response check**: leave on HTTP status only unless the endpoint is a
+     WeCom, DingTalk or Feishu bot (see below)
    - **Secret** (optional): for the same HMAC header the plain Webhook sends
 4. Click **Create Custom Webhook**
 
-The rendered result must be valid JSON; if it is not, the delivery is recorded
-as a failure with the parse error, and nothing is sent. Template syntax errors
-are rejected when the integration is saved, not at alert time. A rejection the
-bot hides inside an HTTP 200 — a non-zero `errcode` (WeCom, DingTalk) or
-`code`/`StatusCode` (Feishu) in the response body — is also recorded as a
-failed delivery, and response bodies larger than 64 KiB are rejected rather
-than buffered.
+The rendered result must be valid JSON. That is checked when you save, not
+only when an alert fires: the template is rendered against a sample payload,
+once with every field populated and once with the issue level absent, and the
+integration is rejected if either render fails. Syntax errors are caught the
+same way.
 
-The rejection check looks for a non-zero `errcode`, `StatusCode`, or — for a
-bare top-level `code` — a value that is neither `0` nor an HTTP-success echo
-(`200`–`299`). That recognises the common `{"code":200,"message":"OK"}`
-convention without letting Feishu's rejections through, but it also means an
-arbitrary endpoint that answers a happy HTTP 200 with its own business `code`
-(for example `{"code":1,"msg":"ok"}`) is recorded as a failed delivery. For a
-non-bot endpoint, prefer a 2xx response body without a top-level
-`code`/`errcode` field.
+Rendering is bounded, because a template runs on the notification worker once
+per delivery. A template that spends more than the instruction budget, or whose
+body renders past 1 MiB, fails with that reason instead of running. Response
+bodies larger than 64 KiB are rejected rather than buffered, and a 2xx whose
+body cannot be read at all is recorded as a failure rather than assumed
+delivered.
+
+#### Response check
+
+By default a delivery is judged by the HTTP status alone, and the response body
+is not read. That is how a generic webhook behaves, and it is the right default
+for your own endpoint.
+
+Group bots do not behave that way: WeCom, DingTalk and Feishu answer `200` even
+when they reject a message and put the real outcome in the body. Set **Response
+check** to the platform so those rejections are recorded as failed deliveries
+instead of silently counting as sent. Picking a preset sets it for you.
+
+| Response check | What is read |
+|---|---|
+| HTTP status only (default) | Nothing. A 2xx is a delivery. |
+| WeCom bot | A non-zero `errcode`, described by `errmsg`. |
+| DingTalk bot | The same `errcode`/`errmsg` envelope. |
+| Feishu bot | A non-zero `code`/`msg`, or the legacy `StatusCode`/`StatusMessage`. |
+
+Only the envelope you named is read, so a field your own API happens to use for
+something else is never mistaken for a rejection. An endpoint answering
+`{"code":1,"msg":"ok"}` stays a delivery unless you selected the Feishu check.
 
 #### Template variables
 

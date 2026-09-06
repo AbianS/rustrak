@@ -12,7 +12,10 @@ import {
   customWebhookFormSchema,
 } from '@/features/alert/model/integration-forms';
 import {
+  RESPONSE_CHECKS,
+  type ResponseCheck,
   templatePlaceholder,
+  type WebhookPreset,
   webhookPresets,
 } from '@/features/alert/model/webhook-presets';
 import { useIntegrationSubmit } from '@/features/alert/ui/hooks/use-integration-submit';
@@ -32,6 +35,13 @@ import {
   FormRootError,
 } from '@/shared/ui/components/shadcn/form';
 import { Input } from '@/shared/ui/components/shadcn/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/components/shadcn/select';
 import { Textarea } from '@/shared/ui/components/shadcn/textarea';
 import { ConfigFooter } from '../fields/config-footer';
 import { EnabledField } from '../fields/enabled-field';
@@ -64,6 +74,7 @@ export function CustomWebhookForm({
         url: data.url,
         secret: data.secret,
         template: data.template,
+        response_check: data.response_check,
       }),
     fieldMap: CUSTOM_WEBHOOK_FIELD_MAP,
     labels: {
@@ -71,6 +82,7 @@ export function CustomWebhookForm({
       url: t('webhook.fieldUrl'),
       secret: t('webhook.fieldSecret'),
       template: t('customWebhook.fieldTemplate'),
+      response_check: t('customWebhook.fieldResponseCheck'),
     },
     messages: {
       saveFailed: t('customWebhook.saveFailed'),
@@ -83,11 +95,15 @@ export function CustomWebhookForm({
 
   const isLoading = isPending || parentPending;
 
-  const applyPreset = (template: string) => {
-    form.setValue('template', template, {
-      shouldValidate: true,
-      shouldDirty: true,
-    });
+  // A preset is one choice, not two: the body a platform expects and the reply
+  // it answers with belong together, so picking it sets both.
+  const applyPreset = (preset: WebhookPreset) => {
+    for (const [field, value] of [
+      ['template', preset.template],
+      ['response_check', preset.responseCheck],
+    ] as const) {
+      form.setValue(field, value, { shouldValidate: true, shouldDirty: true });
+    }
   };
 
   return (
@@ -124,7 +140,7 @@ export function CustomWebhookForm({
                       key={preset.id}
                       type="button"
                       disabled={isLoading}
-                      onClick={() => applyPreset(preset.template)}
+                      onClick={() => applyPreset(preset)}
                       className="rounded-md border border-input px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       {t(`customWebhook.presets.${preset.labelKey}`)}
@@ -164,6 +180,49 @@ export function CustomWebhookForm({
                   />
                 </FormControl>
                 <FormDescription>{t('webhook.urlDescription')}</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="response_check"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  {t('customWebhook.responseCheckLabel')}
+                </FormLabel>
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    if (value) field.onChange(value as ResponseCheck);
+                  }}
+                  disabled={isLoading}
+                >
+                  <FormControl>
+                    <SelectTrigger
+                      className="w-full"
+                      aria-label={t('customWebhook.responseCheckLabel')}
+                    >
+                      <SelectValue>
+                        {(value) =>
+                          t(`customWebhook.responseChecks.${value as string}`)
+                        }
+                      </SelectValue>
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {RESPONSE_CHECKS.map((check) => (
+                      <SelectItem key={check} value={check}>
+                        {t(`customWebhook.responseChecks.${check}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  {t('customWebhook.responseCheckDescription')}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

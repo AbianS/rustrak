@@ -553,7 +553,8 @@
       "botTokenPrefix": "Token-ul de bot trebuie să înceapă cu xoxb-",
       "smtpHostRequired": "Gazda SMTP este obligatorie",
       "validEmail": "Introdu un e-mail valid",
-      "templateRequired": "Șablonul este obligatoriu"
+      "templateRequired": "Șablonul este obligatoriu",
+      "responseCheckInvalid": "Alege o verificare a raspunsului din lista"
     },
     "routing": {
       "slackChannelRequired": "Canalul Slack este obligatoriu pentru „{name}”",
@@ -636,6 +637,15 @@
         "dingtalkText": "DingTalk text",
         "feishuText": "Feishu text"
       },
+      "responseCheckLabel": "Verificarea raspunsului",
+      "responseCheckDescription": "Botii de grup raspund HTTP 200 chiar si atunci cand resping un mesaj, iar rezultatul real ajunge in corp. Indica platforma pentru ca o respingere sa fie inregistrata ca livrare esuata. Lasa pe doar statusul HTTP pentru orice alt endpoint: corpul raspunsului nu mai este citit deloc.",
+      "responseChecks": {
+        "status_only": "Doar statusul HTTP",
+        "wecom": "Bot WeCom (errcode)",
+        "dingtalk": "Bot DingTalk (errcode)",
+        "feishu": "Bot Feishu (code)"
+      },
+      "fieldResponseCheck": "Aceasta verificare a raspunsului",
       "urlPlaceholder": "https://oapi.dingtalk.com/robot/send?access_token=...",
       "create": "Creează webhook personalizat",
       "fieldTemplate": "Acel șablon",

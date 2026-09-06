@@ -20,7 +20,27 @@ export interface WebhookPreset {
   /** Key under `alerts.customWebhook.presets`. */
   labelKey: string;
   template: string;
+  /**
+   * The response envelope this platform answers with. Picking a preset also
+   * picks it, because a body template and the reply it earns are one choice:
+   * a WeCom template posted to WeCom wants WeCom's `errcode` read.
+   */
+  responseCheck: ResponseCheck;
 }
+
+/**
+ * Which response envelope a delivery reads for a rejection hidden in a 2xx.
+ * Mirrors the server's `BotResponseCheck`; `status_only` is the default and
+ * means the body is not read at all, the way a generic webhook behaves.
+ */
+export type ResponseCheck = 'status_only' | 'wecom' | 'dingtalk' | 'feishu';
+
+export const RESPONSE_CHECKS: readonly ResponseCheck[] = [
+  'status_only',
+  'wecom',
+  'dingtalk',
+  'feishu',
+];
 
 /**
  * The textarea's placeholder: a minimal body, not copy. Held here rather
@@ -39,6 +59,7 @@ export const webhookPresets: readonly WebhookPreset[] = [
   {
     id: 'wecom_text',
     labelKey: 'wecomText',
+    responseCheck: 'wecom',
     template:
       '{"msgtype":"text","text":{"content":' +
       '{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}',
@@ -46,13 +67,15 @@ export const webhookPresets: readonly WebhookPreset[] = [
   {
     id: 'wecom_markdown',
     labelKey: 'wecomMarkdown',
+    responseCheck: 'wecom',
     template:
       '{"msgtype":"markdown","markdown":{"content":' +
-      '{{ ("### " ~ issue.title ~ "\\n> Project: " ~ project.name ~ "\\n> Level: " ~ issue.level ~ "\\n> [View issue](" ~ issue_url ~ ")") | tojson }}}}',
+      '{{ ("### " ~ issue.title ~ "\\n> Project: " ~ project.name ~ "\\n> Level: " ~ (issue.level or "unknown") ~ "\\n> [View issue](" ~ issue_url ~ ")") | tojson }}}}',
   },
   {
     id: 'dingtalk_text',
     labelKey: 'dingtalkText',
+    responseCheck: 'dingtalk',
     template:
       '{"msgtype":"text","text":{"content":' +
       '{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}',
@@ -60,6 +83,7 @@ export const webhookPresets: readonly WebhookPreset[] = [
   {
     id: 'feishu_text',
     labelKey: 'feishuText',
+    responseCheck: 'feishu',
     template:
       '{"msg_type":"text","content":{"text":' +
       '{{ ("Rustrak: " ~ issue.title ~ " (" ~ issue.short_id ~ ") " ~ issue_url) | tojson }}}}',

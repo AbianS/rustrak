@@ -105,7 +105,7 @@ reqwest = { version = "0.13.4", default-features = false, features = ["json", "r
 hmac = "0.13.0"
 
 # Template rendering for custom webhook bodies (minijinja: pure Rust, no codegen)
-minijinja = { version = "2", features = ["json"] }
+minijinja = { version = "2", features = ["json", "fuel"] }
 
 # URL parsing/validation
 url = "2.5.8"
